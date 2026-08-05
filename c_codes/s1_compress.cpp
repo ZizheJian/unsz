@@ -39,9 +39,9 @@ int main()
         printf("Compressing %s\n",original_data_path.c_str());
         param.compressed_data_path_vec.push_back(original_data_path+".unsz");
         param.decompressed_data_path_vec.push_back(original_data_path+".unsz.bin");
-        param.current_data.resize(param.node_num);
+        param.current_data.resize(param.point_num);
         FILE *f_data=fopen(original_data_path.c_str(),"rb");
-        fread(param.current_data.data(),sizeof(float),param.node_num,f_data);
+        fread(param.current_data.data(),sizeof(float),param.point_num,f_data);
         fclose(f_data);
         param.compress();
         FILE *f_compressed=fopen(param.compressed_data_path_vec.back().c_str(),"wb");

@@ -19,16 +19,16 @@ namespace unsz
 
         f_coord=fopen(coord_path.c_str(),"rb");
         fseek(f_coord,0,SEEK_END);
-        node_num=ftell(f_coord)/(dim*sizeof(T_coord));
-        printf("node_num=%d\n",node_num);
-        coord_array.resize(node_num,dim);
+        point_num=ftell(f_coord)/(dim*sizeof(T_coord));
+        printf("point_num=%d\n",point_num);
+        coord_array.resize(point_num,dim);
         fseek(f_coord,0,SEEK_SET);
-        fread((char*)coord_array.data.data(),sizeof(T_coord),node_num*dim,f_coord);
+        fread((char*)coord_array.data.data(),sizeof(T_coord),point_num*dim,f_coord);
         fclose(f_coord);
 
         min_coord.resize(dim,numeric_limits<T_coord>::infinity());
         max_coord.resize(dim,-numeric_limits<T_coord>::infinity());
-        for (int i=0;i<node_num;i++)
+        for (int i=0;i<point_num;i++)
             for (int d=0;d<dim;d++)
             {
                 max_coord[d]=max(max_coord[d],coord_array[i][d]);

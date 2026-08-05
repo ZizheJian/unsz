@@ -40,13 +40,22 @@ namespace unsz
     class block_tree_c
     {
         public:
-            vector<block_c<T_coord>> block_vec;
-            vector<int> original_id_to_point_id_on_tree;
-            vector<int> point_id_on_tree_to_original_id;
-            vector<int> point_id_on_tree_to_block_vec_id;
+            int dim=3;
 
-            block_tree_c(Array2D<T_coord> &coord_array,vector<T_coord> &min_coord,vector<T_coord> &max_coord);
+            vector<block_c<T_coord>> block_vec;
+            vector<int> original_id_to_tree_id;
+            vector<int> tree_id_to_original_id;
+            vector<int> original_id_to_block_vec_id;
+            vector<int> tree_id_to_block_vec_id;//没有block_vec_id_to_tree_id，因为叶节点有index_begin和index_end
+
             void split_block(Array2D<T_coord> &coord_array,int block_id);
+            block_tree_c(Array2D<T_coord> &coord_array,vector<T_coord> &min_coord,vector<T_coord> &max_coord);
+            T_coord get_dist_to_coord(T_coord *coord1,T_coord *coord2);
+            T_coord get_dist_to_block(T_coord *coord,block_c<T_coord> &block);
+            void update_all_valid_num(int block_id);
+            void find_original_nearest(priority_queue<pair<T_coord,int>> &nearest_queue,Array2D<T_coord> &coord_array,
+                int nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
+                //寻找最近的点。如果query_coord是一个点的坐标，那么会找到自身
     };
 
     template<typename T_coord,typename T_data>
@@ -56,14 +65,14 @@ namespace unsz
             string coord_path;
             vector<string> original_data_path_vec,compressed_data_path_vec,decompressed_data_path_vec;
             int dim=3;
-            int node_num;
+            int point_num;
             T_data rel_eb,abs_eb;
             bool got_rel_eb=false,got_abs_eb=false;
             bool cross_time_compress=false;
             bool if_adjust_coord=false;
             int predict_round_num=10;
             int max_ref_num=10;//在不知道哪些点有效的情况下，需要找到最近的max_ref_num个参考点
-            int actual_ref_num=10;//实际使用的参考点个数
+            int actual_ref_num=5;//实际使用的参考点个数
             bool predict_abnormal_points=false;
             string predictor="inverse_proportion";//fitting / inverse_proportion
 

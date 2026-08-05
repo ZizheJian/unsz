@@ -230,12 +230,12 @@ namespace unsz
     {
         current_decompressed_data.assign(current_data.begin(),current_data.end());
         qb_vec.clear();
-        qb_vec.reserve(node_num);
-        is_abnormal_vec.resize(node_num);
+        qb_vec.reserve(point_num);
+        is_abnormal_vec.resize(point_num);
         current_min_data=numeric_limits<T_data>::infinity();
         current_max_data=-numeric_limits<T_data>::infinity();
         current_valid_node_num=0;
-        for (int i=0;i<node_num;i++)
+        for (int i=0;i<point_num;i++)
         {
             is_abnormal_vec[i]=is_abnormal(current_data[i]);
             if (!is_abnormal_vec[i])
@@ -283,12 +283,12 @@ namespace unsz
         current_zstd_bs_vec.resize(current_zstd_bs-current_zstd_bs_vec.data());
 
         float mse=0;
-        for (int i=0;i<node_num;i++)
+        for (int i=0;i<point_num;i++)
             if (!is_abnormal_vec[i])
                 mse+=pow(current_data[i]-current_decompressed_data[i],2);
-        mse/=node_num;
+        mse/=point_num;
         float psnr=10*log10(pow(current_max_data-current_min_data,2)/mse);
-        float cr=(float)node_num*sizeof(T_data)/current_zstd_bs_vec.size();
+        float cr=(float)point_num*sizeof(T_data)/current_zstd_bs_vec.size();
         float br=(float)(sizeof(T_data)*8)/cr;
         printf("cr= %f, br= %f, psnr= %f\n",cr,br,psnr);
     }

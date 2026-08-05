@@ -11,26 +11,7 @@ namespace unsz
     //         block.valid_num=0;
     // }
 
-    // template<typename T_coord,typename T_data>
-    // void param_c<T_coord,T_data>::update_all_valid_num(int block_id)
-    // {
-    //     if (block_vec[block_id].left_child_id==-1 && block_vec[block_id].right_child_id==-1)//是叶block
-    //         return;
-    //     else
-    //     {
-    //         block_vec[block_id].valid_num=0;
-    //         if (block_vec[block_id].left_child_id!=-1)
-    //         {
-    //             update_all_valid_num(block_vec[block_id].left_child_id);
-    //             block_vec[block_id].valid_num+=block_vec[block_vec[block_id].left_child_id].valid_num;
-    //         }
-    //         if (block_vec[block_id].right_child_id!=-1)
-    //         {
-    //             update_all_valid_num(block_vec[block_id].right_child_id);
-    //             block_vec[block_id].valid_num+=block_vec[block_vec[block_id].right_child_id].valid_num;
-    //         }
-    //     }
-    // }
+    // 
 
     // template<typename T_coord,typename T_data>
     // void param_c<T_coord,T_data>::update_valid_num_to_root(int block_id,int change_value)
@@ -38,66 +19,6 @@ namespace unsz
     //     block_vec[block_id].valid_num+=change_value;
     //     if (block_vec[block_id].parent_id>=0)//不是根节点
     //         update_valid_num_to_root(block_vec[block_id].parent_id,change_value);
-    // }
-
-    // template<typename T_coord,typename T_data>
-    // T_coord param_c<T_coord,T_data>::get_dist_to_node(T_coord *coord1,T_coord *coord2)
-    // {
-    //     T_coord dist=0;
-    //     for (int d=0;d<dim;d++)
-    //         dist+=(coord1[d]-coord2[d])*(coord1[d]-coord2[d]);
-    //     return dist;
-    // }
-
-    // template<typename T_coord,typename T_data>
-    // T_coord param_c<T_coord,T_data>::get_dist_to_block(T_coord *coord,T_coord *min_coord,T_coord *max_coord)
-    // {
-    //     T_coord dist=0;
-    //     for (int d=0;d<dim;d++)
-    //     {
-    //         if (coord[d]<min_coord[d])
-    //             dist+=(coord[d]-min_coord[d])*(coord[d]-min_coord[d]);
-    //         else if (coord[d]>max_coord[d])
-    //             dist+=(coord[d]-max_coord[d])*(coord[d]-max_coord[d]);
-    //     }
-    //     return dist;
-    // }
-
-    // template<typename T_coord,typename T_data>
-    // void param_c<T_coord,T_data>::find_nearest(priority_queue<pair<T_coord,int>> &nearest_queue,int nearest_num,int block_id,T_coord *query_coord,bool valid_only)
-    // {
-    //     if ((valid_only) && (block_vec[block_id].valid_num==0))
-    //         return;
-    //     if (block_vec[block_id].index_end==block_vec[block_id].index_begin+1)//block内有一个点，并且这个点有效，计算距离并和已有的nearest_vec比较
-    //     {
-    //         T_coord dist=get_dist_to_node(query_coord,coord_array[block_vec[block_id].index_begin]);
-    //         if (nearest_queue.size()<(size_t)nearest_num)
-    //             nearest_queue.push({dist,block_vec[block_id].index_begin});
-    //         else if (dist<nearest_queue.top().first)
-    //         {
-    //             nearest_queue.pop();
-    //             nearest_queue.push({dist,block_vec[block_id].index_begin});
-    //         }
-    //     }
-    //     else//block内有多个点，比较到两个子块的距离，先访问近的子块，再访问远的子块
-    //     {
-    //         int first_child_id=block_vec[block_id].left_child_id;
-    //         int second_child_id=block_vec[block_id].right_child_id;
-    //         T_coord dist_first=numeric_limits<T_coord>::infinity(),dist_second=numeric_limits<T_coord>::infinity();
-    //         if (first_child_id!=-1)
-    //             dist_first=get_dist_to_block(query_coord,block_vec[first_child_id].min_coord.data(),block_vec[first_child_id].max_coord.data());
-    //         if (second_child_id!=-1)
-    //             dist_second=get_dist_to_block(query_coord,block_vec[second_child_id].min_coord.data(),block_vec[second_child_id].max_coord.data());
-    //         if (dist_first>dist_second)
-    //         {
-    //             swap(first_child_id,second_child_id);
-    //             swap(dist_first,dist_second);
-    //         }
-    //         if (first_child_id!=-1)
-    //             find_nearest(nearest_queue,nearest_num,first_child_id,query_coord,valid_only);
-    //         if ((second_child_id!=-1) && ((nearest_queue.size()<(size_t)nearest_num) || (dist_second<nearest_queue.top().first)))
-    //             find_nearest(nearest_queue,nearest_num,second_child_id,query_coord,valid_only);
-    //     }
     // }
 
     // template<typename T_coord,typename T_data>
