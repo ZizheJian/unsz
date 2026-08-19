@@ -16,14 +16,14 @@ namespace unsz
             }
             return;
         }
-        int ref_num=actual_ref_num;
+        uint32_t ref_num=actual_ref_num;
         if (ref_ids.size()<ref_num)
             ref_num=ref_ids.size();
-        vector<T_data> weight_vec(ref_num);
-        T_data total_weight=0,pred=0;
-        for (int i=0;i<ref_num;i++)
+        vector<T_coord> weight_vec(ref_num);
+        T_coord total_weight=0,pred=0;
+        for (uint32_t i=0;i<ref_num;i++)
         {
-            T_coord dist=get_dist_to_node(coord_array[pred_id],coord_array[ref_ids[i]]);
+            T_coord dist=get_dist_to_coord(coord_array[pred_id],coord_array[ref_ids[i]],dim);
             weight_vec[i]=pow(dist,-3.61);
             total_weight+=weight_vec[i];
             pred+=weight_vec[i]*current_decompressed_data[ref_ids[i]];
@@ -53,14 +53,14 @@ namespace unsz
             current_decompressed_data[pred_id]=qb_vec.back()*2*current_abs_eb;
             return;
         }
-        int ref_num=actual_ref_num;
+        uint32_t ref_num=actual_ref_num;
         if (valid_ref_ids.size()<ref_num)
             ref_num=valid_ref_ids.size();
-        vector<T_data> weight_vec(ref_num);
-        T_data total_weight=0,pred=0;
-        for (int i=0;i<ref_num;i++)
+        vector<T_coord> weight_vec(ref_num);
+        T_coord total_weight=0,pred=0;
+        for (uint32_t i=0;i<ref_num;i++)
         {
-            T_coord dist=get_dist_to_node(coord_array[pred_id],coord_array[valid_ref_ids[i]]);
+            T_coord dist=get_dist_to_coord(coord_array[pred_id],coord_array[valid_ref_ids[i]],dim);
             weight_vec[i]=pow(dist,-3.61);
             total_weight+=weight_vec[i];
             pred+=weight_vec[i]*current_decompressed_data[valid_ref_ids[i]];
@@ -122,15 +122,15 @@ namespace unsz
             predict_and_quantize_inverse_proportion_with_abnormal(pred_id,ref_ids);
             return;
         }
-        int ref_num=actual_ref_num;
+        uint32_t ref_num=actual_ref_num;
         if (ref_ids.size()<ref_num)
             ref_num=ref_ids.size();
         double A[4][4]={0},b[4]={0},x[4];
         Array2D<T_coord> temp_coord_array(ref_num,dim);
-        for (int i=0;i<ref_num;i++)
-            for (int d=0;d<dim;d++)
+        for (uint32_t i=0;i<ref_num;i++)
+            for (uint32_t d=0;d<dim;d++)
                 temp_coord_array[i][d]=(coord_array[ref_ids[i]][d]-coord_array[pred_id][d]);
-        for (int i=0;i<ref_num;i++)
+        for (uint32_t i=0;i<ref_num;i++)
         {
             A[0][0]+=temp_coord_array[i][0]*temp_coord_array[i][0];
             A[0][1]+=temp_coord_array[i][0]*temp_coord_array[i][1];
@@ -184,15 +184,15 @@ namespace unsz
             predict_and_quantize_inverse_proportion_with_abnormal(pred_id,valid_ref_ids);
             return;
         }
-        int ref_num=actual_ref_num;
+        uint32_t ref_num=actual_ref_num;
         if (valid_ref_ids.size()<ref_num)
             ref_num=valid_ref_ids.size();
         double A[4][4]={0},b[4]={0},x[4];
         Array2D<T_coord> temp_coord_array(ref_num,dim);
-        for (int i=0;i<ref_num;i++)
-            for (int d=0;d<dim;d++)
+        for (uint32_t i=0;i<ref_num;i++)
+            for (uint32_t d=0;d<dim;d++)
                 temp_coord_array[i][d]=(coord_array[valid_ref_ids[i]][d]-coord_array[pred_id][d]);
-        for (int i=0;i<ref_num;i++)
+        for (uint32_t i=0;i<ref_num;i++)
         {
             A[0][0]+=temp_coord_array[i][0]*temp_coord_array[i][0];
             A[0][1]+=temp_coord_array[i][0]*temp_coord_array[i][1];
@@ -235,7 +235,7 @@ namespace unsz
         current_min_data=numeric_limits<T_data>::infinity();
         current_max_data=-numeric_limits<T_data>::infinity();
         current_valid_node_num=0;
-        for (int i=0;i<point_num;i++)
+        for (uint32_t i=0;i<point_num;i++)
         {
             is_abnormal_vec[i]=is_abnormal(current_data[i]);
             if (!is_abnormal_vec[i])
@@ -249,45 +249,104 @@ namespace unsz
             current_abs_eb=abs_eb;
         else if (got_rel_eb)
             current_abs_eb=rel_eb*(current_max_data-current_min_data);
-        for (auto &p:pred_refs_vec)
+        vector<uint64_t> round_qb_begin(predict_round_num),round_qb_end(predict_round_num);
+        uint64_t pred_ref_index=0;
+        for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
         {
-            int pred_id=p.first;
-            vector<int> &ref_ids=p.second;
-            T_data current_abs_eb_backup=current_abs_eb;
-            current_abs_eb*=pow(1,(double)(current_valid_node_num-1-qb_vec.size())/(current_valid_node_num-1));
-            if (predictor=="fitting")
-                if (predict_abnormal_points)
-                    predict_and_quantize_fitting_with_abnormal(pred_id,ref_ids);
-                else
-                    predict_and_quantize_fitting_without_abnormal(pred_id,ref_ids);
-            else if (predictor=="inverse_proportion")
-                if (predict_abnormal_points)
-                    predict_and_quantize_inverse_proportion_with_abnormal(pred_id,ref_ids);
-                else
-                    predict_and_quantize_inverse_proportion_without_abnormal(pred_id,ref_ids);
-            current_abs_eb=current_abs_eb_backup;
+            round_qb_begin[round_id]=qb_vec.size();
+            for (uint64_t i=0;i<round_target_ids[round_id].size();i++)
+            {
+                auto &p=pred_refs_vec[pred_ref_index++];
+                int pred_id=p.first;
+                vector<int> &ref_ids=p.second;
+                T_data current_abs_eb_backup=current_abs_eb;
+                current_abs_eb*=pow(1,(double)(current_valid_node_num-1-qb_vec.size())/(current_valid_node_num-1));
+                if (predictor=="fitting")
+                    if (predict_abnormal_points)
+                        predict_and_quantize_fitting_with_abnormal(pred_id,ref_ids);
+                    else
+                        predict_and_quantize_fitting_without_abnormal(pred_id,ref_ids);
+                else if (predictor=="inverse_proportion")
+                    if (predict_abnormal_points)
+                        predict_and_quantize_inverse_proportion_with_abnormal(pred_id,ref_ids);
+                    else
+                        predict_and_quantize_inverse_proportion_without_abnormal(pred_id,ref_ids);
+                current_abs_eb=current_abs_eb_backup;
+            }
+            round_qb_end[round_id]=qb_vec.size();
+        }
+        if (pred_ref_index!=pred_refs_vec.size())
+            throw runtime_error("逐轮预测目标数量与预测参考结构不一致");
+
+        if (qb_vec.empty())
+            throw runtime_error("没有可编码的量化索引");
+        auto encode_qb=[&](int64_t *qb,uint64_t qb_num)
+        {
+            huffman_encoder_class<int64_t> huffman_encoder;
+            huffman_encoder.preprocess_encode(qb,qb_num);
+            vector<unsigned char> huffman_bs_vec((uint64_t)point_num*sizeof(int64_t));
+            unsigned char *huffman_bs=huffman_bs_vec.data();
+            huffman_encoder.save(huffman_bs);
+            huffman_encoder.encode(qb,qb_num,huffman_bs);
+            uint64_t huffman_bs_len=huffman_bs-huffman_bs_vec.data();
+            vector<unsigned char> zstd_bs_vec(ZSTD_compressBound(huffman_bs_len));
+            uint64_t zstd_bs_len=ZSTD_compress(zstd_bs_vec.data(),zstd_bs_vec.size(),huffman_bs_vec.data(),huffman_bs_len,3);
+            if (ZSTD_isError(zstd_bs_len))
+                throw runtime_error("Zstd压缩失败："+string(ZSTD_getErrorName(zstd_bs_len)));
+            zstd_bs_vec.resize(zstd_bs_len);
+            return zstd_bs_vec;
+        };
+        current_zstd_bs_vec=encode_qb(qb_vec.data(),qb_vec.size());
+
+        if (print_round_statistics)
+        {
+            printf("逐轮独立编码统计（每轮包含独立Huffman表）：\n");
+            uint64_t round_pred_ref_begin=0;
+            for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+            {
+                uint64_t round_point_num=round_target_ids[round_id].size();
+                uint64_t round_qb_num=round_qb_end[round_id]-round_qb_begin[round_id];
+                vector<unsigned char> round_zstd_bs_vec;
+                if (round_qb_num>0)
+                    round_zstd_bs_vec=encode_qb(qb_vec.data()+round_qb_begin[round_id],round_qb_num);
+                double round_squared_error=0,nearest_distance_sum=0;
+                uint64_t nearest_distance_num=0,total_ref_num=0;
+                for (uint64_t i=0;i<round_point_num;i++)
+                {
+                    int pred_id=round_target_ids[round_id][i];
+                    if (!is_abnormal_vec[pred_id])
+                    {
+                        double error=(double)current_data[pred_id]-current_decompressed_data[pred_id];
+                        round_squared_error+=error*error;
+                    }
+                    auto &ref_ids=pred_refs_vec[round_pred_ref_begin+i].second;
+                    total_ref_num+=ref_ids.size();
+                    if (!ref_ids.empty())
+                    {
+                        nearest_distance_sum+=sqrt((double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_ids[0]],dim));
+                        nearest_distance_num++;
+                    }
+                }
+                round_pred_ref_begin+=round_point_num;
+                double round_mse=round_squared_error/round_point_num;
+                double round_psnr=round_mse==0?numeric_limits<double>::infinity():10*log10(pow((double)current_max_data-current_min_data,2)/round_mse);
+                double round_br=(double)round_zstd_bs_vec.size()*8/round_point_num;
+                double average_ref_num=(double)total_ref_num/round_point_num;
+                double average_nearest_distance=nearest_distance_num==0?numeric_limits<double>::infinity():nearest_distance_sum/nearest_distance_num;
+                printf("Round %u: point_num=%llu, qb_num=%llu, br=%f, psnr=%f, average_ref_num=%f, average_nearest_distance=%e\n",
+                    round_id,(unsigned long long)round_point_num,(unsigned long long)round_qb_num,round_br,round_psnr,average_ref_num,average_nearest_distance);
+            }
         }
 
-        vector<unsigned char> huffman_bs_vec(qb_vec.size()*sizeof(T_data));
-        unsigned char *huffman_bs=huffman_bs_vec.data();
-        huffman_encoder_class<int64_t> huffman_encoder;
-        huffman_encoder.preprocess_encode(qb_vec.data(),qb_vec.size());
-        huffman_encoder.save(huffman_bs);
-        huffman_encoder.encode(qb_vec.data(),qb_vec.size(),huffman_bs);
-
-        uint64_t huffman_bs_len=huffman_bs-huffman_bs_vec.data();
-        uint64_t max_zstd_bs_len=ZSTD_compressBound(huffman_bs_len);
-        current_zstd_bs_vec.resize(max_zstd_bs_len);
-        unsigned char *current_zstd_bs=current_zstd_bs_vec.data();
-        current_zstd_bs+=ZSTD_compress(current_zstd_bs,max_zstd_bs_len,huffman_bs_vec.data(),huffman_bs_len,3);
-        current_zstd_bs_vec.resize(current_zstd_bs-current_zstd_bs_vec.data());
-
-        float mse=0;
-        for (int i=0;i<point_num;i++)
+        double squared_error=0;
+        for (uint32_t i=0;i<point_num;i++)
             if (!is_abnormal_vec[i])
-                mse+=pow(current_data[i]-current_decompressed_data[i],2);
-        mse/=point_num;
-        float psnr=10*log10(pow(current_max_data-current_min_data,2)/mse);
+            {
+                double error=(double)current_data[i]-current_decompressed_data[i];
+                squared_error+=error*error;
+            }
+        double mse=squared_error/point_num;
+        double psnr=10*log10(pow((double)current_max_data-current_min_data,2)/mse);
         float cr=(float)point_num*sizeof(T_data)/current_zstd_bs_vec.size();
         float br=(float)(sizeof(T_data)*8)/cr;
         printf("cr= %f, br= %f, psnr= %f\n",cr,br,psnr);

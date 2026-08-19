@@ -1,159 +1,111 @@
-// 这里我们将所有预测目标拆分成多轮
-// 虽然每一轮内会不断更新已经完成预测的点集，导致同轮内存在依赖关系，看起来拆分成轮是没必要的。但实际上这会增加预测目标在参考点内部的可能性。
+// 将所有点分成多轮，确定预测顺序，并为每个点寻找已经完成预测的最近参考点。
 #pragma once
 
 namespace unsz
 {
-    // template<typename T_coord,typename T_data>
-    // void param_c<T_coord,T_data>::clear_all_valid_num()
-    // {
-    //     for (auto &block:block_vec)
-    //         block.valid_num=0;
-    // }
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::generate_pred_refs_structure()
+    {
+        if (point_num<=0)
+            throw runtime_error("point_num必须是正数");
+        if (predict_round_num<=0 || predict_round_num>63)
+            throw runtime_error("predict_round_num必须在[1,63]内");
+        if (max_ref_num<=0)
+            throw runtime_error("max_ref_num必须是正数");
 
-    // 
+        printf("Building kd-tree\n");
+        auto start_time=chrono::steady_clock::now();
+        block_tree_c<T_coord> tree(coord_array,min_coord,max_coord);
+        auto tree_end_time=chrono::steady_clock::now();
+        printf("KD-tree blocks: %llu, time: %f s\n",(unsigned long long)tree.block_vec.size(),chrono::duration<double>(tree_end_time-start_time).count());
 
-    // template<typename T_coord,typename T_data>
-    // void param_c<T_coord,T_data>::update_valid_num_to_root(int block_id,int change_value)
-    // {
-    //     block_vec[block_id].valid_num+=change_value;
-    //     if (block_vec[block_id].parent_id>=0)//不是根节点
-    //         update_valid_num_to_root(block_vec[block_id].parent_id,change_value);
-    // }
+        printf("Arranging rounds of prediction\n");
+        round_target_ids.clear();
+        round_target_ids.resize(predict_round_num);
+        vector<int> shuffled_ids(point_num);
+        iota(shuffled_ids.begin(),shuffled_ids.end(),0);
+        mt19937 rng(0);
+        shuffle(shuffled_ids.begin(),shuffled_ids.end(),rng);
 
-    // template<typename T_coord,typename T_data>
-    // void param_c<T_coord,T_data>::generate_pred_refs_structure()
-    // {
-    //     //////// 对坐标做变换 ////////
-    //     Array2D<T_coord> coord_transform_mat(3,3);
-    //     coord_transform_mat[0][0]=1.2716812e+00;
-    //     coord_transform_mat[1][0]=2.0797528e-01;
-    //     coord_transform_mat[1][1]=1.1570321e+00;
-    //     coord_transform_mat[2][0]=6.3697807e-05;
-    //     coord_transform_mat[2][1]=1.0230185e-04;
-    //     coord_transform_mat[2][2]=1.3503247e-05;
-    //     for (int i=0;i<node_num;i++)
-    //     {
-    //         vector<T_coord> new_coord_vec(dim,0);
-    //         for (int j=0;j<dim;j++)
-    //             for (int k=0;k<dim;k++)
-    //                 new_coord_vec[j]+=coord_array[i][k]*coord_transform_mat[k][j];
-    //         for (int j=0;j<dim;j++)
-    //             coord_array[i][j]=new_coord_vec[j];
-    //     }
-    //     min_coord.assign(dim,numeric_limits<T_coord>::infinity());
-    //     max_coord.assign(dim,-numeric_limits<T_coord>::infinity());
-    //     for (int i=0;i<node_num;i++)
-    //         for (int d=0;d<dim;d++)
-    //         {
-    //             min_coord[d]=min(min_coord[d],coord_array[i][d]);
-    //             max_coord[d]=max(max_coord[d],coord_array[i][d]);
-    //         }
-    //     printf("Coord range: [[%f, %f], [%f, %f], [%f, %f]]\n",min_coord[0],max_coord[0],min_coord[1],max_coord[1],min_coord[2],max_coord[2]);
+        uint64_t previous_end=0;
+        for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+        {
+            uint64_t divisor=uint64_t(1)<<(predict_round_num-1-round_id);
+            uint64_t current_end=((uint64_t)point_num+divisor-1)/divisor;
+            current_end=min(current_end,(uint64_t)point_num);
+            round_target_ids[round_id].assign(shuffled_ids.begin()+previous_end,shuffled_ids.begin()+current_end);
+            previous_end=current_end;
+            printf("Round %u target num: %llu\n",round_id,(unsigned long long)round_target_ids[round_id].size());
+        }
+        if (previous_end!=point_num)
+            throw runtime_error("预测轮次没有覆盖所有点");
 
-    //     //////// 构建kd-tree ////////
-    //     printf("Building kd-tree\n");
-    //     point_id_on_tree_to_original_id.resize(node_num);
-    //     for (int i=0;i<node_num;i++)
-    //         point_id_on_tree_to_original_id[i]=i;
-    //     block_vec.push_back(block_tree_c<T_coord>());
-    //     block_vec[0].parent_id=-1;
-    //     block_vec[0].left_child_id=-1;
-    //     block_vec[0].right_child_id=-1;
-    //     block_vec[0].min_coord=min_coord;
-    //     block_vec[0].max_coord=max_coord;
-    //     block_vec[0].index_begin=0;
-    //     block_vec[0].index_end=node_num;
-    //     split_block(0);
-    //     id_map2.resize(node_num);
-    //     generate_id_map2();
-        
-    //     //////// 重新排列坐标 ////////
-    //     coord_array_backup.resize(node_num,dim);
-    //     coord_array_backup.data=coord_array.data;
-    //     for (int i=0;i<node_num;i++)
-    //     {
-    //         coord_array[i][0]=coord_array_backup[point_id_on_tree_to_original_id[i]][0];
-    //         coord_array[i][1]=coord_array_backup[point_id_on_tree_to_original_id[i]][1];
-    //         coord_array[i][2]=coord_array_backup[point_id_on_tree_to_original_id[i]][2];
-    //     }
+        vector<T_coord> center_coord(dim);
+        for (uint32_t d=0;d<dim;d++)
+            center_coord[d]=(min_coord[d]+max_coord[d])/2;
 
-    //     //////// 随机分配点到每一轮的预测目标 ////////
-    //     printf("Arranging rounds of prediction\n");
-    //     vector<int> shuffled_ids(node_num);
-    //     iota(shuffled_ids.begin(),shuffled_ids.end(),0);
-    //     mt19937 rng(0); // 固定seed，方便复现实验
-    //     shuffle(shuffled_ids.begin(),shuffled_ids.end(),rng);
-    //     for (int i=0;i<predict_round_num;i++)
-    //     {
-    //         printf("Generating round %d\n",i);
-    //         round_target_ids.push_back(vector<int>());
-    //         int t1=1<<(predict_round_num-i);
-    //         int t2=1<<(predict_round_num-i-1);
-    //         if (i==0)
-    //             round_target_ids[i].assign(shuffled_ids.begin(),shuffled_ids.begin()+(node_num+t2-1)/t2);
-    //         else    
-    //             round_target_ids[i].assign(shuffled_ids.begin()+(node_num+t1-1)/t1,shuffled_ids.begin()+(node_num+t2-1)/t2);
-    //     }
+        printf("Sorting targets in each round\n");
+        for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+        {
+            auto &target_ids=round_target_ids[round_id];
+            if (target_ids.empty())
+                continue;
 
-    //     //////// 对每一轮内的预测目标排序 ////////
-    //     for (int i=0;i<predict_round_num;i++)
-    //     {
-    //         printf("Sorting round %d\n",i);
-    //         clear_all_valid_num();
-    //         for (auto id:round_target_ids[i])
-    //             block_vec[id_map2[id]].valid_num=1;
-    //         update_all_valid_num(0);
-    //         vector<float> query_coord(3);
-    //         for (int d=0;d<3;d++)
-    //             query_coord[d]=(min_coord[d]+max_coord[d])/2;
-    //         priority_queue<pair<float,int>> nearest_queue;
-    //         find_nearest(nearest_queue,1,0,query_coord.data(),true);
-    //         round_target_ids[i][0]=nearest_queue.top().second;
-    //         update_valid_num_to_root(id_map2[round_target_ids[i][0]],-1);
-    //         for (int j=1;(size_t)j<round_target_ids[i].size();j++)
-    //         {
-    //             nearest_queue=priority_queue<pair<float,int>>();
-    //             find_nearest(nearest_queue,1,0,coord_array[round_target_ids[i][j-1]],true);
-    //             round_target_ids[i][j]=nearest_queue.top().second;
-    //             update_valid_num_to_root(id_map2[round_target_ids[i][j]],-1);
-    //         }
-    //     }
+            tree.clear_all_valid_num();
+            for (int original_id:target_ids)
+            {
+                int leaf_block_id=tree.original_id_to_block_vec_id[original_id];
+                tree.block_vec[leaf_block_id].valid_num=1;
+            }
+            tree.update_all_valid_num(0);
 
-    //     //////// 生成每个预测目标可以利用的参考点 ////////
-    //     printf("Generating pred_refs_vec\n");
-    //     clear_all_valid_num();
-    //     for (int i=0;i<predict_round_num;i++)
-    //     {
-    //         priority_queue<pair<float,int>> nearest_queue;
-    //         for (auto pred_id:round_target_ids[i])
-    //         {
-    //             nearest_queue=priority_queue<pair<float,int>>();
-    //             find_nearest(nearest_queue,max_ref_num,0,coord_array[pred_id],true);
-    //             pred_refs_vec.push_back({point_id_on_tree_to_original_id[pred_id],vector<int>()});
-    //             while (!nearest_queue.empty())
-    //             {
-    //                 int ref_id=nearest_queue.top().second;
-    //                 nearest_queue.pop();
-    //                 pred_refs_vec.back().second.push_back(point_id_on_tree_to_original_id[ref_id]);
-    //             }
-    //             reverse(pred_refs_vec.back().second.begin(),pred_refs_vec.back().second.end());
-    //             update_valid_num_to_root(id_map2[pred_id],1);
-    //         }
-    //     }
+            vector<int> sorted_target_ids;
+            sorted_target_ids.reserve(target_ids.size());
+            T_coord *query_coord=center_coord.data();
+            while (sorted_target_ids.size()<target_ids.size())
+            {
+                priority_queue<pair<T_coord,int>> nearest_queue;
+                tree.find_original_nearest(nearest_queue,coord_array,1,0,query_coord,true);
+                if (nearest_queue.empty())
+                    throw runtime_error("无法找到尚未排序的预测目标");
+                int original_id=nearest_queue.top().second;
+                sorted_target_ids.push_back(original_id);
+                int leaf_block_id=tree.original_id_to_block_vec_id[original_id];
+                tree.update_valid_num_to_root(leaf_block_id,-1);
+                query_coord=coord_array[original_id];
+            }
+            target_ids.swap(sorted_target_ids);
+            printf("Sorted round %u\n",round_id);
+        }
 
-    //     //////// 保存pred_refs_vec到文件 ////////
-    //     FILE *f_pred_refs=fopen((coord_path+".pred_refs").c_str(),"w");
-    //     for (auto &p:pred_refs_vec)
-    //     {
-    //         fprintf(f_pred_refs,"%d",p.first);
-    //         for (auto &id:p.second)
-    //             fprintf(f_pred_refs," %d",id);
-    //         fprintf(f_pred_refs,"\n");
-    //     }
-    //     fclose(f_pred_refs);
+        printf("Generating prediction references\n");
+        pred_refs_vec.clear();
+        pred_refs_vec.reserve(point_num);
+        tree.clear_all_valid_num();
+        for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+        {
+            for (int pred_id:round_target_ids[round_id])
+            {
+                priority_queue<pair<T_coord,int>> nearest_queue;
+                tree.find_original_nearest(nearest_queue,coord_array,max_ref_num,0,coord_array[pred_id],true);
+                pred_refs_vec.push_back({pred_id,vector<int>()});
+                auto &ref_ids=pred_refs_vec.back().second;
+                ref_ids.reserve(nearest_queue.size());
+                while (!nearest_queue.empty())
+                {
+                    ref_ids.push_back(nearest_queue.top().second);
+                    nearest_queue.pop();
+                }
+                reverse(ref_ids.begin(),ref_ids.end());
 
-    //     //////// 还原coord_array ////////
-    //     coord_array.data=coord_array_backup.data;
-    // }
+                int leaf_block_id=tree.original_id_to_block_vec_id[pred_id];
+                tree.update_valid_num_to_root(leaf_block_id,1);
+            }
+        }
+
+        if (pred_refs_vec.size()!=point_num)
+            throw runtime_error("预测参考结构没有覆盖所有点");
+        auto end_time=chrono::steady_clock::now();
+        printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)pred_refs_vec.size(),chrono::duration<double>(end_time-start_time).count());
+    }
 }

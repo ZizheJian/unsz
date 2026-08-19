@@ -23,3 +23,4 @@ class Param:
         self.min_coord=np.empty(0,dtype=np.float32)
         self.max_coord=np.empty(0,dtype=np.float32)
         self.coord_transform_parameter=np.empty(0,dtype=np.float64)
+        self.coord_transform_matrix=np.empty((0,0),dtype=np.float64)
