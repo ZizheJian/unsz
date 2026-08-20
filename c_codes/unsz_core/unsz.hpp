@@ -1,12 +1,16 @@
 #pragma once
 
 #include <vector>
+#include <algorithm>
+#include <numeric>
+#include <random>
 #include <chrono>
 #include <cstdint>
 #include <cmath>
 #include <cstring>
 #include <limits>
 #include <queue>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -15,6 +19,8 @@ using namespace std;
 
 namespace unsz
 {
+    enum class point_set_codec_e:uint8_t{inverse_proportion=0,fitting=1,constant=2};
+
     template<typename T_coord>
     T_coord get_dist_to_coord(T_coord *coord1,T_coord *coord2,uint32_t dim);
 
@@ -79,20 +85,28 @@ namespace unsz
             template<typename T_coord2>
             param_c(const param_c<T_coord2,T_data> &other);
 
-            string coord_path;
+            string data_dir,variable_name,error_mode,coord_path;
             vector<string> original_data_path_vec,compressed_data_path_vec,decompressed_data_path_vec;
             uint32_t dim=3;
             uint32_t point_num=0;
             T_data rel_eb=0,abs_eb=0;
             bool got_rel_eb=false,got_abs_eb=false;
+            bool got_data_dir=false,got_variable=false,got_time_step=false,got_error_mode=false;
+            vector<T_data> point_set_rel_eb_config_vec,point_set_abs_eb_config_vec;
+            vector<point_set_codec_e> point_set_codec_config_vec;
+            bool check_original_data_files=true;
             bool cross_time_compress=false;
             bool if_adjust_coord=false;
             bool print_round_statistics=false;
+            bool print_label_compression_statistics=false;
             uint32_t predict_round_num=10;
-            uint32_t max_ref_num=10;//在不知道哪些点有效的情况下，需要找到最近的max_ref_num个参考点
+            uint32_t max_ref_num=10;//不知道点集时先保留候选点，再筛选同点集参考点
             uint32_t actual_ref_num=10;//实际使用的参考点个数
-            bool predict_abnormal_points=false;
-            string predictor="inverse_proportion";//fitting / inverse_proportion
+            double inverse_distance_power=3.61;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
+            int zstd_compression_level=3;
+            uint32_t point_set_ref_num=10;//点集标签实际使用的最近候选点数量
+            string point_set_predictor="inverse_proportion";//inverse_proportion / majority / continuous_actual / continuous_reflect
+            string predictor="inverse_proportion";//没有逐点集配置时使用的默认预测器
 
             Array2D<T_coord> coord_array,coord_array_backup;
             vector<T_coord> min_coord,max_coord;
@@ -109,7 +123,11 @@ namespace unsz
             T_data current_abs_eb=0;
             vector<int64_t> qb_vec;
             vector<unsigned char> current_zstd_bs_vec;
-            vector<bool> is_abnormal_vec;
+            vector<uint32_t> point_set_id_vec;
+            vector<double> point_set_prediction_value_vec;
+            vector<uint32_t> point_set_point_num_vec;
+            vector<T_data> point_set_min_data_vec,point_set_max_data_vec,point_set_abs_eb_vec;
+            vector<point_set_codec_e> point_set_codec_vec;
             uint32_t current_valid_node_num=0;
 
             void init();
@@ -123,12 +141,12 @@ namespace unsz
             void update_valid_num_to_root(int block_id,int change_value);
             void find_nearest(priority_queue<pair<T_coord,int>> &nearest_queue,int nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
 
-            bool is_abnormal(T_data val);
+            uint32_t get_point_set_id(T_data val);
+            uint32_t predict_point_set_id(int pred_id,vector<int> &ref_ids,uint32_t point_set_num);
+            double predict_point_set_value(int pred_id,vector<int> &ref_ids);
+            T_data predict_value(int pred_id,vector<int> &ref_ids,uint32_t point_set_id,vector<T_data> &data);
             void compress();
-            void predict_and_quantize_inverse_proportion_with_abnormal(int pred_id,vector<int> &ref_ids);
-            void predict_and_quantize_inverse_proportion_without_abnormal(int pred_id,vector<int> &ref_ids);
-            void predict_and_quantize_fitting_with_abnormal(int pred_id,vector<int> &ref_ids);
-            void predict_and_quantize_fitting_without_abnormal(int pred_id,vector<int> &ref_ids);
+            void decompress();
             
             bool solve_4x4(double A_in[4][4],double b_in[4],double x[4]);
     };
@@ -140,5 +158,7 @@ namespace unsz
 #include "init.tpp"
 #include "adjust_coord.tpp"
 #include "generate_pred_refs_structure.tpp"
-#include "is_abnormal.tpp"
+#include "point_set.tpp"
+#include "format.tpp"
 #include "compress.tpp"
+#include "decompress.tpp"

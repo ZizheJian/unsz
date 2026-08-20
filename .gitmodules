@@ -10,3 +10,6 @@
 [submodule "third_party/get_max_cpus"]
 	path = third_party/get_max_cpus
 	url = git@github.com:ZizheJian/get_max_cpus.git
+[submodule "third_party/parsers"]
+	path = third_party/parsers
+	url = git@github.com:ZizheJian/parsers.git

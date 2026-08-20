@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
+#include <stdexcept>
 
 using namespace std;
 
@@ -317,6 +318,8 @@ class huffman_encoder_class
             {
                 uint64_t len=bytesToInt64_bigEndian(bytes)^0x1234abcd;
                 bytes+=8;
+                if (len!=targetLength)
+                    throw runtime_error("Huffman常量流的元素数量不一致");
                 for (uint64_t i=0;i<len;i++)
                     out[i]=tree.offset;
                 return;
@@ -341,48 +344,64 @@ class huffman_encoder_class
                 u=u->p[b&1];
                 if (u->isLeaf())
                 {
+                    if (outLen>=targetLength)
+                        throw runtime_error("Huffman解码结果超过预期长度");
                     out[outLen++]=u->c+offset;
                     u=&tree.ht[tree.root];
                 }
                 u=u->p[(b>>1)&1];
                 if (u->isLeaf())
                 {
+                    if (outLen>=targetLength)
+                        throw runtime_error("Huffman解码结果超过预期长度");
                     out[outLen++]=u->c+offset;
                     u=&tree.ht[tree.root];
                 }
                 u=u->p[(b>>2)&1];
                 if (u->isLeaf())
                 {
+                    if (outLen>=targetLength)
+                        throw runtime_error("Huffman解码结果超过预期长度");
                     out[outLen++]=u->c+offset;
                     u=&tree.ht[tree.root];
                 }
                 u=u->p[(b>>3)&1];
                 if (u->isLeaf())
                 {
+                    if (outLen>=targetLength)
+                        throw runtime_error("Huffman解码结果超过预期长度");
                     out[outLen++]=u->c+offset;
                     u=&tree.ht[tree.root];
                 }
                 u=u->p[(b>>4)&1];
                 if (u->isLeaf())
                 {
+                    if (outLen>=targetLength)
+                        throw runtime_error("Huffman解码结果超过预期长度");
                     out[outLen++]=u->c+offset;
                     u=&tree.ht[tree.root];
                 }
                 u=u->p[(b>>5)&1];
                 if (u->isLeaf())
                 {
+                    if (outLen>=targetLength)
+                        throw runtime_error("Huffman解码结果超过预期长度");
                     out[outLen++]=u->c+offset;
                     u=&tree.ht[tree.root];
                 }
                 u=u->p[(b>>6)&1];
                 if (u->isLeaf())
                 {
+                    if (outLen>=targetLength)
+                        throw runtime_error("Huffman解码结果超过预期长度");
                     out[outLen++]=u->c+offset;
                     u=&tree.ht[tree.root];
                 }
                 u=u->p[(b>>7)&1];
                 if (u->isLeaf())
                 {
+                    if (outLen>=targetLength)
+                        throw runtime_error("Huffman解码结果超过预期长度");
                     out[outLen++]=u->c+offset;
                     u=&tree.ht[tree.root];
                 }
@@ -395,12 +414,16 @@ class huffman_encoder_class
                 u=u->p[(b>>j)&1];
                 if (u->isLeaf())
                 {
+                    if (outLen>=targetLength)
+                        throw runtime_error("Huffman解码结果超过预期长度");
                     out[outLen++]=u->c+tree.offset;
                     u=&tree.ht[tree.root];
                 }
             }
 
             bytes+=(len+7)>>3;
+            if (outLen!=targetLength)
+                throw runtime_error("Huffman解码结果少于预期长度");
         }
 
         void save(unsigned char*& c) 
