@@ -47,8 +47,11 @@ def build_unsz():
         run_command(f"cmake --install {project_root}/build",silent=silent_build)
     if use_unsz and not os.path.isfile(unsz_path):
         raise FileNotFoundError(f"没有找到UNSZ可执行文件：{unsz_path}")
-    if "umc" in compressor_list and not os.path.isfile(os.path.join(umc_root,"build/test/test_compress")):
-        raise FileNotFoundError("没有找到UMC可执行文件，请先按照UMC自己的构建流程生成/home/x-zjian1/umc/build/test/test_compress")
+    if "umc" in compressor_list:
+        for executable_name in ["test_compress","test_decompress"]:
+            executable_path=os.path.join(umc_root,"build/test",executable_name)
+            if not os.path.isfile(executable_path):
+                raise FileNotFoundError(f"没有找到UMC可执行文件：{executable_path}")
 
 def calculate_throughput(data_paths,seconds,name):
     if not seconds>0:
@@ -71,9 +74,16 @@ def parse_unsz_result(output,data_paths):
 
 def parse_unsz_decompression_result(output):
     match=re.search(r"total decompressed psnr=\s*([^\s]+)",output)
-    if match is None:
-        raise RuntimeError("没有在UNSZ解压输出中找到total decompressed psnr")
-    return float(match.group(1))
+    time_match=re.search(r"total decompression time=\s*([^\s]+)\s*s",output)
+    if match is None or time_match is None:
+        raise RuntimeError("没有在UNSZ解压输出中找到total decompressed psnr或总解压时间")
+    return float(match.group(1)),float(time_match.group(1))
+
+def parse_umc_decompression_result(output,data_paths):
+    decompression_times=[float(value) for value in re.findall(r"^core decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
+    if len(decompression_times)!=len(data_paths):
+        raise RuntimeError(f"UMC核心解压时间数量不一致：文件{len(data_paths)}，核心解压时间{len(decompression_times)}")
+    return sum(decompression_times)
 
 def parse_umc_result(output,data_paths):
     compressed_sizes=[int(value) for value in re.findall(r"compressed_size\s*=\s*(\d+)",output)]
@@ -111,7 +121,7 @@ def cleanup(data_paths):
             if os.path.isfile(output_path):
                 os.remove(output_path)
 
-def write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput):
+def write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput):
     csv_path=os.path.join(data_root,dataset["folder"],f"{dataset['variable']}.csv")
     row_info={"REL_EB":rel_eb,"TIME_STEP_NUM":dataset["time_step_num"]}
     method_name=compressor.upper()
@@ -119,6 +129,7 @@ def write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,comp
     write_csv_item(csv_path,row_info,f"{method_name}_PSNR",psnr)
     write_csv_item(csv_path,row_info,f"{method_name}_PREPROCESSING_MB_S",preprocessing_throughput)
     write_csv_item(csv_path,row_info,f"{method_name}_COMPRESSION_MB_S",compression_throughput)
+    write_csv_item(csv_path,row_info,f"{method_name}_DECOMPRESSION_MB_S",decompression_throughput)
 
 def test(compressor,dataset,rel_eb):
     data_dir=os.path.join(data_root,dataset["folder"])
@@ -139,10 +150,10 @@ def test(compressor,dataset,rel_eb):
         compress_command=f"{shlex.quote(project_root+'/install/bin/s1_compress')} {common_arguments}"
         compress_output=run_command(compress_command)
         br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_unsz_result(compress_output,data_paths)
+        decompress_command=f"{shlex.quote(project_root+'/install/bin/s1_decompress')} {common_arguments}"
+        decompress_output=run_command(decompress_command)
+        decompressed_psnr,decompression_time=parse_unsz_decompression_result(decompress_output)
         if verify_unsz_decompression:
-            decompress_command=f"{shlex.quote(project_root+'/install/bin/s1_decompress')} {common_arguments}"
-            decompress_output=run_command(decompress_command)
-            decompressed_psnr=parse_unsz_decompression_result(decompress_output)
             if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-6):
                 raise RuntimeError(f"压缩端和解压端的总PSNR不一致：{psnr} != {decompressed_psnr}")
             print(f"磁盘压缩—解压检查通过：total psnr={decompressed_psnr}")
@@ -150,12 +161,16 @@ def test(compressor,dataset,rel_eb):
         command=f"{umc_root}/build/test/test_compress {data_dir}/ {variable} coords.dat conn.dat 0 3 2 1 {time_step_num} 0 {rel_eb} 10"
         output=run_command(command)
         br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_umc_result(output,data_paths)
+        decompress_command=f"{umc_root}/build/test/test_decompress {data_dir}/ {variable} coords.dat conn.dat 0 3 2 1 {time_step_num}"
+        decompress_output=run_command(decompress_command)
+        decompression_time=parse_umc_decompression_result(decompress_output,data_paths)
     else:
         raise ValueError(f"未知压缩器：{compressor}")
     print(f"总结果：compressor={compressor}, dataset={dataset['name']}, variable={variable}, rel_eb={rel_eb}, br={br}, psnr={psnr}")
-    print(f"计时：preprocessing={preprocessing_time} s, compression={compression_time} s")
-    print(f"吞吐率：preprocessing={preprocessing_throughput} MB/s, compression={compression_throughput} MB/s")
-    return br,psnr,preprocessing_throughput,compression_throughput
+    decompression_throughput=calculate_throughput(data_paths,decompression_time,f"{compressor}解压时间")
+    print(f"计时：preprocessing={preprocessing_time} s, compression={compression_time} s, decompression={decompression_time} s")
+    print(f"吞吐率：preprocessing={preprocessing_throughput} MB/s, compression={compression_throughput} MB/s, decompression={decompression_throughput} MB/s")
+    return br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput
 
 def main():
     build_unsz()
@@ -166,9 +181,9 @@ def main():
                 data_dir=os.path.join(data_root,dataset["folder"])
                 data_paths=[os.path.join(data_dir,f"{dataset['variable']}.dat.{time_step}") for time_step in range(dataset["time_step_num"])]
                 try:
-                    br,psnr,preprocessing_throughput,compression_throughput=test(compressor,dataset,rel_eb)
+                    br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput=test(compressor,dataset,rel_eb)
                     if write_to_csv:
-                        write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput)
+                        write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput)
                 except Exception as error:
                     print(f"failed: {error}")
                     if not continue_after_error:

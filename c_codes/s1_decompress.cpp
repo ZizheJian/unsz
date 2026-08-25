@@ -2,6 +2,7 @@
 #include <vector>
 #include <limits>
 #include <cmath>
+#include <chrono>
 #include <cstdio>
 #include <unordered_set>
 #include "huffman.hpp"
@@ -100,7 +101,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
     param.generate_pred_refs_structure();
     uint64_t total_point_num=0;
     uint32_t validated_file_num=0;
-    double total_squared_error=0;
+    double total_squared_error=0,total_decompression_time=0;
     float total_min_data=numeric_limits<float>::infinity(),total_max_data=-numeric_limits<float>::infinity();
     for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
@@ -108,7 +109,11 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
         string decompressed_path=param.original_data_path_vec[file_id]+".unsz.bin";
         param.current_zstd_bs_vec=read_byte_file(compressed_path);
 
+        auto decompression_start_time=chrono::steady_clock::now();
         param.decompress();
+        double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
+        total_decompression_time+=decompression_time;
+        printf("file decompression time= %f s\n",decompression_time);
         FILE *f_decompressed=fopen(decompressed_path.c_str(),"wb");
         if (!f_decompressed)
             throw runtime_error("无法创建解压文件："+decompressed_path);
@@ -158,6 +163,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
         total_point_num+=param.point_num;
         validated_file_num++;
     }
+    printf("total decompression time= %f s\n",total_decompression_time);
     if (validated_file_num>0)
     {
         double total_mse=total_squared_error/total_point_num;
