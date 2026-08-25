@@ -117,6 +117,7 @@ namespace unsz
             vector<int> id_map_reverse2;//从leaf block在block_vec中的id映射到block_tree上node的专用id（没有被使用）
             vector<vector<int>> round_target_ids;//每一轮的预测目标
             vector<pair<int,vector<int>>> pred_refs_vec;//每个预测目标及其可用的参考点，编号都是原始id
+            vector<vector<double>> pred_ref_weights_vec;//与pred_refs_vec对齐的未归一化距离权重
 
             vector<T_data> current_data,current_decompressed_data;
             T_data current_min_data=0,current_max_data=0;
@@ -142,9 +143,9 @@ namespace unsz
             void find_nearest(priority_queue<pair<T_coord,int>> &nearest_queue,int nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
 
             uint32_t get_point_set_id(T_data val);
-            uint32_t predict_point_set_id(int pred_id,vector<int> &ref_ids,uint32_t point_set_num);
-            double predict_point_set_value(int pred_id,vector<int> &ref_ids);
-            T_data predict_value(int pred_id,vector<int> &ref_ids,uint32_t point_set_id,vector<T_data> &data);
+            uint32_t predict_point_set_id(vector<int> &ref_ids,vector<double> &ref_weights,uint32_t point_set_num);
+            double predict_point_set_value(vector<int> &ref_ids,vector<double> &ref_weights);
+            T_data predict_value(int pred_id,vector<int> &ref_ids,vector<double> &ref_weights,uint32_t point_set_id,vector<T_data> &data);
             void compress();
             void decompress();
             

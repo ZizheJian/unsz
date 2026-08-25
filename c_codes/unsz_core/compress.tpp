@@ -119,11 +119,13 @@ namespace unsz
             point_set_prediction_value_vec.assign(point_num,0);
             label_symbol_vec.reserve(point_num);
             actual_label_prediction_order_vec.reserve(point_num);
-            for (auto &pred_refs:pred_refs_vec)
+            for (uint32_t pred_ref_id=0;pred_ref_id<pred_refs_vec.size();pred_ref_id++)
             {
+                auto &pred_refs=pred_refs_vec[pred_ref_id];
+                auto &ref_weights=pred_ref_weights_vec[pred_ref_id];
                 int pred_id=pred_refs.first;
-                double predicted_value=continuous?predict_point_set_value(pred_id,pred_refs.second):0;
-                uint32_t predicted_id=continuous?(predicted_value>=0.5):predict_point_set_id(pred_id,pred_refs.second,point_set_num);
+                double predicted_value=continuous?predict_point_set_value(pred_refs.second,ref_weights):0;
+                uint32_t predicted_id=continuous?(predicted_value>=0.5):predict_point_set_id(pred_refs.second,ref_weights,point_set_num);
                 uint32_t actual_id=point_set_id_vec[pred_id];
                 actual_label_prediction_order_vec.push_back(actual_id);
                 bool prediction_error=actual_id!=predicted_id;
@@ -156,7 +158,8 @@ namespace unsz
         for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
             for (uint32_t i=0;i<round_target_ids[round_id].size();i++)
             {
-                auto &pred_refs=pred_refs_vec[pred_ref_index++];
+                auto &pred_refs=pred_refs_vec[pred_ref_index];
+                auto &ref_weights=pred_ref_weights_vec[pred_ref_index++];
                 int pred_id=pred_refs.first;
                 uint32_t point_set_id=point_set_id_vec[pred_id];
                 if (point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
@@ -164,7 +167,7 @@ namespace unsz
                     current_decompressed_data[pred_id]=point_set_min_data_vec[point_set_id];
                     continue;
                 }
-                T_data pred=predict_value(pred_id,pred_refs.second,point_set_id,current_decompressed_data);
+                T_data pred=predict_value(pred_id,pred_refs.second,ref_weights,point_set_id,current_decompressed_data);
                 int64_t qb=llround(((double)current_data[pred_id]-pred)/(2*point_set_abs_eb_vec[point_set_id]));
                 point_set_qb_vec[point_set_id].push_back(qb);
                 if (print_round_statistics)

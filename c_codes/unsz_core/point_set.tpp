@@ -10,7 +10,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    uint32_t param_c<T_coord,T_data>::predict_point_set_id(int pred_id,vector<int> &ref_ids,uint32_t point_set_num)
+    uint32_t param_c<T_coord,T_data>::predict_point_set_id(vector<int> &ref_ids,vector<double> &ref_weights,uint32_t point_set_num)
     {
         if (ref_ids.empty())
             return 0;
@@ -33,10 +33,10 @@ namespace unsz
         for (uint32_t i=0;i<ref_num;i++)
         {
             int ref_id=ref_ids[i];
-            double dist=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
-            if (dist==0)
+            double weight=ref_weights[i];
+            if (isinf(weight))
                 return point_set_id_vec[ref_id];
-            weight_sum[point_set_id_vec[ref_id]]+=pow(dist,-inverse_distance_power/2);
+            weight_sum[point_set_id_vec[ref_id]]+=weight;
         }
         uint32_t result=0;
         for (uint32_t point_set_id=1;point_set_id<point_set_num;point_set_id++)
@@ -46,7 +46,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    double param_c<T_coord,T_data>::predict_point_set_value(int pred_id,vector<int> &ref_ids)
+    double param_c<T_coord,T_data>::predict_point_set_value(vector<int> &ref_ids,vector<double> &ref_weights)
     {
         if (ref_ids.empty())
             return 0;
@@ -55,10 +55,9 @@ namespace unsz
         for (uint32_t i=0;i<ref_num;i++)
         {
             int ref_id=ref_ids[i];
-            double dist=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
-            if (dist==0)
+            double weight=ref_weights[i];
+            if (isinf(weight))
                 return point_set_prediction_value_vec[ref_id];
-            double weight=pow(dist,-inverse_distance_power/2);
             total_weight+=weight;
             pred+=weight*point_set_prediction_value_vec[ref_id];
         }
@@ -68,58 +67,65 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    T_data param_c<T_coord,T_data>::predict_value(int pred_id,vector<int> &ref_ids,uint32_t point_set_id,vector<T_data> &data)
+    T_data param_c<T_coord,T_data>::predict_value(int pred_id,vector<int> &ref_ids,vector<double> &ref_weights,uint32_t point_set_id,vector<T_data> &data)
     {
-        vector<int> valid_ref_ids;
-        valid_ref_ids.reserve(actual_ref_num);
-        for (int ref_id:ref_ids)
-            if (point_set_id_vec[ref_id]==point_set_id)
-            {
-                valid_ref_ids.push_back(ref_id);
-                if (valid_ref_ids.size()==actual_ref_num)
-                    break;
-            }
-        if (valid_ref_ids.empty())
-            return 0;
-
         point_set_codec_e codec=point_set_codec_vec[point_set_id];
-        if (codec==point_set_codec_e::fitting && dim==3 && valid_ref_ids.size()>dim)
+        if (codec==point_set_codec_e::fitting)
         {
-            uint32_t ref_num=valid_ref_ids.size();
-            double A[4][4]={0},b[4]={0},x[4];
-            for (uint32_t i=0;i<ref_num;i++)
-            {
-                int ref_id=valid_ref_ids[i];
-                double dc[3];
-                for (uint32_t d=0;d<3;d++)
-                    dc[d]=(double)coord_array[ref_id][d]-coord_array[pred_id][d];
-                for (uint32_t row=0;row<3;row++)
+            vector<int> valid_ref_ids;
+            valid_ref_ids.reserve(actual_ref_num);
+            for (int ref_id:ref_ids)
+                if (point_set_id_vec[ref_id]==point_set_id)
                 {
-                    for (uint32_t col=0;col<3;col++)
-                        A[row][col]+=dc[row]*dc[col];
-                    A[row][3]+=dc[row];
-                    A[3][row]+=dc[row];
-                    b[row]+=dc[row]*data[ref_id];
+                    valid_ref_ids.push_back(ref_id);
+                    if (valid_ref_ids.size()==actual_ref_num)
+                        break;
                 }
-                A[3][3]++;
-                b[3]+=data[ref_id];
+            if (valid_ref_ids.empty())
+                return 0;
+            if (dim==3 && valid_ref_ids.size()>dim)
+            {
+                double A[4][4]={0},b[4]={0},x[4];
+                for (int ref_id:valid_ref_ids)
+                {
+                    double dc[3];
+                    for (uint32_t d=0;d<3;d++)
+                        dc[d]=(double)coord_array[ref_id][d]-coord_array[pred_id][d];
+                    for (uint32_t row=0;row<3;row++)
+                    {
+                        for (uint32_t col=0;col<3;col++)
+                            A[row][col]+=dc[row]*dc[col];
+                        A[row][3]+=dc[row];
+                        A[3][row]+=dc[row];
+                        b[row]+=dc[row]*data[ref_id];
+                    }
+                    A[3][3]++;
+                    b[3]+=data[ref_id];
+                }
+                if (solve_4x4(A,b,x))
+                    return (T_data)x[3];
             }
-            if (solve_4x4(A,b,x))
-                return (T_data)x[3];
         }
         else if (codec!=point_set_codec_e::inverse_proportion && codec!=point_set_codec_e::fitting)
             throw runtime_error("点集使用了不支持的数值预测器");
 
         double total_weight=0,pred=0;
-        for (int ref_id:valid_ref_ids)
+        uint32_t valid_ref_num=0;
+        for (uint32_t i=0;i<ref_ids.size();i++)
         {
-            double dist=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
-            if (dist==0)
+            int ref_id=ref_ids[i];
+            if (point_set_id_vec[ref_id]!=point_set_id)
+                continue;
+            double weight=ref_weights[i];
+            if (isinf(weight))
                 return data[ref_id];
-            double weight=pow(dist,-inverse_distance_power/2);
             total_weight+=weight;
             pred+=weight*data[ref_id];
+            if (++valid_ref_num==actual_ref_num)
+                break;
         }
+        if (valid_ref_num==0)
+            return 0;
         return (T_data)(pred/total_weight);
     }
 }

@@ -48,6 +48,7 @@ namespace unsz
         max_coord.assign(other.max_coord.begin(),other.max_coord.end());
         round_target_ids=other.round_target_ids;
         pred_refs_vec=other.pred_refs_vec;
+        pred_ref_weights_vec=other.pred_ref_weights_vec;
 
         current_data=other.current_data;
         current_decompressed_data=other.current_decompressed_data;
