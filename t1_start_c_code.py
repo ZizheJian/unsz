@@ -53,7 +53,7 @@ def build_unsz():
 def calculate_throughput(data_paths,seconds,name):
     if not seconds>0:
         raise RuntimeError(f"{name}必须大于0：{seconds}")
-    return sum(os.path.getsize(path) for path in data_paths)/seconds/1e9
+    return sum(os.path.getsize(path) for path in data_paths)/seconds/1e6
 
 def parse_unsz_result(output,data_paths):
     match=re.search(r"total cr=\s*([^,]+),\s*total br=\s*([^,]+),\s*total psnr=\s*([^\s]+)",output)
@@ -117,8 +117,8 @@ def write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,comp
     method_name=compressor.upper()
     write_csv_item(csv_path,row_info,f"{method_name}_BR",br)
     write_csv_item(csv_path,row_info,f"{method_name}_PSNR",psnr)
-    write_csv_item(csv_path,row_info,f"{method_name}_PREPROCESSING_GB_S",preprocessing_throughput)
-    write_csv_item(csv_path,row_info,f"{method_name}_COMPRESSION_GB_S",compression_throughput)
+    write_csv_item(csv_path,row_info,f"{method_name}_PREPROCESSING_MB_S",preprocessing_throughput)
+    write_csv_item(csv_path,row_info,f"{method_name}_COMPRESSION_MB_S",compression_throughput)
 
 def test(compressor,dataset,rel_eb):
     data_dir=os.path.join(data_root,dataset["folder"])
@@ -154,7 +154,7 @@ def test(compressor,dataset,rel_eb):
         raise ValueError(f"未知压缩器：{compressor}")
     print(f"总结果：compressor={compressor}, dataset={dataset['name']}, variable={variable}, rel_eb={rel_eb}, br={br}, psnr={psnr}")
     print(f"计时：preprocessing={preprocessing_time} s, compression={compression_time} s")
-    print(f"吞吐率：preprocessing={preprocessing_throughput} GB/s, compression={compression_throughput} GB/s")
+    print(f"吞吐率：preprocessing={preprocessing_throughput} MB/s, compression={compression_throughput} MB/s")
     return br,psnr,preprocessing_throughput,compression_throughput
 
 def main():

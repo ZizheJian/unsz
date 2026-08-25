@@ -46,19 +46,18 @@ vector<unsigned char> read_byte_file(string path)
 vector<uint32_t> parse_time_step_vec(string expression)
 {
     vector<uint32_t> result;
-    if (expression.size()>=5 && (expression.front()=='[' || expression.front()=='(') && (expression.back()==']' || expression.back()==')'))
+    if (expression.size()>=5 && expression.front()=='[' && (expression.back()==']' || expression.back()==')'))
     {
         uint64_t comma_position=expression.find(',');
         if (comma_position==string::npos || expression.find(',',comma_position+1)!=string::npos)
             throw runtime_error("时间步区间必须包含且只包含一个逗号："+expression);
         uint32_t left=parse_uint32(expression.substr(1,comma_position-1),"时间步左端点");
         uint32_t right=parse_uint32(expression.substr(comma_position+1,expression.size()-comma_position-2),"时间步右端点");
-        uint64_t first=(uint64_t)left+(expression.front()=='(');
         uint64_t end=(uint64_t)right+(expression.back()==']');
-        if (first>=end)
+        if ((uint64_t)left>=end)
             throw runtime_error("时间步区间为空或端点顺序错误："+expression);
-        result.reserve(end-first);
-        for (uint64_t time_step=first;time_step<end;time_step++)
+        result.reserve(end-left);
+        for (uint64_t time_step=left;time_step<end;time_step++)
             result.push_back((uint32_t)time_step);
     }
     else if (expression.size()>=3 && expression.front()=='{' && expression.back()=='}')
@@ -82,7 +81,7 @@ vector<uint32_t> parse_time_step_vec(string expression)
             throw runtime_error("时间步列表不能为空");
     }
     else
-        throw runtime_error("时间步必须写成区间'[a,b]'、'(a,b]'、'[a,b)'、'(a,b)'或列表'{a1,a2,...}'："+expression);
+        throw runtime_error("时间步必须写成区间'[a,b]'、'[a,b)'或列表'{a1,a2,...}'："+expression);
     return result;
 }
 
