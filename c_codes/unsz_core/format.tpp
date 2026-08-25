@@ -81,7 +81,8 @@ namespace unsz
         return result;
     }
 
-    inline vector<unsigned char> binary_to_byte_vec(vector<uint32_t> &value_vec)
+    template<typename T>
+    inline vector<unsigned char> binary_to_byte_vec(vector<T> &value_vec)
     {
         vector<unsigned char> result(value_vec.size());
         for (uint64_t i=0;i<value_vec.size();i++)
@@ -93,7 +94,8 @@ namespace unsz
         return result;
     }
 
-    inline vector<unsigned char> binary_to_bit_vec(vector<uint32_t> &value_vec)
+    template<typename T>
+    inline vector<unsigned char> binary_to_bit_vec(vector<T> &value_vec)
     {
         vector<unsigned char> result((value_vec.size()+7)/8,0);
         for (uint64_t i=0;i<value_vec.size();i++)
@@ -115,7 +117,8 @@ namespace unsz
         bytes.push_back(value);
     }
 
-    inline vector<unsigned char> binary_one_position_delta_vec(vector<uint32_t> &value_vec)
+    template<typename T>
+    inline vector<unsigned char> binary_one_position_delta_vec(vector<T> &value_vec)
     {
         vector<unsigned char> result;
         uint64_t one_num=0;
@@ -169,7 +172,8 @@ namespace unsz
         return result;
     }
 
-    inline vector<unsigned char> binary_run_length_vec(vector<uint32_t> &value_vec)
+    template<typename T>
+    inline vector<unsigned char> binary_run_length_vec(vector<T> &value_vec)
     {
         vector<unsigned char> result;
         if (value_vec.empty())

@@ -99,6 +99,7 @@ namespace unsz
             bool if_adjust_coord=false;
             bool print_round_statistics=false;
             bool print_label_compression_statistics=false;
+            bool print_compression_stage_time=false;
             uint32_t predict_round_num=10;
             uint32_t max_ref_num=10;//不知道点集时先保留候选点，再筛选同点集参考点
             uint32_t actual_ref_num=10;//实际使用的参考点个数
@@ -143,7 +144,7 @@ namespace unsz
             void find_nearest(priority_queue<pair<T_coord,int>> &nearest_queue,int nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
 
             uint32_t get_point_set_id(T_data val);
-            uint32_t predict_point_set_id(vector<int> &ref_ids,vector<double> &ref_weights,uint32_t point_set_num);
+            uint32_t predict_point_set_id(vector<int> &ref_ids,vector<double> &ref_weights,bool use_majority);
             double predict_point_set_value(vector<int> &ref_ids,vector<double> &ref_weights);
             T_data predict_value(int pred_id,vector<int> &ref_ids,vector<double> &ref_weights,uint32_t point_set_id,vector<T_data> &data);
             void compress();

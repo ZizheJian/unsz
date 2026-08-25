@@ -31,6 +31,7 @@ namespace unsz
         if_adjust_coord=other.if_adjust_coord;
         print_round_statistics=other.print_round_statistics;
         print_label_compression_statistics=other.print_label_compression_statistics;
+        print_compression_stage_time=other.print_compression_stage_time;
         predict_round_num=other.predict_round_num;
         max_ref_num=other.max_ref_num;
         actual_ref_num=other.actual_ref_num;

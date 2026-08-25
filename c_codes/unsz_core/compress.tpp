@@ -43,6 +43,8 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::compress()
     {
+        auto stage_start_time=chrono::steady_clock::now();
+        double point_set_time=0,label_prediction_time=0,value_prediction_time=0,lossless_encoding_time=0,validation_time=0;
         if (current_data.size()!=point_num)
             throw runtime_error("当前数据点数与坐标点数不一致");
         if (!got_rel_eb && !got_abs_eb && point_set_rel_eb_config_vec.empty() && point_set_abs_eb_config_vec.empty())
@@ -50,23 +52,23 @@ namespace unsz
 
         point_set_id_vec.resize(point_num);
         uint32_t point_set_num=0;
+        point_set_point_num_vec.assign(2,0);
+        point_set_min_data_vec.assign(2,numeric_limits<T_data>::infinity());
+        point_set_max_data_vec.assign(2,-numeric_limits<T_data>::infinity());
         for (uint32_t i=0;i<point_num;i++)
         {
-            point_set_id_vec[i]=get_point_set_id(current_data[i]);
-            point_set_num=max(point_set_num,point_set_id_vec[i]+1);
-        }
-        if (point_set_num>2)
-            throw runtime_error("当前0/1标签修正流只支持最多两个点集");
-        point_set_point_num_vec.assign(point_set_num,0);
-        point_set_min_data_vec.assign(point_set_num,numeric_limits<T_data>::infinity());
-        point_set_max_data_vec.assign(point_set_num,-numeric_limits<T_data>::infinity());
-        for (uint32_t i=0;i<point_num;i++)
-        {
-            uint32_t point_set_id=point_set_id_vec[i];
+            uint32_t point_set_id=get_point_set_id(current_data[i]);
+            if (point_set_id>=2)
+                throw runtime_error("当前0/1标签修正流只支持最多两个点集");
+            point_set_id_vec[i]=point_set_id;
+            point_set_num=max(point_set_num,point_set_id+1);
             point_set_point_num_vec[point_set_id]++;
             point_set_min_data_vec[point_set_id]=min(point_set_min_data_vec[point_set_id],current_data[i]);
             point_set_max_data_vec[point_set_id]=max(point_set_max_data_vec[point_set_id],current_data[i]);
         }
+        point_set_point_num_vec.resize(point_set_num);
+        point_set_min_data_vec.resize(point_set_num);
+        point_set_max_data_vec.resize(point_set_num);
         point_set_abs_eb_vec.resize(point_set_num);
         point_set_codec_vec.resize(point_set_num);
         for (uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
@@ -108,29 +110,40 @@ namespace unsz
         current_max_data=point_set_max_data_vec[primary_point_set_id];
         current_abs_eb=point_set_abs_eb_vec[primary_point_set_id];
         current_valid_node_num=point_set_point_num_vec[0];
+        point_set_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
 
+        stage_start_time=chrono::steady_clock::now();
         vector<uint32_t> label_symbol_vec;
-        vector<uint32_t> label_symbol_original_order_vec(point_num,0);
+        vector<uint8_t> label_symbol_original_order_vec(point_num,0);
         vector<uint32_t> actual_label_prediction_order_vec;
         uint64_t label_prediction_error_num=0;
+        if (point_set_num>1 && point_set_predictor!="inverse_proportion" && point_set_predictor!="majority" && point_set_predictor!="continuous_actual" && point_set_predictor!="continuous_reflect")
+            throw runtime_error("未知的点集标签预测器："+point_set_predictor);
+        bool continuous=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
+        bool use_majority=point_set_predictor=="majority";
         if (point_set_num>1)
         {
-            bool continuous=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
             point_set_prediction_value_vec.assign(point_num,0);
-            label_symbol_vec.reserve(point_num);
-            actual_label_prediction_order_vec.reserve(point_num);
+            if (print_label_compression_statistics)
+            {
+                label_symbol_vec.reserve(point_num);
+                actual_label_prediction_order_vec.reserve(point_num);
+            }
             for (uint32_t pred_ref_id=0;pred_ref_id<pred_refs_vec.size();pred_ref_id++)
             {
                 auto &pred_refs=pred_refs_vec[pred_ref_id];
                 auto &ref_weights=pred_ref_weights_vec[pred_ref_id];
                 int pred_id=pred_refs.first;
                 double predicted_value=continuous?predict_point_set_value(pred_refs.second,ref_weights):0;
-                uint32_t predicted_id=continuous?(predicted_value>=0.5):predict_point_set_id(pred_refs.second,ref_weights,point_set_num);
+                uint32_t predicted_id=continuous?(predicted_value>=0.5):predict_point_set_id(pred_refs.second,ref_weights,use_majority);
                 uint32_t actual_id=point_set_id_vec[pred_id];
-                actual_label_prediction_order_vec.push_back(actual_id);
                 bool prediction_error=actual_id!=predicted_id;
                 label_prediction_error_num+=prediction_error;
-                label_symbol_vec.push_back(prediction_error?1:0);
+                if (print_label_compression_statistics)
+                {
+                    actual_label_prediction_order_vec.push_back(actual_id);
+                    label_symbol_vec.push_back(prediction_error?1:0);
+                }
                 label_symbol_original_order_vec[pred_id]=prediction_error?1:0;
                 if (continuous)
                 {
@@ -146,7 +159,9 @@ namespace unsz
                 }
             }
         }
+        label_prediction_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
 
+        stage_start_time=chrono::steady_clock::now();
         current_decompressed_data.assign(point_num,0);
         vector<vector<int64_t>> point_set_qb_vec(point_set_num);
         uint64_t value_huffman_byte_num=0;
@@ -176,7 +191,9 @@ namespace unsz
             }
         if (pred_ref_index!=pred_refs_vec.size())
             throw runtime_error("逐轮预测目标数量与预测参考结构不一致");
+        value_prediction_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
 
+        stage_start_time=chrono::steady_clock::now();
         vector<unsigned char> container;
         const unsigned char magic[8]={'U','N','S','Z','P','S','0','6'};
         container.insert(container.end(),magic,magic+8);
@@ -244,6 +261,7 @@ namespace unsz
                 point_set_id,(unsigned long long)qb_zstd_bytes.size());
         }
         current_zstd_bs_vec=move(container);
+        lossless_encoding_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
         printf("label_prediction_error_ratio=%f, label_position_delta_bytes=%llu, label_zstd_bytes=%llu, zstd_level=%d\n",
             (double)label_prediction_error_num/point_num,(unsigned long long)label_position_delta_bytes.size(),(unsigned long long)label_zstd_bytes.size(),zstd_compression_level);
         printf("value_huffman_bytes=%llu, value_zstd_bytes=%llu, file_bytes=%llu\n",(unsigned long long)value_huffman_byte_num,
@@ -269,6 +287,7 @@ namespace unsz
             }
         }
 
+        stage_start_time=chrono::steady_clock::now();
         double squared_error=0;
         for (uint32_t i=0;i<point_num;i++)
         {
@@ -289,5 +308,8 @@ namespace unsz
             printf(", set%u_num=%u, set%u_codec=%s",point_set_id,point_set_point_num_vec[point_set_id],point_set_id,codec_name);
         }
         printf("\ncr= %f, br= %f, psnr= %f\n",cr,br,psnr);
+        validation_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
+        if (print_compression_stage_time)
+            printf("compression stage time: point_set=%f s, label_prediction=%f s, value_prediction=%f s, lossless_encoding=%f s, validation=%f s\n",point_set_time,label_prediction_time,value_prediction_time,lossless_encoding_time,validation_time);
     }
 }

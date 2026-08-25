@@ -93,7 +93,10 @@ namespace unsz
         point_set_id_vec.assign(point_num,0);
         if (point_set_num>1)
         {
+            if (point_set_predictor!="inverse_proportion" && point_set_predictor!="majority" && point_set_predictor!="continuous_actual" && point_set_predictor!="continuous_reflect")
+                throw runtime_error("未知的点集标签预测器："+point_set_predictor);
             bool continuous=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
+            bool use_majority=point_set_predictor=="majority";
             point_set_prediction_value_vec.assign(point_num,0);
             for (uint32_t pred_ref_id=0;pred_ref_id<pred_refs_vec.size();pred_ref_id++)
             {
@@ -101,7 +104,7 @@ namespace unsz
                 auto &ref_weights=pred_ref_weights_vec[pred_ref_id];
                 int pred_id=pred_refs.first;
                 double predicted_value=continuous?predict_point_set_value(pred_refs.second,ref_weights):0;
-                uint32_t predicted_id=continuous?(predicted_value>=0.5):predict_point_set_id(pred_refs.second,ref_weights,point_set_num);
+                uint32_t predicted_id=continuous?(predicted_value>=0.5):predict_point_set_id(pred_refs.second,ref_weights,use_majority);
                 uint32_t symbol=label_symbol_vec[pred_id];
                 if (symbol>1)
                     throw runtime_error("点集标签修正值不是0或1");

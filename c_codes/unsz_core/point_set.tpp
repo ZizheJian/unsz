@@ -10,25 +10,21 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    uint32_t param_c<T_coord,T_data>::predict_point_set_id(vector<int> &ref_ids,vector<double> &ref_weights,uint32_t point_set_num)
+    uint32_t param_c<T_coord,T_data>::predict_point_set_id(vector<int> &ref_ids,vector<double> &ref_weights,bool use_majority)
     {
         if (ref_ids.empty())
             return 0;
-        if (point_set_predictor=="majority")
+        if (use_majority)
         {
             uint32_t ref_num=min<uint32_t>(point_set_ref_num,ref_ids.size());
-            vector<uint32_t> vote_num(point_set_num,0);
+            uint32_t vote_num[2]={0,0};
             for (uint32_t i=0;i<ref_num;i++)
                 vote_num[point_set_id_vec[ref_ids[i]]]++;
-            uint32_t result=point_set_id_vec[ref_ids[0]];//票数相同时采用最近参考点所属的点集
-            for (uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
-                if (vote_num[point_set_id]>vote_num[result])
-                    result=point_set_id;
-            return result;
+            if (vote_num[0]==vote_num[1])
+                return point_set_id_vec[ref_ids[0]];//票数相同时采用最近参考点所属的点集
+            return vote_num[1]>vote_num[0];
         }
-        if (point_set_predictor!="inverse_proportion")
-            throw runtime_error("未知的点集标签预测器："+point_set_predictor);
-        vector<double> weight_sum(point_set_num,0);
+        double weight_sum[2]={0,0};
         uint32_t ref_num=min<uint32_t>(point_set_ref_num,ref_ids.size());
         for (uint32_t i=0;i<ref_num;i++)
         {
@@ -38,11 +34,7 @@ namespace unsz
                 return point_set_id_vec[ref_id];
             weight_sum[point_set_id_vec[ref_id]]+=weight;
         }
-        uint32_t result=0;
-        for (uint32_t point_set_id=1;point_set_id<point_set_num;point_set_id++)
-            if (weight_sum[point_set_id]>weight_sum[result])
-                result=point_set_id;
-        return result;
+        return weight_sum[1]>weight_sum[0];
     }
 
     template<typename T_coord,typename T_data>

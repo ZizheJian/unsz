@@ -228,11 +228,13 @@ namespace unsz
                 param.print_label_compression_statistics=true;
             else if (strcmp(argv[arg_id],"-adjust-coord")==0)
                 param.if_adjust_coord=true;
+            else if (strcmp(argv[arg_id],"-compression-stage-time")==0)
+                param.print_compression_stage_time=true;
             else
                 throw runtime_error("未知参数："+string(argv[arg_id]));
         }
         if (!param.got_data_dir || !param.got_variable || !param.got_time_step || !param.got_error_mode)
-            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> -M <REL|ABS> <误差> [-adjust-coord] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-label-ref-num <数量>] [-point-set-predictor <名称>] [-round-stats] [-label-stats]");
+            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> -M <REL|ABS> <误差> [-adjust-coord] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-label-ref-num <数量>] [-point-set-predictor <名称>] [-round-stats] [-label-stats] [-compression-stage-time]");
         if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
             throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
         if (!param.data_dir.empty() && param.data_dir.back()!='/')
