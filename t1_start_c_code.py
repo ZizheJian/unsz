@@ -10,10 +10,10 @@ umc_root="/home/x-zjian1/umc"
 # umc：UMC的NBP-IDW预测器
 compressor_list=["unsz","umc"]
 dataset_list=[
-    # {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162},
+    {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162,"adjust_coord":True},
     # {"name":"Ocean-layerThickness","folder":"Ocean","variable":"layerThickness","time_step_num":31},
     # {"name":"Ocean-salinity","folder":"Ocean","variable":"salinity","time_step_num":31},
-    {"name":"Ocean-temperature","folder":"Ocean","variable":"temperature","time_step_num":31},
+    {"name":"Ocean-temperature","folder":"Ocean","variable":"temperature","time_step_num":31,"adjust_coord":False},
     # {"name":"Ocean-velocityMeridional","folder":"Ocean","variable":"velocityMeridional","time_step_num":31},
     # {"name":"Ocean-velocityX","folder":"Ocean","variable":"velocityX","time_step_num":31},
     # {"name":"Ocean-velocityY","folder":"Ocean","variable":"velocityY","time_step_num":31},
@@ -134,6 +134,8 @@ def test(compressor,dataset,rel_eb):
     if compressor=="unsz":
         time_step_expression=f"[0,{time_step_num-1}]"
         common_arguments=f"-data-dir {shlex.quote(data_dir)} -variable {shlex.quote(variable)} -time-step {shlex.quote(time_step_expression)} -M REL {rel_eb}"
+        if dataset.get("adjust_coord",False):
+            common_arguments+=" -adjust-coord"
         compress_command=f"{shlex.quote(project_root+'/install/bin/s1_compress')} {common_arguments}"
         compress_output=run_command(compress_command)
         br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_unsz_result(compress_output,data_paths)

@@ -225,11 +225,13 @@ int decompress_main(int argc,char **argv)
             param.point_set_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-point-set-predictor")
             param.point_set_predictor=read_option_value(argc,argv,arg_id,option);
+        else if (option=="-adjust-coord")
+            param.if_adjust_coord=true;
         else
             throw runtime_error("未知参数："+option);
     }
     if (!param.got_data_dir || !param.got_variable || !param.got_time_step || !param.got_error_mode)
-        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> -M <REL|ABS> <误差> [-max-ref-num <数量>] [-actual-ref-num <数量>] [-label-ref-num <数量>] [-point-set-predictor <名称>]");
+        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> -M <REL|ABS> <误差> [-adjust-coord] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-label-ref-num <数量>] [-point-set-predictor <名称>]");
     if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
         throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
     if (!param.data_dir.empty() && param.data_dir.back()!='/')
@@ -249,7 +251,6 @@ int decompress_main(int argc,char **argv)
         param.got_abs_eb=true;
     }
     param.cross_time_compress=false;
-    param.if_adjust_coord=false;
     param.check_original_data_files=false;
     if (param.actual_ref_num>param.max_ref_num)
         throw runtime_error("actual_ref_num不能大于max_ref_num");
