@@ -15,6 +15,7 @@ class Param:
         self.abs_eb=None
 
         self.cross_time_compress=False
+        self.spatial_point_num=0
         self.if_adjust_coord=False
         self.actual_ref_num=5
 

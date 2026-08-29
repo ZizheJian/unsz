@@ -181,6 +181,7 @@ namespace unsz
             vector<point_set_codec_e> point_set_codec_config_vec;
             bool check_original_data_files=true;
             bool cross_time_compress=false;
+            string cross_time_predictor_experimental="none";//none / previous
             bool if_adjust_coord=false;
             vector<double> adjust_coord_matrix_parameter_vec;
             bool print_round_statistics=false;
@@ -207,6 +208,7 @@ namespace unsz
             bool use_reverse_direction_distribution_order_experimental=false;
             uint32_t d_only_cache_refill_threshold_experimental=8;//0表示任一参考点失效就重新查询，即精确模式
             uint32_t order_candidate_num_experimental=0;//0表示使用max_ref_num
+            uint32_t cross_time_spatial_point_num_experimental=0;//仅用于统计展平时空点集中的跨时间参考
             uint32_t kd_tree_leaf_size=32;
             uint32_t independent_block_size_experimental=0;//0表示不分块；非0时所有参考点必须来自同一空间块
             uint32_t independent_block_num_experimental=0;//直接指定2、4、8等2的幂个独立空间块
@@ -243,6 +245,8 @@ namespace unsz
             vector<uint8_t> block_prediction_config_id_vec,block_adaptive_sample_mask;
 
             vector<T_data> current_data,current_decompressed_data;
+            vector<T_data> previous_time_decompressed_data;
+            vector<uint32_t> previous_time_point_set_id_vec;
             T_data current_min_data=0,current_max_data=0;
             T_data current_abs_eb=0;
             vector<int32_t> qb_vec;

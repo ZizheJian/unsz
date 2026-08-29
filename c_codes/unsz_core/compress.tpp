@@ -275,6 +275,8 @@ namespace unsz
             oracle_config_count_vec.assign(oracle_config_vec.size(),0);
         }
         bool use_normalized_value_weights=use_normalized_weight_experimental && point_set_num==1 && point_set_codec_vec[0]==point_set_codec_e::inverse_proportion;
+        bool has_previous_time=cross_time_predictor_experimental=="previous" && previous_time_decompressed_data.size()==point_num && previous_time_point_set_id_vec.size()==point_num;
+        uint64_t previous_time_prediction_num=0;
         for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
         {
             double round_point_eb_multiplier=round_eb_multiplier_vec[round_id];
@@ -298,7 +300,10 @@ namespace unsz
                     continue;
                 }
                 bool use_block_config=use_block_adaptive_predictor_experimental && !block_adaptive_sample_mask[pred_id];
-                T_data pred=use_block_config?predict_block_adaptive_value(pred_id,pred_refs.second,current_decompressed_data,block_prediction_config_id_vec[point_independent_block_id_vec[pred_id]]):(use_normalized_value_weights?predict_value_normalized(pred_refs.second,ref_weights,current_decompressed_data):predict_value(pred_id,pred_refs.second,ref_weights,point_set_id,current_decompressed_data));
+                uint32_t previous_time_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                bool use_previous_time=has_previous_time && previous_time_point_set_id_vec[previous_time_id]==point_set_id;
+                T_data pred=use_previous_time?previous_time_decompressed_data[previous_time_id]:(use_block_config?predict_block_adaptive_value(pred_id,pred_refs.second,current_decompressed_data,block_prediction_config_id_vec[point_independent_block_id_vec[pred_id]]):(use_normalized_value_weights?predict_value_normalized(pred_refs.second,ref_weights,current_decompressed_data):predict_value(pred_id,pred_refs.second,ref_weights,point_set_id,current_decompressed_data)));
+                previous_time_prediction_num+=use_previous_time;
                 double point_abs_eb=point_set_abs_eb_vec[point_set_id]*eb_multiplier;
                 if (print_pointwise_oracle_statistics_experimental)
                 {
@@ -348,6 +353,8 @@ namespace unsz
             throw runtime_error("逐轮预测目标数量与预测参考结构不一致");
         if (hybrid_prediction_num>0)
             printf("hybrid_loo_fitting_ratio=%f, fitting_num=%llu, prediction_num=%llu\n",(double)hybrid_fitting_prediction_num/hybrid_prediction_num,(unsigned long long)hybrid_fitting_prediction_num,(unsigned long long)hybrid_prediction_num);
+        if (cross_time_predictor_experimental=="previous")
+            printf("previous_time_prediction_num=%llu, ratio=%f\n",(unsigned long long)previous_time_prediction_num,(double)previous_time_prediction_num/point_num);
         value_prediction_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
 
         stage_start_time=chrono::steady_clock::now();

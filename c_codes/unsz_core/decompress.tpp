@@ -186,6 +186,7 @@ namespace unsz
         current_decompressed_data.assign(point_num,0);
         vector<vector<uint64_t>> qb_index(point_set_num,vector<uint64_t>(multi_huffman_group_num,0));
         bool use_normalized_value_weights=use_normalized_weight_experimental && point_set_num==1 && point_set_codec_vec[0]==point_set_codec_e::inverse_proportion;
+        bool has_previous_time=cross_time_predictor_experimental=="previous" && previous_time_decompressed_data.size()==point_num && previous_time_point_set_id_vec.size()==point_num;
         uint64_t pred_ref_index=0;
         for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
         {
@@ -210,7 +211,9 @@ namespace unsz
                     if (qb_index[point_set_id][huffman_group_id]>=point_set_group_qb_vec[point_set_id][huffman_group_id].size())
                         throw runtime_error("点集"+to_string(point_set_id)+"的量化索引不足");
                     bool use_block_config=use_block_adaptive_predictor_experimental && !block_adaptive_sample_mask[pred_id];
-                    T_data pred=use_block_config?predict_block_adaptive_value(pred_id,pred_refs.second,current_decompressed_data,block_prediction_config_id_vec[point_independent_block_id_vec[pred_id]]):(use_normalized_value_weights?predict_value_normalized(pred_refs.second,ref_weights,current_decompressed_data):predict_value(pred_id,pred_refs.second,ref_weights,point_set_id,current_decompressed_data));
+                    uint32_t previous_time_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                    bool use_previous_time=has_previous_time && previous_time_point_set_id_vec[previous_time_id]==point_set_id;
+                    T_data pred=use_previous_time?previous_time_decompressed_data[previous_time_id]:(use_block_config?predict_block_adaptive_value(pred_id,pred_refs.second,current_decompressed_data,block_prediction_config_id_vec[point_independent_block_id_vec[pred_id]]):(use_normalized_value_weights?predict_value_normalized(pred_refs.second,ref_weights,current_decompressed_data):predict_value(pred_id,pred_refs.second,ref_weights,point_set_id,current_decompressed_data)));
                     int32_t qb=point_set_group_qb_vec[point_set_id][huffman_group_id][qb_index[point_set_id][huffman_group_id]++];
                     double point_abs_eb=point_set_abs_eb_vec[point_set_id]*eb_multiplier;
                     current_decompressed_data[pred_id]=pred+qb*2*point_abs_eb;

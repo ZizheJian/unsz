@@ -228,8 +228,10 @@ def positive_normalized_cholesky(transform_matrix,min_eigenvalue_ratio):
     metric_matrix=(metric_matrix+metric_matrix.T)/2
     return np.linalg.cholesky(metric_matrix)
 
-def adjust_coord_cross_time(param):
-    raise NotImplementedError("暂未实现跨时间步的坐标调整")
+def adjust_coord_cross_time(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares"):
+    if param.spatial_point_num<=0 or param.point_num%param.spatial_point_num!=0:
+        raise ValueError("跨时间步坐标调整要求spatial_point_num为point_num的正因数")
+    adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name)
 
 def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares"): # 访问多个文件来决定公共变换矩阵，但这个矩阵只会应用到每个文件的坐标上，而不会跨时间步使用
     generalized_gaussian_shape=0.5
@@ -262,11 +264,19 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
     pair_num_history=[]
     transform_matrix=np.eye(param.dim,dtype=np.float64)
     first_sample_num=int(np.ceil(param.point_num*first_sample_ratio))
+    if param.cross_time_compress:
+        time_step_num=param.point_num//param.spatial_point_num
+        first_spatial_sample_num=int(np.ceil(param.spatial_point_num*first_sample_ratio))
     
     for iteration in range(iteration_num):
         print(f"Iteration {iteration+1}/{iteration_num}",flush=True)
         stage_start_time=time.perf_counter()
-        param.first_sample_ids=np.sort(rng.choice(param.point_num,size=first_sample_num,replace=False))
+        if param.cross_time_compress:
+            first_spatial_sample_ids=np.sort(rng.choice(param.spatial_point_num,size=first_spatial_sample_num,replace=False))
+            param.first_sample_ids=np.concatenate([time_step_id*param.spatial_point_num+first_spatial_sample_ids for time_step_id in range(time_step_num)])
+            first_sample_num=param.first_sample_ids.size
+        else:
+            param.first_sample_ids=np.sort(rng.choice(param.point_num,size=first_sample_num,replace=False))
         original_sampled_coord=param.coord_array[param.first_sample_ids]
         sampled_coord=original_sampled_coord@transform_matrix
         sampled_data=full_sampled_data[:,param.first_sample_ids]
@@ -416,7 +426,7 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
 
 def adjust_coord(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares")->None:
     if param.cross_time_compress:
-        adjust_coord_cross_time(param)
+        adjust_coord_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name)
     else:
         adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name)
 

@@ -30,6 +30,7 @@ namespace unsz
         point_set_codec_config_vec=other.point_set_codec_config_vec;
         check_original_data_files=other.check_original_data_files;
         cross_time_compress=other.cross_time_compress;
+        cross_time_predictor_experimental=other.cross_time_predictor_experimental;
         if_adjust_coord=other.if_adjust_coord;
         adjust_coord_matrix_parameter_vec=other.adjust_coord_matrix_parameter_vec;
         print_round_statistics=other.print_round_statistics;
@@ -56,6 +57,7 @@ namespace unsz
         use_reverse_direction_distribution_order_experimental=other.use_reverse_direction_distribution_order_experimental;
         d_only_cache_refill_threshold_experimental=other.d_only_cache_refill_threshold_experimental;
         order_candidate_num_experimental=other.order_candidate_num_experimental;
+        cross_time_spatial_point_num_experimental=other.cross_time_spatial_point_num_experimental;
         kd_tree_leaf_size=other.kd_tree_leaf_size;
         independent_block_size_experimental=other.independent_block_size_experimental;
         independent_block_num_experimental=other.independent_block_num_experimental;
@@ -95,6 +97,8 @@ namespace unsz
 
         current_data=other.current_data;
         current_decompressed_data=other.current_decompressed_data;
+        previous_time_decompressed_data=other.previous_time_decompressed_data;
+        previous_time_point_set_id_vec=other.previous_time_point_set_id_vec;
         current_min_data=other.current_min_data;
         current_max_data=other.current_max_data;
         current_abs_eb=other.current_abs_eb;
