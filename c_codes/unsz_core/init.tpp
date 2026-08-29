@@ -63,6 +63,9 @@ namespace unsz
                 max_coord[d]=max(max_coord[d],coord_array[i][d]);
                 min_coord[d]=min(min_coord[d],coord_array[i][d]);
             }
-        printf("Coord range: [[%f, %f], [%f, %f], [%f, %f]]\n",min_coord[0],max_coord[0],min_coord[1],max_coord[1],min_coord[2],max_coord[2]);
+        printf("Coord range: [");
+        for (uint32_t d=0;d<dim;d++)
+            printf("%s[%f, %f]",d==0?"":", ",(double)min_coord[d],(double)max_coord[d]);
+        printf("]\n");
     }
 }

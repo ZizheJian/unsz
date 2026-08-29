@@ -10,23 +10,23 @@ umc_root="/home/x-zjian1/umc"
 # umc：UMC的NBP-IDW预测器
 compressor_list=["unsz","umc"]
 dataset_list=[
-    {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162,"adjust_coord":True},
-    # {"name":"Ocean-layerThickness","folder":"Ocean","variable":"layerThickness","time_step_num":31},
-    # {"name":"Ocean-salinity","folder":"Ocean","variable":"salinity","time_step_num":31},
-    {"name":"Ocean-temperature","folder":"Ocean","variable":"temperature","time_step_num":31,"adjust_coord":False},
-    # {"name":"Ocean-velocityMeridional","folder":"Ocean","variable":"velocityMeridional","time_step_num":31},
-    # {"name":"Ocean-velocityX","folder":"Ocean","variable":"velocityX","time_step_num":31},
-    # {"name":"Ocean-velocityY","folder":"Ocean","variable":"velocityY","time_step_num":31},
-    # {"name":"Ocean-velocityZ","folder":"Ocean","variable":"velocityZ","time_step_num":31},
-    # {"name":"Ocean-velocityZonal","folder":"Ocean","variable":"velocityZonal","time_step_num":31},
-    # {"name":"Ocean-zTop","folder":"Ocean","variable":"zTop","time_step_num":31},
-    # {"name":"LES-velocity_x","folder":"LES","variable":"velocity_x","time_step_num":1},
-    # {"name":"LES-velocity_y","folder":"LES","variable":"velocity_y","time_step_num":1},
-    # {"name":"LES-velocity_z","folder":"LES","variable":"velocity_z","time_step_num":1},
-    # {"name":"Tsunami-momentum_x","folder":"Tsunami","variable":"momentum_x","time_step_num":1},
-    # {"name":"Tsunami-momentum_y","folder":"Tsunami","variable":"momentum_y","time_step_num":1},
-    # {"name":"Tsunami-velocity_x","folder":"Tsunami","variable":"velocity_x","time_step_num":1},
-    # {"name":"Tsunami-velocity_y","folder":"Tsunami","variable":"velocity_y","time_step_num":1},
+    # {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162,"adjust_coord":True,"umc_from_edge":0,"dim":3},
+    {"name":"Ocean-layerThickness","folder":"Ocean","variable":"layerThickness","time_step_num":31,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-salinity","folder":"Ocean","variable":"salinity","time_step_num":31,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-temperature","folder":"Ocean","variable":"temperature","time_step_num":31,"adjust_coord":False,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-velocityMeridional","folder":"Ocean","variable":"velocityMeridional","time_step_num":31,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-velocityX","folder":"Ocean","variable":"velocityX","time_step_num":31,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-velocityY","folder":"Ocean","variable":"velocityY","time_step_num":31,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-velocityZ","folder":"Ocean","variable":"velocityZ","time_step_num":31,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-velocityZonal","folder":"Ocean","variable":"velocityZonal","time_step_num":31,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-zTop","folder":"Ocean","variable":"zTop","time_step_num":31,"umc_from_edge":1,"dim":3},
+    # {"name":"LES-velocity_x","folder":"LES","variable":"velocity_x","time_step_num":1,"umc_from_edge":0,"dim":3},
+    # {"name":"LES-velocity_y","folder":"LES","variable":"velocity_y","time_step_num":1,"umc_from_edge":0,"dim":3},
+    # {"name":"LES-velocity_z","folder":"LES","variable":"velocity_z","time_step_num":1,"umc_from_edge":0,"dim":3},
+    # {"name":"Tsunami-momentum_x","folder":"Tsunami","variable":"momentum_x","time_step_num":1,"umc_from_edge":1,"dim":2},
+    # {"name":"Tsunami-momentum_y","folder":"Tsunami","variable":"momentum_y","time_step_num":1,"umc_from_edge":1,"dim":2},
+    # {"name":"Tsunami-velocity_x","folder":"Tsunami","variable":"velocity_x","time_step_num":1,"umc_from_edge":1,"dim":2},
+    # {"name":"Tsunami-velocity_y","folder":"Tsunami","variable":"velocity_y","time_step_num":1,"umc_from_edge":1,"dim":2},
 ]
 rel_eb_list=[1e-2,1e-3,1e-4]
 build_max_cpus=get_max_cpus(8)
@@ -36,6 +36,7 @@ write_to_csv=True
 cleanup_after_each_test=True
 continue_after_error=True
 verify_unsz_decompression=True
+unsz_extra_arguments="-reverse-mean-distance-only-order-experimental"
 
 def build_unsz():
     unsz_path=os.path.join(project_root,"install/bin/s1_compress")
@@ -144,9 +145,11 @@ def test(compressor,dataset,rel_eb):
         raise FileNotFoundError("缺少测试文件："+", ".join(missing_paths))
     if compressor=="unsz":
         time_step_expression=f"[0,{time_step_num-1}]"
-        common_arguments=f"-data-dir {shlex.quote(data_dir)} -variable {shlex.quote(variable)} -time-step {shlex.quote(time_step_expression)} -M REL {rel_eb}"
+        common_arguments=f"-data-dir {shlex.quote(data_dir)} -variable {shlex.quote(variable)} -time-step {shlex.quote(time_step_expression)} -M REL {rel_eb} -dim {dataset['dim']}"
         if dataset.get("adjust_coord",False):
             common_arguments+=" -adjust-coord"
+        if unsz_extra_arguments:
+            common_arguments+=" "+unsz_extra_arguments
         compress_command=f"{shlex.quote(project_root+'/install/bin/s1_compress')} {common_arguments}"
         compress_output=run_command(compress_command)
         br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_unsz_result(compress_output,data_paths)
@@ -158,10 +161,12 @@ def test(compressor,dataset,rel_eb):
                 raise RuntimeError(f"压缩端和解压端的总PSNR不一致：{psnr} != {decompressed_psnr}")
             print(f"磁盘压缩—解压检查通过：total psnr={decompressed_psnr}")
     elif compressor=="umc":
-        command=f"{umc_root}/build/test/test_compress {data_dir}/ {variable} coords.dat conn.dat 0 3 2 1 {time_step_num} 0 {rel_eb} 10"
+        umc_from_edge=dataset["umc_from_edge"]
+        umc_dim=dataset["dim"]
+        command=f"{umc_root}/build/test/test_compress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 2 1 {time_step_num} 0 {rel_eb} 10"
         output=run_command(command)
         br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_umc_result(output,data_paths)
-        decompress_command=f"{umc_root}/build/test/test_decompress {data_dir}/ {variable} coords.dat conn.dat 0 3 2 1 {time_step_num}"
+        decompress_command=f"{umc_root}/build/test/test_decompress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 2 1 {time_step_num}"
         decompress_output=run_command(decompress_command)
         decompression_time=parse_umc_decompression_result(decompress_output,data_paths)
     else:

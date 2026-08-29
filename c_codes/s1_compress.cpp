@@ -69,15 +69,20 @@ void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::t
         param.adjust_coord();
         adjust_coord_time=chrono::duration<double>(chrono::steady_clock::now()-adjust_coord_start_time).count();
     }
-    param.generate_pred_refs_structure();
+    param.load_or_generate_pred_refs_structure();
+    if (param.print_prediction_dag_statistics)
+        param.print_prediction_dag_statistics_result();
     double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time;
     printf("preprocessing time excluding adjust coord= %f s\n",preprocessing_time);
 
     uint64_t total_original_bytes=0,total_compressed_bytes=0,total_point_num=0;
-    double total_squared_error=0,total_compression_time=0;
+    double total_squared_error=0,total_compression_time=0,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
+    uint32_t max_error_point_id=0,max_error_point_set_id=0;
+    string max_error_data_path;
     float total_min_data=numeric_limits<float>::infinity(),total_max_data=-numeric_limits<float>::infinity();
-    for (auto &original_data_path:param.original_data_path_vec)
+    for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
+        auto &original_data_path=param.original_data_path_vec[file_id];
         printf("Compressing %s\n",original_data_path.c_str());
         param.compressed_data_path_vec.push_back(original_data_path+".unsz");
         param.decompressed_data_path_vec.push_back(original_data_path+".unsz.bin");
@@ -97,6 +102,39 @@ void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::t
         double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count();
         total_compression_time+=compression_time;
         printf("file compression time= %f s\n",compression_time);
+        if (param.use_prediction_order_layout_experimental)
+        {
+            auto result_reorder_start_time=chrono::steady_clock::now();
+            param.restore_compression_result_to_original_order();
+            printf("compression result reorder time excluded from compression= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-result_reorder_start_time).count());
+        }
+        if (!param.hybrid_selector_path.empty())
+        {
+            if (param.hybrid_selector_vec.size()!=param.point_num)
+                throw runtime_error("没有生成完整的混合预测器selector");
+            vector<uint8_t> selector=param.hybrid_selector_vec;
+            if (param.use_prediction_order_layout_experimental)
+            {
+                vector<uint8_t> original_order_selector(param.point_num);
+                for (uint32_t prediction_id=0;prediction_id<param.point_num;prediction_id++)
+                    original_order_selector[param.prediction_id_to_original_id[prediction_id]]=selector[prediction_id];
+                selector.swap(original_order_selector);
+            }
+            string selector_path=param.hybrid_selector_path;
+            if (param.original_data_path_vec.size()>1)
+                selector_path+="."+to_string(file_id);
+            FILE *selector_file=fopen(selector_path.c_str(),"wb");
+            if (!selector_file)
+                throw runtime_error("无法创建混合预测器selector文件："+selector_path);
+            if (fwrite(selector.data(),1,selector.size(),selector_file)!=selector.size())
+            {
+                fclose(selector_file);
+                throw runtime_error("写入混合预测器selector文件失败："+selector_path);
+            }
+            if (fclose(selector_file)!=0)
+                throw runtime_error("关闭混合预测器selector文件失败："+selector_path);
+            printf("hybrid selector path=%s\n",selector_path.c_str());
+        }
         total_original_bytes+=(uint64_t)param.point_num*sizeof(float);
         total_compressed_bytes+=param.current_zstd_bs_vec.size();
         total_point_num+=param.point_num;
@@ -107,6 +145,18 @@ void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::t
         {
             double error=(double)param.current_data[i]-param.current_decompressed_data[i];
             total_squared_error+=error*error;
+            uint32_t point_set_id=param.point_set_id_vec[i];
+            double validation_abs_eb=param.point_set_abs_eb_vec[point_set_id];
+            double error_ratio=validation_abs_eb>0?abs(error)/validation_abs_eb:(error==0?0:numeric_limits<double>::infinity());
+            if (error_ratio>max_error_ratio)
+            {
+                max_error_ratio=error_ratio;
+                max_error=error;
+                max_error_abs_eb=validation_abs_eb;
+                max_error_point_id=i;
+                max_error_point_set_id=point_set_id;
+                max_error_data_path=original_data_path;
+            }
             if (param.point_set_id_vec[i]==primary_point_set_id)
             {
                 total_min_data=min(total_min_data,param.current_data[i]);
@@ -124,6 +174,9 @@ void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::t
         if (fclose(f_compressed)!=0)
             throw runtime_error("关闭压缩文件失败："+param.compressed_data_path_vec.back());
     }
+    printf("全部文件最大误差/用户误差上限= %.9f\n",max_error_ratio);
+    if (max_error_ratio>1.1)
+        throw runtime_error("全部文件压缩完成后误差检查失败：文件="+max_error_data_path+"，点="+to_string(max_error_point_id)+"，点集="+to_string(max_error_point_set_id)+"，误差="+to_string(max_error)+"，绝对误差上限="+to_string(max_error_abs_eb)+"，误差/上限="+to_string(max_error_ratio));
     double total_cr=(double)total_original_bytes/total_compressed_bytes;
     double total_mse=total_squared_error/total_point_num;
     double total_psnr=total_mse==0?numeric_limits<double>::infinity():10*log10(pow((double)total_max_data-total_min_data,2)/total_mse);
@@ -180,6 +233,12 @@ namespace unsz
                 param.variable_name=argv[++arg_id];
                 param.got_variable=true;
             }
+            else if (strcmp(argv[arg_id],"-dim")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-dim后面缺少参数值");
+                param.dim=parse_positive_uint32(argv[++arg_id],"-dim");
+            }
             else if (strcmp(argv[arg_id],"-time-step")==0)
             {
                 if (arg_id+1>=argc)
@@ -209,11 +268,79 @@ namespace unsz
                     throw runtime_error("-actual-ref-num后面缺少参数值");
                 param.actual_ref_num=parse_positive_uint32(argv[++arg_id],"-actual-ref-num");
             }
+            else if (strcmp(argv[arg_id],"-inverse-distance-power")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-inverse-distance-power后面缺少参数值");
+                param.inverse_distance_power=parse_positive_float(argv[++arg_id],"-inverse-distance-power");
+            }
             else if (strcmp(argv[arg_id],"-label-ref-num")==0)
             {
                 if (arg_id+1>=argc)
                     throw runtime_error("-label-ref-num后面缺少参数值");
                 param.point_set_ref_num=parse_positive_uint32(argv[++arg_id],"-label-ref-num");
+            }
+            else if (strcmp(argv[arg_id],"-d-only-cache-refill-threshold-experimental")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-d-only-cache-refill-threshold-experimental后面缺少参数值");
+                param.d_only_cache_refill_threshold_experimental=parse_uint32(argv[++arg_id],"-d-only-cache-refill-threshold-experimental");
+            }
+            else if (strcmp(argv[arg_id],"-order-candidate-num-experimental")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-order-candidate-num-experimental后面缺少参数值");
+                param.order_candidate_num_experimental=parse_positive_uint32(argv[++arg_id],"-order-candidate-num-experimental");
+            }
+            else if (strcmp(argv[arg_id],"-prediction-structure")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-prediction-structure后面缺少参数值");
+                param.prediction_structure_path=argv[++arg_id];
+            }
+            else if (strcmp(argv[arg_id],"-kd-leaf-size")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-kd-leaf-size后面缺少参数值");
+                param.kd_tree_leaf_size=parse_positive_uint32(argv[++arg_id],"-kd-leaf-size");
+            }
+            else if (strcmp(argv[arg_id],"-independent-block-size-experimental")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-independent-block-size-experimental后面缺少参数值");
+                param.independent_block_size_experimental=parse_positive_uint32(argv[++arg_id],"-independent-block-size-experimental");
+            }
+            else if (strcmp(argv[arg_id],"-independent-block-num-experimental")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-independent-block-num-experimental后面缺少参数值");
+                param.independent_block_num_experimental=parse_positive_uint32(argv[++arg_id],"-independent-block-num-experimental");
+            }
+            else if (strcmp(argv[arg_id],"-block-adaptive-predictor-experimental")==0)
+                param.use_block_adaptive_predictor_experimental=true;
+            else if (strcmp(argv[arg_id],"-pointwise-oracle-statistics-experimental")==0)
+                param.print_pointwise_oracle_statistics_experimental=true;
+            else if (strcmp(argv[arg_id],"-block-adaptive-sample-num-experimental")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-block-adaptive-sample-num-experimental后面缺少参数值");
+                param.block_adaptive_sample_num_experimental=parse_positive_uint32(argv[++arg_id],"-block-adaptive-sample-num-experimental");
+            }
+            else if (strcmp(argv[arg_id],"-block-fitting-candidates-experimental")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-block-fitting-candidates-experimental后面缺少模式");
+                param.block_fitting_candidates_experimental=argv[++arg_id];
+                if (param.block_fitting_candidates_experimental!="original" && param.block_fitting_candidates_experimental!="weighted" && param.block_fitting_candidates_experimental!="ridge" && param.block_fitting_candidates_experimental!="mixed" && param.block_fitting_candidates_experimental!="residual" && param.block_fitting_candidates_experimental!="extended" && param.block_fitting_candidates_experimental!="all")
+                    throw runtime_error("-block-fitting-candidates-experimental必须是original、weighted、ridge、mixed、residual、extended或all");
+            }
+            else if (strcmp(argv[arg_id],"-multi-huffman-experimental")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-multi-huffman-experimental后面缺少模式");
+                param.multi_huffman_mode_experimental=argv[++arg_id];
+                if (param.multi_huffman_mode_experimental!="none" && param.multi_huffman_mode_experimental!="round" && param.multi_huffman_mode_experimental!="block" && param.multi_huffman_mode_experimental!="block_round")
+                    throw runtime_error("-multi-huffman-experimental必须是none、round、block或block_round");
             }
             else if (strcmp(argv[arg_id],"-point-set-predictor")==0)
             {
@@ -221,27 +348,107 @@ namespace unsz
                     throw runtime_error("-point-set-predictor后面缺少参数值");
                 param.point_set_predictor=argv[++arg_id];
             }
+            else if (strcmp(argv[arg_id],"-predictor")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-predictor后面缺少参数值");
+                param.predictor=argv[++arg_id];
+                if (param.predictor!="inverse_proportion" && param.predictor!="fitting" && param.predictor!="hybrid_loo")
+                    throw runtime_error("-predictor必须是inverse_proportion、fitting或hybrid_loo");
+            }
+            else if (strcmp(argv[arg_id],"-hybrid-selector-path")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-hybrid-selector-path后面缺少参数值");
+                param.hybrid_selector_path=argv[++arg_id];
+            }
             else if (strcmp(argv[arg_id],"-round-stats")==0)
                 param.print_round_statistics=true;
             else if (strcmp(argv[arg_id],"-label-stats")==0)
                 param.print_label_compression_statistics=true;
             else if (strcmp(argv[arg_id],"-adjust-coord")==0)
                 param.if_adjust_coord=true;
+            else if (strcmp(argv[arg_id],"-adjust-coord-matrix")==0)
+            {
+                if (arg_id+6>=argc)
+                    throw runtime_error("-adjust-coord-matrix后面需要6个下三角矩阵元素");
+                param.adjust_coord_matrix_parameter_vec.clear();
+                for (uint32_t parameter_id=0;parameter_id<6;parameter_id++)
+                {
+                    double value=stod(argv[++arg_id]);
+                    if (!isfinite(value))
+                        throw runtime_error("坐标变换矩阵元素必须是有限数");
+                    param.adjust_coord_matrix_parameter_vec.push_back(value);
+                }
+                param.if_adjust_coord=true;
+            }
             else if (strcmp(argv[arg_id],"-compression-stage-time")==0)
                 param.print_compression_stage_time=true;
+            else if (strcmp(argv[arg_id],"-parallelism-stats")==0)
+                param.print_prediction_dag_statistics=true;
+            else if (strcmp(argv[arg_id],"-prediction-order-layout-experimental")==0)
+                param.use_prediction_order_layout_experimental=true;
+            else if (strcmp(argv[arg_id],"-normalized-weight-experimental")==0)
+                param.use_normalized_weight_experimental=true;
+            else if (strcmp(argv[arg_id],"-prediction-order-label-experimental")==0)
+                param.use_prediction_order_label_experimental=true;
+            else if (strcmp(argv[arg_id],"-predictability-order-experimental")==0)
+                param.use_predictability_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-forward-mean-distance-only-order-experimental")==0)
+                param.use_forward_mean_distance_only_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-forward-s2-only-order-experimental")==0)
+                param.use_forward_s2_only_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-forward-direction-only-order-experimental")==0)
+                param.use_forward_direction_only_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-forward-mean-distance-s2-order-experimental")==0)
+                param.use_forward_mean_distance_s2_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-forward-mean-distance-direction-order-experimental")==0)
+                param.use_forward_mean_distance_direction_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-reverse-predictability-order-experimental")==0)
+                param.use_reverse_predictability_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-reverse-distribution-order-experimental")==0)
+                param.use_reverse_distribution_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-reverse-mean-distance-only-order-experimental")==0)
+                param.use_reverse_mean_distance_only_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-reverse-reference-reuse-order-experimental")==0)
+                param.use_reverse_reference_reuse_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-reverse-s2-only-order-experimental")==0)
+                param.use_reverse_s2_only_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-reverse-direction-only-order-experimental")==0)
+                param.use_reverse_direction_only_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-reverse-direction-order-experimental")==0)
+                param.use_reverse_direction_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-reverse-direction-distribution-order-experimental")==0)
+                param.use_reverse_direction_distribution_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-eb-schedule-experimental")==0)
+            {
+                if (arg_id+2>=argc)
+                    throw runtime_error("-eb-schedule-experimental后面需要模式和起始倍率");
+                param.eb_schedule_experimental=argv[++arg_id];
+                param.eb_schedule_start_ratio=parse_positive_float(argv[++arg_id],"-eb-schedule-experimental");
+                if (param.eb_schedule_experimental!="none" && param.eb_schedule_experimental!="round" && param.eb_schedule_experimental!="point" && param.eb_schedule_experimental!="round_point" && param.eb_schedule_experimental!="round_ratio" && param.eb_schedule_experimental!="round_point_ratio")
+                    throw runtime_error("-eb-schedule-experimental的模式必须是none、round、point、round_point、round_ratio或round_point_ratio");
+                if (param.eb_schedule_start_ratio>1)
+                    throw runtime_error("-eb-schedule-experimental的起始倍率不能大于1");
+            }
             else
                 throw runtime_error("未知参数："+string(argv[arg_id]));
         }
         if (!param.got_data_dir || !param.got_variable || !param.got_time_step || !param.got_error_mode)
-            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> -M <REL|ABS> <误差> [-adjust-coord] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-label-ref-num <数量>] [-point-set-predictor <名称>] [-round-stats] [-label-stats] [-compression-stage-time]");
+            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> -M <REL|ABS> <误差> [-dim <维数>] [-adjust-coord] [-predictor <inverse_proportion|fitting|hybrid_loo>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-label-ref-num <数量>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-independent-block-size-experimental <数量>] [-independent-block-num-experimental <数量>] [-block-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-block-adaptive-sample-num-experimental <数量>] [-block-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|block_round>] [-round-stats] [-label-stats] [-compression-stage-time] [-parallelism-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
         if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
             throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
+        if (!param.hybrid_selector_path.empty() && param.predictor!="hybrid_loo")
+            throw runtime_error("-hybrid-selector-path只能和-predictor hybrid_loo一起使用");
+        if (param.use_block_adaptive_predictor_experimental && param.independent_block_size_experimental==0 && param.independent_block_num_experimental==0)
+            throw runtime_error("block自适应预测器需要指定独立空间块");
+        if (param.print_pointwise_oracle_statistics_experimental && !param.use_block_adaptive_predictor_experimental)
+            throw runtime_error("逐点oracle统计需要启用block自适应预测器");
         if (!param.data_dir.empty() && param.data_dir.back()!='/')
             param.data_dir+="/";
         param.coord_path=param.data_dir+"coords.dat";
         for (uint32_t time_step:time_step_vec)
             param.original_data_path_vec.push_back(param.data_dir+param.variable_name+".dat."+to_string(time_step));
-        param.dim=3;
         if (param.error_mode=="REL")
         {
             param.rel_eb=error_bound;

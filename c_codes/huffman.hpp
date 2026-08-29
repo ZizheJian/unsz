@@ -9,7 +9,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
+#include <cstring>
+#include <limits>
 #include <stdexcept>
+#include <type_traits>
 
 using namespace std;
 
@@ -128,7 +131,7 @@ class huffman_encoder_class
 
                 uint64_t root;
                 uint64_t n;//node数量
-                T maxval;
+                uint64_t maxval;
                 std::vector<Node> ht;
                 std::vector<uint64_t> vecfreq;//以vector形式存储的freq
                 unordered_map<uint64_t,uint64_t> mpfreq;//以map形式存储的freq
@@ -237,9 +240,11 @@ class huffman_encoder_class
                 __maxval=max(__maxval,*(bins+i));
             }
             tree.offset=__minval;
-            tree.maxval=__maxval-__minval+1;
+            tree.maxval=(uint64_t)((int64_t)__maxval-(int64_t)__minval)+1;
+            if (tree.maxval-1>(uint64_t)numeric_limits<T>::max())
+                throw runtime_error("Huffman符号跨度超出当前类型范围");
             // bin的值密集时使用vector存储频次，稀疏时使用map存储频次
-            if ((tree.maxval>=(1<<12) and num_bin<2*static_cast<uint64_t>(__maxval)) || tree.maxval>=(1<<28))
+            if ((tree.maxval>=(1llu<<12) and num_bin<2*tree.maxval) || tree.maxval>=(1llu<<28))
                 tree.usemp=1;
             else
                 tree.usemp=0;
@@ -247,7 +252,7 @@ class huffman_encoder_class
             {
                 map<uint64_t,uint64_t> freq;
                 for (uint64_t i=0;i<num_bin;i++)
-                    ++freq[static_cast<uint64_t>(bins[i]-tree.offset)];
+                    ++freq[(uint64_t)((int64_t)bins[i]-(int64_t)tree.offset)];
                 tree.ht.reserve(freq.size()<<1);
                 for (auto it:freq)
                     tree.addElementInMap(it.first,it.second);
@@ -259,7 +264,7 @@ class huffman_encoder_class
                 tree.veccode.resize(tree.maxval);
                 std::vector<uint64_t> freq(tree.maxval);
                 for (uint64_t i=0;i<num_bin;i++)
-                    ++freq[static_cast<uint64_t>(bins[i]-tree.offset)];
+                    ++freq[(uint64_t)((int64_t)bins[i]-(int64_t)tree.offset)];
                 tree.ht.reserve(freq.size()<<1);
                 for (uint64_t i=0;i<static_cast<uint64_t>(tree.maxval);i++)
                     if (freq[i]) 
@@ -529,6 +534,26 @@ class huffman_encoder_class
             *c++=val;
         }
 
+        static void writeValueBytes(unsigned char*& c,T value)
+        {
+            using unsigned_t=typename make_unsigned<T>::type;
+            unsigned_t bits;
+            memcpy(&bits,&value,sizeof(T));
+            for (uint32_t i=0;i<sizeof(T);i++)
+                *c++=(unsigned char)(bits>>(i*8));
+        }
+
+        static T readValueBytes(const unsigned char*& c)
+        {
+            using unsigned_t=typename make_unsigned<T>::type;
+            unsigned_t bits=0;
+            for (uint32_t i=0;i<sizeof(T);i++)
+                bits|=(unsigned_t)(*c++)<<(i*8);
+            T value;
+            memcpy(&value,&bits,sizeof(T));
+            return value;
+        }
+
         static void writeBytesClearMask(unsigned char*& c,unsigned char& mask,unsigned char& index)
         {
             if (index>0)
@@ -545,7 +570,7 @@ class huffman_encoder_class
             unsigned char mask=0,index=0;
 
             writeBytesByte(c,(tree.usemp<<7)|((tree.n==1)<<6)|tree.mbft);
-            writeBytes(c,tree.offset,sizeof(T)<<3,mask,index);
+            writeValueBytes(c,tree.offset);
             int64ToBytes_bigEndian(c,tree.n);
             c+=sizeof(uint64_t);
             int64ToBytes_bigEndian(c,tree.maxval);
@@ -589,11 +614,7 @@ class huffman_encoder_class
             tree.mbft=(*bytes)&0x3f;
             ++bytes;
 
-            for (uint64_t i=0;i<sizeof(T);i++)
-            {
-                tree.offset|=static_cast<T>(*bytes)<<(i<<3);
-                ++bytes;
-            }
+            tree.offset=readValueBytes(bytes);
 
             tree.n=bytesToInt64_bigEndian(bytes);
             bytes+=sizeof(uint64_t);

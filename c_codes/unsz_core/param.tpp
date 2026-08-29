@@ -10,6 +10,8 @@ namespace unsz
         variable_name=other.variable_name;
         error_mode=other.error_mode;
         coord_path=other.coord_path;
+        prediction_structure_path=other.prediction_structure_path;
+        hybrid_selector_path=other.hybrid_selector_path;
         original_data_path_vec=other.original_data_path_vec;
         compressed_data_path_vec=other.compressed_data_path_vec;
         decompressed_data_path_vec=other.decompressed_data_path_vec;
@@ -29,9 +31,40 @@ namespace unsz
         check_original_data_files=other.check_original_data_files;
         cross_time_compress=other.cross_time_compress;
         if_adjust_coord=other.if_adjust_coord;
+        adjust_coord_matrix_parameter_vec=other.adjust_coord_matrix_parameter_vec;
         print_round_statistics=other.print_round_statistics;
         print_label_compression_statistics=other.print_label_compression_statistics;
         print_compression_stage_time=other.print_compression_stage_time;
+        print_prediction_dag_statistics=other.print_prediction_dag_statistics;
+        print_pointwise_oracle_statistics_experimental=other.print_pointwise_oracle_statistics_experimental;
+        use_prediction_order_layout_experimental=other.use_prediction_order_layout_experimental;
+        use_normalized_weight_experimental=other.use_normalized_weight_experimental;
+        use_prediction_order_label_experimental=other.use_prediction_order_label_experimental;
+        use_predictability_order_experimental=other.use_predictability_order_experimental;
+        use_forward_mean_distance_only_order_experimental=other.use_forward_mean_distance_only_order_experimental;
+        use_forward_s2_only_order_experimental=other.use_forward_s2_only_order_experimental;
+        use_forward_direction_only_order_experimental=other.use_forward_direction_only_order_experimental;
+        use_forward_mean_distance_s2_order_experimental=other.use_forward_mean_distance_s2_order_experimental;
+        use_forward_mean_distance_direction_order_experimental=other.use_forward_mean_distance_direction_order_experimental;
+        use_reverse_predictability_order_experimental=other.use_reverse_predictability_order_experimental;
+        use_reverse_distribution_order_experimental=other.use_reverse_distribution_order_experimental;
+        use_reverse_mean_distance_only_order_experimental=other.use_reverse_mean_distance_only_order_experimental;
+        use_reverse_reference_reuse_order_experimental=other.use_reverse_reference_reuse_order_experimental;
+        use_reverse_s2_only_order_experimental=other.use_reverse_s2_only_order_experimental;
+        use_reverse_direction_only_order_experimental=other.use_reverse_direction_only_order_experimental;
+        use_reverse_direction_order_experimental=other.use_reverse_direction_order_experimental;
+        use_reverse_direction_distribution_order_experimental=other.use_reverse_direction_distribution_order_experimental;
+        d_only_cache_refill_threshold_experimental=other.d_only_cache_refill_threshold_experimental;
+        order_candidate_num_experimental=other.order_candidate_num_experimental;
+        kd_tree_leaf_size=other.kd_tree_leaf_size;
+        independent_block_size_experimental=other.independent_block_size_experimental;
+        independent_block_num_experimental=other.independent_block_num_experimental;
+        use_block_adaptive_predictor_experimental=other.use_block_adaptive_predictor_experimental;
+        block_adaptive_sample_num_experimental=other.block_adaptive_sample_num_experimental;
+        block_fitting_candidates_experimental=other.block_fitting_candidates_experimental;
+        multi_huffman_mode_experimental=other.multi_huffman_mode_experimental;
+        eb_schedule_experimental=other.eb_schedule_experimental;
+        eb_schedule_start_ratio=other.eb_schedule_start_ratio;
         predict_round_num=other.predict_round_num;
         max_ref_num=other.max_ref_num;
         actual_ref_num=other.actual_ref_num;
@@ -50,6 +83,15 @@ namespace unsz
         round_target_ids=other.round_target_ids;
         pred_refs_vec=other.pred_refs_vec;
         pred_ref_weights_vec=other.pred_ref_weights_vec;
+        pred_ref_label_normalized_weights_vec=other.pred_ref_label_normalized_weights_vec;
+        pred_ref_value_normalized_weights_vec=other.pred_ref_value_normalized_weights_vec;
+        prediction_id_to_original_id=other.prediction_id_to_original_id;
+        original_id_to_prediction_id=other.original_id_to_prediction_id;
+        independent_block_point_ids_vec=other.independent_block_point_ids_vec;
+        point_independent_block_id_vec=other.point_independent_block_id_vec;
+        independent_block_root_ids_vec=other.independent_block_root_ids_vec;
+        block_prediction_config_id_vec=other.block_prediction_config_id_vec;
+        block_adaptive_sample_mask=other.block_adaptive_sample_mask;
 
         current_data=other.current_data;
         current_decompressed_data=other.current_decompressed_data;
@@ -66,6 +108,7 @@ namespace unsz
         point_set_abs_eb_vec=other.point_set_abs_eb_vec;
         point_set_codec_vec=other.point_set_codec_vec;
         current_valid_node_num=other.current_valid_node_num;
+        hybrid_selector_vec=other.hybrid_selector_vec;
     }
 
     template<typename T_coord,typename T_data>
