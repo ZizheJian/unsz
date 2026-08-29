@@ -30,17 +30,27 @@ def parse_decompressed_psnr(output,prefix):
         raise RuntimeError(f"无法从{prefix}输出中读取解压PSNR")
     return float(match.group(1))
 
+def parse_single_time(output,pattern,prefix):
+    match=re.search(pattern,output)
+    if match is None:
+        raise RuntimeError(f"无法从{prefix}输出中读取耗时")
+    return float(match.group(1))
+
 def make_command(executable,data_dir,variable,time_step,dim,rel_eb,extra_flags):
     return [executable,"-data-dir",data_dir,"-variable",variable,"-time-step",time_step,"-dim",dim,"-M","REL",rel_eb,"-inverse-distance-power",3.5,"-max-ref-num",10,"-actual-ref-num",10,"-reverse-mean-distance-only-order-experimental","-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","none",1,*extra_flags]
 
-def run_codec(data_dir,variable,time_step,dim,rel_eb,extra_flags,name):
+def run_codec(data_dir,variable,time_step,dim,rel_eb,extra_flags,name,compress_only=False):
     compression_output=run_command(make_command(compress_path,data_dir,variable,time_step,dim,rel_eb,extra_flags))
     br,psnr=parse_result(compression_output,name)
+    preprocessing_time=parse_single_time(compression_output,r"preprocessing time excluding adjust coord=\s*([0-9.eE+-]+)",name)
+    compression_time=parse_single_time(compression_output,r"total compression time=\s*([0-9.eE+-]+)",name)
+    if compress_only:
+        return br,psnr,preprocessing_time,compression_time
     decompression_output=run_command(make_command(decompress_path,data_dir,variable,time_step,dim,rel_eb,extra_flags))
     decompressed_psnr=parse_decompressed_psnr(decompression_output,name)
     if abs(psnr-decompressed_psnr)>1e-5:
         raise RuntimeError(f"{name}压缩端PSNR {psnr}与解压端PSNR {decompressed_psnr}不一致")
-    return br,psnr
+    return br,psnr,preprocessing_time,compression_time
 
 def read_input(data_dir,variable,time_step_vec):
     coord=np.fromfile(Path(data_dir)/"coords.dat",dtype=np.float32)
@@ -55,6 +65,32 @@ def read_input(data_dir,variable,time_step_vec):
             raise RuntimeError(f"{path}包含{data.size}个数据，坐标有{coord.shape[0]}个点")
         data_vec.append(data)
     return coord,data_vec
+
+def discover_time_steps(data_dir,variable):
+    pattern=re.compile(rf"^{re.escape(variable)}\.dat\.(\d+)$")
+    time_step_vec=sorted(int(match.group(1)) for path in Path(data_dir).iterdir() if (match:=pattern.match(path.name)))
+    if len(time_step_vec)<2:
+        raise RuntimeError(f"{data_dir}中只找到了{len(time_step_vec)}个{variable}时间步")
+    if time_step_vec!=list(range(time_step_vec[-1]+1)):
+        raise RuntimeError(f"{variable}的时间步必须从0开始连续，实际为{time_step_vec}")
+    return time_step_vec
+
+def hierarchical_time_order(time_step_vec):
+    sorted_time_step_vec=sorted(time_step_vec)
+    if len(sorted_time_step_vec)<=1:
+        return sorted_time_step_vec
+    order=[sorted_time_step_vec[0],sorted_time_step_vec[-1]]
+    interval_vec=[(0,len(sorted_time_step_vec)-1)]
+    for left_id,right_id in interval_vec:
+        if right_id-left_id<=1:
+            continue
+        middle_id=(left_id+right_id)//2
+        order.append(sorted_time_step_vec[middle_id])
+        interval_vec.append((left_id,middle_id))
+        interval_vec.append((middle_id,right_id))
+    if len(order)!=len(sorted_time_step_vec) or len(set(order))!=len(order):
+        raise RuntimeError("层次时间顺序没有恰好覆盖全部time step")
+    return order
 
 def prepare_spatial_files(work_dir,coord,data_vec,variable,time_step_vec):
     spatial_dir=work_dir/"spatial"
@@ -89,7 +125,7 @@ def train_joint_matrix(joint_raw_dir,variable,rel_eb,spatial_point_num,args):
     param.cross_time_compress=True
     param.spatial_point_num=spatial_point_num
     init(param)
-    adjust_coord(param,"second_power",args.iteration_num,args.matrix_history_path,args.first_sample_ratio,args.second_sample_ratio,args.new_matrix_weight,args.max_nfev,1,1,"least_squares")
+    adjust_coord(param,"second_power",args.iteration_num,args.matrix_history_path,args.first_sample_ratio,args.second_sample_ratio,args.new_matrix_weight,args.max_nfev,1,1,"least_squares",args.cross_time_first_sample_mode,args.cross_time_first_sample_num,args.cross_time_first_sample_region_num)
     return param.coord_transform_matrix
 
 def write_transformed_joint(work_dir,combined_coord,combined_data,variable,matrix):
@@ -104,25 +140,43 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("-data-dir",default=default_data_dir)
     parser.add_argument("-variable",default="velocityZonal")
-    parser.add_argument("-time-step-num",type=int,default=2)
+    parser.add_argument("-time-step-num",type=int,default=0)
     parser.add_argument("-rel-eb",type=float,default=1e-3)
     parser.add_argument("-initial-time-spacing-ratio",type=float,default=1)
     parser.add_argument("-iteration-num",type=int,default=4)
     parser.add_argument("-first-sample-ratio",type=float,default=0.25)
     parser.add_argument("-second-sample-ratio",type=float,default=0.1)
+    parser.add_argument("-cross-time-first-sample-mode",choices=["grouped_ratio","local_fixed","local_fixed_regions","random_hyperrectangle_regions"],default="random_hyperrectangle_regions")
+    parser.add_argument("-cross-time-first-sample-num",type=int,default=117580)
+    parser.add_argument("-cross-time-first-sample-region-num",type=int,choices=[1,2,4,8],default=1)
     parser.add_argument("-new-matrix-weight",type=float,default=0.5)
     parser.add_argument("-max-nfev",type=int,default=100)
     parser.add_argument("-work-dir",default="/tmp/unsz_cross_time_joint")
-    parser.add_argument("-matrix-history-path",default=str(project_root/"adjust_coord_history/ocean_velocity_zonal_joint_t2_second_early_4.npz"))
+    parser.add_argument("-matrix-history-path",default="")
+    parser.add_argument("-joint-matrix-history-input",default="")
+    parser.add_argument("-joint-matrix-iteration",type=int,default=0)
+    parser.add_argument("-joint-only",action="store_true")
+    parser.add_argument("-temporal-only",action="store_true")
+    parser.add_argument("-train-only",action="store_true")
+    parser.add_argument("-compress-only",action="store_true")
+    parser.add_argument("-joint-block-num",type=int,choices=[1,2,4,8,16,32,64,128,256],default=1)
     parser.add_argument("-spatial-matrix",type=float,nargs=6,default=default_spatial_matrix)
     args=parser.parse_args()
-    if args.time_step_num<2:
-        raise ValueError("time-step-num至少为2")
+    if args.joint_only and args.temporal_only:
+        raise ValueError("joint-only和temporal-only不能同时启用")
+    if args.time_step_num==1 or args.time_step_num<0:
+        raise ValueError("time-step-num必须为0或至少为2，0表示自动使用全部可用时间步")
     if args.rel_eb<=0 or args.initial_time_spacing_ratio<=0:
         raise ValueError("rel-eb和initial-time-spacing-ratio必须为正数")
+    if args.cross_time_first_sample_num<=0 or args.cross_time_first_sample_region_num<=0:
+        raise ValueError("cross-time-first-sample-num和cross-time-first-sample-region-num必须为正数")
     work_dir=Path(args.work_dir)
     work_dir.mkdir(parents=True,exist_ok=True)
-    time_step_vec=list(range(args.time_step_num))
+    time_step_vec=discover_time_steps(args.data_dir,args.variable) if args.time_step_num==0 else list(range(args.time_step_num))
+    args.time_step_num=len(time_step_vec)
+    if not args.matrix_history_path:
+        args.matrix_history_path=str(project_root/f"adjust_coord_history/ocean_{args.variable}_joint_t{args.time_step_num}_{args.cross_time_first_sample_mode}_r{args.cross_time_first_sample_region_num}.npz")
+    print(f"使用时间步：{time_step_vec}")
 
     total_start_time=time.perf_counter()
     coord,data_vec=read_input(args.data_dir,args.variable,time_step_vec)
@@ -135,14 +189,37 @@ def main():
 
     spatial_dir=prepare_spatial_files(work_dir,coord,data_vec,args.variable,time_step_vec)
     time_expression=f"[0,{args.time_step_num-1}]"
+    interpolation_time_step_vec=hierarchical_time_order(time_step_vec)
+    interpolation_time_expression="{"+",".join(str(time_step) for time_step in interpolation_time_step_vec)+"}"
     spatial_flags=["-adjust-coord-matrix",*args.spatial_matrix]
-    spatial_br,spatial_psnr=run_codec(spatial_dir,args.variable,time_expression,3,args.rel_eb,spatial_flags,"逐时间步空间预测")
-    temporal_br,temporal_psnr=run_codec(spatial_dir,args.variable,time_expression,3,args.rel_eb,[*spatial_flags,"-cross-time-predictor-experimental","previous"],"上一时间步同点预测")
+    if not args.joint_only:
+        spatial_br,spatial_psnr,spatial_preprocessing_time,spatial_compression_time=run_codec(spatial_dir,args.variable,time_expression,3,args.rel_eb,spatial_flags,"逐时间步空间预测",args.compress_only)
+        temporal_br,temporal_psnr,temporal_preprocessing_time,temporal_compression_time=run_codec(spatial_dir,args.variable,time_expression,3,args.rel_eb,[*spatial_flags,"-cross-time-predictor-experimental","previous"],"上一时间步同点预测",args.compress_only)
+        interpolation_br,interpolation_psnr,interpolation_preprocessing_time,interpolation_compression_time=run_codec(spatial_dir,args.variable,interpolation_time_expression,3,args.rel_eb,[*spatial_flags,"-cross-time-predictor-experimental","interpolation"],"层次时间插值预测",args.compress_only)
+        if args.temporal_only:
+            print("\n跨time-step初步结果：")
+            print(f"  逐时间步空间预测：BR={spatial_br:.6f},PSNR={spatial_psnr:.6f},预处理={spatial_preprocessing_time:.6f} s,压缩={spatial_compression_time:.6f} s")
+            print(f"  上一时间步同点预测：BR={temporal_br:.6f},PSNR={temporal_psnr:.6f},预处理={temporal_preprocessing_time:.6f} s,压缩={temporal_compression_time:.6f} s,相对空间BR变化={(temporal_br/spatial_br-1)*100:.3f}%")
+            print(f"  层次时间插值预测：BR={interpolation_br:.6f},PSNR={interpolation_psnr:.6f},预处理={interpolation_preprocessing_time:.6f} s,压缩={interpolation_compression_time:.6f} s,相对空间BR变化={(interpolation_br/spatial_br-1)*100:.3f}%")
+            print(f"  总耗时={time.perf_counter()-total_start_time:.6f} s")
+            return
 
     joint_raw_dir,combined_coord,combined_data=prepare_joint_files(work_dir,coord,data_vec,args.variable,time_spacing)
-    training_start_time=time.perf_counter()
-    matrix=train_joint_matrix(joint_raw_dir,args.variable,args.rel_eb,coord.shape[0],args)
-    training_time=time.perf_counter()-training_start_time
+    if args.joint_matrix_history_input:
+        history=np.load(args.joint_matrix_history_input)
+        matrix_id=-1 if args.joint_matrix_iteration==0 else np.flatnonzero(history["iteration"]==args.joint_matrix_iteration)[0]
+        matrix=history["matrix"][matrix_id]
+        training_time=0
+        print(f"从{args.joint_matrix_history_input}读取第{history['iteration'][matrix_id]}轮矩阵")
+    else:
+        training_start_time=time.perf_counter()
+        matrix=train_joint_matrix(joint_raw_dir,args.variable,args.rel_eb,coord.shape[0],args)
+        training_time=time.perf_counter()-training_start_time
+    if args.train_only:
+        print(f"四维训练耗时={training_time:.6f} s")
+        print(f"四维变换矩阵：\n{matrix}")
+        print(f"矩阵历史文件={args.matrix_history_path}")
+        return
     joint_dir,transformed_coord=write_transformed_joint(work_dir,combined_coord,combined_data,args.variable,matrix)
     spatial_diff=np.column_stack((coord-coord[nearest_id[:,1]],np.zeros(coord.shape[0])))@matrix
     transformed_spatial_distance=float(np.median(np.linalg.norm(spatial_diff,axis=1)))
@@ -150,12 +227,19 @@ def main():
     print(f"四维变换矩阵：\n{matrix}")
     print(f"变换后时间相邻距离={transformed_time_distance},空间最近邻距离中位数={transformed_spatial_distance},二者比例={transformed_time_distance/transformed_spatial_distance}")
     print(f"四维训练耗时={training_time:.6f} s,变换后坐标范围={list(zip(transformed_coord.min(axis=0),transformed_coord.max(axis=0)))}")
-    joint_br,joint_psnr=run_codec(joint_dir,args.variable,"{0}",4,args.rel_eb,["-cross-time-spatial-point-num-experimental",coord.shape[0]],"四维时空联合预测")
+    joint_flags=["-cross-time-spatial-point-num-experimental",coord.shape[0]]
+    if args.joint_block_num>1:
+        joint_flags.extend(["-independent-block-num-experimental",args.joint_block_num])
+    joint_br,joint_psnr,joint_preprocessing_time,joint_compression_time=run_codec(joint_dir,args.variable,"{0}",4,args.rel_eb,joint_flags,"四维时空联合预测",args.compress_only)
 
     print("\n跨time-step初步结果：")
-    print(f"  逐时间步空间预测：BR={spatial_br:.6f},PSNR={spatial_psnr:.6f}")
-    print(f"  上一时间步同点预测：BR={temporal_br:.6f},PSNR={temporal_psnr:.6f},相对空间BR变化={(temporal_br/spatial_br-1)*100:.3f}%")
-    print(f"  四维时空联合预测：BR={joint_br:.6f},PSNR={joint_psnr:.6f},相对空间BR变化={(joint_br/spatial_br-1)*100:.3f}%")
+    if not args.joint_only:
+        print(f"  逐时间步空间预测：BR={spatial_br:.6f},PSNR={spatial_psnr:.6f},预处理={spatial_preprocessing_time:.6f} s,压缩={spatial_compression_time:.6f} s")
+        print(f"  上一时间步同点预测：BR={temporal_br:.6f},PSNR={temporal_psnr:.6f},预处理={temporal_preprocessing_time:.6f} s,压缩={temporal_compression_time:.6f} s,相对空间BR变化={(temporal_br/spatial_br-1)*100:.3f}%")
+        print(f"  层次时间插值预测：BR={interpolation_br:.6f},PSNR={interpolation_psnr:.6f},预处理={interpolation_preprocessing_time:.6f} s,压缩={interpolation_compression_time:.6f} s,相对空间BR变化={(interpolation_br/spatial_br-1)*100:.3f}%")
+        print(f"  四维时空联合预测：分区数={args.joint_block_num},BR={joint_br:.6f},PSNR={joint_psnr:.6f},预处理={joint_preprocessing_time:.6f} s,压缩={joint_compression_time:.6f} s,相对空间BR变化={(joint_br/spatial_br-1)*100:.3f}%")
+    else:
+        print(f"  四维时空联合预测：分区数={args.joint_block_num},BR={joint_br:.6f},PSNR={joint_psnr:.6f},预处理={joint_preprocessing_time:.6f} s,压缩={joint_compression_time:.6f} s")
     print(f"  总耗时={time.perf_counter()-total_start_time:.6f} s")
 
 if __name__=="__main__":

@@ -109,6 +109,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
     float total_min_data=numeric_limits<float>::infinity(),total_max_data=-numeric_limits<float>::infinity();
     for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
+        param.current_time_step=param.time_step_vec[file_id];
         string compressed_path=param.original_data_path_vec[file_id]+".unsz";
         string decompressed_path=param.original_data_path_vec[file_id]+".unsz.bin";
         param.current_zstd_bs_vec=read_byte_file(compressed_path);
@@ -120,6 +121,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
             param.previous_time_decompressed_data=param.current_decompressed_data;
             param.previous_time_point_set_id_vec=param.point_set_id_vec;
         }
+        param.save_time_reconstruction();
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
         total_decompression_time+=decompression_time;
         printf("file decompression time= %f s\n",decompression_time);
@@ -288,8 +290,8 @@ int decompress_main(int argc,char **argv)
         else if (option=="-cross-time-predictor-experimental")
         {
             param.cross_time_predictor_experimental=read_option_value(argc,argv,arg_id,option);
-            if (param.cross_time_predictor_experimental!="previous")
-                throw runtime_error("-cross-time-predictor-experimental目前只支持previous");
+            if (param.cross_time_predictor_experimental!="previous" && param.cross_time_predictor_experimental!="interpolation")
+                throw runtime_error("-cross-time-predictor-experimental目前只支持previous或interpolation");
         }
         else if (option=="-adjust-coord")
             param.if_adjust_coord=true;
@@ -313,6 +315,8 @@ int decompress_main(int argc,char **argv)
             param.use_prediction_order_layout_experimental=true;
         else if (option=="-normalized-weight-experimental")
             param.use_normalized_weight_experimental=true;
+        else if (option=="-continuous-reference-array-experimental")
+            param.use_continuous_reference_array_experimental=true;
         else if (option=="-prediction-order-label-experimental")
             param.use_prediction_order_label_experimental=true;
         else if (option=="-predictability-order-experimental")
@@ -343,6 +347,8 @@ int decompress_main(int argc,char **argv)
             param.use_reverse_direction_order_experimental=true;
         else if (option=="-reverse-direction-distribution-order-experimental")
             param.use_reverse_direction_distribution_order_experimental=true;
+        else if (option=="-global-order-before-round-split-experimental")
+            param.use_global_order_before_round_split_experimental=true;
         else if (option=="-eb-schedule-experimental")
         {
             param.eb_schedule_experimental=read_option_value(argc,argv,arg_id,option);
@@ -364,6 +370,7 @@ int decompress_main(int argc,char **argv)
     param.coord_path=param.data_dir+"coords.dat";
     for (uint32_t time_step:time_step_vec)
         param.original_data_path_vec.push_back(param.data_dir+param.variable_name+".dat."+to_string(time_step));
+    param.time_step_vec=time_step_vec;
     if (param.error_mode=="REL")
     {
         param.rel_eb=error_bound;

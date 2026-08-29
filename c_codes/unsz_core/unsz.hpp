@@ -181,7 +181,7 @@ namespace unsz
             vector<point_set_codec_e> point_set_codec_config_vec;
             bool check_original_data_files=true;
             bool cross_time_compress=false;
-            string cross_time_predictor_experimental="none";//none / previous
+            string cross_time_predictor_experimental="none";//none / previous / interpolation
             bool if_adjust_coord=false;
             vector<double> adjust_coord_matrix_parameter_vec;
             bool print_round_statistics=false;
@@ -191,6 +191,7 @@ namespace unsz
             bool print_pointwise_oracle_statistics_experimental=false;
             bool use_prediction_order_layout_experimental=false;
             bool use_normalized_weight_experimental=false;
+            bool use_continuous_reference_array_experimental=false;
             bool use_prediction_order_label_experimental=false;
             bool use_predictability_order_experimental=false;
             bool use_forward_mean_distance_only_order_experimental=false;
@@ -206,6 +207,7 @@ namespace unsz
             bool use_reverse_direction_only_order_experimental=false;
             bool use_reverse_direction_order_experimental=false;
             bool use_reverse_direction_distribution_order_experimental=false;
+            bool use_global_order_before_round_split_experimental=false;
             uint32_t d_only_cache_refill_threshold_experimental=8;//0表示任一参考点失效就重新查询，即精确模式
             uint32_t order_candidate_num_experimental=0;//0表示使用max_ref_num
             uint32_t cross_time_spatial_point_num_experimental=0;//仅用于统计展平时空点集中的跨时间参考
@@ -238,6 +240,9 @@ namespace unsz
             vector<pair<int,vector<int>>> pred_refs_vec;//每个预测目标及其可用参考点；实验性内部重排关闭时为原始id，开启时为预测id
             vector<vector<double>> pred_ref_weights_vec;//与pred_refs_vec对齐的未归一化距离权重
             vector<vector<double>> pred_ref_label_normalized_weights_vec,pred_ref_value_normalized_weights_vec;
+            vector<int> continuous_pred_target_ids,continuous_pred_ref_ids;
+            vector<uint64_t> continuous_pred_ref_begin;
+            vector<double> continuous_pred_ref_weights,continuous_pred_ref_label_normalized_weights,continuous_pred_ref_value_normalized_weights;
             vector<uint32_t> prediction_id_to_original_id,original_id_to_prediction_id;
             vector<vector<int>> independent_block_point_ids_vec;
             vector<uint32_t> point_independent_block_id_vec;
@@ -247,6 +252,12 @@ namespace unsz
             vector<T_data> current_data,current_decompressed_data;
             vector<T_data> previous_time_decompressed_data;
             vector<uint32_t> previous_time_point_set_id_vec;
+            vector<uint32_t> time_step_vec,reconstructed_time_step_vec;
+            vector<vector<T_data>> reconstructed_time_data_vec;
+            vector<vector<uint32_t>> reconstructed_time_point_set_id_vec;
+            uint32_t current_time_step=0;
+            int32_t interpolation_left_history_id=-1,interpolation_right_history_id=-1;
+            double interpolation_right_weight=0;
             T_data current_min_data=0,current_max_data=0;
             T_data current_abs_eb=0;
             vector<int32_t> qb_vec;
@@ -261,6 +272,9 @@ namespace unsz
             vector<uint8_t> hybrid_selector_vec;
 
             void init();
+            void prepare_time_interpolation();
+            bool predict_time_interpolation(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
+            void save_time_reconstruction();
             bool need_double_coord();
             void adjust_coord();
             void load_or_generate_pred_refs_structure();
@@ -290,6 +304,8 @@ namespace unsz
             uint32_t predict_point_set_id(vector<int> &ref_ids,vector<double> &ref_weights,bool use_majority);
             double predict_point_set_value(vector<int> &ref_ids,vector<double> &ref_weights);
             double predict_point_set_value_normalized(vector<int> &ref_ids,vector<double> &ref_weights);
+            uint32_t predict_point_set_id_continuous(uint32_t pred_ref_id,bool use_majority);
+            double predict_point_set_value_continuous(uint32_t pred_ref_id,bool normalized);
             T_data predict_inverse_value_from_coords(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double power=-1);
             bool predict_inverse_value_and_loo_error(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error);
             bool predict_fitting_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,T_data &prediction,double weight_power=0,double ridge=0,bool normalize_coord=false);
@@ -298,6 +314,7 @@ namespace unsz
             bool predict_idw_residual_fitting_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction);
             T_data predict_value(int pred_id,vector<int> &ref_ids,vector<double> &ref_weights,uint32_t point_set_id,vector<T_data> &data);
             T_data predict_value_normalized(vector<int> &ref_ids,vector<double> &ref_weights,vector<T_data> &data);
+            T_data predict_value_continuous(uint32_t pred_ref_id,uint32_t point_set_id,vector<T_data> &data,bool normalized);
             void compress();
             void restore_compression_result_to_original_order();
             void decompress();
@@ -317,6 +334,7 @@ namespace unsz
 #include "generate_pred_refs_structure.tpp"
 #include "prediction_dag.tpp"
 #include "point_set.tpp"
+#include "time_prediction.tpp"
 #include "format.tpp"
 #include "multi_huffman.tpp"
 #include "prediction_structure.tpp"

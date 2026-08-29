@@ -6,6 +6,8 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::generate_pred_refs_structure()
     {
+        if (use_global_order_before_round_split_experimental && (independent_block_size_experimental>0 || independent_block_num_experimental>0))
+            throw runtime_error("全局排序后分轮实验目前不能和独立分区同时使用");
         if (independent_block_size_experimental>0 || independent_block_num_experimental>0)
         {
             generate_independent_block_pred_refs_structure();
@@ -25,6 +27,8 @@ namespace unsz
             throw runtime_error("D-only排序候选数实验只能和反向D-only顺序一起使用");
         if (use_reverse_d_only && d_only_cache_refill_threshold_experimental>max_ref_num)
             throw runtime_error("D-only缓存重查阈值不能大于max_ref_num");
+        if (use_global_order_before_round_split_experimental && !use_reverse_mean_distance_only_order_experimental)
+            throw runtime_error("全局排序后分轮实验目前只能和反向D-only顺序同时使用");
 
         printf("Building kd-tree\n");
         auto start_time=chrono::steady_clock::now();
@@ -41,17 +45,26 @@ namespace unsz
         shuffle(shuffled_ids.begin(),shuffled_ids.end(),rng);
 
         uint64_t previous_end=0;
+        vector<uint32_t> round_target_num_vec(predict_round_num);
         for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
         {
             uint64_t divisor=uint64_t(1)<<(predict_round_num-1-round_id);
             uint64_t current_end=((uint64_t)point_num+divisor-1)/divisor;
             current_end=min(current_end,(uint64_t)point_num);
             round_target_ids[round_id].assign(shuffled_ids.begin()+previous_end,shuffled_ids.begin()+current_end);
+            round_target_num_vec[round_id]=round_target_ids[round_id].size();
             previous_end=current_end;
             printf("Round %u target num: %llu\n",round_id,(unsigned long long)round_target_ids[round_id].size());
         }
         if (previous_end!=point_num)
             throw runtime_error("预测轮次没有覆盖所有点");
+        if (use_global_order_before_round_split_experimental)
+        {
+            for (uint32_t round_id=0;round_id+1<predict_round_num;round_id++)
+                round_target_ids[round_id].clear();
+            round_target_ids.back()=move(shuffled_ids);
+            printf("Using one global D-only order before splitting it into prediction rounds\n");
+        }
 
         vector<T_coord> center_coord(dim);
         for (uint32_t d=0;d<dim;d++)
@@ -599,6 +612,34 @@ namespace unsz
                 target_ids.swap(sorted_target_ids);
                 printf("Sorted round %u\n",round_id);
             }
+        }
+
+        if (use_global_order_before_round_split_experimental)
+        {
+            vector<int> global_target_ids=move(round_target_ids.back());
+            uint64_t begin=0;
+            for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+            {
+                uint64_t end=begin+round_target_num_vec[round_id];
+                round_target_ids[round_id].assign(global_target_ids.begin()+begin,global_target_ids.begin()+end);
+                begin=end;
+                vector<T_coord> round_min_coord(dim,numeric_limits<T_coord>::infinity()),round_max_coord(dim,-numeric_limits<T_coord>::infinity());
+                for (int target_id:round_target_ids[round_id])
+                    for (uint32_t d=0;d<dim;d++)
+                    {
+                        round_min_coord[d]=min(round_min_coord[d],coord_array[target_id][d]);
+                        round_max_coord[d]=max(round_max_coord[d],coord_array[target_id][d]);
+                    }
+                printf("Global-order round %u coordinate span ratio:",round_id);
+                for (uint32_t d=0;d<dim;d++)
+                {
+                    double full_span=(double)max_coord[d]-min_coord[d];
+                    printf(" %f",full_span>0?((double)round_max_coord[d]-round_min_coord[d])/full_span:0);
+                }
+                printf("\n");
+            }
+            if (begin!=point_num)
+                throw runtime_error("全局预测顺序重新分轮后没有覆盖全部点");
         }
 
         auto sorting_end_time=chrono::steady_clock::now();

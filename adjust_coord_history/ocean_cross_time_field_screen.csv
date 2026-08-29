@@ -1,0 +1,13 @@
+field,config,br,psnr,training_seconds
+velocityX,spatial,3.170236,65.737355,0
+velocityX,previous,1.530442,65.600404,0
+velocityX,joint_own,1.417919,65.684009,16.319860
+velocityX,joint_velocityZonal,1.414332,65.702287,0
+velocityY,spatial,3.134866,65.339610,0
+velocityY,previous,1.540139,65.174060,0
+velocityY,joint_own,1.411733,65.718905,17.712278
+velocityY,joint_velocityZonal,1.421670,65.692395,0
+temperature,spatial,1.919018,65.617620,0
+temperature,previous,0.488732,65.316096,0
+temperature,joint_own,0.441465,66.301348,17.788448
+temperature,joint_velocityZonal,0.463549,66.258262,0

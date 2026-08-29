@@ -3,5 +3,5 @@ install/*
 unsz_env/*
 __pycache__/
 *.py[cod]
-slurm-*.out
-slurm-*.err
+*.out
+*.err

@@ -127,14 +127,16 @@ namespace unsz
             bool continuous=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
             bool use_majority=point_set_predictor=="majority";
             bool use_normalized_label_weights=use_normalized_weight_experimental && continuous;
+            if (use_continuous_reference_array_experimental && use_block_adaptive_predictor_experimental)
+                throw runtime_error("连续参考数组目前不能和block自适应预测器同时使用");
             point_set_prediction_value_vec.assign(point_num,0);
             for (uint32_t pred_ref_id=0;pred_ref_id<pred_refs_vec.size();pred_ref_id++)
             {
                 auto &pred_refs=pred_refs_vec[pred_ref_id];
                 auto &ref_weights=use_normalized_label_weights?pred_ref_label_normalized_weights_vec[pred_ref_id]:pred_ref_weights_vec[pred_ref_id];
-                int pred_id=pred_refs.first;
-                double predicted_value=continuous?(use_normalized_label_weights?predict_point_set_value_normalized(pred_refs.second,ref_weights):predict_point_set_value(pred_refs.second,ref_weights)):0;
-                uint32_t predicted_id=continuous?(predicted_value>=0.5):predict_point_set_id(pred_refs.second,ref_weights,use_majority);
+                int pred_id=use_continuous_reference_array_experimental?continuous_pred_target_ids[pred_ref_id]:pred_refs.first;
+                double predicted_value=continuous?(use_continuous_reference_array_experimental?predict_point_set_value_continuous(pred_ref_id,use_normalized_label_weights):(use_normalized_label_weights?predict_point_set_value_normalized(pred_refs.second,ref_weights):predict_point_set_value(pred_refs.second,ref_weights))):0;
+                uint32_t predicted_id=continuous?(predicted_value>=0.5):(use_continuous_reference_array_experimental?predict_point_set_id_continuous(pred_ref_id,use_majority):predict_point_set_id(pred_refs.second,ref_weights,use_majority));
                 uint32_t symbol=label_symbol_vec[use_prediction_order_label_experimental?pred_ref_id:pred_id];
                 if (symbol>1)
                     throw runtime_error("点集标签修正值不是0或1");
@@ -187,16 +189,17 @@ namespace unsz
         vector<vector<uint64_t>> qb_index(point_set_num,vector<uint64_t>(multi_huffman_group_num,0));
         bool use_normalized_value_weights=use_normalized_weight_experimental && point_set_num==1 && point_set_codec_vec[0]==point_set_codec_e::inverse_proportion;
         bool has_previous_time=cross_time_predictor_experimental=="previous" && previous_time_decompressed_data.size()==point_num && previous_time_point_set_id_vec.size()==point_num;
-        uint64_t pred_ref_index=0;
+        prepare_time_interpolation();
+        uint32_t pred_ref_index=0;
         for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
         {
             double round_point_eb_multiplier=round_eb_multiplier_vec[round_id];
             for (uint32_t i=0;i<round_target_ids[round_id].size();i++)
             {
-                auto &pred_refs=pred_refs_vec[pred_ref_index];
-                auto &ref_weights=use_normalized_value_weights?pred_ref_value_normalized_weights_vec[pred_ref_index]:pred_ref_weights_vec[pred_ref_index];
-                pred_ref_index++;
-                int pred_id=pred_refs.first;
+                uint32_t current_pred_ref_id=pred_ref_index++;
+                auto &pred_refs=pred_refs_vec[current_pred_ref_id];
+                auto &ref_weights=use_normalized_value_weights?pred_ref_value_normalized_weights_vec[current_pred_ref_id]:pred_ref_weights_vec[current_pred_ref_id];
+                int pred_id=use_continuous_reference_array_experimental?continuous_pred_target_ids[current_pred_ref_id]:pred_refs.first;
                 uint32_t point_set_id=point_set_id_vec[pred_id];
                 double eb_multiplier=(eb_schedule_experimental=="round" || eb_schedule_experimental=="round_ratio")?round_eb_multiplier_vec[round_id]:(use_round_point_schedule?round_point_eb_multiplier:point_eb_multiplier);
                 if (eb_schedule_experimental=="point")
@@ -211,9 +214,18 @@ namespace unsz
                     if (qb_index[point_set_id][huffman_group_id]>=point_set_group_qb_vec[point_set_id][huffman_group_id].size())
                         throw runtime_error("点集"+to_string(point_set_id)+"的量化索引不足");
                     bool use_block_config=use_block_adaptive_predictor_experimental && !block_adaptive_sample_mask[pred_id];
-                    uint32_t previous_time_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
-                    bool use_previous_time=has_previous_time && previous_time_point_set_id_vec[previous_time_id]==point_set_id;
-                    T_data pred=use_previous_time?previous_time_decompressed_data[previous_time_id]:(use_block_config?predict_block_adaptive_value(pred_id,pred_refs.second,current_decompressed_data,block_prediction_config_id_vec[point_independent_block_id_vec[pred_id]]):(use_normalized_value_weights?predict_value_normalized(pred_refs.second,ref_weights,current_decompressed_data):predict_value(pred_id,pred_refs.second,ref_weights,point_set_id,current_decompressed_data)));
+                    uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                    T_data pred=0;
+                    bool use_cross_time_prediction=false;
+                    if (has_previous_time && previous_time_point_set_id_vec[original_id]==point_set_id)
+                    {
+                        pred=previous_time_decompressed_data[original_id];
+                        use_cross_time_prediction=true;
+                    }
+                    else if (cross_time_predictor_experimental=="interpolation")
+                        use_cross_time_prediction=predict_time_interpolation(original_id,point_set_id,pred);
+                    if (!use_cross_time_prediction)
+                        pred=use_continuous_reference_array_experimental?predict_value_continuous(current_pred_ref_id,point_set_id,current_decompressed_data,use_normalized_value_weights):(use_block_config?predict_block_adaptive_value(pred_id,pred_refs.second,current_decompressed_data,block_prediction_config_id_vec[point_independent_block_id_vec[pred_id]]):(use_normalized_value_weights?predict_value_normalized(pred_refs.second,ref_weights,current_decompressed_data):predict_value(pred_id,pred_refs.second,ref_weights,point_set_id,current_decompressed_data)));
                     int32_t qb=point_set_group_qb_vec[point_set_id][huffman_group_id][qb_index[point_set_id][huffman_group_id]++];
                     double point_abs_eb=point_set_abs_eb_vec[point_set_id]*eb_multiplier;
                     current_decompressed_data[pred_id]=pred+qb*2*point_abs_eb;

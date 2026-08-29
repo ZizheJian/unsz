@@ -9,6 +9,65 @@ def select_file_ids(file_num,sample_file_num):
     file_position_float=(np.arange(sample_file_num)+0.5)*(file_num-1)/sample_file_num
     return np.round(file_position_float).astype(np.int64)
 
+def select_local_spatial_ids(spatial_coord,sample_num,region_num,rng):
+    point_num=spatial_coord.shape[0]
+    if sample_num>=point_num:
+        return np.arange(point_num,dtype=np.int64)
+    region_num=min(region_num,sample_num)
+    center_ids=np.empty(region_num,dtype=np.int64)
+    center_ids[0]=rng.integers(point_num)
+    min_squared_distance=np.sum((spatial_coord-spatial_coord[center_ids[0]])**2,axis=1)
+    for region_id in range(1,region_num):
+        center_ids[region_id]=np.argmax(min_squared_distance)
+        squared_distance=np.sum((spatial_coord-spatial_coord[center_ids[region_id]])**2,axis=1)
+        min_squared_distance=np.minimum(min_squared_distance,squared_distance)
+    tree=scipy.spatial.cKDTree(spatial_coord)
+    query_num=int(np.ceil(sample_num/region_num))
+    while True:
+        _,candidate_ids=tree.query(spatial_coord[center_ids],k=query_num)
+        candidate_ids=np.unique(np.asarray(candidate_ids).ravel())
+        if candidate_ids.size>=sample_num:
+            break
+        if query_num==point_num:
+            raise RuntimeError("局部区域采样无法找到足够的空间点")
+        query_num=min(point_num,max(query_num+1,int(np.ceil(query_num*1.5))))
+    if candidate_ids.size>sample_num:
+        center_tree=scipy.spatial.cKDTree(spatial_coord[center_ids])
+        distance,_=center_tree.query(spatial_coord[candidate_ids],k=1)
+        candidate_ids=candidate_ids[np.lexsort((candidate_ids,distance))[:sample_num]]
+    return np.sort(candidate_ids)
+
+def select_random_hyperrectangle_regions(coord,spatial_point_num,expected_sample_num,region_num,rng):
+    point_num=coord.shape[0]
+    if point_num%spatial_point_num!=0:
+        raise ValueError("时空点数必须是空间点数的整数倍")
+    if expected_sample_num<=0 or region_num<=0:
+        raise ValueError("期望采样点数和区域数必须为正数")
+    side_ratio=(expected_sample_num/(region_num*point_num))**(1/coord.shape[1])
+    if side_ratio>1:
+        raise ValueError(f"期望采样点数过多，推导出的区域边长比例为{side_ratio}")
+    time_step_num=point_num//spatial_point_num
+    coord_min=coord.min(axis=0).astype(np.float64)
+    coord_max=coord.max(axis=0).astype(np.float64)
+    side_length=(coord_max-coord_min)*side_ratio
+    spatial_coord=coord[:spatial_point_num,:-1]
+    time_coord=coord[np.arange(time_step_num)*spatial_point_num,-1]
+    region_ids=[]
+    region_bounds=[]
+    region_anchor_ids=[]
+    for _ in range(region_num):
+        anchor_id=int(rng.integers(point_num))
+        anchor_coord=coord[anchor_id].astype(np.float64)
+        lower=np.minimum(np.maximum(anchor_coord-side_length/2,coord_min),coord_max-side_length)
+        upper=lower+side_length
+        spatial_ids=np.flatnonzero(np.all((spatial_coord>=lower[:-1])&(spatial_coord<=upper[:-1]),axis=1))
+        time_ids=np.flatnonzero((time_coord>=lower[-1])&(time_coord<=upper[-1]))
+        ids=np.concatenate([time_id*spatial_point_num+spatial_ids for time_id in time_ids]) if spatial_ids.size and time_ids.size else np.empty(0,dtype=np.int64)
+        region_ids.append(ids)
+        region_bounds.append(np.column_stack((lower,upper)))
+        region_anchor_ids.append(anchor_id)
+    return region_ids,np.asarray(region_bounds),np.asarray(region_anchor_ids,dtype=np.int64),side_ratio
+
 def initial_affine_parameter(dim):
     coefficient=np.zeros((dim*(dim+1)//2,dim+1),dtype=np.float64)
     for d in range(dim):
@@ -219,21 +278,227 @@ def normalize_constant_matrix(transform_matrix):
 
 def positive_normalized_cholesky(transform_matrix,min_eigenvalue_ratio):
     metric_matrix=transform_matrix@transform_matrix.T
+    return positive_normalized_metric_cholesky(metric_matrix,min_eigenvalue_ratio)
+
+def positive_normalized_metric_cholesky(metric_matrix,min_eigenvalue_ratio):
     eigenvalue,eigenvector=np.linalg.eigh(metric_matrix)
     if eigenvalue[-1]<=0:
-        raise RuntimeError("坐标变换矩阵不能是零矩阵")
+        raise RuntimeError("坐标度量矩阵必须具有正特征值")
     eigenvalue=np.maximum(eigenvalue,eigenvalue[-1]*min_eigenvalue_ratio)
     metric_matrix=eigenvector@np.diag(eigenvalue)@eigenvector.T
-    metric_matrix*=transform_matrix.shape[0]/np.trace(metric_matrix)
+    metric_matrix*=metric_matrix.shape[0]/np.trace(metric_matrix)
     metric_matrix=(metric_matrix+metric_matrix.T)/2
     return np.linalg.cholesky(metric_matrix)
 
-def adjust_coord_cross_time(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares"):
+def fit_sample_transform_matrix(param,full_sampled_data,file_ids,first_sample_ids,transform_matrix,loss_function_name,second_sample_ratio,adjust_max_nfev,optimizer_name,rng,time_dict,generalized_gaussian_shape,inverse_distance_power,min_eigenvalue_ratio):
+    stage_start_time=time.perf_counter()
+    original_sampled_coord=param.coord_array[first_sample_ids]
+    sampled_coord=original_sampled_coord@transform_matrix
+    sampled_data=full_sampled_data[:,first_sample_ids]
+    time_dict["第一次采样、应用已知变换"]+=time.perf_counter()-stage_start_time
+
+    prediction_coord_diff=[]
+    prediction_target_value=[]
+    prediction_ref_value=[]
+    prediction_abs_eb=[]
+    prediction_file_group=[]
+    remaining_sample_num=int(np.ceil(sampled_data.size*second_sample_ratio))
+    for sampled_file_id,data in enumerate(sampled_data):
+        stage_start_time=time.perf_counter()
+        valid_ids=np.flatnonzero(~is_abnormal(data))
+        if valid_ids.size<=param.actual_ref_num:
+            raise ValueError(f"第{file_ids[sampled_file_id]}个数据文件在第一次采样后只有{valid_ids.size}个有效点，无法寻找{param.actual_ref_num}个参考点")
+        current_sample_num=min(valid_ids.size,int(np.ceil(remaining_sample_num/(len(sampled_data)-sampled_file_id))))
+        target_ids=np.sort(rng.choice(valid_ids,size=current_sample_num,replace=False))
+        remaining_sample_num-=current_sample_num
+        time_dict["有效点检查和第二次采样"]+=time.perf_counter()-stage_start_time
+
+        stage_start_time=time.perf_counter()
+        tree=scipy.spatial.cKDTree(sampled_coord[valid_ids])
+        time_dict["建树"]+=time.perf_counter()-stage_start_time
+
+        stage_start_time=time.perf_counter()
+        query_num=param.actual_ref_num+1
+        _,neighbor_tree_ids=tree.query(sampled_coord[target_ids],k=query_num)
+        neighbor_tree_ids=np.asarray(neighbor_tree_ids).reshape(-1,query_num)
+        time_dict["最近邻查询"]+=time.perf_counter()-stage_start_time
+
+        stage_start_time=time.perf_counter()
+        neighbor_ids=valid_ids[neighbor_tree_ids]
+        nonself_mask=neighbor_ids!=target_ids[:,None]
+        selected_mask=nonself_mask&(np.cumsum(nonself_mask,axis=1)<=param.actual_ref_num)
+        selected_num=np.sum(selected_mask,axis=1)
+        if np.any(selected_num!=param.actual_ref_num):
+            failed_row=np.flatnonzero(selected_num!=param.actual_ref_num)[0]
+            raise RuntimeError(f"第{file_ids[sampled_file_id]}个数据文件的目标点{target_ids[failed_row]}只找到了{selected_num[failed_row]}个非自身参考点")
+        selected_neighbor_ids=neighbor_ids[selected_mask].reshape(-1,param.actual_ref_num)
+        prediction_coord_diff.append(original_sampled_coord[target_ids,None,:]-original_sampled_coord[selected_neighbor_ids])
+        prediction_target_value.append(data[target_ids])
+        prediction_ref_value.append(data[selected_neighbor_ids])
+        prediction_abs_eb.append(np.full(target_ids.size,param.abs_eb[file_ids[sampled_file_id]]))
+        prediction_file_group.append(np.full(target_ids.size,sampled_file_id))
+        time_dict["整理点对"]+=time.perf_counter()-stage_start_time
+
+    stage_start_time=time.perf_counter()
+    prediction_coord_diff=np.concatenate(prediction_coord_diff).astype(np.float64,copy=False)
+    prediction_target_value=np.concatenate(prediction_target_value).astype(np.float64,copy=False)
+    prediction_ref_value=np.concatenate(prediction_ref_value).astype(np.float64,copy=False)
+    prediction_abs_eb=np.concatenate(prediction_abs_eb).astype(np.float64,copy=False)
+    prediction_file_group=np.concatenate(prediction_file_group).astype(np.int64,copy=False)
+    pair_coord_diff=prediction_coord_diff.reshape(-1,param.dim)
+    pair_value_diff=(prediction_target_value[:,None]-prediction_ref_value).ravel()
+    pair_abs_eb=np.repeat(prediction_abs_eb,param.actual_ref_num)
+    time_dict["合并点对数组"]+=time.perf_counter()-stage_start_time
+
+    def residual(parameter):
+        if loss_function_name=="fourth_power":
+            return fourth_power_loss(pair_value_diff,pair_coord_diff,parameter,param.dim)
+        if loss_function_name=="second_power":
+            return second_power_loss(pair_value_diff,pair_coord_diff,parameter,param.dim)
+        if loss_function_name=="log_distance":
+            return log_distance_loss(pair_value_diff,pair_coord_diff,pair_abs_eb,parameter,param.dim)
+        if loss_function_name=="prediction_ggd_bit":
+            prediction_error=inverse_distance_prediction_error(prediction_target_value,prediction_ref_value,prediction_coord_diff,parameter,param.dim,inverse_distance_power)
+            return generalized_gaussian_bit_residual(prediction_error/prediction_abs_eb,prediction_file_group,generalized_gaussian_shape)
+        raise ValueError(f"未知的坐标调整损失函数：{loss_function_name}")
+
+    stage_start_time=time.perf_counter()
+    initial_parameter=transform_matrix[np.tril_indices(param.dim)]
+    if optimizer_name=="gauss_newton":
+        if loss_function_name!="second_power":
+            raise ValueError("gauss_newton优化器目前只支持second_power损失")
+        result=optimize_second_power_gauss_newton(pair_value_diff,pair_coord_diff,initial_parameter,param.dim,adjust_max_nfev)
+    elif optimizer_name=="lbfgs":
+        if loss_function_name!="second_power":
+            raise ValueError("lbfgs优化器目前只支持second_power损失")
+        result=optimize_second_power_lbfgs(pair_value_diff,pair_coord_diff,initial_parameter,param.dim,adjust_max_nfev)
+    else:
+        if optimizer_name!="least_squares":
+            raise ValueError(f"未知的坐标调整优化器：{optimizer_name}")
+        if loss_function_name=="fourth_power":
+            jacobian=lambda parameter:fourth_power_loss_jacobian(pair_coord_diff,parameter,param.dim)
+        elif loss_function_name=="second_power":
+            jacobian=lambda parameter:second_power_loss_jacobian(pair_coord_diff,parameter,param.dim)
+        elif loss_function_name=="log_distance":
+            jacobian=lambda parameter:log_distance_loss_jacobian(pair_coord_diff,pair_abs_eb,parameter,param.dim)
+        else:
+            jacobian="2-point"
+        result=scipy.optimize.least_squares(residual,initial_parameter,jac=jacobian,max_nfev=adjust_max_nfev,verbose=0)
+    time_dict["优化变换矩阵"]+=time.perf_counter()-stage_start_time
+    if not np.isfinite(result.x).all() or not np.isfinite(result.fun).all():
+        raise RuntimeError("坐标变换优化失败：参数或残差中出现了非有限值")
+    fitted_transform_matrix=constant_lower_triangular_matrix(result.x,param.dim)
+    fitted_transform_matrix=positive_normalized_cholesky(fitted_transform_matrix,min_eigenvalue_ratio)
+    fitted_loss=np.mean(residual(fitted_transform_matrix[np.tril_indices(param.dim)])**2)
+    return fitted_transform_matrix,result,fitted_loss,pair_coord_diff.shape[0]
+
+def adjust_coord_cross_time_random_regions(param,loss_function_name,iteration_num,matrix_history_path,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,cross_time_first_sample_num,cross_time_first_sample_region_num):
+    generalized_gaussian_shape=0.5
+    inverse_distance_power=3.61
+    min_eigenvalue_ratio=1e-16
+    rng=np.random.default_rng(0)
+    time_dict={"adjust_coord总耗时":time.perf_counter(),"读取sampled files":time.perf_counter()}
+    file_ids=select_file_ids(len(param.original_data_path_vec),sample_file_num)
+    full_sampled_data=np.asarray([np.fromfile(param.original_data_path_vec[file_id],dtype=param.data_dtype) for file_id in file_ids])
+    time_dict["读取sampled files"]=time.perf_counter()-time_dict["读取sampled files"]
+    for name in ["第一次采样、应用已知变换","有效点检查和第二次采样","建树","最近邻查询","整理点对","合并点对数组","优化变换矩阵","区域矩阵合并","最终变换全部坐标"]:
+        time_dict[name]=0
+    transform_matrix=np.eye(param.dim,dtype=np.float64)
+    matrix_history=[]
+    iteration_history=[]
+    loss_history=[]
+    nfev_history=[]
+    njev_history=[]
+    optimality_history=[]
+    elapsed_time_history=[]
+    pair_num_history=[]
+    first_sample_num_history=[]
+    side_ratio_history=[]
+    region_matrix_history=[]
+    region_sample_num_history=[]
+    region_bound_history=[]
+    region_anchor_id_history=[]
+    for iteration in range(iteration_num):
+        print(f"Iteration {iteration+1}/{iteration_num}",flush=True)
+        region_ids,region_bounds,region_anchor_ids,side_ratio=select_random_hyperrectangle_regions(param.coord_array,param.spatial_point_num,cross_time_first_sample_num,cross_time_first_sample_region_num,rng)
+        local_matrix=[]
+        local_loss=[]
+        local_result=[]
+        local_pair_num=[]
+        for region_id,first_sample_ids in enumerate(region_ids):
+            if first_sample_ids.size<=param.actual_ref_num:
+                raise RuntimeError(f"第{region_id}个随机四维区域只有{first_sample_ids.size}个点，无法寻找{param.actual_ref_num}个参考点")
+            print(f"  Region {region_id+1}/{cross_time_first_sample_region_num}:实际采样点数={first_sample_ids.size},锚点ID={region_anchor_ids[region_id]}",flush=True)
+            fitted_matrix,result,fitted_loss,pair_num=fit_sample_transform_matrix(param,full_sampled_data,file_ids,first_sample_ids,transform_matrix,loss_function_name,second_sample_ratio,adjust_max_nfev,optimizer_name,rng,time_dict,generalized_gaussian_shape,inverse_distance_power,min_eigenvalue_ratio)
+            local_matrix.append(fitted_matrix)
+            local_loss.append(fitted_loss)
+            local_result.append(result)
+            local_pair_num.append(pair_num)
+            print(f"  Region {region_id+1}:loss={fitted_loss},nfev={result.nfev},matrix=\n{fitted_matrix}")
+        stage_start_time=time.perf_counter()
+        local_matrix=np.asarray(local_matrix)
+        mean_metric=np.mean(local_matrix@np.swapaxes(local_matrix,-1,-2),axis=0)
+        if iteration==0:
+            transform_matrix=positive_normalized_metric_cholesky(mean_metric,min_eigenvalue_ratio)
+        else:
+            history_metric=transform_matrix@transform_matrix.T
+            transform_matrix=positive_normalized_metric_cholesky((1-new_matrix_weight)*history_metric+new_matrix_weight*mean_metric,min_eigenvalue_ratio)
+        time_dict["区域矩阵合并"]+=time.perf_counter()-stage_start_time
+        normalized_loss=float(np.mean(local_loss))
+        total_nfev=sum(result.nfev for result in local_result)
+        total_njev=sum(0 if result.njev is None else result.njev for result in local_result)
+        optimality=max(result.optimality for result in local_result)
+        total_pair_num=sum(local_pair_num)
+        total_sample_num=sum(ids.size for ids in region_ids)
+        print(f"Iteration {iteration+1}:边长比例={side_ratio},实际总采样点数={total_sample_num},区域平均loss={normalized_loss},合并矩阵=\n{transform_matrix}")
+        if (iteration+1)%matrix_save_interval==0 or iteration+1==iteration_num:
+            matrix_history.append(transform_matrix.copy())
+            iteration_history.append(iteration+1)
+            loss_history.append(normalized_loss)
+            nfev_history.append(total_nfev)
+            njev_history.append(total_njev)
+            optimality_history.append(optimality)
+            elapsed_time_history.append(time.perf_counter()-time_dict["adjust_coord总耗时"])
+            pair_num_history.append(total_pair_num)
+            first_sample_num_history.append(total_sample_num)
+            side_ratio_history.append(side_ratio)
+            region_matrix_history.append(local_matrix)
+            region_sample_num_history.append([ids.size for ids in region_ids])
+            region_bound_history.append(region_bounds)
+            region_anchor_id_history.append(region_anchor_ids)
+        if matrix_history_path and ((iteration+1)%matrix_save_interval==0 or iteration+1==iteration_num):
+            history_path=Path(matrix_history_path)
+            history_path.parent.mkdir(parents=True,exist_ok=True)
+            np.savez(history_path,loss_function_name=loss_function_name,optimizer_name=optimizer_name,iteration=np.asarray(iteration_history),matrix=np.asarray(matrix_history),loss=np.asarray(loss_history),nfev=np.asarray(nfev_history),njev=np.asarray(njev_history),optimality=np.asarray(optimality_history),elapsed_time=np.asarray(elapsed_time_history),pair_num=np.asarray(pair_num_history),first_sample_num=np.asarray(first_sample_num_history),side_ratio=np.asarray(side_ratio_history),region_matrix=np.asarray(region_matrix_history),region_sample_num=np.asarray(region_sample_num_history),region_bound=np.asarray(region_bound_history),region_anchor_id=np.asarray(region_anchor_id_history),second_sample_ratio=second_sample_ratio,new_matrix_weight=new_matrix_weight,adjust_max_nfev=adjust_max_nfev,sample_file_num=sample_file_num,actual_ref_num=param.actual_ref_num,inverse_distance_power=inverse_distance_power,generalized_gaussian_shape=generalized_gaussian_shape,matrix_save_interval=matrix_save_interval,cross_time_first_sample_mode="random_hyperrectangle_regions",cross_time_first_sample_num=cross_time_first_sample_num,cross_time_first_sample_region_num=cross_time_first_sample_region_num)
+    stage_start_time=time.perf_counter()
+    param.coord_transform_parameter=transform_matrix[np.tril_indices(param.dim)]
+    param.coord_transform_matrix=transform_matrix
+    transformed_coord=param.coord_array@transform_matrix
+    time_dict["最终变换全部坐标"]=time.perf_counter()-stage_start_time
+    time_dict["adjust_coord总耗时"]=time.perf_counter()-time_dict["adjust_coord总耗时"]
+    print(f"original coord range: [{', '.join(f'[{minimum},{maximum}]' for minimum,maximum in zip(param.coord_array.min(axis=0),param.coord_array.max(axis=0)))}]")
+    print(f"transformed coord range: [{', '.join(f'[{minimum},{maximum}]' for minimum,maximum in zip(transformed_coord.min(axis=0),transformed_coord.max(axis=0)))}]")
+    print(f"transform matrix at original coord center {(param.min_coord+param.max_coord)/2}:\n{transform_matrix}")
+    print(f"metric matrix eigenvalues: {np.linalg.eigvalsh(transform_matrix@transform_matrix.T)}")
+    print("累计分段耗时：")
+    for name,value in time_dict.items():
+        if name!="adjust_coord总耗时":
+            print(f"  {name}：{value:.6f} s")
+    print(f"  adjust_coord总耗时：{time_dict['adjust_coord总耗时']:.6f} s")
+
+def adjust_coord_cross_time(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares",cross_time_first_sample_mode="grouped_ratio",cross_time_first_sample_num=0,cross_time_first_sample_region_num=8):
     if param.spatial_point_num<=0 or param.point_num%param.spatial_point_num!=0:
         raise ValueError("跨时间步坐标调整要求spatial_point_num为point_num的正因数")
-    adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name)
+    if cross_time_first_sample_mode not in ["grouped_ratio","local_fixed","local_fixed_regions","random_hyperrectangle_regions"]:
+        raise ValueError(f"未知的跨时间第一次采样模式：{cross_time_first_sample_mode}")
+    if cross_time_first_sample_mode!="grouped_ratio" and (cross_time_first_sample_num<=0 or cross_time_first_sample_region_num<=0):
+        raise ValueError("局部采样要求总采样点数和区域数为正数")
+    if cross_time_first_sample_mode=="random_hyperrectangle_regions":
+        adjust_coord_cross_time_random_regions(param,loss_function_name,iteration_num,matrix_history_path,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,cross_time_first_sample_num,cross_time_first_sample_region_num)
+    else:
+        adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,cross_time_first_sample_mode,cross_time_first_sample_num,cross_time_first_sample_region_num)
 
-def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares"): # 访问多个文件来决定公共变换矩阵，但这个矩阵只会应用到每个文件的坐标上，而不会跨时间步使用
+def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares",cross_time_first_sample_mode="grouped_ratio",cross_time_first_sample_num=0,cross_time_first_sample_region_num=8): # 访问多个文件来决定公共变换矩阵，但这个矩阵只会应用到每个文件的坐标上，而不会跨时间步使用
     generalized_gaussian_shape=0.5
     inverse_distance_power=3.61
     random_seed=0
@@ -262,21 +527,40 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
     optimality_history=[]
     elapsed_time_history=[]
     pair_num_history=[]
+    first_sample_num_history=[]
+    first_sample_spatial_nearest_distance_history=[]
     transform_matrix=np.eye(param.dim,dtype=np.float64)
     first_sample_num=int(np.ceil(param.point_num*first_sample_ratio))
     if param.cross_time_compress:
         time_step_num=param.point_num//param.spatial_point_num
-        first_spatial_sample_num=int(np.ceil(param.spatial_point_num*first_sample_ratio))
+        if cross_time_first_sample_mode!="grouped_ratio":
+            first_spatial_sample_num=min(param.spatial_point_num,max(param.actual_ref_num+1,int(np.ceil(cross_time_first_sample_num/time_step_num))))
+        else:
+            first_spatial_sample_num=int(np.ceil(param.spatial_point_num*first_sample_ratio))
+        if cross_time_first_sample_mode=="local_fixed_regions":
+            fixed_local_spatial_sample_ids=select_local_spatial_ids(param.coord_array[:param.spatial_point_num,:-1].astype(np.float64,copy=False),first_spatial_sample_num,cross_time_first_sample_region_num,rng)
     
     for iteration in range(iteration_num):
         print(f"Iteration {iteration+1}/{iteration_num}",flush=True)
         stage_start_time=time.perf_counter()
         if param.cross_time_compress:
-            first_spatial_sample_ids=np.sort(rng.choice(param.spatial_point_num,size=first_spatial_sample_num,replace=False))
+            if cross_time_first_sample_mode=="local_fixed_regions":
+                first_spatial_sample_ids=fixed_local_spatial_sample_ids
+            elif cross_time_first_sample_mode=="local_fixed":
+                first_spatial_sample_ids=select_local_spatial_ids(param.coord_array[:param.spatial_point_num,:-1].astype(np.float64,copy=False),first_spatial_sample_num,cross_time_first_sample_region_num,rng)
+            else:
+                first_spatial_sample_ids=np.sort(rng.choice(param.spatial_point_num,size=first_spatial_sample_num,replace=False))
             param.first_sample_ids=np.concatenate([time_step_id*param.spatial_point_num+first_spatial_sample_ids for time_step_id in range(time_step_num)])
             first_sample_num=param.first_sample_ids.size
+            if first_spatial_sample_ids.size>1:
+                first_sample_spatial_tree=scipy.spatial.cKDTree(param.coord_array[first_spatial_sample_ids,:-1].astype(np.float64,copy=False))
+                first_sample_spatial_nearest_distance=float(np.median(first_sample_spatial_tree.query(param.coord_array[first_spatial_sample_ids,:-1],k=2)[0][:,1]))
+            else:
+                first_sample_spatial_nearest_distance=np.nan
+            print(f"第一次采样模式={cross_time_first_sample_mode},总点数={first_sample_num},空间点数={first_spatial_sample_ids.size},空间最近邻距离中位数={first_sample_spatial_nearest_distance}")
         else:
             param.first_sample_ids=np.sort(rng.choice(param.point_num,size=first_sample_num,replace=False))
+            first_sample_spatial_nearest_distance=np.nan
         original_sampled_coord=param.coord_array[param.first_sample_ids]
         sampled_coord=original_sampled_coord@transform_matrix
         sampled_data=full_sampled_data[:,param.first_sample_ids]
@@ -394,10 +678,12 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
             optimality_history.append(result.optimality)
             elapsed_time_history.append(time.perf_counter()-time_dict["adjust_coord总耗时"])
             pair_num_history.append(pair_coord_diff.shape[0])
+            first_sample_num_history.append(first_sample_num)
+            first_sample_spatial_nearest_distance_history.append(first_sample_spatial_nearest_distance)
         if matrix_history_path and ((iteration+1)%matrix_save_interval==0 or iteration+1==iteration_num):
             history_path=Path(matrix_history_path)
             history_path.parent.mkdir(parents=True,exist_ok=True)
-            np.savez(history_path,loss_function_name=loss_function_name,optimizer_name=optimizer_name,iteration=np.asarray(iteration_history),matrix=np.asarray(matrix_history),loss=np.asarray(loss_history),nfev=np.asarray(nfev_history),njev=np.asarray(njev_history),optimality=np.asarray(optimality_history),elapsed_time=np.asarray(elapsed_time_history),pair_num=np.asarray(pair_num_history),first_sample_ratio=first_sample_ratio,second_sample_ratio=second_sample_ratio,new_matrix_weight=new_matrix_weight,adjust_max_nfev=adjust_max_nfev,sample_file_num=sample_file_num,actual_ref_num=param.actual_ref_num,inverse_distance_power=inverse_distance_power,generalized_gaussian_shape=generalized_gaussian_shape,matrix_save_interval=matrix_save_interval)
+            np.savez(history_path,loss_function_name=loss_function_name,optimizer_name=optimizer_name,iteration=np.asarray(iteration_history),matrix=np.asarray(matrix_history),loss=np.asarray(loss_history),nfev=np.asarray(nfev_history),njev=np.asarray(njev_history),optimality=np.asarray(optimality_history),elapsed_time=np.asarray(elapsed_time_history),pair_num=np.asarray(pair_num_history),first_sample_num=np.asarray(first_sample_num_history),first_sample_spatial_nearest_distance=np.asarray(first_sample_spatial_nearest_distance_history),first_sample_ratio=first_sample_ratio,second_sample_ratio=second_sample_ratio,new_matrix_weight=new_matrix_weight,adjust_max_nfev=adjust_max_nfev,sample_file_num=sample_file_num,actual_ref_num=param.actual_ref_num,inverse_distance_power=inverse_distance_power,generalized_gaussian_shape=generalized_gaussian_shape,matrix_save_interval=matrix_save_interval,cross_time_first_sample_mode=cross_time_first_sample_mode,cross_time_first_sample_num=cross_time_first_sample_num,cross_time_first_sample_region_num=cross_time_first_sample_region_num)
         if (iteration+1)%10==0 and iteration+1<iteration_num:
             stage_start_time=time.perf_counter()
             iteration_transformed_coord=param.coord_array@transform_matrix
@@ -424,9 +710,9 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
             print(f"  {name}：{value:.6f} s")
     print(f"  adjust_coord总耗时：{time_dict['adjust_coord总耗时']:.6f} s")
 
-def adjust_coord(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares")->None:
+def adjust_coord(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares",cross_time_first_sample_mode="grouped_ratio",cross_time_first_sample_num=0,cross_time_first_sample_region_num=8)->None:
     if param.cross_time_compress:
-        adjust_coord_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name)
+        adjust_coord_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,cross_time_first_sample_mode,cross_time_first_sample_num,cross_time_first_sample_region_num)
     else:
         adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name)
 

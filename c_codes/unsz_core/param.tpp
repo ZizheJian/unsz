@@ -40,6 +40,7 @@ namespace unsz
         print_pointwise_oracle_statistics_experimental=other.print_pointwise_oracle_statistics_experimental;
         use_prediction_order_layout_experimental=other.use_prediction_order_layout_experimental;
         use_normalized_weight_experimental=other.use_normalized_weight_experimental;
+        use_continuous_reference_array_experimental=other.use_continuous_reference_array_experimental;
         use_prediction_order_label_experimental=other.use_prediction_order_label_experimental;
         use_predictability_order_experimental=other.use_predictability_order_experimental;
         use_forward_mean_distance_only_order_experimental=other.use_forward_mean_distance_only_order_experimental;
@@ -55,6 +56,7 @@ namespace unsz
         use_reverse_direction_only_order_experimental=other.use_reverse_direction_only_order_experimental;
         use_reverse_direction_order_experimental=other.use_reverse_direction_order_experimental;
         use_reverse_direction_distribution_order_experimental=other.use_reverse_direction_distribution_order_experimental;
+        use_global_order_before_round_split_experimental=other.use_global_order_before_round_split_experimental;
         d_only_cache_refill_threshold_experimental=other.d_only_cache_refill_threshold_experimental;
         order_candidate_num_experimental=other.order_candidate_num_experimental;
         cross_time_spatial_point_num_experimental=other.cross_time_spatial_point_num_experimental;
@@ -87,6 +89,12 @@ namespace unsz
         pred_ref_weights_vec=other.pred_ref_weights_vec;
         pred_ref_label_normalized_weights_vec=other.pred_ref_label_normalized_weights_vec;
         pred_ref_value_normalized_weights_vec=other.pred_ref_value_normalized_weights_vec;
+        continuous_pred_target_ids=other.continuous_pred_target_ids;
+        continuous_pred_ref_ids=other.continuous_pred_ref_ids;
+        continuous_pred_ref_begin=other.continuous_pred_ref_begin;
+        continuous_pred_ref_weights=other.continuous_pred_ref_weights;
+        continuous_pred_ref_label_normalized_weights=other.continuous_pred_ref_label_normalized_weights;
+        continuous_pred_ref_value_normalized_weights=other.continuous_pred_ref_value_normalized_weights;
         prediction_id_to_original_id=other.prediction_id_to_original_id;
         original_id_to_prediction_id=other.original_id_to_prediction_id;
         independent_block_point_ids_vec=other.independent_block_point_ids_vec;
@@ -99,6 +107,14 @@ namespace unsz
         current_decompressed_data=other.current_decompressed_data;
         previous_time_decompressed_data=other.previous_time_decompressed_data;
         previous_time_point_set_id_vec=other.previous_time_point_set_id_vec;
+        time_step_vec=other.time_step_vec;
+        reconstructed_time_step_vec=other.reconstructed_time_step_vec;
+        reconstructed_time_data_vec=other.reconstructed_time_data_vec;
+        reconstructed_time_point_set_id_vec=other.reconstructed_time_point_set_id_vec;
+        current_time_step=other.current_time_step;
+        interpolation_left_history_id=other.interpolation_left_history_id;
+        interpolation_right_history_id=other.interpolation_right_history_id;
+        interpolation_right_weight=other.interpolation_right_weight;
         current_min_data=other.current_min_data;
         current_max_data=other.current_max_data;
         current_abs_eb=other.current_abs_eb;

@@ -237,5 +237,40 @@ namespace unsz
             throw runtime_error("归一化数值预测权重没有覆盖所有点");
         if (expect_normalized_label_weights && pred_ref_label_normalized_weights_vec.size()!=point_num)
             throw runtime_error("归一化预测权重没有覆盖所有点");
+        continuous_pred_target_ids.clear();
+        continuous_pred_ref_ids.clear();
+        continuous_pred_ref_begin.clear();
+        continuous_pred_ref_weights.clear();
+        continuous_pred_ref_label_normalized_weights.clear();
+        continuous_pred_ref_value_normalized_weights.clear();
+        if (use_continuous_reference_array_experimental)
+        {
+            uint64_t ref_num_sum=0;
+            for (auto &entry:pred_refs_vec)
+                ref_num_sum+=entry.second.size();
+            continuous_pred_target_ids.resize(point_num);
+            continuous_pred_ref_begin.resize((uint64_t)point_num+1);
+            continuous_pred_ref_ids.reserve(ref_num_sum);
+            continuous_pred_ref_weights.reserve(ref_num_sum);
+            if (expect_normalized_label_weights)
+                continuous_pred_ref_label_normalized_weights.reserve(ref_num_sum);
+            if (use_normalized_weight_experimental)
+                continuous_pred_ref_value_normalized_weights.reserve(ref_num_sum);
+            for (uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
+            {
+                continuous_pred_target_ids[pred_ref_id]=pred_refs_vec[pred_ref_id].first;
+                continuous_pred_ref_begin[pred_ref_id]=continuous_pred_ref_ids.size();
+                continuous_pred_ref_ids.insert(continuous_pred_ref_ids.end(),pred_refs_vec[pred_ref_id].second.begin(),pred_refs_vec[pred_ref_id].second.end());
+                continuous_pred_ref_weights.insert(continuous_pred_ref_weights.end(),pred_ref_weights_vec[pred_ref_id].begin(),pred_ref_weights_vec[pred_ref_id].end());
+                if (expect_normalized_label_weights)
+                    continuous_pred_ref_label_normalized_weights.insert(continuous_pred_ref_label_normalized_weights.end(),pred_ref_label_normalized_weights_vec[pred_ref_id].begin(),pred_ref_label_normalized_weights_vec[pred_ref_id].end());
+                if (use_normalized_weight_experimental)
+                    continuous_pred_ref_value_normalized_weights.insert(continuous_pred_ref_value_normalized_weights.end(),pred_ref_value_normalized_weights_vec[pred_ref_id].begin(),pred_ref_value_normalized_weights_vec[pred_ref_id].end());
+            }
+            continuous_pred_ref_begin[point_num]=continuous_pred_ref_ids.size();
+            if (continuous_pred_ref_ids.size()!=continuous_pred_ref_weights.size() || (expect_normalized_label_weights && continuous_pred_ref_ids.size()!=continuous_pred_ref_label_normalized_weights.size()) || (use_normalized_weight_experimental && continuous_pred_ref_ids.size()!=continuous_pred_ref_value_normalized_weights.size()))
+                throw runtime_error("连续参考数组的编号和权重数量不一致");
+            printf("Prepared continuous reference arrays: targets=%u, references=%llu\n",point_num,(unsigned long long)continuous_pred_ref_ids.size());
+        }
     }
 }
