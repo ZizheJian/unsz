@@ -9,12 +9,12 @@ namespace unsz
             return 1;
         if (multi_huffman_mode_experimental=="round")
             return predict_round_num;
-        if (multi_huffman_mode_experimental=="block" || multi_huffman_mode_experimental=="block_round")
+        if (multi_huffman_mode_experimental=="partition" || multi_huffman_mode_experimental=="partition_round")
         {
-            if (independent_block_point_ids_vec.empty())
-                throw runtime_error("按空间块建立多Huffman树需要启用独立空间分块");
-            uint64_t group_num=independent_block_point_ids_vec.size();
-            if (multi_huffman_mode_experimental=="block_round")
+            if (partition_point_ids_vec.empty())
+                throw runtime_error("按partition建立多Huffman树需要启用partition");
+            uint64_t group_num=partition_point_ids_vec.size();
+            if (multi_huffman_mode_experimental=="partition_round")
                 group_num*=predict_round_num;
             if (group_num>numeric_limits<uint32_t>::max())
                 throw runtime_error("多Huffman树分组数量超过uint32_t范围");
@@ -31,14 +31,14 @@ namespace unsz
         if (multi_huffman_mode_experimental=="round")
             return round_id;
         uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
-        if (original_id>=point_independent_block_id_vec.size())
-            throw runtime_error("多Huffman树无法找到预测目标所属的空间块");
-        uint32_t block_id=point_independent_block_id_vec[original_id];
-        if (block_id>=independent_block_point_ids_vec.size())
-            throw runtime_error("预测目标所属的多Huffman空间块编号越界");
-        if (multi_huffman_mode_experimental=="block")
+        if (original_id>=point_partition_id_vec.size())
+            throw runtime_error("多Huffman树无法找到预测目标所属的partition");
+        uint32_t block_id=point_partition_id_vec[original_id];
+        if (block_id>=partition_point_ids_vec.size())
+            throw runtime_error("预测目标所属的多Huffmanpartition编号越界");
+        if (multi_huffman_mode_experimental=="partition")
             return block_id;
-        if (multi_huffman_mode_experimental=="block_round")
+        if (multi_huffman_mode_experimental=="partition_round")
             return block_id*predict_round_num+round_id;
         throw runtime_error("未知的多Huffman树模式："+multi_huffman_mode_experimental);
     }

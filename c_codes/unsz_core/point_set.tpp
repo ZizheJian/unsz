@@ -411,6 +411,7 @@ namespace unsz
             }
             else
             {
+#pragma omp atomic update
                 hybrid_prediction_num++;
                 auto record_selector=[&](uint8_t selector)
                 {
@@ -440,6 +441,7 @@ namespace unsz
                 }
                 if (fitting_loo_error<inverse_loo_error)
                 {
+#pragma omp atomic update
                     hybrid_fitting_prediction_num++;
                     record_selector(1);
                     return fitting_prediction;

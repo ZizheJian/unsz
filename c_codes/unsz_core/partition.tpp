@@ -3,103 +3,103 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::build_independent_blocks()
+    void param_c<T_coord,T_data>::build_partitions()
     {
-        if (independent_block_size_experimental==0 && independent_block_num_experimental==0)
+        if (partition_size_experimental==0 && partition_num_experimental==0)
             return;
-        if (independent_block_size_experimental>0 && independent_block_num_experimental>0)
-            throw runtime_error("不能同时指定独立块大小和独立块数量");
+        if (partition_size_experimental>0 && partition_num_experimental>0)
+            throw runtime_error("不能同时指定partition大小和partition数量");
         uint32_t tree_leaf_size=kd_tree_leaf_size;
-        if (independent_block_size_experimental>0)
-            tree_leaf_size=min(tree_leaf_size,independent_block_size_experimental);
+        if (partition_size_experimental>0)
+            tree_leaf_size=min(tree_leaf_size,partition_size_experimental);
         else
-            tree_leaf_size=min(tree_leaf_size,(point_num+independent_block_num_experimental-1)/independent_block_num_experimental);
+            tree_leaf_size=min(tree_leaf_size,(point_num+partition_num_experimental-1)/partition_num_experimental);
         block_tree_c<T_coord> tree(coord_array,min_coord,max_coord,tree_leaf_size);
-        build_independent_blocks(tree);
+        build_partitions(tree);
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::build_independent_blocks(block_tree_c<T_coord> &tree)
+    void param_c<T_coord,T_data>::build_partitions(block_tree_c<T_coord> &tree)
     {
-        if (independent_block_size_experimental>0 && independent_block_num_experimental>0)
-            throw runtime_error("不能同时指定独立块大小和独立块数量");
-        uint32_t requested_block_num=independent_block_num_experimental;
-        if (requested_block_num==0)
+        if (partition_size_experimental>0 && partition_num_experimental>0)
+            throw runtime_error("不能同时指定partition大小和partition数量");
+        uint32_t requested_partition_num=partition_num_experimental;
+        if (requested_partition_num==0)
         {
-            requested_block_num=1;
-            while (((uint64_t)point_num+requested_block_num-1)/requested_block_num>independent_block_size_experimental)
-                requested_block_num*=2;
+            requested_partition_num=1;
+            while (((uint64_t)point_num+requested_partition_num-1)/requested_partition_num>partition_size_experimental)
+                requested_partition_num*=2;
         }
-        if ((requested_block_num&(requested_block_num-1))!=0)
-            throw runtime_error("独立空间块数量目前必须是2的幂");
-        independent_block_root_ids_vec.assign(1,0);
-        while (independent_block_root_ids_vec.size()<requested_block_num)
+        if ((requested_partition_num&(requested_partition_num-1))!=0)
+            throw runtime_error("partition数量目前必须是2的幂");
+        partition_root_block_ids.assign(1,0);
+        while (partition_root_block_ids.size()<requested_partition_num)
         {
             vector<int> child_ids;
-            child_ids.reserve(independent_block_root_ids_vec.size()*2);
-            for (int block_root_id:independent_block_root_ids_vec)
+            child_ids.reserve(partition_root_block_ids.size()*2);
+            for (int block_root_id:partition_root_block_ids)
             {
-                auto &block=tree.structure->block_vec[block_root_id];
-                if (block.left_child_id==-1 || block.right_child_id==-1)
-                    throw runtime_error("kd-tree深度不足，无法生成指定数量的独立块");
-                child_ids.push_back(block.left_child_id);
-                child_ids.push_back(block.right_child_id);
+                auto &root_block=tree.structure->block_vec[block_root_id];
+                if(root_block.left_child_id==-1 || root_block.right_child_id==-1)
+                    throw runtime_error("kd-tree深度不足，无法生成指定数量的partition");
+                child_ids.push_back(root_block.left_child_id);
+                child_ids.push_back(root_block.right_child_id);
             }
-            independent_block_root_ids_vec.swap(child_ids);
+            partition_root_block_ids.swap(child_ids);
         }
-        independent_block_point_ids_vec.assign(requested_block_num,vector<int>());
-        point_independent_block_id_vec.assign(point_num,numeric_limits<uint32_t>::max());
+        partition_point_ids_vec.assign(requested_partition_num,vector<int>());
+        point_partition_id_vec.assign(point_num,numeric_limits<uint32_t>::max());
         uint32_t min_block_point_num=point_num,max_block_point_num=0;
-        for (uint32_t independent_block_id=0;independent_block_id<requested_block_num;independent_block_id++)
+        for (uint32_t partition_id=0;partition_id<requested_partition_num;partition_id++)
         {
-            auto &tree_block=tree.structure->block_vec[independent_block_root_ids_vec[independent_block_id]];
-            auto &point_ids=independent_block_point_ids_vec[independent_block_id];
-            point_ids.reserve(tree_block.index_end-tree_block.index_begin);
-            for (uint32_t tree_id=tree_block.index_begin;tree_id<tree_block.index_end;tree_id++)
+            auto &root_block=tree.structure->block_vec[partition_root_block_ids[partition_id]];
+            auto &point_ids=partition_point_ids_vec[partition_id];
+            point_ids.reserve(root_block.index_end-root_block.index_begin);
+            for(uint32_t tree_id=root_block.index_begin;tree_id<root_block.index_end;tree_id++)
             {
                 int original_id=tree.structure->tree_id_to_original_id[tree_id];
                 point_ids.push_back(original_id);
-                point_independent_block_id_vec[original_id]=independent_block_id;
+                point_partition_id_vec[original_id]=partition_id;
             }
             min_block_point_num=min<uint32_t>(min_block_point_num,point_ids.size());
             max_block_point_num=max<uint32_t>(max_block_point_num,point_ids.size());
         }
-        for (uint32_t block_id:point_independent_block_id_vec)
+        for (uint32_t block_id:point_partition_id_vec)
             if (block_id==numeric_limits<uint32_t>::max())
-                throw runtime_error("独立空间分块没有覆盖所有点");
-        printf("Independent spatial blocks: %u, point_num_range=[%u,%u]\n",requested_block_num,min_block_point_num,max_block_point_num);
+                throw runtime_error("partition没有覆盖所有点");
+        printf("Independent spatial partitions: %u, point_num_range=[%u,%u]\n",requested_partition_num,min_block_point_num,max_block_point_num);
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::generate_independent_block_pred_refs_structure()
+    void param_c<T_coord,T_data>::generate_partition_pred_refs_structure()
     {
         auto start_time=chrono::steady_clock::now();
         if (d_only_cache_refill_threshold_experimental>max_ref_num)
             throw runtime_error("D-only缓存重查阈值不能大于max_ref_num");
         uint32_t tree_leaf_size=kd_tree_leaf_size;
-        if (independent_block_size_experimental>0)
-            tree_leaf_size=min(tree_leaf_size,independent_block_size_experimental);
+        if (partition_size_experimental>0)
+            tree_leaf_size=min(tree_leaf_size,partition_size_experimental);
         else
-            tree_leaf_size=min(tree_leaf_size,(point_num+independent_block_num_experimental-1)/independent_block_num_experimental);
+            tree_leaf_size=min(tree_leaf_size,(point_num+partition_num_experimental-1)/partition_num_experimental);
         block_tree_c<T_coord> query_tree(coord_array,min_coord,max_coord,tree_leaf_size);
-        build_independent_blocks(query_tree);
-        printf("Generating fully independent block prediction structure with block_num=%llu\n",(unsigned long long)independent_block_point_ids_vec.size());
-        vector<vector<vector<int>>> block_round_target_ids(independent_block_point_ids_vec.size(),vector<vector<int>>(predict_round_num));
+        build_partitions(query_tree);
+        printf("Generating fully independent partition prediction structure with partition_num=%llu, thread_num=%u\n",(unsigned long long)partition_point_ids_vec.size(),thread_num);
+        vector<vector<vector<int>>> partition_round_target_ids(partition_point_ids_vec.size(),vector<vector<int>>(predict_round_num));
         mt19937 rng(0);
-        for (uint32_t independent_block_id=0;independent_block_id<independent_block_point_ids_vec.size();independent_block_id++)
+        for (uint32_t partition_id=0;partition_id<partition_point_ids_vec.size();partition_id++)
         {
-            vector<int> shuffled_ids=independent_block_point_ids_vec[independent_block_id];
+            vector<int> shuffled_ids=partition_point_ids_vec[partition_id];
             shuffle(shuffled_ids.begin(),shuffled_ids.end(),rng);
             uint64_t previous_end=0;
             for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
             {
                 uint64_t divisor=uint64_t(1)<<(predict_round_num-1-round_id);
                 uint64_t current_end=min<uint64_t>((shuffled_ids.size()+divisor-1)/divisor,shuffled_ids.size());
-                block_round_target_ids[independent_block_id][round_id].assign(shuffled_ids.begin()+previous_end,shuffled_ids.begin()+current_end);
+                partition_round_target_ids[partition_id][round_id].assign(shuffled_ids.begin()+previous_end,shuffled_ids.begin()+current_end);
                 previous_end=current_end;
             }
             if (previous_end!=shuffled_ids.size())
-                throw runtime_error("独立块预测轮次没有覆盖全部块内点");
+                throw runtime_error("partition预测轮次没有覆盖全部点");
         }
 
         auto sorting_start_time=chrono::steady_clock::now();
@@ -111,16 +111,21 @@ namespace unsz
         vector<uint8_t> d_only_cache_initialized(point_num,0),reference_valid(point_num,1);
         vector<int> d_only_cached_ref_ids((uint64_t)point_num*reverse_ref_query_num);
         uint64_t d_only_cache_hit_num=0,d_only_cache_reduced_ref_hit_num=0,d_only_cache_miss_num=0;
-        printf("Independent D-only order candidates: %u, cache refill threshold: %u\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,d_only_cache_refill_threshold_experimental>0?d_only_cache_refill_threshold_experimental:max_ref_num);
-        for (uint32_t independent_block_id=0;independent_block_id<independent_block_point_ids_vec.size();independent_block_id++)
+        printf("Independent partition D-only order candidates: %u, cache refill threshold: %u\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,d_only_cache_refill_threshold_experimental>0?d_only_cache_refill_threshold_experimental:max_ref_num);
+        exception_ptr sorting_exception;
+#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(thread_num>1) reduction(+:d_only_cache_hit_num,d_only_cache_reduced_ref_hit_num,d_only_cache_miss_num)
+        for (int64_t partition_index=0;partition_index<(int64_t)partition_point_ids_vec.size();partition_index++)
         {
-            int block_root_id=independent_block_root_ids_vec[independent_block_id];
+            try
+            {
+            uint32_t partition_id=(uint32_t)partition_index;
+            int block_root_id=partition_root_block_ids[partition_id];
             vector<T_coord> center_coord(dim);
             for (uint32_t d=0;d<dim;d++)
                 center_coord[d]=(query_tree.get_block_min_coord(block_root_id)[d]+query_tree.get_block_max_coord(block_root_id)[d])/2;
             for (int round_id=predict_round_num-1;round_id>=0;round_id--)
             {
-                auto &target_ids=block_round_target_ids[independent_block_id][round_id];
+                auto &target_ids=partition_round_target_ids[partition_id][round_id];
                 if (target_ids.empty())
                     continue;
                 for (int original_id:target_ids)
@@ -174,8 +179,8 @@ namespace unsz
                         else
                         {
                             nearest_queue_c<T_coord> reference_queue;
-                            uint32_t block_ref_query_num=min<uint32_t>(reverse_ref_query_num,independent_block_point_ids_vec[independent_block_id].size());
-                            reference_tree.find_original_nearest(reference_queue,coord_array,block_ref_query_num,block_root_id,coord_array[candidate_id],true);
+                            uint32_t partition_ref_query_num=min<uint32_t>(reverse_ref_query_num,partition_point_ids_vec[partition_id].size());
+                            reference_tree.find_original_nearest(reference_queue,coord_array,partition_ref_query_num,block_root_id,coord_array[candidate_id],true);
                             double squared_distance_sum=0;
                             uint32_t reference_num=0;
                             while (!reference_queue.empty())
@@ -204,29 +209,43 @@ namespace unsz
                         }
                     }
                     if (selected_id<0)
-                        throw runtime_error("独立块内无法找到预测目标");
+                        throw runtime_error("partition内无法找到预测目标");
                     removed_target_ids.push_back(selected_id);
-                    target_tree.update_point_valid_num_to_root(selected_id,-1);
-                    reference_tree.update_point_valid_num_to_root(selected_id,-1);
+                    target_tree.update_point_valid_num_to_partition_root(selected_id,-1,block_root_id);
+                    reference_tree.update_point_valid_num_to_partition_root(selected_id,-1,block_root_id);
                     reference_valid[selected_id]=0;
                     query_coord=coord_array[selected_id];
                 }
                 reverse(removed_target_ids.begin(),removed_target_ids.end());
                 target_ids.swap(removed_target_ids);
             }
+            }
+            catch(...)
+            {
+#pragma omp critical
+                if(!sorting_exception)
+                    sorting_exception=current_exception();
+            }
         }
-        printf("Independent block target sorting time: %f s\n",chrono::duration<double>(chrono::steady_clock::now()-sorting_start_time).count());
-        printf("Independent D-only score cache: %llu hits, %llu misses\n",(unsigned long long)d_only_cache_hit_num,(unsigned long long)d_only_cache_miss_num);
-        printf("Independent D-only reduced-reference cache hits: %llu\n",(unsigned long long)d_only_cache_reduced_ref_hit_num);
+        if(sorting_exception)
+            rethrow_exception(sorting_exception);
+        printf("Independent partition target sorting time: %f s\n",chrono::duration<double>(chrono::steady_clock::now()-sorting_start_time).count());
+        printf("Independent partition D-only score cache: %llu hits, %llu misses\n",(unsigned long long)d_only_cache_hit_num,(unsigned long long)d_only_cache_miss_num);
+        printf("Independent partition D-only reduced-reference cache hits: %llu\n",(unsigned long long)d_only_cache_reduced_ref_hit_num);
 
-        vector<vector<vector<pair<int,vector<int>>>>> block_round_entries(independent_block_point_ids_vec.size(),vector<vector<pair<int,vector<int>>>>(predict_round_num));
-        vector<vector<vector<vector<double>>>> block_round_weights(independent_block_point_ids_vec.size(),vector<vector<vector<double>>>(predict_round_num));
+        vector<vector<vector<pair<int,vector<int>>>>> partition_round_entries(partition_point_ids_vec.size(),vector<vector<pair<int,vector<int>>>>(predict_round_num));
+        vector<vector<vector<vector<double>>>> partition_round_weights(partition_point_ids_vec.size(),vector<vector<vector<double>>>(predict_round_num));
         reference_tree.clear_all_valid_num();
-        for (uint32_t independent_block_id=0;independent_block_id<independent_block_point_ids_vec.size();independent_block_id++)
+        exception_ptr reference_exception;
+#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(thread_num>1)
+        for (int64_t partition_index=0;partition_index<(int64_t)partition_point_ids_vec.size();partition_index++)
         {
-            int block_root_id=independent_block_root_ids_vec[independent_block_id];
+            try
+            {
+            uint32_t partition_id=(uint32_t)partition_index;
+            int block_root_id=partition_root_block_ids[partition_id];
             for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
-                for (int pred_id:block_round_target_ids[independent_block_id][round_id])
+                for (int pred_id:partition_round_target_ids[partition_id][round_id])
                 {
                     nearest_queue_c<T_coord> reference_queue;
                     reference_tree.find_original_nearest(reference_queue,coord_array,max_ref_num,block_root_id,coord_array[pred_id],true);
@@ -244,11 +263,20 @@ namespace unsz
                         double squared_distance=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
                         ref_weights.push_back(squared_distance==0?numeric_limits<double>::infinity():pow(squared_distance,-inverse_distance_power/2));
                     }
-                    block_round_entries[independent_block_id][round_id].push_back({pred_id,move(ref_ids)});
-                    block_round_weights[independent_block_id][round_id].push_back(move(ref_weights));
-                    reference_tree.update_point_valid_num_to_root(pred_id,1);
+                    partition_round_entries[partition_id][round_id].push_back({pred_id,move(ref_ids)});
+                    partition_round_weights[partition_id][round_id].push_back(move(ref_weights));
+                    reference_tree.update_point_valid_num_to_partition_root(pred_id,1,block_root_id);
                 }
+            }
+            catch(...)
+            {
+#pragma omp critical
+                if(!reference_exception)
+                    reference_exception=current_exception();
+            }
         }
+        if(reference_exception)
+            rethrow_exception(reference_exception);
 
         round_target_ids.assign(predict_round_num,vector<int>());
         pred_target_ids.clear();
@@ -259,22 +287,22 @@ namespace unsz
         pred_ref_begin.push_back(0);
         pred_ref_weights.clear();
         for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
-            for (uint32_t independent_block_id=0;independent_block_id<independent_block_point_ids_vec.size();independent_block_id++)
-                for (uint32_t entry_id=0;entry_id<block_round_entries[independent_block_id][round_id].size();entry_id++)
+            for (uint32_t partition_id=0;partition_id<partition_point_ids_vec.size();partition_id++)
+                for (uint32_t entry_id=0;entry_id<partition_round_entries[partition_id][round_id].size();entry_id++)
                 {
-                    round_target_ids[round_id].push_back(block_round_entries[independent_block_id][round_id][entry_id].first);
-                    auto &entry=block_round_entries[independent_block_id][round_id][entry_id];
-                    auto &weights=block_round_weights[independent_block_id][round_id][entry_id];
+                    round_target_ids[round_id].push_back(partition_round_entries[partition_id][round_id][entry_id].first);
+                    auto &entry=partition_round_entries[partition_id][round_id][entry_id];
+                    auto &weights=partition_round_weights[partition_id][round_id][entry_id];
                     pred_target_ids.push_back(entry.first);
                     pred_ref_ids.insert(pred_ref_ids.end(),entry.second.begin(),entry.second.end());
                     pred_ref_weights.insert(pred_ref_weights.end(),weights.begin(),weights.end());
                     pred_ref_begin.push_back(pred_ref_ids.size());
                 }
         if (pred_target_ids.size()!=point_num)
-            throw runtime_error("独立分块预测结构没有覆盖所有点");
+            throw runtime_error("独立partition预测结构没有覆盖所有点");
         if (!prediction_structure_path.empty())
             save_pred_refs_structure();
         prepare_pred_refs_structure();
-        printf("Generated independent block prediction entries: %llu, total time: %f s\n",(unsigned long long)pred_target_ids.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
+        printf("Generated independent partition prediction entries: %llu, total time: %f s\n",(unsigned long long)pred_target_ids.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
     }
 }

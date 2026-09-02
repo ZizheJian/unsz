@@ -170,16 +170,26 @@ namespace unsz
     template<typename T_coord>
     void block_tree_c<T_coord>::update_point_valid_num_to_root(int original_id,int change_value)
     {
+        update_point_valid_num_to_partition_root(original_id,change_value,0);
+    }
+
+    template<typename T_coord>
+    void block_tree_c<T_coord>::update_point_valid_num_to_partition_root(int original_id,int change_value,int partition_root_block_id)
+    {
         int tree_id=structure->original_id_to_tree_id[original_id];
         int new_value=(int)point_valid[tree_id]+change_value;
         if (new_value<0 || new_value>1)
             throw runtime_error("kd-tree逐点有效状态更新越界");
         point_valid[tree_id]=new_value;
         int block_id=structure->tree_id_to_block_vec_id[tree_id];
-        while (block_id!=-1)
+        while (true)
         {
             valid_num[block_id]+=change_value;
+            if (block_id==partition_root_block_id)
+                break;
             block_id=structure->block_vec[block_id].parent_id;
+            if (block_id==-1)
+                throw runtime_error("指定的partition根不是目标点叶节点的祖先");
         }
     }
 

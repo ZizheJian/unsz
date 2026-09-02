@@ -63,11 +63,12 @@ namespace unsz
         order_candidate_num_experimental=other.order_candidate_num_experimental;
         cross_time_spatial_point_num_experimental=other.cross_time_spatial_point_num_experimental;
         kd_tree_leaf_size=other.kd_tree_leaf_size;
-        independent_block_size_experimental=other.independent_block_size_experimental;
-        independent_block_num_experimental=other.independent_block_num_experimental;
-        use_block_adaptive_predictor_experimental=other.use_block_adaptive_predictor_experimental;
-        block_adaptive_sample_num_experimental=other.block_adaptive_sample_num_experimental;
-        block_fitting_candidates_experimental=other.block_fitting_candidates_experimental;
+        partition_size_experimental=other.partition_size_experimental;
+        partition_num_experimental=other.partition_num_experimental;
+        thread_num=other.thread_num;
+        use_partition_adaptive_predictor_experimental=other.use_partition_adaptive_predictor_experimental;
+        partition_adaptive_sample_num_experimental=other.partition_adaptive_sample_num_experimental;
+        partition_fitting_candidates_experimental=other.partition_fitting_candidates_experimental;
         multi_huffman_mode_experimental=other.multi_huffman_mode_experimental;
         eb_schedule_experimental=other.eb_schedule_experimental;
         eb_schedule_start_ratio=other.eb_schedule_start_ratio;
@@ -94,11 +95,12 @@ namespace unsz
         pred_ref_value_normalized_weights=other.pred_ref_value_normalized_weights;
         prediction_id_to_original_id=other.prediction_id_to_original_id;
         original_id_to_prediction_id=other.original_id_to_prediction_id;
-        independent_block_point_ids_vec=other.independent_block_point_ids_vec;
-        point_independent_block_id_vec=other.point_independent_block_id_vec;
-        independent_block_root_ids_vec=other.independent_block_root_ids_vec;
-        block_prediction_config_id_vec=other.block_prediction_config_id_vec;
-        block_adaptive_sample_mask=other.block_adaptive_sample_mask;
+        partition_point_ids_vec=other.partition_point_ids_vec;
+        point_partition_id_vec=other.point_partition_id_vec;
+        partition_root_block_ids=other.partition_root_block_ids;
+        partition_pred_ref_ids_vec=other.partition_pred_ref_ids_vec;
+        partition_prediction_config_id_vec=other.partition_prediction_config_id_vec;
+        partition_adaptive_sample_mask=other.partition_adaptive_sample_mask;
 
         current_data=other.current_data;
         current_decompressed_data=other.current_decompressed_data;

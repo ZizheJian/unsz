@@ -27,7 +27,7 @@ v7依次保存：
 
 v8将第2项替换为标签通道数量，并为每个通道保存逻辑目标数量、Zstd字节数和Zstd字节。其余点集数值流布局与v7相同。
 
-实验参数`-multi-huffman-experimental`支持`none`、`round`、`block`和`block_round`。非`none`模式下，每个点集按预测轮、独立空间块或二者组合划分量化索引，分别建立带树头的Huffman流；分组数量、各组量化索引数量、各Huffman流长度和全部Huffman字节拼接后只做一次Zstd。该模式不写入通用文件头，解压时必须指定与压缩时相同的参数。
+实验参数`-multi-huffman-experimental`支持`none`、`round`、`partition`和`partition_round`。非`none`模式下，每个点集按预测轮、partition或二者组合划分量化索引，分别建立带树头的Huffman流；分组数量、各组量化索引数量、各Huffman流长度和全部Huffman字节拼接后只做一次Zstd。该模式不写入通用文件头，解压时必须指定与压缩时相同的参数。
 
 数值codec写入容器，但相对或绝对误差上限仍不写入。使用逐点集EB时，压缩器和解压器必须使用同一份`user_point_set.hpp`；实际出现的所有非常量点集都有独立EB时可以省略`-M`，否则两端必须通过`-M REL <eb>`或`-M ABS <eb>`提供相同参数。REL模式始终根据对应点集自己的最大值和最小值换算ABS EB。
 

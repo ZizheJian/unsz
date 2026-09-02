@@ -263,25 +263,27 @@ int decompress_main(int argc,char **argv)
             param.prediction_structure_path=read_option_value(argc,argv,arg_id,option);
         else if (option=="-kd-leaf-size")
             param.kd_tree_leaf_size=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-independent-block-size-experimental")
-            param.independent_block_size_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-independent-block-num-experimental")
-            param.independent_block_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-block-adaptive-predictor-experimental")
-            param.use_block_adaptive_predictor_experimental=true;
-        else if (option=="-block-adaptive-sample-num-experimental")
-            param.block_adaptive_sample_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-block-fitting-candidates-experimental")
+        else if (option=="-partition-size")
+            param.partition_size_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-partition-num")
+            param.partition_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-thread-num")
+            param.thread_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-partition-adaptive-predictor-experimental")
+            param.use_partition_adaptive_predictor_experimental=true;
+        else if (option=="-partition-adaptive-sample-num-experimental")
+            param.partition_adaptive_sample_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-partition-fitting-candidates-experimental")
         {
-            param.block_fitting_candidates_experimental=read_option_value(argc,argv,arg_id,option);
-            if (param.block_fitting_candidates_experimental!="original" && param.block_fitting_candidates_experimental!="weighted" && param.block_fitting_candidates_experimental!="ridge" && param.block_fitting_candidates_experimental!="mixed" && param.block_fitting_candidates_experimental!="residual" && param.block_fitting_candidates_experimental!="extended" && param.block_fitting_candidates_experimental!="all")
-                throw runtime_error("-block-fitting-candidates-experimental必须是original、weighted、ridge、mixed、residual、extended或all");
+            param.partition_fitting_candidates_experimental=read_option_value(argc,argv,arg_id,option);
+            if (param.partition_fitting_candidates_experimental!="original" && param.partition_fitting_candidates_experimental!="weighted" && param.partition_fitting_candidates_experimental!="ridge" && param.partition_fitting_candidates_experimental!="mixed" && param.partition_fitting_candidates_experimental!="residual" && param.partition_fitting_candidates_experimental!="extended" && param.partition_fitting_candidates_experimental!="all")
+                throw runtime_error("-partition-fitting-candidates-experimental必须是original、weighted、ridge、mixed、residual、extended或all");
         }
         else if (option=="-multi-huffman-experimental")
         {
             param.multi_huffman_mode_experimental=read_option_value(argc,argv,arg_id,option);
-            if (param.multi_huffman_mode_experimental!="none" && param.multi_huffman_mode_experimental!="round" && param.multi_huffman_mode_experimental!="block" && param.multi_huffman_mode_experimental!="block_round")
-                throw runtime_error("-multi-huffman-experimental必须是none、round、block或block_round");
+            if (param.multi_huffman_mode_experimental!="none" && param.multi_huffman_mode_experimental!="round" && param.multi_huffman_mode_experimental!="partition" && param.multi_huffman_mode_experimental!="partition_round")
+                throw runtime_error("-multi-huffman-experimental必须是none、round、partition或partition_round");
         }
         else if (option=="-point-set-predictor")
             param.point_set_predictor=read_option_value(argc,argv,arg_id,option);
@@ -366,9 +368,11 @@ int decompress_main(int argc,char **argv)
     for (const point_set_config_c &config:param.point_set_config_vec)
         has_point_set_error_bound|=config.error_mode!=point_set_error_mode_e::use_global;
     if (!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && !has_point_set_error_bound))
-        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> [-M <REL|ABS> <误差>] [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-independent-block-size-experimental <数量>] [-independent-block-num-experimental <数量>] [-block-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|block_round>] [-parallelism-stats] [-prediction-geometry-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
+        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> [-M <REL|ABS> <误差>] [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|partition_round>] [-parallelism-stats] [-prediction-geometry-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
     if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
         throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
+    if(param.thread_num>1 && param.partition_size_experimental==0 && param.partition_num_experimental==0)
+        throw runtime_error("多线程模式需要指定partition数量或大小");
     if (!param.data_dir.empty() && param.data_dir.back()!='/')
         param.data_dir+="/";
     param.coord_path=param.data_dir+"coords.dat";

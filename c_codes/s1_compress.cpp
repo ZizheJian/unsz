@@ -334,43 +334,49 @@ namespace unsz
                     throw runtime_error("-kd-leaf-size后面缺少参数值");
                 param.kd_tree_leaf_size=parse_positive_uint32(argv[++arg_id],"-kd-leaf-size");
             }
-            else if (strcmp(argv[arg_id],"-independent-block-size-experimental")==0)
+            else if (strcmp(argv[arg_id],"-partition-size")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-independent-block-size-experimental后面缺少参数值");
-                param.independent_block_size_experimental=parse_positive_uint32(argv[++arg_id],"-independent-block-size-experimental");
+                    throw runtime_error("-partition-size后面缺少参数值");
+                param.partition_size_experimental=parse_positive_uint32(argv[++arg_id],"-partition-size");
             }
-            else if (strcmp(argv[arg_id],"-independent-block-num-experimental")==0)
+            else if (strcmp(argv[arg_id],"-partition-num")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-independent-block-num-experimental后面缺少参数值");
-                param.independent_block_num_experimental=parse_positive_uint32(argv[++arg_id],"-independent-block-num-experimental");
+                    throw runtime_error("-partition-num后面缺少参数值");
+                param.partition_num_experimental=parse_positive_uint32(argv[++arg_id],"-partition-num");
             }
-            else if (strcmp(argv[arg_id],"-block-adaptive-predictor-experimental")==0)
-                param.use_block_adaptive_predictor_experimental=true;
+            else if (strcmp(argv[arg_id],"-thread-num")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-thread-num后面缺少参数值");
+                param.thread_num=parse_positive_uint32(argv[++arg_id],"-thread-num");
+            }
+            else if (strcmp(argv[arg_id],"-partition-adaptive-predictor-experimental")==0)
+                param.use_partition_adaptive_predictor_experimental=true;
             else if (strcmp(argv[arg_id],"-pointwise-oracle-statistics-experimental")==0)
                 param.print_pointwise_oracle_statistics_experimental=true;
-            else if (strcmp(argv[arg_id],"-block-adaptive-sample-num-experimental")==0)
+            else if (strcmp(argv[arg_id],"-partition-adaptive-sample-num-experimental")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-block-adaptive-sample-num-experimental后面缺少参数值");
-                param.block_adaptive_sample_num_experimental=parse_positive_uint32(argv[++arg_id],"-block-adaptive-sample-num-experimental");
+                    throw runtime_error("-partition-adaptive-sample-num-experimental后面缺少参数值");
+                param.partition_adaptive_sample_num_experimental=parse_positive_uint32(argv[++arg_id],"-partition-adaptive-sample-num-experimental");
             }
-            else if (strcmp(argv[arg_id],"-block-fitting-candidates-experimental")==0)
+            else if (strcmp(argv[arg_id],"-partition-fitting-candidates-experimental")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-block-fitting-candidates-experimental后面缺少模式");
-                param.block_fitting_candidates_experimental=argv[++arg_id];
-                if (param.block_fitting_candidates_experimental!="original" && param.block_fitting_candidates_experimental!="weighted" && param.block_fitting_candidates_experimental!="ridge" && param.block_fitting_candidates_experimental!="mixed" && param.block_fitting_candidates_experimental!="residual" && param.block_fitting_candidates_experimental!="extended" && param.block_fitting_candidates_experimental!="all")
-                    throw runtime_error("-block-fitting-candidates-experimental必须是original、weighted、ridge、mixed、residual、extended或all");
+                    throw runtime_error("-partition-fitting-candidates-experimental后面缺少模式");
+                param.partition_fitting_candidates_experimental=argv[++arg_id];
+                if (param.partition_fitting_candidates_experimental!="original" && param.partition_fitting_candidates_experimental!="weighted" && param.partition_fitting_candidates_experimental!="ridge" && param.partition_fitting_candidates_experimental!="mixed" && param.partition_fitting_candidates_experimental!="residual" && param.partition_fitting_candidates_experimental!="extended" && param.partition_fitting_candidates_experimental!="all")
+                    throw runtime_error("-partition-fitting-candidates-experimental必须是original、weighted、ridge、mixed、residual、extended或all");
             }
             else if (strcmp(argv[arg_id],"-multi-huffman-experimental")==0)
             {
                 if (arg_id+1>=argc)
                     throw runtime_error("-multi-huffman-experimental后面缺少模式");
                 param.multi_huffman_mode_experimental=argv[++arg_id];
-                if (param.multi_huffman_mode_experimental!="none" && param.multi_huffman_mode_experimental!="round" && param.multi_huffman_mode_experimental!="block" && param.multi_huffman_mode_experimental!="block_round")
-                    throw runtime_error("-multi-huffman-experimental必须是none、round、block或block_round");
+                if (param.multi_huffman_mode_experimental!="none" && param.multi_huffman_mode_experimental!="round" && param.multi_huffman_mode_experimental!="partition" && param.multi_huffman_mode_experimental!="partition_round")
+                    throw runtime_error("-multi-huffman-experimental必须是none、round、partition或partition_round");
             }
             else if (strcmp(argv[arg_id],"-point-set-predictor")==0)
             {
@@ -493,15 +499,17 @@ namespace unsz
         for (const point_set_config_c &config:param.point_set_config_vec)
             has_point_set_error_bound|=config.error_mode!=point_set_error_mode_e::use_global;
         if (!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && !has_point_set_error_bound))
-            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> [-M <REL|ABS> <误差>] [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-predictor <inverse_proportion|fitting|hybrid_loo>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-independent-block-size-experimental <数量>] [-independent-block-num-experimental <数量>] [-block-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-block-adaptive-sample-num-experimental <数量>] [-block-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|block_round>] [-round-stats] [-prediction-geometry-stats] [-label-stats] [-compression-stage-time] [-parallelism-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-training-data-aware-order-experimental <time step列表>] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
+            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> [-M <REL|ABS> <误差>] [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-predictor <inverse_proportion|fitting|hybrid_loo>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-partition-adaptive-sample-num-experimental <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|partition_round>] [-round-stats] [-prediction-geometry-stats] [-label-stats] [-compression-stage-time] [-parallelism-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-training-data-aware-order-experimental <time step列表>] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
         if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
             throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
         if (!param.hybrid_selector_path.empty() && param.predictor!="hybrid_loo")
             throw runtime_error("-hybrid-selector-path只能和-predictor hybrid_loo一起使用");
-        if (param.use_block_adaptive_predictor_experimental && param.independent_block_size_experimental==0 && param.independent_block_num_experimental==0)
-            throw runtime_error("block自适应预测器需要指定独立空间块");
-        if (param.print_pointwise_oracle_statistics_experimental && !param.use_block_adaptive_predictor_experimental)
-            throw runtime_error("逐点oracle统计需要启用block自适应预测器");
+        if (param.use_partition_adaptive_predictor_experimental && param.partition_size_experimental==0 && param.partition_num_experimental==0)
+            throw runtime_error("partition自适应预测器需要指定空间partition");
+        if (param.thread_num>1 && param.partition_size_experimental==0 && param.partition_num_experimental==0)
+            throw runtime_error("多线程模式需要指定partition数量或大小");
+        if (param.print_pointwise_oracle_statistics_experimental && !param.use_partition_adaptive_predictor_experimental)
+            throw runtime_error("逐点oracle统计需要启用partition自适应预测器");
         if (!param.data_dir.empty() && param.data_dir.back()!='/')
             param.data_dir+="/";
         param.coord_path=param.data_dir+"coords.dat";

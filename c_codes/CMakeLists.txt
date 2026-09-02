@@ -11,6 +11,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Ofast -march=native -mavx2 -mfma 
 # 寻找/添加依赖库
 add_subdirectory(third_party/zstd)
 add_subdirectory(../third_party/parsers/c_codes parsers)
+find_package(OpenMP REQUIRED)
 
 # 确定要构建的目标
 set(CODE_NAME "" CACHE STRING "which target to build")
@@ -23,12 +24,12 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${SRC_FILE}")
 endif()
 
 add_executable(${CODE_NAME} ${SRC_FILE})
-target_link_libraries(${CODE_NAME} PRIVATE libzstd_static libparsers)
+target_link_libraries(${CODE_NAME} PRIVATE libzstd_static libparsers OpenMP::OpenMP_CXX)
 install(TARGETS ${CODE_NAME} DESTINATION bin)
 
 # 构建压缩器时同时构建配套解压器，保证两端使用完全相同的头文件实现。
 if(CODE_NAME STREQUAL "s1_compress")
     add_executable(s1_decompress s1_decompress.cpp)
-    target_link_libraries(s1_decompress PRIVATE libzstd_static libparsers)
+    target_link_libraries(s1_decompress PRIVATE libzstd_static libparsers OpenMP::OpenMP_CXX)
     install(TARGETS s1_decompress DESTINATION bin)
 endif()

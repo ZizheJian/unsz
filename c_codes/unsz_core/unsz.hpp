@@ -13,6 +13,7 @@
 #include <queue>
 #include <map>
 #include <memory>
+#include <exception>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -24,7 +25,7 @@ namespace unsz
 {
     enum class point_set_codec_e:uint8_t{inverse_proportion=0,fitting=1,constant=2,hybrid_loo=3,use_default=255};
     enum class point_set_error_mode_e:uint8_t{use_global=0,relative=1,absolute=2};
-    enum class block_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
+    enum class partition_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
 
     struct point_set_config_c
     {
@@ -63,7 +64,7 @@ namespace unsz
             inline const T*end() const{return data_ptr?data_ptr+element_num:data_ptr;}
     };
 
-    struct block_prediction_config_c
+    struct partition_prediction_config_c
     {
         uint32_t ref_num;
         double inverse_distance_power;
@@ -71,7 +72,7 @@ namespace unsz
         double fitting_weight_power=0;
         double fitting_ridge=0;
         bool normalize_fitting_coord=false;
-        block_fitting_method_e fitting_method=block_fitting_method_e::direct;
+        partition_fitting_method_e fitting_method=partition_fitting_method_e::direct;
     };
 
     template<typename T_coord>
@@ -196,6 +197,7 @@ namespace unsz
             void set_point_valid(int original_id,bool value);
             void update_all_valid_num(int block_id);
             void update_point_valid_num_to_root(int original_id,int change_value);
+            void update_point_valid_num_to_partition_root(int original_id,int change_value,int partition_root_block_id);
             void find_original_nearest(nearest_queue_c<T_coord> &nearest_queue,Array2D<T_coord> &coord_array,
                 uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
                 //寻找最近的点。如果query_coord是一个点的坐标，那么会找到自身
@@ -252,12 +254,13 @@ namespace unsz
             uint32_t order_candidate_num_experimental=0;//0表示使用max_ref_num
             uint32_t cross_time_spatial_point_num_experimental=0;//仅用于统计展平时空点集中的跨时间参考
             uint32_t kd_tree_leaf_size=32;
-            uint32_t independent_block_size_experimental=0;//0表示不分块；非0时所有参考点必须来自同一空间块
-            uint32_t independent_block_num_experimental=0;//直接指定2、4、8等2的幂个独立空间块
-            bool use_block_adaptive_predictor_experimental=false;
-            uint32_t block_adaptive_sample_num_experimental=256;
-            string block_fitting_candidates_experimental="original";//original / weighted / ridge / mixed / residual / extended / all
-            string multi_huffman_mode_experimental="none";//none / round / block / block_round
+            uint32_t partition_size_experimental=0;//0表示不分区；非0时所有参考点必须来自同一partition
+            uint32_t partition_num_experimental=0;//直接指定2、4、8等2的幂个partition
+            uint32_t thread_num=1;
+            bool use_partition_adaptive_predictor_experimental=false;
+            uint32_t partition_adaptive_sample_num_experimental=256;
+            string partition_fitting_candidates_experimental="original";//original / weighted / ridge / mixed / residual / extended / all
+            string multi_huffman_mode_experimental="none";//none / round / partition / partition_round
             string eb_schedule_experimental="round_point_ratio";//none / round / point / round_point / round_ratio / round_point_ratio
             double eb_schedule_start_ratio=0.8;
             uint32_t predict_round_num=10;
@@ -280,10 +283,11 @@ namespace unsz
             vector<uint64_t> pred_ref_begin;//第i个目标的参考点区间为[pred_ref_begin[i],pred_ref_begin[i+1])
             vector<double> pred_ref_weights,pred_ref_label_normalized_weights,pred_ref_value_normalized_weights;
             vector<uint32_t> prediction_id_to_original_id,original_id_to_prediction_id;
-            vector<vector<int>> independent_block_point_ids_vec;
-            vector<uint32_t> point_independent_block_id_vec;
-            vector<int> independent_block_root_ids_vec;
-            vector<uint8_t> block_prediction_config_id_vec,block_adaptive_sample_mask;
+            vector<vector<int>> partition_point_ids_vec;
+            vector<uint32_t> point_partition_id_vec;
+            vector<int> partition_root_block_ids;
+            vector<vector<uint32_t>> partition_pred_ref_ids_vec;
+            vector<uint8_t> partition_prediction_config_id_vec,partition_adaptive_sample_mask;
 
             vector<T_data> current_data,current_decompressed_data;
             vector<T_data> previous_time_decompressed_data;
@@ -314,16 +318,16 @@ namespace unsz
             void load_adjust_coord_matrix_file();
             void adjust_coord();
             void load_or_generate_pred_refs_structure();
-            void build_independent_blocks();
-            void build_independent_blocks(block_tree_c<T_coord> &tree);
-            void generate_independent_block_pred_refs_structure();
-            vector<block_prediction_config_c> get_block_prediction_config_vec();
-            void select_block_prediction_configs();
-            void prepare_block_adaptive_sample_mask();
+            void build_partitions();
+            void build_partitions(block_tree_c<T_coord> &tree);
+            void generate_partition_pred_refs_structure();
+            vector<partition_prediction_config_c> get_partition_prediction_config_vec();
+            void select_partition_prediction_configs();
+            void prepare_partition_adaptive_sample_mask();
             array_view_c<int> get_pred_ref_ids(uint32_t pred_ref_id) const;
             array_view_c<double> get_pred_ref_weights(uint32_t pred_ref_id,bool label_normalized=false,bool value_normalized=false) const;
-            T_data predict_block_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,uint8_t config_id);
-            T_data predict_block_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,const block_prediction_config_c &config);
+            T_data predict_partition_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,uint8_t config_id);
+            T_data predict_partition_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,const partition_prediction_config_c &config);
             uint32_t get_multi_huffman_group_num();
             uint32_t get_multi_huffman_group_id(uint32_t round_id,int pred_id);
             void generate_pred_refs_structure();
@@ -366,8 +370,8 @@ namespace unsz
 #include "init.tpp"
 #include "adjust_coord_matrix_file.tpp"
 #include "adjust_coord.tpp"
-#include "independent_block.tpp"
-#include "block_adaptive_prediction.tpp"
+#include "partition.tpp"
+#include "partition_adaptive_prediction.tpp"
 #include "generate_pred_refs_structure.tpp"
 #include "prediction_dag.tpp"
 #include "point_set.tpp"

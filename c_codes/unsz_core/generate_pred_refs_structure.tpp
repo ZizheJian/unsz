@@ -6,11 +6,11 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::generate_pred_refs_structure()
     {
-        if (use_global_order_before_round_split_experimental && (independent_block_size_experimental>0 || independent_block_num_experimental>0))
-            throw runtime_error("全局排序后分轮实验目前不能和独立分区同时使用");
-        if (independent_block_size_experimental>0 || independent_block_num_experimental>0)
+        if (use_global_order_before_round_split_experimental && (partition_size_experimental>0 || partition_num_experimental>0))
+            throw runtime_error("全局排序后分轮实验目前不能和partition同时使用");
+        if (partition_size_experimental>0 || partition_num_experimental>0)
         {
-            generate_independent_block_pred_refs_structure();
+            generate_partition_pred_refs_structure();
             return;
         }
         if (point_num<=0)

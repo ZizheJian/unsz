@@ -30,8 +30,8 @@ namespace unsz
         {
             if (fclose(file)!=0)
                 throw runtime_error("关闭预测结构文件失败："+prediction_structure_path);
-            if (independent_block_size_experimental>0 || independent_block_num_experimental>0)
-                build_independent_blocks();
+            if (partition_size_experimental>0 || partition_num_experimental>0)
+                build_partitions();
             load_pred_refs_structure();
         }
         else
@@ -236,11 +236,11 @@ namespace unsz
     {
         if (pred_target_ids.size()!=point_num || pred_ref_begin.size()!=(uint64_t)point_num+1 || pred_ref_ids.size()!=pred_ref_weights.size())
             throw runtime_error("预测参考结构没有覆盖所有点");
-        if (independent_block_size_experimental>0 || independent_block_num_experimental>0)
+        if (partition_size_experimental>0 || partition_num_experimental>0)
             for (uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
                 for (int ref_id:get_pred_ref_ids(pred_ref_id))
-                    if (point_independent_block_id_vec[pred_target_ids[pred_ref_id]]!=point_independent_block_id_vec[ref_id])
-                        throw runtime_error("独立分块预测结构包含跨块参考点");
+                    if (point_partition_id_vec[pred_target_ids[pred_ref_id]]!=point_partition_id_vec[ref_id])
+                        throw runtime_error("partition预测结构包含跨partition参考点");
         pred_ref_label_normalized_weights.clear();
         pred_ref_value_normalized_weights.clear();
         if (use_normalized_weight_experimental)
@@ -315,6 +315,20 @@ namespace unsz
             throw runtime_error("归一化数值预测权重没有覆盖所有点");
         if (expect_normalized_label_weights && pred_ref_label_normalized_weights.size()!=pred_ref_ids.size())
             throw runtime_error("归一化预测权重没有覆盖所有点");
+        partition_pred_ref_ids_vec.clear();
+        if(!partition_point_ids_vec.empty())
+        {
+            partition_pred_ref_ids_vec.resize(partition_point_ids_vec.size());
+            for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
+            {
+                uint32_t pred_id=(uint32_t)pred_target_ids[pred_ref_id];
+                uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                uint32_t partition_id=point_partition_id_vec[original_id];
+                if(partition_id>=partition_pred_ref_ids_vec.size())
+                    throw runtime_error("预测目标的partition编号越界");
+                partition_pred_ref_ids_vec[partition_id].push_back(pred_ref_id);
+            }
+        }
         printf("Prepared continuous reference arrays: targets=%u, references=%llu\n",point_num,(unsigned long long)pred_ref_ids.size());
     }
 }
