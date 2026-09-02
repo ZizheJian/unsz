@@ -234,7 +234,7 @@ def main():
     print(f"四维训练耗时={training_time:.6f} s,变换后坐标范围={list(zip(transformed_coord.min(axis=0),transformed_coord.max(axis=0)))}")
     joint_flags=["-cross-time-spatial-point-num-experimental",coord.shape[0]]
     if args.joint_block_num>1:
-        joint_flags.extend(["-independent-block-num-experimental",args.joint_block_num])
+        joint_flags.extend(["-partition-num",args.joint_block_num])
     joint_br,joint_psnr,joint_preprocessing_time,joint_compression_time=run_codec(joint_dir,args.variable,"{0}",4,args.rel_eb,joint_flags,"四维时空联合预测",args.compress_only)
 
     print("\n跨time-step初步结果：")

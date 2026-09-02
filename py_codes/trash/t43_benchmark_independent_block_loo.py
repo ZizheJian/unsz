@@ -51,7 +51,7 @@ def benchmark(dataset,block_num,rel_eb,test_dir):
     os.symlink(os.path.join(source_dir,f"{dataset['variable']}.dat.0"),os.path.join(test_dir,f"{variable}.dat.0"))
     arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",os.path.join(test_dir,f"prediction_structure_{config_name}.bin"),"-predictor","hybrid_loo"]
     if block_num>1:
-        arguments.extend(["-independent-block-num-experimental",str(block_num)])
+        arguments.extend(["-partition-num",str(block_num)])
     if dataset["adjust_coord"]:
         arguments.append("-adjust-coord")
     compression_output=run_command([compressor,*arguments])

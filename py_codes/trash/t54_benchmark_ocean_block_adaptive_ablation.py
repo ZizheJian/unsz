@@ -9,7 +9,7 @@ def benchmark(field,block_num,rel_eb,test_dir,prediction_structure_path):
     variable=f"{field}_block_fixed_b{block_num}_{str(rel_eb).replace('.','_')}"
     for time_step in range(adaptive.time_step_num):
         os.symlink(os.path.join(adaptive.data_dir,f"{field}.dat.{time_step}"),os.path.join(test_dir,f"{variable}.dat.{time_step}"))
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"[0,{adaptive.time_step_num-1}]","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-independent-block-num-experimental",str(block_num)]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"[0,{adaptive.time_step_num-1}]","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num",str(block_num)]
     compression_output=adaptive.run_command([adaptive.compressor,*arguments])
     decompression_arguments=[]
     skip_next=False
