@@ -264,6 +264,7 @@ namespace unsz
             string eb_schedule_experimental="round_point_ratio";//none / round / point / round_point / round_ratio / round_point_ratio / round_point_ratio_dag / round_point_ratio_dag_direct / round_point_ratio_dag_variance_direct
             double eb_schedule_start_ratio=0.8;
             uint32_t predict_round_num=8;
+            double round_size_growth_ratio_experimental=2;
             uint32_t max_ref_num=10;//不知道点集时先保留候选点，再筛选同点集参考点
             uint32_t actual_ref_num=10;//标签预测使用的候选点数，也是数值预测最多使用的同点集参考点数
             double inverse_distance_power=3.6;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
@@ -320,6 +321,7 @@ namespace unsz
             void load_or_generate_pred_refs_structure();
             void build_partitions();
             void build_partitions(block_tree_c<T_coord> &tree);
+            vector<uint32_t> get_round_target_num_vec(uint32_t local_point_num) const;
             void generate_partition_pred_refs_structure();
             vector<partition_prediction_config_c> get_partition_prediction_config_vec();
             vector<double> generate_pred_eb_multiplier_vec(bool print_statistics=false);
@@ -371,6 +373,7 @@ namespace unsz
 #include "init.tpp"
 #include "adjust_coord_matrix_file.tpp"
 #include "adjust_coord.tpp"
+#include "prediction_round.tpp"
 #include "partition.tpp"
 #include "partition_adaptive_prediction.tpp"
 #include "eb_schedule.tpp"

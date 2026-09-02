@@ -84,14 +84,12 @@ namespace unsz
         shuffle(shuffled_ids.begin(),shuffled_ids.end(),rng);
 
         uint64_t previous_end=0;
-        vector<uint32_t> round_target_num_vec(predict_round_num);
-        for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+        vector<uint32_t> round_target_num_vec=get_round_target_num_vec(point_num);
+        printf("Round size growth ratio: %.9g\n",round_size_growth_ratio_experimental);
+        for(uint32_t round_id=0;round_id<predict_round_num;round_id++)
         {
-            uint64_t divisor=uint64_t(1)<<(predict_round_num-1-round_id);
-            uint64_t current_end=((uint64_t)point_num+divisor-1)/divisor;
-            current_end=min(current_end,(uint64_t)point_num);
+            uint64_t current_end=previous_end+round_target_num_vec[round_id];
             round_target_ids[round_id].assign(shuffled_ids.begin()+previous_end,shuffled_ids.begin()+current_end);
-            round_target_num_vec[round_id]=round_target_ids[round_id].size();
             previous_end=current_end;
             printf("Round %u target num: %llu\n",round_id,(unsigned long long)round_target_ids[round_id].size());
         }

@@ -84,6 +84,7 @@ namespace unsz
         block_tree_c<T_coord> query_tree(coord_array,min_coord,max_coord,tree_leaf_size);
         build_partitions(query_tree);
         printf("Generating fully independent partition prediction structure with partition_num=%llu, thread_num=%u\n",(unsigned long long)partition_point_ids_vec.size(),thread_num);
+        printf("Round size growth ratio: %.9g\n",round_size_growth_ratio_experimental);
         vector<vector<vector<int>>> partition_round_target_ids(partition_point_ids_vec.size(),vector<vector<int>>(predict_round_num));
         mt19937 rng(0);
         for (uint32_t partition_id=0;partition_id<partition_point_ids_vec.size();partition_id++)
@@ -91,10 +92,10 @@ namespace unsz
             vector<int> shuffled_ids=partition_point_ids_vec[partition_id];
             shuffle(shuffled_ids.begin(),shuffled_ids.end(),rng);
             uint64_t previous_end=0;
-            for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+            vector<uint32_t> round_target_num_vec=get_round_target_num_vec((uint32_t)shuffled_ids.size());
+            for(uint32_t round_id=0;round_id<predict_round_num;round_id++)
             {
-                uint64_t divisor=uint64_t(1)<<(predict_round_num-1-round_id);
-                uint64_t current_end=min<uint64_t>((shuffled_ids.size()+divisor-1)/divisor,shuffled_ids.size());
+                uint64_t current_end=previous_end+round_target_num_vec[round_id];
                 partition_round_target_ids[partition_id][round_id].assign(shuffled_ids.begin()+previous_end,shuffled_ids.begin()+current_end);
                 previous_end=current_end;
             }

@@ -73,6 +73,7 @@ namespace unsz
         eb_schedule_experimental=other.eb_schedule_experimental;
         eb_schedule_start_ratio=other.eb_schedule_start_ratio;
         predict_round_num=other.predict_round_num;
+        round_size_growth_ratio_experimental=other.round_size_growth_ratio_experimental;
         max_ref_num=other.max_ref_num;
         actual_ref_num=other.actual_ref_num;
         inverse_distance_power=other.inverse_distance_power;
