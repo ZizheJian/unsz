@@ -102,7 +102,7 @@ install/bin/s1_compress -data-dir /path/to/data -variable field -time-step '[0,9
 |---|---:|---|
 | `-max-ref-num` | 10 | 在未知点集标签时保留的候选参考点数 |
 | `-actual-ref-num` | 10 | 标签预测使用的候选点数，以及数值预测最多使用的同点集参考点数 |
-| `-inverse-distance-power` | 3.61 | IDW使用的欧氏距离负指数 |
+| `-inverse-distance-power` | 3.6 | IDW使用的欧氏距离负指数 |
 | `-kd-leaf-size` | 32 | kd-tree叶节点最多保存的点数 |
 | `-d-only-cache-refill-threshold-experimental` | 8 | D-only缓存少于该数量时重新查询 |
 
@@ -194,7 +194,7 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
 当前通用预测器是inverse-distance weighting：
 
 ```text
-prediction=Σ(valueᵢ·distanceᵢ^-3.61)/Σ(distanceᵢ^-3.61)
+prediction=Σ(valueᵢ·distanceᵢ^-3.6)/Σ(distanceᵢ^-3.6)
 ```
 
 预测只使用已经重建且属于当前点集的参考点。压缩端立即用量化重建值替换原值，解压端因而可以严格复现后续预测。当前默认按照轮间公比0.8逐轮、逐点放宽error bound，并在最后达到用户指定上限；这一经验参数仍需与预测轮数共同消融。

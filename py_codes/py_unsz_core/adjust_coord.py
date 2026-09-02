@@ -394,7 +394,7 @@ def fit_sample_transform_matrix(param,full_sampled_data,file_ids,first_sample_id
 
 def adjust_coord_cross_time_random_regions(param,loss_function_name,iteration_num,matrix_history_path,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,cross_time_first_sample_num,cross_time_first_sample_region_num):
     generalized_gaussian_shape=0.5
-    inverse_distance_power=3.61
+    inverse_distance_power=3.6
     min_eigenvalue_ratio=1e-16
     rng=np.random.default_rng(0)
     time_dict={"adjust_coord总耗时":time.perf_counter(),"读取sampled files":time.perf_counter()}
@@ -500,7 +500,7 @@ def adjust_coord_cross_time(param,loss_function_name="fourth_power",iteration_nu
 
 def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares",cross_time_first_sample_mode="grouped_ratio",cross_time_first_sample_num=0,cross_time_first_sample_region_num=8): # 访问多个文件来决定公共变换矩阵，但这个矩阵只会应用到每个文件的坐标上，而不会跨时间步使用
     generalized_gaussian_shape=0.5
-    inverse_distance_power=3.61
+    inverse_distance_power=3.6
     random_seed=0
     min_eigenvalue_ratio=1e-16
     time_dict={"adjust_coord总耗时":time.perf_counter()}

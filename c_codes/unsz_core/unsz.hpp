@@ -240,8 +240,8 @@ namespace unsz
             double eb_schedule_start_ratio=0.8;
             uint32_t predict_round_num=10;
             uint32_t max_ref_num=10;//不知道点集时先保留候选点，再筛选同点集参考点
-            uint32_t actual_ref_num=10;//实际使用的参考点个数
-            double inverse_distance_power=3.61;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
+            uint32_t actual_ref_num=10;//标签预测使用的候选点数，也是数值预测最多使用的同点集参考点数
+            double inverse_distance_power=3.6;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
             int zstd_compression_level=3;
             string point_set_predictor="inverse_proportion";//inverse_proportion / majority / continuous_actual / continuous_reflect
             string predictor="inverse_proportion";//没有逐点集配置时使用的默认预测器
