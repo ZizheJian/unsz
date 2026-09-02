@@ -253,8 +253,6 @@ int decompress_main(int argc,char **argv)
             param.actual_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-inverse-distance-power")
             param.inverse_distance_power=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-label-ref-num")
-            param.point_set_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-d-only-cache-refill-threshold-experimental")
             param.d_only_cache_refill_threshold_experimental=parse_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-cross-time-spatial-point-num-experimental")
@@ -297,10 +295,11 @@ int decompress_main(int argc,char **argv)
             param.if_adjust_coord=true;
         else if (option=="-adjust-coord-matrix")
         {
-            if (arg_id+6>=argc)
-                throw runtime_error("-adjust-coord-matrix后面需要6个下三角矩阵元素");
+            uint32_t parameter_num=param.dim*(param.dim+1)/2;
+            if ((uint64_t)arg_id+parameter_num>=(uint64_t)argc)
+                throw runtime_error("-adjust-coord-matrix后面需要"+to_string(parameter_num)+"个下三角矩阵元素；请先设置-dim");
             param.adjust_coord_matrix_parameter_vec.clear();
-            for (uint32_t parameter_id=0;parameter_id<6;parameter_id++)
+            for (uint32_t parameter_id=0;parameter_id<parameter_num;parameter_id++)
             {
                 double value=stod(argv[++arg_id]);
                 if (!isfinite(value))
@@ -311,12 +310,12 @@ int decompress_main(int argc,char **argv)
         }
         else if (option=="-parallelism-stats")
             param.print_prediction_dag_statistics=true;
+        else if (option=="-prediction-geometry-stats")
+            param.print_prediction_geometry_statistics=true;
         else if (option=="-prediction-order-layout-experimental")
             param.use_prediction_order_layout_experimental=true;
         else if (option=="-normalized-weight-experimental")
             param.use_normalized_weight_experimental=true;
-        else if (option=="-continuous-reference-array-experimental")
-            param.use_continuous_reference_array_experimental=true;
         else if (option=="-prediction-order-label-experimental")
             param.use_prediction_order_label_experimental=true;
         else if (option=="-predictability-order-experimental")
@@ -362,7 +361,7 @@ int decompress_main(int argc,char **argv)
             throw runtime_error("未知参数："+option);
     }
     if (!param.got_data_dir || !param.got_variable || !param.got_time_step || !param.got_error_mode)
-        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> -M <REL|ABS> <误差> [-dim <维数>] [-adjust-coord] [-cross-time-predictor-experimental previous] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-label-ref-num <数量>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-independent-block-size-experimental <数量>] [-independent-block-num-experimental <数量>] [-block-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|block_round>] [-parallelism-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
+        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> -M <REL|ABS> <误差> [-dim <维数>] [-adjust-coord] [-cross-time-predictor-experimental previous] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-independent-block-size-experimental <数量>] [-independent-block-num-experimental <数量>] [-block-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|block_round>] [-parallelism-stats] [-prediction-geometry-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
     if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
         throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
     if (!param.data_dir.empty() && param.data_dir.back()!='/')
@@ -385,8 +384,6 @@ int decompress_main(int argc,char **argv)
     param.check_original_data_files=false;
     if (param.actual_ref_num>param.max_ref_num)
         throw runtime_error("actual_ref_num不能大于max_ref_num");
-    if (param.point_set_ref_num>param.max_ref_num)
-        param.point_set_ref_num=param.max_ref_num;
     param.init();
     general_run_decompression(param);
     return 0;

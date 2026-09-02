@@ -10,13 +10,13 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    uint32_t param_c<T_coord,T_data>::predict_point_set_id(vector<int> &ref_ids,vector<double> &ref_weights,bool use_majority)
+    uint32_t param_c<T_coord,T_data>::predict_point_set_id(array_view_c<int> ref_ids,array_view_c<double> ref_weights,bool use_majority)
     {
         if (ref_ids.empty())
             return 0;
         if (use_majority)
         {
-            uint32_t ref_num=min<uint32_t>(point_set_ref_num,ref_ids.size());
+            uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
             uint32_t vote_num[2]={0,0};
             for (uint32_t i=0;i<ref_num;i++)
                 vote_num[point_set_id_vec[ref_ids[i]]]++;
@@ -25,7 +25,7 @@ namespace unsz
             return vote_num[1]>vote_num[0];
         }
         double weight_sum[2]={0,0};
-        uint32_t ref_num=min<uint32_t>(point_set_ref_num,ref_ids.size());
+        uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
         for (uint32_t i=0;i<ref_num;i++)
         {
             int ref_id=ref_ids[i];
@@ -38,12 +38,12 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    double param_c<T_coord,T_data>::predict_point_set_value(vector<int> &ref_ids,vector<double> &ref_weights)
+    double param_c<T_coord,T_data>::predict_point_set_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights)
     {
         if (ref_ids.empty())
             return 0;
         double total_weight=0,pred=0;
-        uint32_t ref_num=min<uint32_t>(point_set_ref_num,ref_ids.size());
+        uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
         for (uint32_t i=0;i<ref_num;i++)
         {
             int ref_id=ref_ids[i];
@@ -59,70 +59,19 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    double param_c<T_coord,T_data>::predict_point_set_value_normalized(vector<int> &ref_ids,vector<double> &ref_weights)
+    double param_c<T_coord,T_data>::predict_point_set_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights)
     {
         if (ref_ids.empty())
             return 0;
         double pred=0;
-        uint32_t ref_num=min<uint32_t>(point_set_ref_num,ref_ids.size());
+        uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
         for (uint32_t i=0;i<ref_num;i++)
             pred+=ref_weights[i]*point_set_prediction_value_vec[ref_ids[i]];
         return min(1.0,max(0.0,pred));
     }
 
     template<typename T_coord,typename T_data>
-    uint32_t param_c<T_coord,T_data>::predict_point_set_id_continuous(uint32_t pred_ref_id,bool use_majority)
-    {
-        uint64_t begin=continuous_pred_ref_begin[pred_ref_id],end=continuous_pred_ref_begin[pred_ref_id+1];
-        if (begin==end)
-            return 0;
-        uint64_t use_end=min<uint64_t>(end,begin+point_set_ref_num);
-        if (use_majority)
-        {
-            uint32_t vote_num[2]={0,0};
-            for (uint64_t ref_index=begin;ref_index<use_end;ref_index++)
-                vote_num[point_set_id_vec[continuous_pred_ref_ids[ref_index]]]++;
-            if (vote_num[0]==vote_num[1])
-                return point_set_id_vec[continuous_pred_ref_ids[begin]];
-            return vote_num[1]>vote_num[0];
-        }
-        double weight_sum[2]={0,0};
-        for (uint64_t ref_index=begin;ref_index<use_end;ref_index++)
-        {
-            int ref_id=continuous_pred_ref_ids[ref_index];
-            double weight=continuous_pred_ref_weights[ref_index];
-            if (isinf(weight))
-                return point_set_id_vec[ref_id];
-            weight_sum[point_set_id_vec[ref_id]]+=weight;
-        }
-        return weight_sum[1]>weight_sum[0];
-    }
-
-    template<typename T_coord,typename T_data>
-    double param_c<T_coord,T_data>::predict_point_set_value_continuous(uint32_t pred_ref_id,bool normalized)
-    {
-        uint64_t begin=continuous_pred_ref_begin[pred_ref_id],end=continuous_pred_ref_begin[pred_ref_id+1];
-        if (begin==end)
-            return 0;
-        uint64_t use_end=min<uint64_t>(end,begin+point_set_ref_num);
-        double total_weight=0,prediction=0;
-        auto &weight_vec=normalized?continuous_pred_ref_label_normalized_weights:continuous_pred_ref_weights;
-        for (uint64_t ref_index=begin;ref_index<use_end;ref_index++)
-        {
-            int ref_id=continuous_pred_ref_ids[ref_index];
-            double weight=weight_vec[ref_index];
-            if (!normalized && isinf(weight))
-                return point_set_prediction_value_vec[ref_id];
-            total_weight+=weight;
-            prediction+=weight*point_set_prediction_value_vec[ref_id];
-        }
-        if (!normalized && total_weight==0)
-            return 0;
-        return min(1.0,max(0.0,normalized?prediction:prediction/total_weight));
-    }
-
-    template<typename T_coord,typename T_data>
-    T_data param_c<T_coord,T_data>::predict_inverse_value_from_coords(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double power)
+    T_data param_c<T_coord,T_data>::predict_inverse_value_from_coords(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power)
     {
         if (ref_ids.empty())
             return 0;
@@ -144,7 +93,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    bool param_c<T_coord,T_data>::predict_inverse_value_and_loo_error(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error)
+    bool param_c<T_coord,T_data>::predict_inverse_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error)
     {
         if (ref_ids.size()<2)
             return false;
@@ -168,7 +117,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    bool param_c<T_coord,T_data>::predict_continuous_mix_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction)
+    bool param_c<T_coord,T_data>::predict_continuous_mix_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction)
     {
         T_data idw_prediction,fitting_prediction;
         double idw_loo_error,fitting_loo_error;
@@ -183,7 +132,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    bool param_c<T_coord,T_data>::predict_idw_residual_fitting_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction)
+    bool param_c<T_coord,T_data>::predict_idw_residual_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction)
     {
         if (ref_ids.size()<=dim)
             return false;
@@ -254,7 +203,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    bool param_c<T_coord,T_data>::predict_fitting_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,T_data &prediction,double weight_power,double ridge,bool normalize_coord)
+    bool param_c<T_coord,T_data>::predict_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double weight_power,double ridge,bool normalize_coord)
     {
         if (ref_ids.size()<=dim)
             return false;
@@ -321,7 +270,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    bool param_c<T_coord,T_data>::predict_fitting_value_and_loo_error(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power,double ridge,bool normalize_coord)
+    bool param_c<T_coord,T_data>::predict_fitting_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power,double ridge,bool normalize_coord)
     {
         uint32_t system_size=dim+1;
         if (ref_ids.size()<=system_size)
@@ -417,7 +366,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    T_data param_c<T_coord,T_data>::predict_value(int pred_id,vector<int> &ref_ids,vector<double> &ref_weights,uint32_t point_set_id,vector<T_data> &data)
+    T_data param_c<T_coord,T_data>::predict_value(int pred_id,array_view_c<int> ref_ids,array_view_c<double> ref_weights,uint32_t point_set_id,vector<T_data> &data)
     {
         point_set_codec_e codec=point_set_codec_vec[point_set_id];
         auto predict_current_inverse=[&]()
@@ -503,40 +452,13 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    T_data param_c<T_coord,T_data>::predict_value_normalized(vector<int> &ref_ids,vector<double> &ref_weights,vector<T_data> &data)
+    T_data param_c<T_coord,T_data>::predict_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights,vector<T_data> &data)
     {
         double pred=0;
         uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
         for (uint32_t i=0;i<ref_num;i++)
             pred+=ref_weights[i]*data[ref_ids[i]];
         return (T_data)pred;
-    }
-
-    template<typename T_coord,typename T_data>
-    T_data param_c<T_coord,T_data>::predict_value_continuous(uint32_t pred_ref_id,uint32_t point_set_id,vector<T_data> &data,bool normalized)
-    {
-        if (point_set_codec_vec[point_set_id]!=point_set_codec_e::inverse_proportion)
-            throw runtime_error("连续参考数组目前只支持反比例数值预测器");
-        uint64_t begin=continuous_pred_ref_begin[pred_ref_id],end=continuous_pred_ref_begin[pred_ref_id+1];
-        uint32_t valid_ref_num=0;
-        double total_weight=0,prediction=0;
-        auto &weight_vec=normalized?continuous_pred_ref_value_normalized_weights:continuous_pred_ref_weights;
-        for (uint64_t ref_index=begin;ref_index<end;ref_index++)
-        {
-            int ref_id=continuous_pred_ref_ids[ref_index];
-            if (!normalized && point_set_id_vec[ref_id]!=point_set_id)
-                continue;
-            double weight=weight_vec[ref_index];
-            if (!normalized && isinf(weight))
-                return data[ref_id];
-            total_weight+=weight;
-            prediction+=weight*data[ref_id];
-            if (++valid_ref_num==actual_ref_num)
-                break;
-        }
-        if (valid_ref_num==0)
-            return 0;
-        return (T_data)(normalized?prediction:prediction/total_weight);
     }
 
 }

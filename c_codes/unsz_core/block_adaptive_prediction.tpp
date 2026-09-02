@@ -51,7 +51,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    T_data param_c<T_coord,T_data>::predict_block_adaptive_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,uint8_t config_id)
+    T_data param_c<T_coord,T_data>::predict_block_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,uint8_t config_id)
     {
         vector<block_prediction_config_c> config_vec=get_block_prediction_config_vec();
         if (config_id>=config_vec.size())
@@ -60,7 +60,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    T_data param_c<T_coord,T_data>::predict_block_adaptive_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,const block_prediction_config_c &config)
+    T_data param_c<T_coord,T_data>::predict_block_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,const block_prediction_config_c &config)
     {
         uint32_t ref_num=min<uint32_t>(config.ref_num,ref_ids.size());
         if (ref_num==0)

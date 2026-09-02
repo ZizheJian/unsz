@@ -24,6 +24,24 @@ namespace unsz
     enum class point_set_codec_e:uint8_t{inverse_proportion=0,fitting=1,constant=2,hybrid_loo=3};
     enum class block_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
 
+    template<typename T>
+    class array_view_c
+    {
+        private:
+            const T *data_ptr=nullptr;
+            uint32_t element_num=0;
+
+        public:
+            array_view_c()=default;
+            array_view_c(const vector<T> &data):data_ptr(data.data()),element_num((uint32_t)data.size()){}
+            array_view_c(const T *data,uint32_t size):data_ptr(data),element_num(size){}
+            inline bool empty() const{return element_num==0;}
+            inline uint32_t size() const{return element_num;}
+            inline const T&operator[](uint32_t id) const{return data_ptr[id];}
+            inline const T*begin() const{return data_ptr;}
+            inline const T*end() const{return data_ptr?data_ptr+element_num:data_ptr;}
+    };
+
     struct block_prediction_config_c
     {
         uint32_t ref_num;
@@ -185,13 +203,13 @@ namespace unsz
             bool if_adjust_coord=false;
             vector<double> adjust_coord_matrix_parameter_vec;
             bool print_round_statistics=false;
+            bool print_prediction_geometry_statistics=false;
             bool print_label_compression_statistics=false;
             bool print_compression_stage_time=false;
             bool print_prediction_dag_statistics=false;
             bool print_pointwise_oracle_statistics_experimental=false;
             bool use_prediction_order_layout_experimental=false;
             bool use_normalized_weight_experimental=false;
-            bool use_continuous_reference_array_experimental=false;
             bool use_prediction_order_label_experimental=false;
             bool use_predictability_order_experimental=false;
             bool use_forward_mean_distance_only_order_experimental=false;
@@ -225,7 +243,6 @@ namespace unsz
             uint32_t actual_ref_num=10;//实际使用的参考点个数
             double inverse_distance_power=3.61;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
             int zstd_compression_level=3;
-            uint32_t point_set_ref_num=10;//点集标签实际使用的最近候选点数量
             string point_set_predictor="inverse_proportion";//inverse_proportion / majority / continuous_actual / continuous_reflect
             string predictor="inverse_proportion";//没有逐点集配置时使用的默认预测器
 
@@ -237,12 +254,9 @@ namespace unsz
             vector<int> id_map2;//从block_tree上node的专用id映射到leaf block在block_vec中的id
             vector<int> id_map_reverse2;//从leaf block在block_vec中的id映射到block_tree上node的专用id（没有被使用）
             vector<vector<int>> round_target_ids;//每一轮的预测目标
-            vector<pair<int,vector<int>>> pred_refs_vec;//每个预测目标及其可用参考点；实验性内部重排关闭时为原始id，开启时为预测id
-            vector<vector<double>> pred_ref_weights_vec;//与pred_refs_vec对齐的未归一化距离权重
-            vector<vector<double>> pred_ref_label_normalized_weights_vec,pred_ref_value_normalized_weights_vec;
-            vector<int> continuous_pred_target_ids,continuous_pred_ref_ids;
-            vector<uint64_t> continuous_pred_ref_begin;
-            vector<double> continuous_pred_ref_weights,continuous_pred_ref_label_normalized_weights,continuous_pred_ref_value_normalized_weights;
+            vector<int> pred_target_ids,pred_ref_ids;//预测目标与连续参考点数组；实验性内部重排关闭时为原始id，开启时为预测id
+            vector<uint64_t> pred_ref_begin;//第i个目标的参考点区间为[pred_ref_begin[i],pred_ref_begin[i+1])
+            vector<double> pred_ref_weights,pred_ref_label_normalized_weights,pred_ref_value_normalized_weights;
             vector<uint32_t> prediction_id_to_original_id,original_id_to_prediction_id;
             vector<vector<int>> independent_block_point_ids_vec;
             vector<uint32_t> point_independent_block_id_vec;
@@ -284,12 +298,15 @@ namespace unsz
             vector<block_prediction_config_c> get_block_prediction_config_vec();
             void select_block_prediction_configs();
             void prepare_block_adaptive_sample_mask();
-            T_data predict_block_adaptive_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,uint8_t config_id);
-            T_data predict_block_adaptive_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,const block_prediction_config_c &config);
+            array_view_c<int> get_pred_ref_ids(uint32_t pred_ref_id) const;
+            array_view_c<double> get_pred_ref_weights(uint32_t pred_ref_id,bool label_normalized=false,bool value_normalized=false) const;
+            T_data predict_block_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,uint8_t config_id);
+            T_data predict_block_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,const block_prediction_config_c &config);
             uint32_t get_multi_huffman_group_num();
             uint32_t get_multi_huffman_group_id(uint32_t round_id,int pred_id);
             void generate_pred_refs_structure();
             void prepare_pred_refs_structure();
+            void print_prediction_geometry_statistics_result();
             void save_pred_refs_structure();
             void load_pred_refs_structure();
             void print_prediction_dag_statistics_result();
@@ -301,20 +318,17 @@ namespace unsz
             void find_nearest(priority_queue<pair<T_coord,int>> &nearest_queue,int nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
 
             uint32_t get_point_set_id(T_data val);
-            uint32_t predict_point_set_id(vector<int> &ref_ids,vector<double> &ref_weights,bool use_majority);
-            double predict_point_set_value(vector<int> &ref_ids,vector<double> &ref_weights);
-            double predict_point_set_value_normalized(vector<int> &ref_ids,vector<double> &ref_weights);
-            uint32_t predict_point_set_id_continuous(uint32_t pred_ref_id,bool use_majority);
-            double predict_point_set_value_continuous(uint32_t pred_ref_id,bool normalized);
-            T_data predict_inverse_value_from_coords(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double power=-1);
-            bool predict_inverse_value_and_loo_error(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error);
-            bool predict_fitting_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,T_data &prediction,double weight_power=0,double ridge=0,bool normalize_coord=false);
-            bool predict_fitting_value_and_loo_error(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power=0,double ridge=0,bool normalize_coord=true);
-            bool predict_continuous_mix_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction);
-            bool predict_idw_residual_fitting_value(int pred_id,const vector<int> &ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction);
-            T_data predict_value(int pred_id,vector<int> &ref_ids,vector<double> &ref_weights,uint32_t point_set_id,vector<T_data> &data);
-            T_data predict_value_normalized(vector<int> &ref_ids,vector<double> &ref_weights,vector<T_data> &data);
-            T_data predict_value_continuous(uint32_t pred_ref_id,uint32_t point_set_id,vector<T_data> &data,bool normalized);
+            uint32_t predict_point_set_id(array_view_c<int> ref_ids,array_view_c<double> ref_weights,bool use_majority);
+            double predict_point_set_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights);
+            double predict_point_set_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights);
+            T_data predict_inverse_value_from_coords(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power=-1);
+            bool predict_inverse_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error);
+            bool predict_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double weight_power=0,double ridge=0,bool normalize_coord=false);
+            bool predict_fitting_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power=0,double ridge=0,bool normalize_coord=true);
+            bool predict_continuous_mix_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction);
+            bool predict_idw_residual_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction);
+            T_data predict_value(int pred_id,array_view_c<int> ref_ids,array_view_c<double> ref_weights,uint32_t point_set_id,vector<T_data> &data);
+            T_data predict_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights,vector<T_data> &data);
             void compress();
             void restore_compression_result_to_original_order();
             void decompress();

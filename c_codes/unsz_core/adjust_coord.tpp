@@ -7,8 +7,6 @@ namespace unsz
     {
         if (cross_time_compress)
             throw runtime_error("暂未实现跨时间步的坐标调整");
-        if (dim!=3)
-            throw runtime_error("当前硬编码的坐标变换矩阵只支持三维坐标");
 
         // Katrina attr0使用的变换矩阵：
         // {
@@ -40,27 +38,34 @@ namespace unsz
         //     {0.27448921,0.38810419,0},
         //     {-0.16613945,0.13620828,1.54695002}
         // }
-        T_coord transform_matrix[3][3]={
-            {1.320727945153478,0,0},
-            {-0.050022502016393564,1.119176596028389,0},
-            {-0.0022639755300411725,0.00041386801901295816,0.02477688868808782}
-        };
-        if (!adjust_coord_matrix_parameter_vec.empty())
+        vector<T_coord> transform_matrix((uint64_t)dim*dim,0);
+        for (uint32_t d=0;d<dim;d++)
+            transform_matrix[(uint64_t)d*dim+d]=1;
+        if (dim==3)
         {
-            if (adjust_coord_matrix_parameter_vec.size()!=6)
-                throw runtime_error("三维坐标变换矩阵必须包含6个下三角元素");
+            T_coord default_transform_matrix[6]={1.320727945153478,-0.050022502016393564,1.119176596028389,-0.0022639755300411725,0.00041386801901295816,0.02477688868808782};
             uint32_t parameter_id=0;
             for (uint32_t row=0;row<dim;row++)
                 for (uint32_t col=0;col<=row;col++)
-                    transform_matrix[row][col]=(T_coord)adjust_coord_matrix_parameter_vec[parameter_id++];
+                    transform_matrix[(uint64_t)row*dim+col]=default_transform_matrix[parameter_id++];
+        }
+        if (!adjust_coord_matrix_parameter_vec.empty())
+        {
+            uint32_t expected_parameter_num=dim*(dim+1)/2;
+            if (adjust_coord_matrix_parameter_vec.size()!=expected_parameter_num)
+                throw runtime_error(to_string(dim)+"维坐标变换矩阵必须包含"+to_string(expected_parameter_num)+"个下三角元素");
+            uint32_t parameter_id=0;
+            for (uint32_t row=0;row<dim;row++)
+                for (uint32_t col=0;col<=row;col++)
+                    transform_matrix[(uint64_t)row*dim+col]=(T_coord)adjust_coord_matrix_parameter_vec[parameter_id++];
         }
 
         for (uint32_t point_id=0;point_id<point_num;point_id++)
         {
-            T_coord transformed_coord[3]={0,0,0};
+            vector<T_coord> transformed_coord(dim,0);
             for (uint32_t output_dim=0;output_dim<dim;output_dim++)
                 for (uint32_t input_dim=0;input_dim<dim;input_dim++)
-                    transformed_coord[output_dim]+=coord_array[point_id][input_dim]*transform_matrix[input_dim][output_dim];
+                    transformed_coord[output_dim]+=coord_array[point_id][input_dim]*transform_matrix[(uint64_t)input_dim*dim+output_dim];
             for (uint32_t d=0;d<dim;d++)
                 coord_array[point_id][d]=transformed_coord[d];
         }
@@ -73,6 +78,9 @@ namespace unsz
                 min_coord[d]=min(min_coord[d],coord_array[point_id][d]);
                 max_coord[d]=max(max_coord[d],coord_array[point_id][d]);
             }
-        printf("Adjusted coord range: [[%f, %f], [%f, %f], [%f, %f]]\n",min_coord[0],max_coord[0],min_coord[1],max_coord[1],min_coord[2],max_coord[2]);
+        printf("Adjusted coord range: [");
+        for (uint32_t d=0;d<dim;d++)
+            printf("%s[%f, %f]",d==0?"":", ",(double)min_coord[d],(double)max_coord[d]);
+        printf("]\n");
     }
 }

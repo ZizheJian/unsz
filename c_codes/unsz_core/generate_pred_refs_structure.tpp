@@ -646,10 +646,15 @@ namespace unsz
         printf("Target sorting time: %f s\n",chrono::duration<double>(sorting_end_time-sorting_start_time).count());
         auto reference_generation_start_time=chrono::steady_clock::now();
         printf("Generating prediction references\n");
-        pred_refs_vec.clear();
-        pred_refs_vec.reserve(point_num);
-        pred_ref_weights_vec.clear();
-        pred_ref_weights_vec.reserve(point_num);
+        pred_target_ids.clear();
+        pred_target_ids.reserve(point_num);
+        pred_ref_ids.clear();
+        pred_ref_ids.reserve((uint64_t)point_num*max_ref_num);
+        pred_ref_begin.clear();
+        pred_ref_begin.reserve((uint64_t)point_num+1);
+        pred_ref_begin.push_back(0);
+        pred_ref_weights.clear();
+        pred_ref_weights.reserve((uint64_t)point_num*max_ref_num);
         tree.clear_all_valid_num();
         for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
         {
@@ -657,9 +662,8 @@ namespace unsz
             {
                 nearest_queue_c<T_coord> nearest_queue;
                 tree.find_original_nearest(nearest_queue,coord_array,max_ref_num,0,coord_array[pred_id],true);
-                pred_refs_vec.push_back({pred_id,vector<int>()});
-                pred_ref_weights_vec.push_back(vector<double>());
-                auto &ref_ids=pred_refs_vec.back().second;
+                pred_target_ids.push_back(pred_id);
+                vector<int> ref_ids;
                 ref_ids.reserve(nearest_queue.size());
                 while (!nearest_queue.empty())
                 {
@@ -667,25 +671,26 @@ namespace unsz
                     nearest_queue.pop();
                 }
                 reverse(ref_ids.begin(),ref_ids.end());
-                auto &ref_weights=pred_ref_weights_vec.back();
-                ref_weights.reserve(ref_ids.size());
                 for (int ref_id:ref_ids)
                 {
                     double dist=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
-                    ref_weights.push_back(dist==0?numeric_limits<double>::infinity():pow(dist,-inverse_distance_power/2));
+                    pred_ref_ids.push_back(ref_id);
+                    pred_ref_weights.push_back(dist==0?numeric_limits<double>::infinity():pow(dist,-inverse_distance_power/2));
                 }
+                pred_ref_begin.push_back(pred_ref_ids.size());
 
                 tree.update_point_valid_num_to_root(pred_id,1);
             }
         }
 
-        if (pred_refs_vec.size()!=point_num || pred_ref_weights_vec.size()!=point_num)
+        if (pred_target_ids.size()!=point_num || pred_ref_begin.size()!=(uint64_t)point_num+1 || pred_ref_ids.size()!=pred_ref_weights.size())
             throw runtime_error("预测参考结构没有覆盖所有点");
         if (!prediction_structure_path.empty())
             save_pred_refs_structure();
+        print_prediction_geometry_statistics_result();
         prepare_pred_refs_structure();
         auto end_time=chrono::steady_clock::now();
         printf("Prediction reference generation time: %f s\n",chrono::duration<double>(end_time-reference_generation_start_time).count());
-        printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)pred_refs_vec.size(),chrono::duration<double>(end_time-start_time).count());
+        printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)pred_target_ids.size(),chrono::duration<double>(end_time-start_time).count());
     }
 }

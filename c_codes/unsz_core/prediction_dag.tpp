@@ -5,12 +5,12 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::print_prediction_dag_statistics_result()
     {
-        if (pred_refs_vec.size()!=point_num)
+        if (pred_target_ids.size()!=point_num)
             throw runtime_error("预测DAG统计要求参考结构覆盖所有点");
         vector<uint32_t> original_id_to_prediction_order(point_num,numeric_limits<uint32_t>::max());
         for (uint32_t prediction_order=0;prediction_order<point_num;prediction_order++)
         {
-            int original_id=pred_refs_vec[prediction_order].first;
+            int original_id=pred_target_ids[prediction_order];
             if (original_id<0 || (uint32_t)original_id>=point_num || original_id_to_prediction_order[original_id]!=numeric_limits<uint32_t>::max())
                 throw runtime_error("预测DAG包含无效或重复目标点");
             original_id_to_prediction_order[original_id]=prediction_order;
@@ -22,10 +22,10 @@ namespace unsz
         uint64_t edge_lag_count_vec[7]={0,0,0,0,0,0,0};
         for (uint32_t prediction_order=0;prediction_order<point_num;prediction_order++)
         {
-            int target_id=pred_refs_vec[prediction_order].first;
+            int target_id=pred_target_ids[prediction_order];
             uint32_t level=0;
             bool depends_on_previous_target=false;
-            for (int ref_id:pred_refs_vec[prediction_order].second)
+            for (int ref_id:get_pred_ref_ids(prediction_order))
             {
                 if (ref_id<0 || (uint32_t)ref_id>=point_num)
                     throw runtime_error("预测DAG包含无效参考点");

@@ -1,0 +1,5 @@
+dataset,layout,repeat_num,preprocessing_s,label_prediction_s,value_prediction_s,total_compression_s,total_decompression_s,sha_equal
+Ocean-temperature,vector,10,0.1478155,0.0000899,0.0210401,0.0253753,0.0175109,true
+Ocean-temperature,continuous_unique,10,0.1421450,0.0000911,0.0206643,0.0246926,0.0174568,true
+Katrina-attr0,vector,10,0.2508654,0.0130600,0.0193256,0.0369736,0.0316641,true
+Katrina-attr0,continuous_unique,10,0.2327906,0.0133916,0.0183191,0.0364314,0.0305090,true

@@ -34,13 +34,13 @@ namespace unsz
         if_adjust_coord=other.if_adjust_coord;
         adjust_coord_matrix_parameter_vec=other.adjust_coord_matrix_parameter_vec;
         print_round_statistics=other.print_round_statistics;
+        print_prediction_geometry_statistics=other.print_prediction_geometry_statistics;
         print_label_compression_statistics=other.print_label_compression_statistics;
         print_compression_stage_time=other.print_compression_stage_time;
         print_prediction_dag_statistics=other.print_prediction_dag_statistics;
         print_pointwise_oracle_statistics_experimental=other.print_pointwise_oracle_statistics_experimental;
         use_prediction_order_layout_experimental=other.use_prediction_order_layout_experimental;
         use_normalized_weight_experimental=other.use_normalized_weight_experimental;
-        use_continuous_reference_array_experimental=other.use_continuous_reference_array_experimental;
         use_prediction_order_label_experimental=other.use_prediction_order_label_experimental;
         use_predictability_order_experimental=other.use_predictability_order_experimental;
         use_forward_mean_distance_only_order_experimental=other.use_forward_mean_distance_only_order_experimental;
@@ -74,7 +74,6 @@ namespace unsz
         actual_ref_num=other.actual_ref_num;
         inverse_distance_power=other.inverse_distance_power;
         zstd_compression_level=other.zstd_compression_level;
-        point_set_ref_num=other.point_set_ref_num;
         point_set_predictor=other.point_set_predictor;
         predictor=other.predictor;
 
@@ -85,16 +84,12 @@ namespace unsz
         min_coord.assign(other.min_coord.begin(),other.min_coord.end());
         max_coord.assign(other.max_coord.begin(),other.max_coord.end());
         round_target_ids=other.round_target_ids;
-        pred_refs_vec=other.pred_refs_vec;
-        pred_ref_weights_vec=other.pred_ref_weights_vec;
-        pred_ref_label_normalized_weights_vec=other.pred_ref_label_normalized_weights_vec;
-        pred_ref_value_normalized_weights_vec=other.pred_ref_value_normalized_weights_vec;
-        continuous_pred_target_ids=other.continuous_pred_target_ids;
-        continuous_pred_ref_ids=other.continuous_pred_ref_ids;
-        continuous_pred_ref_begin=other.continuous_pred_ref_begin;
-        continuous_pred_ref_weights=other.continuous_pred_ref_weights;
-        continuous_pred_ref_label_normalized_weights=other.continuous_pred_ref_label_normalized_weights;
-        continuous_pred_ref_value_normalized_weights=other.continuous_pred_ref_value_normalized_weights;
+        pred_target_ids=other.pred_target_ids;
+        pred_ref_ids=other.pred_ref_ids;
+        pred_ref_begin=other.pred_ref_begin;
+        pred_ref_weights=other.pred_ref_weights;
+        pred_ref_label_normalized_weights=other.pred_ref_label_normalized_weights;
+        pred_ref_value_normalized_weights=other.pred_ref_value_normalized_weights;
         prediction_id_to_original_id=other.prediction_id_to_original_id;
         original_id_to_prediction_id=other.original_id_to_prediction_id;
         independent_block_point_ids_vec=other.independent_block_point_ids_vec;

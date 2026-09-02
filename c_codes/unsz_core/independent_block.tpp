@@ -251,23 +251,30 @@ namespace unsz
         }
 
         round_target_ids.assign(predict_round_num,vector<int>());
-        pred_refs_vec.clear();
-        pred_ref_weights_vec.clear();
-        pred_refs_vec.reserve(point_num);
-        pred_ref_weights_vec.reserve(point_num);
+        pred_target_ids.clear();
+        pred_target_ids.reserve(point_num);
+        pred_ref_ids.clear();
+        pred_ref_begin.clear();
+        pred_ref_begin.reserve((uint64_t)point_num+1);
+        pred_ref_begin.push_back(0);
+        pred_ref_weights.clear();
         for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
             for (uint32_t independent_block_id=0;independent_block_id<independent_block_point_ids_vec.size();independent_block_id++)
                 for (uint32_t entry_id=0;entry_id<block_round_entries[independent_block_id][round_id].size();entry_id++)
                 {
                     round_target_ids[round_id].push_back(block_round_entries[independent_block_id][round_id][entry_id].first);
-                    pred_refs_vec.push_back(move(block_round_entries[independent_block_id][round_id][entry_id]));
-                    pred_ref_weights_vec.push_back(move(block_round_weights[independent_block_id][round_id][entry_id]));
+                    auto &entry=block_round_entries[independent_block_id][round_id][entry_id];
+                    auto &weights=block_round_weights[independent_block_id][round_id][entry_id];
+                    pred_target_ids.push_back(entry.first);
+                    pred_ref_ids.insert(pred_ref_ids.end(),entry.second.begin(),entry.second.end());
+                    pred_ref_weights.insert(pred_ref_weights.end(),weights.begin(),weights.end());
+                    pred_ref_begin.push_back(pred_ref_ids.size());
                 }
-        if (pred_refs_vec.size()!=point_num)
+        if (pred_target_ids.size()!=point_num)
             throw runtime_error("独立分块预测结构没有覆盖所有点");
         if (!prediction_structure_path.empty())
             save_pred_refs_structure();
         prepare_pred_refs_structure();
-        printf("Generated independent block prediction entries: %llu, total time: %f s\n",(unsigned long long)pred_refs_vec.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
+        printf("Generated independent block prediction entries: %llu, total time: %f s\n",(unsigned long long)pred_target_ids.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
     }
 }
