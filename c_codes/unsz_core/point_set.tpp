@@ -5,12 +5,14 @@ namespace unsz
     template<typename T_coord,typename T_data>
     uint32_t param_c<T_coord,T_data>::get_point_set_id(T_data val)
     {
-        // 当前数据的点集划分规则。以后可以在这里扩展为更多点集，返回值必须从0开始且连续。
-        return val<-1000?1:0;
+        for (uint32_t classifier_id=0;classifier_id<point_set_classifier_vec.size();classifier_id++)
+            if (point_set_classifier_vec[classifier_id](val))
+                return classifier_id;
+        return (uint32_t)point_set_classifier_vec.size();
     }
 
     template<typename T_coord,typename T_data>
-    uint32_t param_c<T_coord,T_data>::predict_point_set_id(array_view_c<int> ref_ids,array_view_c<double> ref_weights,bool use_majority)
+    uint32_t param_c<T_coord,T_data>::predict_binary_label(array_view_c<int> ref_ids,array_view_c<double> ref_weights,const vector<uint8_t> &label_vec,bool use_majority)
     {
         if (ref_ids.empty())
             return 0;
@@ -19,9 +21,9 @@ namespace unsz
             uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
             uint32_t vote_num[2]={0,0};
             for (uint32_t i=0;i<ref_num;i++)
-                vote_num[point_set_id_vec[ref_ids[i]]]++;
+                vote_num[label_vec[ref_ids[i]]]++;
             if (vote_num[0]==vote_num[1])
-                return point_set_id_vec[ref_ids[0]];//票数相同时采用最近参考点所属的点集
+                return label_vec[ref_ids[0]];//票数相同时采用最近参考点的标签
             return vote_num[1]>vote_num[0];
         }
         double weight_sum[2]={0,0};
@@ -31,14 +33,14 @@ namespace unsz
             int ref_id=ref_ids[i];
             double weight=ref_weights[i];
             if (isinf(weight))
-                return point_set_id_vec[ref_id];
-            weight_sum[point_set_id_vec[ref_id]]+=weight;
+                return label_vec[ref_id];
+            weight_sum[label_vec[ref_id]]+=weight;
         }
         return weight_sum[1]>weight_sum[0];
     }
 
     template<typename T_coord,typename T_data>
-    double param_c<T_coord,T_data>::predict_point_set_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights)
+    double param_c<T_coord,T_data>::predict_binary_label_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights,const vector<double> &label_value_vec)
     {
         if (ref_ids.empty())
             return 0;
@@ -49,9 +51,9 @@ namespace unsz
             int ref_id=ref_ids[i];
             double weight=ref_weights[i];
             if (isinf(weight))
-                return point_set_prediction_value_vec[ref_id];
+                return label_value_vec[ref_id];
             total_weight+=weight;
-            pred+=weight*point_set_prediction_value_vec[ref_id];
+            pred+=weight*label_value_vec[ref_id];
         }
         if (total_weight==0)
             return 0;
@@ -59,14 +61,14 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    double param_c<T_coord,T_data>::predict_point_set_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights)
+    double param_c<T_coord,T_data>::predict_binary_label_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights,const vector<double> &label_value_vec)
     {
         if (ref_ids.empty())
             return 0;
         double pred=0;
         uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
         for (uint32_t i=0;i<ref_num;i++)
-            pred+=ref_weights[i]*point_set_prediction_value_vec[ref_ids[i]];
+            pred+=ref_weights[i]*label_value_vec[ref_ids[i]];
         return min(1.0,max(0.0,pred));
     }
 

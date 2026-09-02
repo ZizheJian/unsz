@@ -5,7 +5,12 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::decompress()
     {
-        if (!got_rel_eb && !got_abs_eb && point_set_rel_eb_config_vec.empty() && point_set_abs_eb_config_vec.empty())
+        if (point_set_config_vec.size()!=point_set_classifier_vec.size()+1)
+            throw runtime_error("点集配置数量必须等于分类函数数量加1");
+        bool has_point_set_error_bound=false;
+        for (const point_set_config_c &config:point_set_config_vec)
+            has_point_set_error_bound|=config.error_mode!=point_set_error_mode_e::use_global;
+        if (!got_rel_eb && !got_abs_eb && !has_point_set_error_bound)
             throw runtime_error("解压时没有指定误差上限");
         if (eb_schedule_experimental!="none" && eb_schedule_experimental!="round" && eb_schedule_experimental!="point" && eb_schedule_experimental!="round_point" && eb_schedule_experimental!="round_ratio" && eb_schedule_experimental!="round_point_ratio")
             throw runtime_error("未知的实验性EB序列模式："+eb_schedule_experimental);
@@ -13,12 +18,16 @@ namespace unsz
             throw runtime_error("实验性EB序列起始倍率必须在(0,1]内");
         vector<unsigned char> &container=current_zstd_bs_vec;
         const unsigned char *cursor=container.data(),*end=container.data()+container.size();
-        const unsigned char magic[8]={'U','N','S','Z','P','S','0','7'};
-        if ((uint64_t)(end-cursor)<8 || memcmp(cursor,magic,8)!=0)
+        const unsigned char magic_v7[8]={'U','N','S','Z','P','S','0','7'};
+        const unsigned char magic_v8[8]={'U','N','S','Z','P','S','0','8'};
+        if ((uint64_t)(end-cursor)<8)
+            throw runtime_error("不是受支持的UNSZ点集文件");
+        bool use_legacy_point_set_format=memcmp(cursor,magic_v7,8)==0;
+        if (!use_legacy_point_set_format && memcmp(cursor,magic_v8,8)!=0)
             throw runtime_error("不是受支持的UNSZ点集文件");
         cursor+=8;
         uint32_t version=read_binary<uint32_t>(cursor,end);
-        if (version!=7)
+        if ((use_legacy_point_set_format && version!=7) || (!use_legacy_point_set_format && version!=8))
             throw runtime_error("不支持的UNSZ文件版本："+to_string(version));
         uint32_t file_point_num=read_binary<uint32_t>(cursor,end);
         uint32_t data_type_bytes=read_binary<uint32_t>(cursor,end);
@@ -29,8 +38,10 @@ namespace unsz
             throw runtime_error("压缩文件的数据类型大小与解压程序不一致");
         if (point_set_num==0 || point_set_num>point_num)
             throw runtime_error("压缩文件中的点集数量无效");
-        if (point_set_num>2)
-            throw runtime_error("当前0/1标签修正流只支持最多两个点集");
+        if (use_legacy_point_set_format && point_set_num>2)
+            throw runtime_error("UNSZ v7文件只支持最多两个点集");
+        if (point_set_num>point_set_config_vec.size())
+            throw runtime_error("压缩文件的点集数量超过当前用户配置");
         if (use_block_adaptive_predictor_experimental)
         {
             uint32_t block_config_num=read_binary<uint32_t>(cursor,end);
@@ -45,22 +56,46 @@ namespace unsz
             prepare_block_adaptive_sample_mask();
         }
 
-        uint64_t label_zstd_byte_num=read_binary<uint64_t>(cursor,end);
-        if ((uint64_t)(end-cursor)<label_zstd_byte_num)
-            throw runtime_error("点集标签流不完整");
-        vector<uint32_t> label_symbol_vec;
-        if (point_set_num==1)
+        uint32_t label_channel_num=point_set_num-1;
+        vector<vector<uint32_t>> label_symbol_vec_vec(label_channel_num);
+        vector<uint64_t> label_channel_target_num_vec(label_channel_num,0);
+        if (use_legacy_point_set_format)
         {
-            if (label_zstd_byte_num!=0)
-                throw runtime_error("单点集文件不应包含点集标签流");
+            uint64_t label_zstd_byte_num=read_binary<uint64_t>(cursor,end);
+            if ((uint64_t)(end-cursor)<label_zstd_byte_num)
+                throw runtime_error("点集标签流不完整");
+            if (point_set_num==1)
+            {
+                if (label_zstd_byte_num!=0)
+                    throw runtime_error("单点集文件不应包含点集标签流");
+            }
+            else
+            {
+                vector<unsigned char> label_zstd_bytes(cursor,cursor+label_zstd_byte_num);
+                vector<unsigned char> label_position_delta_bytes=zstd_decompress(label_zstd_bytes);
+                label_symbol_vec_vec[0]=decode_binary_one_position_delta_vec(label_position_delta_bytes,point_num);
+                label_channel_target_num_vec[0]=point_num;
+            }
+            cursor+=label_zstd_byte_num;
         }
         else
         {
-            vector<unsigned char> label_zstd_bytes(cursor,cursor+label_zstd_byte_num);
-            vector<unsigned char> label_position_delta_bytes=zstd_decompress(label_zstd_bytes);
-            label_symbol_vec=decode_binary_one_position_delta_vec(label_position_delta_bytes,point_num);
+            uint32_t file_label_channel_num=read_binary<uint32_t>(cursor,end);
+            if (file_label_channel_num!=label_channel_num)
+                throw runtime_error("点集条件标签通道数量与点集数量不一致");
+            for (uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
+            {
+                uint64_t target_num=read_binary<uint64_t>(cursor,end);
+                uint64_t label_zstd_byte_num=read_binary<uint64_t>(cursor,end);
+                if (target_num>point_num || (uint64_t)(end-cursor)<label_zstd_byte_num)
+                    throw runtime_error("点集条件标签通道"+to_string(label_channel_id)+"不完整");
+                vector<unsigned char> label_zstd_bytes(cursor,cursor+label_zstd_byte_num);
+                vector<unsigned char> label_position_delta_bytes=label_zstd_byte_num==0?vector<unsigned char>():zstd_decompress(label_zstd_bytes);
+                label_symbol_vec_vec[label_channel_id]=decode_binary_one_position_delta_vec(label_position_delta_bytes,target_num);
+                label_channel_target_num_vec[label_channel_id]=target_num;
+                cursor+=label_zstd_byte_num;
+            }
         }
-        cursor+=label_zstd_byte_num;
 
         point_set_point_num_vec.resize(point_set_num);
         point_set_min_data_vec.resize(point_set_num);
@@ -99,59 +134,90 @@ namespace unsz
             cursor+=qb_zstd_byte_num;
             if (point_set_codec_vec[point_set_id]==point_set_codec_e::constant && qb_num!=0)
                 throw runtime_error("常量点集不应包含量化索引");
-            if (point_set_id<point_set_abs_eb_config_vec.size())
-                point_set_abs_eb_vec[point_set_id]=point_set_abs_eb_config_vec[point_set_id];
-            else if (point_set_id<point_set_rel_eb_config_vec.size())
-                point_set_abs_eb_vec[point_set_id]=point_set_rel_eb_config_vec[point_set_id]*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]);
+            const point_set_config_c &config=point_set_config_vec[point_set_id];
+            if (point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
+                point_set_abs_eb_vec[point_set_id]=0;
+            else if (config.error_mode==point_set_error_mode_e::absolute)
+                point_set_abs_eb_vec[point_set_id]=(T_data)config.error_bound;
+            else if (config.error_mode==point_set_error_mode_e::relative)
+                point_set_abs_eb_vec[point_set_id]=(T_data)(config.error_bound*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]));
             else
+            {
+                if (!got_rel_eb && !got_abs_eb)
+                    throw runtime_error("点集"+to_string(point_set_id)+"没有指定误差上限");
                 point_set_abs_eb_vec[point_set_id]=got_abs_eb?abs_eb:rel_eb*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]);
+            }
             if (point_set_codec_vec[point_set_id]!=point_set_codec_e::constant && !(point_set_abs_eb_vec[point_set_id]>0))
                 throw runtime_error("点集"+to_string(point_set_id)+"的绝对误差上限必须大于0");
         }
         if (cursor!=end)
             throw runtime_error("压缩文件末尾存在未解析数据");
 
-        if (point_set_num>1 && use_prediction_order_layout_experimental && !use_prediction_order_label_experimental)
-        {
-            vector<uint32_t> label_symbol_file_order_vec=move(label_symbol_vec);
-            label_symbol_vec.resize(point_num);
-            for (uint32_t prediction_id=0;prediction_id<point_num;prediction_id++)
-                label_symbol_vec[prediction_id]=label_symbol_file_order_vec[prediction_id_to_original_id[prediction_id]];
-        }
-
-        point_set_id_vec.assign(point_num,0);
-        if (point_set_num>1)
+        point_set_id_vec.assign(point_num,point_set_num-1);
+        if (label_channel_num>0)
         {
             if (point_set_predictor!="inverse_proportion" && point_set_predictor!="majority" && point_set_predictor!="continuous_actual" && point_set_predictor!="continuous_reflect")
                 throw runtime_error("未知的点集标签预测器："+point_set_predictor);
             bool continuous=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
             bool use_majority=point_set_predictor=="majority";
             bool use_normalized_label_weights=use_normalized_weight_experimental && continuous;
-            point_set_prediction_value_vec.assign(point_num,0);
-            for (uint32_t pred_ref_id=0;pred_ref_id<pred_target_ids.size();pred_ref_id++)
+            for (uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
             {
-                auto ref_ids=get_pred_ref_ids(pred_ref_id);
-                auto ref_weights=get_pred_ref_weights(pred_ref_id,use_normalized_label_weights,false);
-                int pred_id=pred_target_ids[pred_ref_id];
-                double predicted_value=continuous?(use_normalized_label_weights?predict_point_set_value_normalized(ref_ids,ref_weights):predict_point_set_value(ref_ids,ref_weights)):0;
-                uint32_t predicted_id=continuous?(predicted_value>=0.5):predict_point_set_id(ref_ids,ref_weights,use_majority);
-                uint32_t symbol=label_symbol_vec[use_prediction_order_label_experimental?pred_ref_id:pred_id];
-                if (symbol>1)
-                    throw runtime_error("点集标签修正值不是0或1");
-                uint32_t actual_id=symbol==0?predicted_id:1-predicted_id;
-                if (actual_id>=point_set_num)
-                    throw runtime_error("点集标签解码结果越界");
-                if (continuous)
+                vector<uint32_t> label_symbol_internal_vec;
+                uint64_t label_symbol_id=0;
+                if (!use_prediction_order_label_experimental)
                 {
-                    if (symbol==0)
-                        point_set_prediction_value_vec[pred_id]=predicted_value;
-                    else if (point_set_predictor=="continuous_actual" || predicted_value==0.5)
-                        point_set_prediction_value_vec[pred_id]=actual_id;
-                    else
-                        point_set_prediction_value_vec[pred_id]=1-predicted_value;
-                    actual_id=point_set_prediction_value_vec[pred_id]>=0.5;
+                    label_symbol_internal_vec.assign(point_num,0);
+                    for (uint32_t original_id=0;original_id<point_num;original_id++)
+                    {
+                        uint32_t internal_id=use_prediction_order_layout_experimental?original_id_to_prediction_id[original_id]:original_id;
+                        if (point_set_id_vec[internal_id]<label_channel_id)
+                            continue;
+                        if (label_symbol_id>=label_symbol_vec_vec[label_channel_id].size())
+                            throw runtime_error("点集条件标签通道"+to_string(label_channel_id)+"的修正值不足");
+                        label_symbol_internal_vec[internal_id]=label_symbol_vec_vec[label_channel_id][label_symbol_id++];
+                    }
                 }
-                point_set_id_vec[pred_id]=actual_id;
+                vector<uint8_t> binary_label_vec(point_num,1);
+                vector<double> binary_label_value_vec(continuous?point_num:0,0);
+                if (continuous)
+                    for (uint32_t point_id=0;point_id<point_num;point_id++)
+                        if (point_set_id_vec[point_id]<label_channel_id)
+                            binary_label_value_vec[point_id]=1;
+                label_symbol_id=use_prediction_order_label_experimental?0:label_symbol_id;
+                uint64_t decoded_target_num=0;
+                for (uint32_t pred_ref_id=0;pred_ref_id<pred_target_ids.size();pred_ref_id++)
+                {
+                    int pred_id=pred_target_ids[pred_ref_id];
+                    if (point_set_id_vec[pred_id]<label_channel_id)
+                        continue;
+                    auto ref_ids=get_pred_ref_ids(pred_ref_id);
+                    auto ref_weights=get_pred_ref_weights(pred_ref_id,use_normalized_label_weights,false);
+                    double predicted_value=continuous?(use_normalized_label_weights?predict_binary_label_value_normalized(ref_ids,ref_weights,binary_label_value_vec):predict_binary_label_value(ref_ids,ref_weights,binary_label_value_vec)):0;
+                    uint32_t predicted_label=continuous?(predicted_value>=0.5):predict_binary_label(ref_ids,ref_weights,binary_label_vec,use_majority);
+                    if (use_prediction_order_label_experimental && label_symbol_id>=label_symbol_vec_vec[label_channel_id].size())
+                        throw runtime_error("点集条件标签通道"+to_string(label_channel_id)+"的修正值不足");
+                    uint32_t symbol=use_prediction_order_label_experimental?label_symbol_vec_vec[label_channel_id][label_symbol_id++]:label_symbol_internal_vec[pred_id];
+                    if (symbol>1)
+                        throw runtime_error("点集标签修正值不是0或1");
+                    uint32_t actual_label=symbol==0?predicted_label:1-predicted_label;
+                    binary_label_vec[pred_id]=actual_label;
+                    if (continuous)
+                    {
+                        if (symbol==0)
+                            binary_label_value_vec[pred_id]=predicted_value;
+                        else if (point_set_predictor=="continuous_actual" || predicted_value==0.5)
+                            binary_label_value_vec[pred_id]=actual_label;
+                        else
+                            binary_label_value_vec[pred_id]=1-predicted_value;
+                        actual_label=binary_label_value_vec[pred_id]>=0.5;
+                    }
+                    if (actual_label==0)
+                        point_set_id_vec[pred_id]=label_channel_id;
+                    decoded_target_num++;
+                }
+                if (decoded_target_num!=label_channel_target_num_vec[label_channel_id] || label_symbol_id!=label_symbol_vec_vec[label_channel_id].size())
+                    throw runtime_error("点集条件标签通道"+to_string(label_channel_id)+"的修正值数量不一致");
             }
         }
         vector<uint32_t> decoded_point_set_num(point_set_num,0);
@@ -253,13 +319,6 @@ namespace unsz
                 uint32_t original_id=prediction_id_to_original_id[prediction_id];
                 current_decompressed_data[original_id]=prediction_order_data[prediction_id];
                 point_set_id_vec[original_id]=prediction_order_point_set_id_vec[prediction_id];
-            }
-            if (point_set_prediction_value_vec.size()==point_num)
-            {
-                vector<double> prediction_order_value_vec=move(point_set_prediction_value_vec);
-                point_set_prediction_value_vec.resize(point_num);
-                for (uint32_t prediction_id=0;prediction_id<point_num;prediction_id++)
-                    point_set_prediction_value_vec[prediction_id_to_original_id[prediction_id]]=prediction_order_value_vec[prediction_id];
             }
         }
     }

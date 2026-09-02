@@ -16,13 +16,34 @@
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <fstream>
 
 using namespace std;
 
 namespace unsz
 {
-    enum class point_set_codec_e:uint8_t{inverse_proportion=0,fitting=1,constant=2,hybrid_loo=3};
+    enum class point_set_codec_e:uint8_t{inverse_proportion=0,fitting=1,constant=2,hybrid_loo=3,use_default=255};
+    enum class point_set_error_mode_e:uint8_t{use_global=0,relative=1,absolute=2};
     enum class block_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
+
+    struct point_set_config_c
+    {
+        point_set_codec_e codec=point_set_codec_e::use_default;
+        point_set_error_mode_e error_mode=point_set_error_mode_e::use_global;
+        double error_bound=0;
+    };
+
+    template<typename T_data>
+    using point_set_classifier_t=bool(*)(T_data);
+
+#ifndef UNSZ_POINT_SET_CONFIG_HEADER
+#define UNSZ_POINT_SET_CONFIG_HEADER user_point_set.hpp
+#endif
+#define UNSZ_STRINGIFY_POINT_SET_CONFIG_IMPL(value) #value
+#define UNSZ_STRINGIFY_POINT_SET_CONFIG(value) UNSZ_STRINGIFY_POINT_SET_CONFIG_IMPL(value)
+#include UNSZ_STRINGIFY_POINT_SET_CONFIG(UNSZ_POINT_SET_CONFIG_HEADER)
+#undef UNSZ_STRINGIFY_POINT_SET_CONFIG
+#undef UNSZ_STRINGIFY_POINT_SET_CONFIG_IMPL
 
     template<typename T>
     class array_view_c
@@ -188,15 +209,15 @@ namespace unsz
             template<typename T_coord2>
             param_c(const param_c<T_coord2,T_data> &other);
 
-            string data_dir,variable_name,error_mode,coord_path,prediction_structure_path,hybrid_selector_path;
+            string data_dir,variable_name,error_mode,coord_path,prediction_structure_path,hybrid_selector_path,adjust_coord_matrix_path,adjust_coord_training_type;
             vector<string> original_data_path_vec,compressed_data_path_vec,decompressed_data_path_vec;
             uint32_t dim=3;
             uint32_t point_num=0;
             T_data rel_eb=0,abs_eb=0;
             bool got_rel_eb=false,got_abs_eb=false;
             bool got_data_dir=false,got_variable=false,got_time_step=false,got_error_mode=false;
-            vector<T_data> point_set_rel_eb_config_vec,point_set_abs_eb_config_vec;
-            vector<point_set_codec_e> point_set_codec_config_vec;
+            vector<point_set_classifier_t<T_data>> point_set_classifier_vec=get_user_point_set_classifier_vec<T_data>();
+            vector<point_set_config_c> point_set_config_vec=get_user_point_set_config_vec();
             bool check_original_data_files=true;
             bool cross_time_compress=false;
             string cross_time_predictor_experimental="none";//none / previous / interpolation
@@ -225,6 +246,7 @@ namespace unsz
             bool use_reverse_direction_only_order_experimental=false;
             bool use_reverse_direction_order_experimental=false;
             bool use_reverse_direction_distribution_order_experimental=false;
+            vector<uint32_t> order_training_time_step_vec_experimental;//非空时使用多个训练time step的预测误差生成公共顺序
             bool use_global_order_before_round_split_experimental=false;
             uint32_t d_only_cache_refill_threshold_experimental=8;//0表示任一参考点失效就重新查询，即精确模式
             uint32_t order_candidate_num_experimental=0;//0表示使用max_ref_num
@@ -277,7 +299,6 @@ namespace unsz
             vector<int32_t> qb_vec;
             vector<unsigned char> current_zstd_bs_vec;
             vector<uint32_t> point_set_id_vec;
-            vector<double> point_set_prediction_value_vec;
             vector<uint32_t> point_set_point_num_vec;
             vector<T_data> point_set_min_data_vec,point_set_max_data_vec,point_set_abs_eb_vec;
             vector<point_set_codec_e> point_set_codec_vec;
@@ -290,6 +311,7 @@ namespace unsz
             bool predict_time_interpolation(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
             void save_time_reconstruction();
             bool need_double_coord();
+            void load_adjust_coord_matrix_file();
             void adjust_coord();
             void load_or_generate_pred_refs_structure();
             void build_independent_blocks();
@@ -318,9 +340,9 @@ namespace unsz
             void find_nearest(priority_queue<pair<T_coord,int>> &nearest_queue,int nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
 
             uint32_t get_point_set_id(T_data val);
-            uint32_t predict_point_set_id(array_view_c<int> ref_ids,array_view_c<double> ref_weights,bool use_majority);
-            double predict_point_set_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights);
-            double predict_point_set_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights);
+            uint32_t predict_binary_label(array_view_c<int> ref_ids,array_view_c<double> ref_weights,const vector<uint8_t> &label_vec,bool use_majority);
+            double predict_binary_label_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights,const vector<double> &label_value_vec);
+            double predict_binary_label_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights,const vector<double> &label_value_vec);
             T_data predict_inverse_value_from_coords(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power=-1);
             bool predict_inverse_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error);
             bool predict_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double weight_power=0,double ridge=0,bool normalize_coord=false);
@@ -342,6 +364,7 @@ namespace unsz
 #include "param.tpp"
 #include "tree.tpp"
 #include "init.tpp"
+#include "adjust_coord_matrix_file.tpp"
 #include "adjust_coord.tpp"
 #include "independent_block.tpp"
 #include "block_adaptive_prediction.tpp"

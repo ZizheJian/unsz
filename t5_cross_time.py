@@ -5,6 +5,7 @@ from scipy.spatial import cKDTree
 from py_codes.py_unsz_core.param import Param
 from py_codes.py_unsz_core.init import init
 from py_codes.py_unsz_core.adjust_coord import adjust_coord
+from py_codes.py_unsz_core.adjust_coord_matrix_file import write_adjust_coord_matrix
 
 project_root=Path(__file__).resolve().parent
 compress_path=project_root/"build/s1_compress"
@@ -153,6 +154,7 @@ def main():
     parser.add_argument("-max-nfev",type=int,default=100)
     parser.add_argument("-work-dir",default="/tmp/unsz_cross_time_joint")
     parser.add_argument("-matrix-history-path",default="")
+    parser.add_argument("-joint-matrix-output-path",default="")
     parser.add_argument("-joint-matrix-history-input",default="")
     parser.add_argument("-joint-matrix-iteration",type=int,default=0)
     parser.add_argument("-joint-only",action="store_true")
@@ -215,6 +217,9 @@ def main():
         training_start_time=time.perf_counter()
         matrix=train_joint_matrix(joint_raw_dir,args.variable,args.rel_eb,coord.shape[0],args)
         training_time=time.perf_counter()-training_start_time
+    dataset=Path(args.data_dir).resolve().name
+    matrix_output_path=Path(args.joint_matrix_output_path) if args.joint_matrix_output_path else project_root/"adjust_coord_matrices"/f"{dataset}_{args.variable}_spatiotemporal_t{args.time_step_num}_{args.cross_time_first_sample_mode}_r{args.cross_time_first_sample_region_num}.txt"
+    write_adjust_coord_matrix(matrix_output_path,matrix,"spatiotemporal",dataset,args.variable)
     if args.train_only:
         print(f"四维训练耗时={training_time:.6f} s")
         print(f"四维变换矩阵：\n{matrix}")

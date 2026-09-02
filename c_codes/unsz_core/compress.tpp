@@ -87,7 +87,12 @@ namespace unsz
         double layout_reorder_time=0,point_set_time=0,label_prediction_time=0,value_prediction_time=0,lossless_encoding_time=0,validation_time=0;
         if (current_data.size()!=point_num)
             throw runtime_error("当前数据点数与坐标点数不一致");
-        if (!got_rel_eb && !got_abs_eb && point_set_rel_eb_config_vec.empty() && point_set_abs_eb_config_vec.empty())
+        if (point_set_config_vec.size()!=point_set_classifier_vec.size()+1)
+            throw runtime_error("点集配置数量必须等于分类函数数量加1");
+        bool has_point_set_error_bound=false;
+        for (const point_set_config_c &config:point_set_config_vec)
+            has_point_set_error_bound|=config.error_mode!=point_set_error_mode_e::use_global;
+        if (!got_rel_eb && !got_abs_eb && !has_point_set_error_bound)
             throw runtime_error("没有指定误差上限");
         if (eb_schedule_experimental!="none" && eb_schedule_experimental!="round" && eb_schedule_experimental!="point" && eb_schedule_experimental!="round_point" && eb_schedule_experimental!="round_ratio" && eb_schedule_experimental!="round_point_ratio")
             throw runtime_error("未知的实验性EB序列模式："+eb_schedule_experimental);
@@ -104,15 +109,15 @@ namespace unsz
         }
 
         point_set_id_vec.resize(point_num);
-        uint32_t point_set_num=0;
-        point_set_point_num_vec.assign(2,0);
-        point_set_min_data_vec.assign(2,numeric_limits<T_data>::infinity());
-        point_set_max_data_vec.assign(2,-numeric_limits<T_data>::infinity());
+        uint32_t point_set_num=0,configured_point_set_num=(uint32_t)point_set_classifier_vec.size()+1;
+        point_set_point_num_vec.assign(configured_point_set_num,0);
+        point_set_min_data_vec.assign(configured_point_set_num,numeric_limits<T_data>::infinity());
+        point_set_max_data_vec.assign(configured_point_set_num,-numeric_limits<T_data>::infinity());
         for (uint32_t i=0;i<point_num;i++)
         {
             uint32_t point_set_id=get_point_set_id(current_data[i]);
-            if (point_set_id>=2)
-                throw runtime_error("当前0/1标签修正流只支持最多两个点集");
+            if (point_set_id>=configured_point_set_num)
+                throw runtime_error("分类函数返回的点集编号越界");
             point_set_id_vec[i]=point_set_id;
             point_set_num=max(point_set_num,point_set_id+1);
             point_set_point_num_vec[point_set_id]++;
@@ -134,11 +139,16 @@ namespace unsz
                 point_set_codec_vec[point_set_id]=point_set_codec_e::constant;
                 continue;
             }
+            const point_set_config_c &config=point_set_config_vec[point_set_id];
+            if (config.codec!=point_set_codec_e::use_default && config.codec!=point_set_codec_e::inverse_proportion && config.codec!=point_set_codec_e::fitting && config.codec!=point_set_codec_e::constant && config.codec!=point_set_codec_e::hybrid_loo)
+                throw runtime_error("点集"+to_string(point_set_id)+"配置了未知的压缩方法");
+            if (config.error_mode!=point_set_error_mode_e::use_global && config.error_mode!=point_set_error_mode_e::relative && config.error_mode!=point_set_error_mode_e::absolute)
+                throw runtime_error("点集"+to_string(point_set_id)+"配置了未知的误差模式");
             bool is_constant=point_set_min_data_vec[point_set_id]==point_set_max_data_vec[point_set_id];
             if (is_constant)
                 point_set_codec_vec[point_set_id]=point_set_codec_e::constant;
-            else if (point_set_id<point_set_codec_config_vec.size())
-                point_set_codec_vec[point_set_id]=point_set_codec_config_vec[point_set_id];
+            else if (config.codec!=point_set_codec_e::use_default)
+                point_set_codec_vec[point_set_id]=config.codec;
             else if (predictor=="inverse_proportion")
                 point_set_codec_vec[point_set_id]=point_set_codec_e::inverse_proportion;
             else if (predictor=="fitting")
@@ -149,12 +159,18 @@ namespace unsz
                 throw runtime_error("未知的默认数值预测器："+predictor);
             if (!is_constant && point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
                 throw runtime_error("非常量点集不能使用常量编码");
-            if (point_set_id<point_set_abs_eb_config_vec.size())
-                point_set_abs_eb_vec[point_set_id]=point_set_abs_eb_config_vec[point_set_id];
-            else if (point_set_id<point_set_rel_eb_config_vec.size())
-                point_set_abs_eb_vec[point_set_id]=point_set_rel_eb_config_vec[point_set_id]*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]);
+            if (is_constant)
+                point_set_abs_eb_vec[point_set_id]=0;
+            else if (config.error_mode==point_set_error_mode_e::absolute)
+                point_set_abs_eb_vec[point_set_id]=(T_data)config.error_bound;
+            else if (config.error_mode==point_set_error_mode_e::relative)
+                point_set_abs_eb_vec[point_set_id]=(T_data)(config.error_bound*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]));
             else
+            {
+                if (!got_rel_eb && !got_abs_eb)
+                    throw runtime_error("点集"+to_string(point_set_id)+"没有指定误差上限");
                 point_set_abs_eb_vec[point_set_id]=got_abs_eb?abs_eb:rel_eb*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]);
+            }
             if (!is_constant && !(point_set_abs_eb_vec[point_set_id]>0))
                 throw runtime_error("点集"+to_string(point_set_id)+"的绝对误差上限必须大于0");
         }
@@ -193,8 +209,10 @@ namespace unsz
         point_set_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
 
         stage_start_time=chrono::steady_clock::now();
-        vector<uint32_t> label_symbol_vec;
-        vector<uint8_t> label_symbol_original_order_vec(point_num,0);
+        uint32_t label_channel_num=point_set_num>0?point_set_num-1:0;
+        vector<vector<uint32_t>> label_symbol_vec_vec(label_channel_num);
+        vector<vector<uint8_t>> label_symbol_file_order_vec_vec(label_channel_num);
+        vector<uint64_t> label_channel_target_num_vec(label_channel_num,0),label_channel_error_num_vec(label_channel_num,0);
         vector<uint32_t> actual_label_prediction_order_vec;
         uint64_t label_prediction_error_num=0;
         if (point_set_num>1 && point_set_predictor!="inverse_proportion" && point_set_predictor!="majority" && point_set_predictor!="continuous_actual" && point_set_predictor!="continuous_reflect")
@@ -202,39 +220,63 @@ namespace unsz
         bool continuous=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
         bool use_majority=point_set_predictor=="majority";
         bool use_normalized_label_weights=use_normalized_weight_experimental && continuous;
-        if (point_set_num>1)
+        for (uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
         {
-            point_set_prediction_value_vec.assign(point_num,0);
+            vector<uint8_t> label_symbol_internal_vec(point_num,0);
+            vector<uint8_t> binary_label_vec(point_num,1);
+            for (uint32_t point_id=0;point_id<point_num;point_id++)
+                if (point_set_id_vec[point_id]==label_channel_id)
+                    binary_label_vec[point_id]=0;
+            vector<double> binary_label_value_vec(continuous?point_num:0,0);
+            if (continuous)
+                for (uint32_t point_id=0;point_id<point_num;point_id++)
+                    if (point_set_id_vec[point_id]<label_channel_id)
+                        binary_label_value_vec[point_id]=1;
             if (print_label_compression_statistics || use_prediction_order_label_experimental)
-                label_symbol_vec.reserve(point_num);
-            if (print_label_compression_statistics)
+                label_symbol_vec_vec[label_channel_id].reserve(point_num);
+            if (print_label_compression_statistics && point_set_num==2)
                 actual_label_prediction_order_vec.reserve(point_num);
             for (uint32_t pred_ref_id=0;pred_ref_id<pred_target_ids.size();pred_ref_id++)
             {
+                int pred_id=pred_target_ids[pred_ref_id];
+                uint32_t actual_point_set_id=point_set_id_vec[pred_id];
+                if (actual_point_set_id<label_channel_id)
+                    continue;
                 auto ref_ids=get_pred_ref_ids(pred_ref_id);
                 auto ref_weights=get_pred_ref_weights(pred_ref_id,use_normalized_label_weights,false);
-                int pred_id=pred_target_ids[pred_ref_id];
-                double predicted_value=continuous?(use_normalized_label_weights?predict_point_set_value_normalized(ref_ids,ref_weights):predict_point_set_value(ref_ids,ref_weights)):0;
-                uint32_t predicted_id=continuous?(predicted_value>=0.5):predict_point_set_id(ref_ids,ref_weights,use_majority);
-                uint32_t actual_id=point_set_id_vec[pred_id];
-                bool prediction_error=actual_id!=predicted_id;
+                double predicted_value=continuous?(use_normalized_label_weights?predict_binary_label_value_normalized(ref_ids,ref_weights,binary_label_value_vec):predict_binary_label_value(ref_ids,ref_weights,binary_label_value_vec)):0;
+                uint32_t predicted_label=continuous?(predicted_value>=0.5):predict_binary_label(ref_ids,ref_weights,binary_label_vec,use_majority);
+                uint32_t actual_label=actual_point_set_id==label_channel_id?0:1;
+                bool prediction_error=actual_label!=predicted_label;
+                label_channel_target_num_vec[label_channel_id]++;
+                label_channel_error_num_vec[label_channel_id]+=prediction_error;
                 label_prediction_error_num+=prediction_error;
-                if (print_label_compression_statistics)
-                    actual_label_prediction_order_vec.push_back(actual_id);
+                if (print_label_compression_statistics && point_set_num==2)
+                    actual_label_prediction_order_vec.push_back(actual_label);
                 if (print_label_compression_statistics || use_prediction_order_label_experimental)
-                    label_symbol_vec.push_back(prediction_error?1:0);
-                label_symbol_original_order_vec[pred_id]=prediction_error?1:0;
+                    label_symbol_vec_vec[label_channel_id].push_back(prediction_error?1:0);
+                label_symbol_internal_vec[pred_id]=prediction_error?1:0;
                 if (continuous)
                 {
                     if (!prediction_error)
-                        point_set_prediction_value_vec[pred_id]=predicted_value;
+                        binary_label_value_vec[pred_id]=predicted_value;
                     else if (point_set_predictor=="continuous_actual" || predicted_value==0.5)
-                        point_set_prediction_value_vec[pred_id]=actual_id;
+                        binary_label_value_vec[pred_id]=actual_label;
                     else
-                        point_set_prediction_value_vec[pred_id]=1-predicted_value;
-                    uint32_t rounded_id=point_set_prediction_value_vec[pred_id]>=0.5;
-                    if (rounded_id!=actual_id)
+                        binary_label_value_vec[pred_id]=1-predicted_value;
+                    uint32_t rounded_label=binary_label_value_vec[pred_id]>=0.5;
+                    if (rounded_label!=actual_label)
                         throw runtime_error("连续点集标签状态无法恢复真实标签");
+                }
+            }
+            if (!use_prediction_order_label_experimental || print_label_compression_statistics)
+            {
+                label_symbol_file_order_vec_vec[label_channel_id].reserve(label_channel_target_num_vec[label_channel_id]);
+                for (uint32_t original_id=0;original_id<point_num;original_id++)
+                {
+                    uint32_t internal_id=use_prediction_order_layout_experimental?original_id_to_prediction_id[original_id]:original_id;
+                    if (point_set_id_vec[internal_id]>=label_channel_id)
+                        label_symbol_file_order_vec_vec[label_channel_id].push_back(label_symbol_internal_vec[internal_id]);
                 }
             }
         }
@@ -369,9 +411,12 @@ namespace unsz
 
         stage_start_time=chrono::steady_clock::now();
         vector<unsigned char> container;
-        const unsigned char magic[8]={'U','N','S','Z','P','S','0','7'};
+        bool use_legacy_point_set_format=point_set_num<=2;
+        const unsigned char magic_v7[8]={'U','N','S','Z','P','S','0','7'};
+        const unsigned char magic_v8[8]={'U','N','S','Z','P','S','0','8'};
+        const unsigned char *magic=use_legacy_point_set_format?magic_v7:magic_v8;
         container.insert(container.end(),magic,magic+8);
-        append_binary<uint32_t>(container,7);
+        append_binary<uint32_t>(container,use_legacy_point_set_format?7:8);
         append_binary<uint32_t>(container,point_num);
         append_binary<uint32_t>(container,sizeof(T_data));
         append_binary<uint32_t>(container,point_set_num);
@@ -380,21 +425,23 @@ namespace unsz
             append_binary<uint32_t>(container,block_prediction_config_id_vec.size());
             container.insert(container.end(),block_prediction_config_id_vec.begin(),block_prediction_config_id_vec.end());
         }
-        vector<uint8_t> label_symbol_file_order_vec;
-        if (point_set_num>1 && (!use_prediction_order_label_experimental || print_label_compression_statistics) && use_prediction_order_layout_experimental)
+        vector<vector<unsigned char>> label_position_delta_bytes_vec(label_channel_num),label_zstd_bytes_vec(label_channel_num);
+        uint64_t label_position_delta_byte_num=0,label_zstd_byte_num=0;
+        for (uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
         {
-            label_symbol_file_order_vec.resize(point_num);
-            for (uint32_t prediction_id=0;prediction_id<point_num;prediction_id++)
-                label_symbol_file_order_vec[prediction_id_to_original_id[prediction_id]]=label_symbol_original_order_vec[prediction_id];
+            label_position_delta_bytes_vec[label_channel_id]=use_prediction_order_label_experimental?binary_one_position_delta_vec(label_symbol_vec_vec[label_channel_id]):binary_one_position_delta_vec(label_symbol_file_order_vec_vec[label_channel_id]);
+            if (!label_position_delta_bytes_vec[label_channel_id].empty())
+                label_zstd_bytes_vec[label_channel_id]=zstd_compress(label_position_delta_bytes_vec[label_channel_id],zstd_compression_level);
+            label_position_delta_byte_num+=label_position_delta_bytes_vec[label_channel_id].size();
+            label_zstd_byte_num+=label_zstd_bytes_vec[label_channel_id].size();
+            if (!use_legacy_point_set_format)
+                printf("label_channel%u_target_num=%llu, error_ratio=%f, position_delta_bytes=%llu, zstd_bytes=%llu\n",label_channel_id,(unsigned long long)label_channel_target_num_vec[label_channel_id],label_channel_target_num_vec[label_channel_id]?(double)label_channel_error_num_vec[label_channel_id]/label_channel_target_num_vec[label_channel_id]:0,(unsigned long long)label_position_delta_bytes_vec[label_channel_id].size(),(unsigned long long)label_zstd_bytes_vec[label_channel_id].size());
         }
-        else if (point_set_num>1 && (!use_prediction_order_label_experimental || print_label_compression_statistics))
-            label_symbol_file_order_vec=label_symbol_original_order_vec;
-        vector<unsigned char> label_position_delta_bytes;
-        if (point_set_num>1)
-            label_position_delta_bytes=use_prediction_order_label_experimental?binary_one_position_delta_vec(label_symbol_vec):binary_one_position_delta_vec(label_symbol_file_order_vec);
-        vector<unsigned char> label_zstd_bytes=label_position_delta_bytes.empty()?vector<unsigned char>():zstd_compress(label_position_delta_bytes,zstd_compression_level);
-        if (point_set_num>1 && print_label_compression_statistics)
+        if (point_set_num==2 && print_label_compression_statistics)
         {
+            const vector<uint32_t> &label_symbol_vec=label_symbol_vec_vec[0];
+            const vector<uint8_t> &label_symbol_file_order_vec=label_symbol_file_order_vec_vec[0];
+            const vector<unsigned char> &label_position_delta_bytes=label_position_delta_bytes_vec[0];
             for (int zstd_level:{1,3,6,9,15,19})
                 printf("label_position_delta_zstd_level=%d, bytes=%llu\n",zstd_level,(unsigned long long)zstd_compress(label_position_delta_bytes,zstd_level).size());
             auto print_label_candidate=[&](const char *name,vector<unsigned char> bytes)
@@ -433,8 +480,23 @@ namespace unsz
             printf("label_candidate=error_bit_by_round, bytes_before_zstd=%llu, bytes_after_zstd=%llu\n",
                 (unsigned long long)round_bit_bytes,(unsigned long long)round_zstd_bytes);
         }
-        append_binary<uint64_t>(container,label_zstd_bytes.size());
-        container.insert(container.end(),label_zstd_bytes.begin(),label_zstd_bytes.end());
+        if (use_legacy_point_set_format)
+        {
+            uint64_t label_zstd_bytes=label_channel_num==0?0:label_zstd_bytes_vec[0].size();
+            append_binary<uint64_t>(container,label_zstd_bytes);
+            if (label_channel_num>0)
+                container.insert(container.end(),label_zstd_bytes_vec[0].begin(),label_zstd_bytes_vec[0].end());
+        }
+        else
+        {
+            append_binary<uint32_t>(container,label_channel_num);
+            for (uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
+            {
+                append_binary<uint64_t>(container,label_channel_target_num_vec[label_channel_id]);
+                append_binary<uint64_t>(container,label_zstd_bytes_vec[label_channel_id].size());
+                container.insert(container.end(),label_zstd_bytes_vec[label_channel_id].begin(),label_zstd_bytes_vec[label_channel_id].end());
+            }
+        }
         uint64_t value_zstd_byte_num=0;
         for (uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {
@@ -496,8 +558,8 @@ namespace unsz
             printf("pointwise_oracle_no_selector_file_br=%f, with_selector_file_br=%f, psnr=%f\n",(double)oracle_no_selector_file_bytes*8/point_num,(double)oracle_with_selector_file_bytes*8/point_num,oracle_psnr);
         }
         lossless_encoding_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
-        printf("label_prediction_error_ratio=%f, label_position_delta_bytes=%llu, label_zstd_bytes=%llu, zstd_level=%d\n",
-            (double)label_prediction_error_num/point_num,(unsigned long long)label_position_delta_bytes.size(),(unsigned long long)label_zstd_bytes.size(),zstd_compression_level);
+        uint64_t label_target_num=accumulate(label_channel_target_num_vec.begin(),label_channel_target_num_vec.end(),(uint64_t)0);
+        printf("label_prediction_error_ratio=%f, label_position_delta_bytes=%llu, label_zstd_bytes=%llu, zstd_level=%d\n",label_target_num?(double)label_prediction_error_num/label_target_num:0,(unsigned long long)label_position_delta_byte_num,(unsigned long long)label_zstd_byte_num,zstd_compression_level);
         printf("value_huffman_bytes=%llu, value_zstd_bytes=%llu, file_bytes=%llu\n",(unsigned long long)value_huffman_byte_num,
             (unsigned long long)value_zstd_byte_num,(unsigned long long)current_zstd_bs_vec.size());
 

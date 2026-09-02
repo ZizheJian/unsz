@@ -19,16 +19,55 @@ namespace unsz
             throw runtime_error("predict_round_num必须在[1,63]内");
         if (max_ref_num<=0)
             throw runtime_error("max_ref_num必须是正数");
-        uint32_t experimental_order_num=use_predictability_order_experimental+use_forward_mean_distance_only_order_experimental+use_forward_s2_only_order_experimental+use_forward_direction_only_order_experimental+use_forward_mean_distance_s2_order_experimental+use_forward_mean_distance_direction_order_experimental+use_reverse_predictability_order_experimental+use_reverse_distribution_order_experimental+use_reverse_mean_distance_only_order_experimental+use_reverse_reference_reuse_order_experimental+use_reverse_s2_only_order_experimental+use_reverse_direction_only_order_experimental+use_reverse_direction_order_experimental+use_reverse_direction_distribution_order_experimental;
+        bool use_training_data_aware_order=!order_training_time_step_vec_experimental.empty();
+        uint32_t experimental_order_num=use_predictability_order_experimental+use_forward_mean_distance_only_order_experimental+use_forward_s2_only_order_experimental+use_forward_direction_only_order_experimental+use_forward_mean_distance_s2_order_experimental+use_forward_mean_distance_direction_order_experimental+use_reverse_predictability_order_experimental+use_reverse_distribution_order_experimental+use_reverse_mean_distance_only_order_experimental+use_reverse_reference_reuse_order_experimental+use_reverse_s2_only_order_experimental+use_reverse_direction_only_order_experimental+use_reverse_direction_order_experimental+use_reverse_direction_distribution_order_experimental+use_training_data_aware_order;
         if (experimental_order_num>1)
             throw runtime_error("实验性预测顺序不能同时启用多个");
-        bool use_reverse_d_only=use_reverse_mean_distance_only_order_experimental || use_reverse_reference_reuse_order_experimental;
+        bool use_reverse_d_only=use_reverse_mean_distance_only_order_experimental || use_reverse_reference_reuse_order_experimental || use_training_data_aware_order;
         if (order_candidate_num_experimental>0 && !use_reverse_d_only)
             throw runtime_error("D-only排序候选数实验只能和反向D-only顺序一起使用");
         if (use_reverse_d_only && d_only_cache_refill_threshold_experimental>max_ref_num)
             throw runtime_error("D-only缓存重查阈值不能大于max_ref_num");
         if (use_global_order_before_round_split_experimental && !use_reverse_mean_distance_only_order_experimental)
             throw runtime_error("全局排序后分轮实验目前只能和反向D-only顺序同时使用");
+        if (use_training_data_aware_order && prediction_structure_path.empty())
+            throw runtime_error("训练数据感知顺序必须通过-prediction-structure保存公共预测结构");
+
+        vector<vector<T_data>> order_training_data_vec;
+        vector<vector<double>> order_training_point_set_range_vec;
+        if (use_training_data_aware_order)
+        {
+            printf("Loading %llu training time steps for data-aware common order\n",(unsigned long long)order_training_time_step_vec_experimental.size());
+            order_training_data_vec.resize(order_training_time_step_vec_experimental.size(),vector<T_data>(point_num));
+            order_training_point_set_range_vec.resize(order_training_time_step_vec_experimental.size(),vector<double>(2));
+            for (uint32_t training_file_id=0;training_file_id<order_training_time_step_vec_experimental.size();training_file_id++)
+            {
+                uint32_t time_step=order_training_time_step_vec_experimental[training_file_id];
+                string path=data_dir+variable_name+".dat."+to_string(time_step);
+                FILE *file=fopen(path.c_str(),"rb");
+                if (!file)
+                    throw runtime_error("找不到预测顺序训练文件："+path);
+                if (fread(order_training_data_vec[training_file_id].data(),sizeof(T_data),point_num,file)!=point_num)
+                {
+                    fclose(file);
+                    throw runtime_error("读取预测顺序训练文件失败："+path);
+                }
+                if (fclose(file)!=0)
+                    throw runtime_error("关闭预测顺序训练文件失败："+path);
+                vector<double> point_set_min(2,numeric_limits<double>::infinity()),point_set_max(2,-numeric_limits<double>::infinity());
+                for (T_data value:order_training_data_vec[training_file_id])
+                {
+                    uint32_t point_set_id=get_point_set_id(value);
+                    if (point_set_id>=2)
+                        throw runtime_error("训练数据感知顺序目前只支持两个点集");
+                    point_set_min[point_set_id]=min(point_set_min[point_set_id],(double)value);
+                    point_set_max[point_set_id]=max(point_set_max[point_set_id],(double)value);
+                }
+                for (uint32_t point_set_id=0;point_set_id<2;point_set_id++)
+                    if (isfinite(point_set_min[point_set_id]))
+                        order_training_point_set_range_vec[training_file_id][point_set_id]=point_set_max[point_set_id]-point_set_min[point_set_id];
+            }
+        }
 
         printf("Building kd-tree\n");
         auto start_time=chrono::steady_clock::now();
@@ -81,6 +120,8 @@ namespace unsz
                 printf("Using reverse distance-distribution elimination with %u local candidates and references\n",max_ref_num);
             else if (use_reverse_mean_distance_only_order_experimental)
                 printf("Using reverse mean-distance-only elimination with %u local candidates and %u references\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,max_ref_num);
+            else if (use_training_data_aware_order)
+                printf("Using reverse training-data-aware elimination with %u local candidates, %u references and %llu training time steps\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,max_ref_num,(unsigned long long)order_training_data_vec.size());
             else if (use_reverse_reference_reuse_order_experimental)
                 printf("Using reverse reference-reuse-first elimination with %u local candidates and %u references\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,max_ref_num);
             else if (use_reverse_s2_only_order_experimental)
@@ -102,6 +143,7 @@ namespace unsz
             uint64_t d_only_cache_hit_num=0,d_only_cache_reduced_ref_hit_num=0,d_only_cache_miss_num=0;
             vector<int> previous_route_ref_ids;
             uint64_t selected_reference_overlap_sum=0,selected_reference_overlap_num=0;
+            uint64_t training_score_evaluation_num=0;
             if (use_reverse_d_only)
             {
                 d_only_cached_score.resize(point_num);
@@ -154,7 +196,7 @@ namespace unsz
                     }
                     else if (use_reverse_d_only)
                     {
-                        double best_mean_target_ref_squared_dist=numeric_limits<double>::infinity();
+                        double best_mean_target_ref_squared_dist=numeric_limits<double>::infinity(),best_training_error=numeric_limits<double>::infinity();
                         uint32_t best_reference_overlap=0;
                         while (!nearest_queue.empty())
                         {
@@ -217,17 +259,62 @@ namespace unsz
                                 for (uint32_t ref_index=0;ref_index<d_only_cached_ref_num[candidate_id];ref_index++)
                                     if (find(previous_route_ref_ids.begin(),previous_route_ref_ids.end(),d_only_cached_ref_ids[cache_begin+ref_index])!=previous_route_ref_ids.end())
                                         reference_overlap++;
+                            double training_error=0;
+                            if (use_training_data_aware_order)
+                            {
+                                uint32_t score_ref_num=d_only_cached_ref_num[candidate_id];
+                                for (uint32_t training_file_id=0;training_file_id<order_training_data_vec.size();training_file_id++)
+                                {
+                                    auto &training_data=order_training_data_vec[training_file_id];
+                                    uint32_t target_point_set_id=get_point_set_id(training_data[candidate_id]);
+                                    double weight_sum=0,prediction=0;
+                                    uint32_t valid_ref_num=0;
+                                    bool exact_prediction=false;
+                                    for (uint32_t ref_index=0;ref_index<score_ref_num && valid_ref_num<actual_ref_num;ref_index++)
+                                    {
+                                        int ref_id=d_only_cached_ref_ids[cache_begin+ref_index];
+                                        if (get_point_set_id(training_data[ref_id])!=target_point_set_id)
+                                            continue;
+                                        double squared_dist=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[ref_id],dim);
+                                        if (squared_dist==0)
+                                        {
+                                            prediction=training_data[ref_id];
+                                            exact_prediction=true;
+                                            break;
+                                        }
+                                        double weight=pow(squared_dist,-inverse_distance_power/2);
+                                        weight_sum+=weight;
+                                        prediction+=weight*training_data[ref_id];
+                                        valid_ref_num++;
+                                    }
+                                    double normalized_error=1;
+                                    if (exact_prediction || weight_sum>0)
+                                    {
+                                        if (!exact_prediction)
+                                            prediction/=weight_sum;
+                                        double error=abs((double)training_data[candidate_id]-prediction);
+                                        double data_range=order_training_point_set_range_vec[training_file_id][target_point_set_id];
+                                        normalized_error=data_range>0?error/data_range:(error==0?0:1);
+                                    }
+                                    training_error+=normalized_error;
+                                }
+                                training_error/=order_training_data_vec.size();
+                                training_score_evaluation_num++;
+                            }
                             bool better=original_id==-1;
                             bool route_better=route_dist<best_route_dist || (route_dist==best_route_dist && candidate_id<original_id);
                             bool d_better=mean_target_ref_squared_dist<best_mean_target_ref_squared_dist || (mean_target_ref_squared_dist==best_mean_target_ref_squared_dist && route_better);
                             if (use_reverse_reference_reuse_order_experimental)
                                 better=better || reference_overlap>best_reference_overlap || (reference_overlap==best_reference_overlap && d_better);
+                            else if (use_training_data_aware_order)
+                                better=better || training_error<best_training_error || (training_error==best_training_error && d_better);
                             else
                                 better=better || d_better;
                             if (better)
                             {
                                 original_id=candidate_id;
                                 best_mean_target_ref_squared_dist=mean_target_ref_squared_dist;
+                                best_training_error=training_error;
                                 best_reference_overlap=reference_overlap;
                                 best_route_dist=route_dist;
                             }
@@ -409,6 +496,8 @@ namespace unsz
                 printf("D-only reduced-reference cache hits: %llu\n",(unsigned long long)d_only_cache_reduced_ref_hit_num);
                 if (use_reverse_reference_reuse_order_experimental)
                     printf("Selected adjacent reference overlap: %f / %u\n",selected_reference_overlap_num?(double)selected_reference_overlap_sum/selected_reference_overlap_num:0,max_ref_num);
+                if (use_training_data_aware_order)
+                    printf("Training-data predictability score evaluations: %llu\n",(unsigned long long)training_score_evaluation_num);
             }
         }
         else

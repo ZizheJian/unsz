@@ -57,7 +57,7 @@ namespace unsz
         return result;
     }
 
-    inline vector<unsigned char> zstd_compress(vector<unsigned char> &source,int compression_level=3)
+    inline vector<unsigned char> zstd_compress(const vector<unsigned char> &source,int compression_level=3)
     {
         vector<unsigned char> result(ZSTD_compressBound(source.size()));
         uint64_t result_size=ZSTD_compress(result.data(),result.size(),source.data(),source.size(),compression_level);
@@ -82,7 +82,7 @@ namespace unsz
     }
 
     template<typename T>
-    inline vector<unsigned char> binary_to_byte_vec(vector<T> &value_vec)
+    inline vector<unsigned char> binary_to_byte_vec(const vector<T> &value_vec)
     {
         vector<unsigned char> result(value_vec.size());
         for (uint64_t i=0;i<value_vec.size();i++)
@@ -95,7 +95,7 @@ namespace unsz
     }
 
     template<typename T>
-    inline vector<unsigned char> binary_to_bit_vec(vector<T> &value_vec)
+    inline vector<unsigned char> binary_to_bit_vec(const vector<T> &value_vec)
     {
         vector<unsigned char> result((value_vec.size()+7)/8,0);
         for (uint64_t i=0;i<value_vec.size();i++)
@@ -118,7 +118,7 @@ namespace unsz
     }
 
     template<typename T>
-    inline vector<unsigned char> binary_one_position_delta_vec(vector<T> &value_vec)
+    inline vector<unsigned char> binary_one_position_delta_vec(const vector<T> &value_vec)
     {
         vector<unsigned char> result;
         uint64_t one_num=0;
@@ -173,7 +173,7 @@ namespace unsz
     }
 
     template<typename T>
-    inline vector<unsigned char> binary_run_length_vec(vector<T> &value_vec)
+    inline vector<unsigned char> binary_run_length_vec(const vector<T> &value_vec)
     {
         vector<unsigned char> result;
         if (value_vec.empty())
@@ -192,7 +192,7 @@ namespace unsz
         return result;
     }
 
-    inline uint64_t zstd_size(vector<unsigned char> &source)
+    inline uint64_t zstd_size(const vector<unsigned char> &source)
     {
         return source.empty()?0:zstd_compress(source).size();
     }

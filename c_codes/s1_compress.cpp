@@ -408,6 +408,12 @@ namespace unsz
                 param.print_label_compression_statistics=true;
             else if (strcmp(argv[arg_id],"-adjust-coord")==0)
                 param.if_adjust_coord=true;
+            else if (strcmp(argv[arg_id],"-adjust-coord-matrix-file")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-adjust-coord-matrix-file后面缺少文件路径");
+                param.adjust_coord_matrix_path=argv[++arg_id];
+            }
             else if (strcmp(argv[arg_id],"-adjust-coord-matrix")==0)
             {
                 uint32_t parameter_num=param.dim*(param.dim+1)/2;
@@ -461,6 +467,12 @@ namespace unsz
                 param.use_reverse_direction_order_experimental=true;
             else if (strcmp(argv[arg_id],"-reverse-direction-distribution-order-experimental")==0)
                 param.use_reverse_direction_distribution_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-training-data-aware-order-experimental")==0)
+            {
+                if (arg_id+1>=argc)
+                    throw runtime_error("-training-data-aware-order-experimental后面缺少训练time step列表");
+                param.order_training_time_step_vec_experimental=parse_time_step_vec(argv[++arg_id]);
+            }
             else if (strcmp(argv[arg_id],"-global-order-before-round-split-experimental")==0)
                 param.use_global_order_before_round_split_experimental=true;
             else if (strcmp(argv[arg_id],"-eb-schedule-experimental")==0)
@@ -477,8 +489,11 @@ namespace unsz
             else
                 throw runtime_error("未知参数："+string(argv[arg_id]));
         }
-        if (!param.got_data_dir || !param.got_variable || !param.got_time_step || !param.got_error_mode)
-            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> -M <REL|ABS> <误差> [-dim <维数>] [-adjust-coord] [-cross-time-predictor-experimental previous] [-predictor <inverse_proportion|fitting|hybrid_loo>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-independent-block-size-experimental <数量>] [-independent-block-num-experimental <数量>] [-block-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-block-adaptive-sample-num-experimental <数量>] [-block-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|block_round>] [-round-stats] [-prediction-geometry-stats] [-label-stats] [-compression-stage-time] [-parallelism-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
+        bool has_point_set_error_bound=false;
+        for (const point_set_config_c &config:param.point_set_config_vec)
+            has_point_set_error_bound|=config.error_mode!=point_set_error_mode_e::use_global;
+        if (!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && !has_point_set_error_bound))
+            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> [-M <REL|ABS> <误差>] [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-predictor <inverse_proportion|fitting|hybrid_loo>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-independent-block-size-experimental <数量>] [-independent-block-num-experimental <数量>] [-block-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-block-adaptive-sample-num-experimental <数量>] [-block-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|block_round>] [-round-stats] [-prediction-geometry-stats] [-label-stats] [-compression-stage-time] [-parallelism-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-training-data-aware-order-experimental <time step列表>] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
         if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
             throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
         if (!param.hybrid_selector_path.empty() && param.predictor!="hybrid_loo")
@@ -493,17 +508,18 @@ namespace unsz
         for (uint32_t time_step:time_step_vec)
             param.original_data_path_vec.push_back(param.data_dir+param.variable_name+".dat."+to_string(time_step));
         param.time_step_vec=time_step_vec;
-        if (param.error_mode=="REL")
+        if (param.got_error_mode && param.error_mode=="REL")
         {
             param.rel_eb=error_bound;
             param.got_rel_eb=true;
         }
-        else
+        else if (param.got_error_mode)
         {
             param.abs_eb=error_bound;
             param.got_abs_eb=true;
         }
         param.cross_time_compress=false;
+        param.load_adjust_coord_matrix_file();
         if (param.actual_ref_num>param.max_ref_num)
             throw runtime_error("actual_ref_num不能大于max_ref_num");
 

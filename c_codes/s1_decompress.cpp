@@ -293,6 +293,8 @@ int decompress_main(int argc,char **argv)
         }
         else if (option=="-adjust-coord")
             param.if_adjust_coord=true;
+        else if (option=="-adjust-coord-matrix-file")
+            param.adjust_coord_matrix_path=read_option_value(argc,argv,arg_id,option);
         else if (option=="-adjust-coord-matrix")
         {
             uint32_t parameter_num=param.dim*(param.dim+1)/2;
@@ -360,8 +362,11 @@ int decompress_main(int argc,char **argv)
         else
             throw runtime_error("未知参数："+option);
     }
-    if (!param.got_data_dir || !param.got_variable || !param.got_time_step || !param.got_error_mode)
-        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> -M <REL|ABS> <误差> [-dim <维数>] [-adjust-coord] [-cross-time-predictor-experimental previous] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-independent-block-size-experimental <数量>] [-independent-block-num-experimental <数量>] [-block-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|block_round>] [-parallelism-stats] [-prediction-geometry-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
+    bool has_point_set_error_bound=false;
+    for (const point_set_config_c &config:param.point_set_config_vec)
+        has_point_set_error_bound|=config.error_mode!=point_set_error_mode_e::use_global;
+    if (!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && !has_point_set_error_bound))
+        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> [-M <REL|ABS> <误差>] [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-independent-block-size-experimental <数量>] [-independent-block-num-experimental <数量>] [-block-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|block_round>] [-parallelism-stats] [-prediction-geometry-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
     if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
         throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
     if (!param.data_dir.empty() && param.data_dir.back()!='/')
@@ -370,18 +375,19 @@ int decompress_main(int argc,char **argv)
     for (uint32_t time_step:time_step_vec)
         param.original_data_path_vec.push_back(param.data_dir+param.variable_name+".dat."+to_string(time_step));
     param.time_step_vec=time_step_vec;
-    if (param.error_mode=="REL")
+    if (param.got_error_mode && param.error_mode=="REL")
     {
         param.rel_eb=error_bound;
         param.got_rel_eb=true;
     }
-    else
+    else if (param.got_error_mode)
     {
         param.abs_eb=error_bound;
         param.got_abs_eb=true;
     }
     param.cross_time_compress=false;
     param.check_original_data_files=false;
+    param.load_adjust_coord_matrix_file();
     if (param.actual_ref_num>param.max_ref_num)
         throw runtime_error("actual_ref_num不能大于max_ref_num");
     param.init();
