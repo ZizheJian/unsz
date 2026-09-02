@@ -298,6 +298,14 @@ namespace unsz
                     throw runtime_error("-actual-ref-num后面缺少参数值");
                 param.actual_ref_num=parse_positive_uint32(argv[++arg_id],"-actual-ref-num");
             }
+            else if(strcmp(argv[arg_id],"-predict-round-num")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-predict-round-num后面缺少参数值");
+                param.predict_round_num=parse_positive_uint32(argv[++arg_id],"-predict-round-num");
+                if(param.predict_round_num>63)
+                    throw runtime_error("-predict-round-num必须在[1,63]内");
+            }
             else if (strcmp(argv[arg_id],"-inverse-distance-power")==0)
             {
                 if (arg_id+1>=argc)
@@ -487,8 +495,8 @@ namespace unsz
                     throw runtime_error("-eb-schedule-experimental后面需要模式和起始倍率");
                 param.eb_schedule_experimental=argv[++arg_id];
                 param.eb_schedule_start_ratio=parse_positive_float(argv[++arg_id],"-eb-schedule-experimental");
-                if (param.eb_schedule_experimental!="none" && param.eb_schedule_experimental!="round" && param.eb_schedule_experimental!="point" && param.eb_schedule_experimental!="round_point" && param.eb_schedule_experimental!="round_ratio" && param.eb_schedule_experimental!="round_point_ratio")
-                    throw runtime_error("-eb-schedule-experimental的模式必须是none、round、point、round_point、round_ratio或round_point_ratio");
+                if(param.eb_schedule_experimental!="none" && param.eb_schedule_experimental!="round" && param.eb_schedule_experimental!="point" && param.eb_schedule_experimental!="round_point" && param.eb_schedule_experimental!="round_ratio" && param.eb_schedule_experimental!="round_point_ratio" && param.eb_schedule_experimental!="round_point_ratio_dag" && param.eb_schedule_experimental!="round_point_ratio_dag_direct" && param.eb_schedule_experimental!="round_point_ratio_dag_variance_direct")
+                    throw runtime_error("未知的实验性EB序列模式："+param.eb_schedule_experimental);
                 if (param.eb_schedule_start_ratio>1)
                     throw runtime_error("-eb-schedule-experimental的起始倍率不能大于1");
             }
@@ -499,7 +507,7 @@ namespace unsz
         for (const point_set_config_c &config:param.point_set_config_vec)
             has_point_set_error_bound|=config.error_mode!=point_set_error_mode_e::use_global;
         if (!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && !has_point_set_error_bound))
-            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> [-M <REL|ABS> <误差>] [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-predictor <inverse_proportion|fitting|hybrid_loo>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-partition-adaptive-sample-num-experimental <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|block|partition_round>] [-round-stats] [-prediction-geometry-stats] [-label-stats] [-compression-stage-time] [-parallelism-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-training-data-aware-order-experimental <time step列表>] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
+            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> [-M <REL|ABS> <误差>] [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-predictor <inverse_proportion|fitting|hybrid_loo>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-partition-adaptive-sample-num-experimental <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|partition|partition_round>] [-round-stats] [-prediction-geometry-stats] [-label-stats] [-compression-stage-time] [-parallelism-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-training-data-aware-order-experimental <time step列表>] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
         if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
             throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
         if (!param.hybrid_selector_path.empty() && param.predictor!="hybrid_loo")

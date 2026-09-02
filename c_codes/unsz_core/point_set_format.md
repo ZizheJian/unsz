@@ -13,7 +13,7 @@
 3. 已归入较早点集的点不再产生当前通道的修正bit，但在当前通道中作为值1的参考点参与后续预测。
 4. 每次预测只保存0=预测正确、1=预测错误的修正bit；最后仍未分类的点自动属于点集`n-1`。
 
-每个通道的修正bit按原始点编号过滤并排列，只保存值1位置的差分，再单独使用Zstd level 3压缩。每个time step独立生成标签，因此同一空间点的类型可以随时间变化。单点集数据没有标签通道。
+串行v7/v8格式将每个通道的修正bit按原始点编号过滤并排列，只保存值1位置的差分，再单独使用Zstd level 3压缩。并行v9格式在每个partition内按预测顺序执行相同的位置差分和Zstd。每个time step独立生成标签，因此同一空间点的类型可以随时间变化。单点集数据没有标签通道。
 
 ## 容器版本
 
@@ -26,6 +26,13 @@ v7依次保存：
 3. 每个点集的codec、点数、最小值、最大值、量化索引数量，以及Huffman+Zstd数值流。
 
 v8将第2项替换为标签通道数量，并为每个通道保存逻辑目标数量、Zstd字节数和Zstd字节。其余点集数值流布局与v7相同。
+
+启用空间partition时使用v9格式。公共文件头保存每个点集的codec、点数和值域，随后保存partition数量和`partition_payload_begin[P+1]`相对偏移表。每个partition payload独立保存：
+
+1. 每个条件标签通道的目标数量，以及错误位置差分后的独立Zstd frame；
+2. 每个点集的量化索引数量，以及独立Huffman编码后再独立Zstd得到的frame。
+
+partition之间不共享预测参考、Huffman树或Zstd frame，因此压缩和解压都可以并行执行。偏移使用`uint64_t`，payload按照partition编号顺序拼接，所以不同线程数不会改变文件内容；解压时仍需提供和压缩时相同的partition划分参数。
 
 实验参数`-multi-huffman-experimental`支持`none`、`round`、`partition`和`partition_round`。非`none`模式下，每个点集按预测轮、partition或二者组合划分量化索引，分别建立带树头的Huffman流；分组数量、各组量化索引数量、各Huffman流长度和全部Huffman字节拼接后只做一次Zstd。该模式不写入通用文件头，解压时必须指定与压缩时相同的参数。
 

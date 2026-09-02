@@ -128,6 +128,7 @@ install/bin/s1_compress -data-dir /path/to/data -variable field -time-step '[0,9
 |---|---:|---|
 | `-max-ref-num` | 10 | 在未知点集标签时保留的候选参考点数 |
 | `-actual-ref-num` | 10 | 标签预测使用的候选点数，以及数值预测最多使用的同点集参考点数 |
+| `-predict-round-num` | 8 | 预测轮数；五点筛选中，8轮+逐轮EB公比0.8在4个代表field均优于原10轮默认值 |
 | `-inverse-distance-power` | 3.6 | IDW使用的欧氏距离负指数 |
 | `-kd-leaf-size` | 32 | kd-tree叶节点最多保存的点数 |
 | `-d-only-cache-refill-threshold-experimental` | 8 | 排序所用的有效参考点缓存少于8个时重新查询kd-tree |
@@ -144,7 +145,7 @@ install/bin/s1_compress -data-dir /path/to/data -variable field -time-step '[0,9
 
 ```bash
 install/bin/s1_compress -data-dir /path/to/Katrina -variable attr0 -time-step '[0,9]' -dim 3 -M REL 1e-3 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt -reverse-mean-distance-only-order-experimental
-install/bin/s1_decompress -data-dir /path/to/Katrina -variable attr0 -time-step '[0,9]' -dim 3 -M REL 1e-3 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
+install/bin/s1_decompress -data-dir /path/to/Katrina -variable attr0 -time-step '[0,9]' -dim 3 -M REL 1e-3 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt -reverse-mean-distance-only-order-experimental
 ```
 
 矩阵文件记录数据集、field、维数、下三角元素和训练类型。`training_type=spatial`表示只使用空间坐标训练；`training_type=spatiotemporal`表示把time step作为额外坐标维度进行联合时空训练。当前选定矩阵集中保存在`adjust_coord_matrices/`，格式和文件索引见其中的`README.md`。
@@ -237,7 +238,7 @@ Python版本从多个训练文件中均匀选择文件，先采样坐标与有�
 
 ## 2.3. kd-tree、预测轮与参考点
 
-默认将全部点分为10轮，前期轮点数较少，后期轮点数近似翻倍。一个点只能引用解压顺序中已经恢复的点，因此整个预测关系构成有向无环图。
+默认将全部点分为8轮，前期轮点数较少，后期轮点数近似翻倍。一个点只能引用解压顺序中已经恢复的点，因此整个预测关系构成有向无环图。
 
 当前正式实验使用反向D-only顺序：在反向剔除过程中，只根据坐标计算目标到可用参考集合的平均平方距离`D`，并在空间邻近的候选目标之间选择。最终反转剔除顺序，使较难建立可靠局部参考的点更早恢复、较容易预测的点留到后面。该顺序只依赖坐标，可以离线生成并复用于所有time step。
 
@@ -247,7 +248,7 @@ kd-tree目前采用32点叶节点、按树内点编号连续存储坐标、共�
 
 | 优化方案 | 状态 | 已有结论 | 下一步 |
 |---|---|---|---|
-| 基于训练数据的公共预测顺序 | 需要更多样本 | 在未参与训练的Katrina/Ocean temperature测试集上，BD-rate为`-5.435%/-25.542%` | 测多组划分、训练文件数、全部time step和更多field |
+| 基于训练数据的公共预测顺序 | 效果优先候选 | 三组训练划分及全部held-out time step上，Katrina/Ocean temperature总BD-rate分别稳定为`-3.57%～-4.02%/-27.45%～-27.71%`；3个训练文件效果最好，2个已获得大部分收益 | 测更多field和分布漂移；预测结构作为field级离线结果保存 |
 | 在“先随机分轮”和“先生成全局顺序再分轮”之间离线选择 | 待实现 | 先随机分轮能维持空间覆盖；先全局排序再按每轮点数切分在LES/Tsunami较好、Katrina较差 | 用少量训练文件的预测误差或估计码长做确定性选择 |
 | 仅根据平均平方距离`D`生成公共预测顺序 | 已采纳 | 不需要训练数据，能跨field复用并由坐标重建，但当前压缩能力弱于基于训练数据的顺序 | 继续作为无训练数据或分布漂移时的默认方案 |
 | 坐标或距离相同时按点编号固定顺序 | 待验证 | 主要路径已有点编号比较，但尚未做跨机器复现检查 | 验证预测结构、压缩文件SHA、BR和PSNR完全一致 |
@@ -286,7 +287,7 @@ prediction=Σ(valueᵢ·distanceᵢ^-3.6)/Σ(distanceᵢ^-3.6)
 
 预测只使用已经重建且属于当前点集的参考点。压缩端立即用量化重建值替换原值，解压端因而可以严格复现后续预测。当前默认按照轮间公比0.8逐轮、逐点放宽error bound，并在最后达到用户指定上限；这一经验参数仍需与预测轮数共同消融。
 
-量化索引使用int32_t，随后采用Huffman编码和Zstd level 3。按空间partition或预测轮拆分多棵Huffman tree的收益较小且不稳定，因此当前仍使用单树方案。
+量化索引使用int32_t，随后采用Huffman编码和Zstd level 3。串行无partition路径使用全局Huffman树和Zstd frame；启用独立partition时，每个partition对各点集分别建立Huffman树和Zstd frame，以支持并行压缩、解压和随机定位。旧的“只拆Huffman树、最后仍共用一个Zstd”的实验收益较小且不稳定，不再作为主线。
 
 项目还实现了局部仿射拟合、根据留一预测误差在IDW与拟合预测之间选择、连续混合、先用IDW预测再拟合其残差，以及按空间分块采样并选择预测器。它们可以改善部分平滑标量field，但目前明显慢于纯IDW，仍属于研究候选。
 
@@ -294,8 +295,8 @@ prediction=Σ(valueᵢ·distanceᵢ^-3.6)/Σ(distanceᵢ^-3.6)
 |---|---|---|---|
 | 距离权重为`d^-3.6`、最多使用10个参考点、有效缓存少于8点时重新查询 | 已采纳 | 跨Katrina、Ocean、LES和Tsunami比更小参考集合稳定 | 作为当前空间默认IDW预测配置 |
 | Huffman+Zstd level 3 | 已采纳 | 当前仍是速度和BR较均衡的无损组合 | 作为当前默认无损路径 |
-| 联合调整轮数、轮大小和逐轮EB | 需要更多样本 | 当前10轮、经验性轮大小和公比`0.8`的EB | 在更多数据上寻找固定通用配置 |
-| 根据一个重构点会影响多少后续预测来分配EB | 待实现 | 被大量后续点引用的参考点，其误差可能传播到更多目标 | 让影响更多后续预测的参考点使用更小EB |
+| 联合调整轮数、轮大小和逐轮EB | 已采纳第一阶段结果 | 五点曲线中，`8轮+公比0.8`相对原`10轮+0.8`在4个代表field均改善，BD-rate降低`0.274%～1.400%`；不同field各自最优公比仍为`0.7～0.9` | 默认改为8轮+0.8；在更多数据上复核并继续测试轮大小增长比例 |
+| 根据一个重构点会影响多少后续预测来分配EB | 实验性保留 | 8轮五点曲线中，按一次权重影响力直接映射EB的4-field平均BD-rate为`-0.214%`，按二次权重传播方差影响力为`+0.024%`；核心压缩约慢`1.6～2.1`倍 | 一次公式优于二次公式但收益很小；若继续，先把单点集影响力缓存为公共预处理 |
 | 按空间分块选择预测器，并在选择不可靠时回退 | 实验性保留 | 标量field可能获益，部分速度field会被错误选择拖累 | 加入回退到父分块或整个field配置的置信门槛 |
 | 在反距离加权预测和局部拟合预测之间选择或混合 | 暂缓 | 部分平滑field改善BR，但比纯IDW慢`3～4`倍 | 只在找到廉价、可由解压端复现的选择规则后继续 |
 | 排列压缩顺序，使相邻量化索引更接近 | 待实现 | 当前顺序已经兼顾空间邻近，但尚未直接优化估计码长 | 比较BR收益是否足以覆盖排序成本 |
@@ -330,12 +331,12 @@ prediction=Σ(valueᵢ·distanceᵢ^-3.6)/Σ(distanceᵢ^-3.6)
 
 ## 2.7. 并行设计
 
-当前OpenMP原型已经支持adjust后独立partition：每个partition只引用本partition内的数据，因而具有独立预测DAG。kd-tree拓扑、包围盒、tree-order坐标和ID映射只保存一份；线程共享这些只读结构，并分别修改互不重叠的partition状态。预测结构生成、标签预测、数值预测、量化和重建已经按partition并行，当前Huffman、Zstd和容器组装仍使用原来的全局串行码流。
+当前OpenMP原型已经支持adjust后独立partition：每个partition只引用本partition内的数据，因而具有独立预测DAG。kd-tree拓扑、包围盒、tree-order坐标和ID映射只保存一份；线程共享这些只读结构，并分别修改互不重叠的partition状态。预测结构生成、标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。v9容器使用`partition_payload_begin[P+1]`定位各独立payload，最终只按partition编号串行拼接字节。
 
 | 优化方案 | 状态 | 已有结论 | 下一步 |
 |---|---|---|---|
-| OpenMP独立partition | 部分实现 | 已并行预测结构生成、标签预测、数值预测、量化和重建；Katrina的1/4线程预测结构、码流和重构SHA一致 | 在大型数据上测试扩展性并减少小partition调度开销 |
-| 并行码流布局 | 待实现 | 当前Huffman、Zstd和容器组装仍为全局串行路径 | 为每个partition保存独立片段和`partition_payload_begin`偏移表 |
+| OpenMP独立partition | 已实现原型 | 预测结构、标签、数值、Huffman、Zstd和重建均已并行；Katrina的1/4线程v9码流与重构SHA一致 | 在大型数据上测试扩展性并减少小partition调度开销 |
+| 每partition独立无损码流 | 已实现原型 | Katrina第0步4分区BR为`0.200938`；1/4线程核心压缩为`0.0356/0.0287 s`、解压为`0.0304/0.0252 s` | 在更多field和更多partition上统计树头、frame开销与BR变化 |
 | 强扩展和弱扩展实验 | 暂缓 | 依赖并行版本完成 | 在独占节点测试增加线程或同步增加数据规模时的加速效率 |
 | 端到端性能 | 暂缓 | 已有单核核心吞吐率，UMC解压仍更快 | 并行版本完成后统一统计压缩、传输和解压 |
 
@@ -344,6 +345,8 @@ prediction=Σ(valueᵢ·distanceᵢ^-3.6)/Σ(distanceᵢ^-3.6)
 以下BR改善均在RD曲线的共同PSNR范围内插值得到，不是比较相同REL error bound。结果仍属于论文准备阶段，正式投稿前会在冻结版本上统一重测。
 
 ## 3.1. 空间预测的rate-distortion
+
+UNSZ中的不少方案形成明确的压缩效果—速度权衡，强行冻结一个折中默认值会掩盖算法边界。论文实验将分别冻结一套“压缩效果优先”和一套“速度优先”的可复现配置，同时给出两者之间的Pareto关系及关键消融；不会针对测试field事后挑选最优配置。先生成全局顺序再分轮、基于训练数据排列公共顺序和复杂预测器属于效果优先候选，先随机分轮、只使用坐标的D-only顺序、纯IDW和快速adjust训练属于速度优先候选。最终吞吐率会分开报告一次性公共预处理、adjust训练、逐文件核心压缩和解压，避免把离线成本与逐time step成本混在一起。
 
 | 数据 | 方法与比较 | 同PSNR BR变化 |
 |---|---|---:|
@@ -388,10 +391,12 @@ Katrina前5个time step上的等坐标范围消融进一步比较了三种策略
 
 | field | 训练time step | 测试time step | 相对仅使用`D`排序的BD-rate | 仅使用`D`的首次预处理 | 基于训练数据的首次预处理 |
 |---|---|---|---:|---:|---:|
-| Katrina attr0 | `40/80/120` | `0～4` | `-5.435%` | `4.63 s` | `8.42 s` |
-| Ocean temperature | `8/16/24` | `0～4` | `-25.542%` | `2.82 s` | `4.67 s` |
+| Katrina attr0 | 三组，每组3步 | 每组其余159步 | `-3.571%～-4.024%` | `4.65 s` | `9.50～9.68 s` |
+| Ocean temperature | 三组，每组3步 | 每组其余28步 | `-27.451%～-27.713%` | `2.19 s` | `4.94～5.08 s` |
 
-在当前两个未参与训练的测试集上，仅使用平均平方距离`D`排序尚未表现出压缩能力优势；其优势是无需训练数据、可以跨field共用、没有训练划分和分布漂移风险、可由坐标重新生成，以及首次预处理更快。基于训练数据的顺序一旦保存，逐文件核心压缩没有明显时间代价；但它通常是field相关的，而且解压端不能只根据坐标重建，必须提供保存好的公共预测结构。当前结果仍需通过多组训练/测试划分和更多数据验证。
+Katrina三组训练顺序分别改善154/159、159/159和155/159个held-out time step，最差单步退化`0.880%`；Ocean三组均改善28/28步，最差单步仍改善`25.917%`。相同实验中的“先全局排序再分轮”在Katrina总BD-rate退化`0.964%～1.041%`，在Ocean改善`12.236%～12.272%`，说明训练数据感知顺序并非仅仅复现全局几何排序。仅使用平均平方距离`D`的优势仍是无需训练数据、可以跨field共用、没有训练划分和分布漂移风险、可由坐标重新生成，以及首次预处理更快。基于训练数据的顺序一旦保存，逐文件核心压缩没有明显时间代价；但它通常是field相关的，而且解压端必须获得保存好的公共预测结构。
+
+固定相同held-out集合后，Katrina使用1/2/3个训练文件的总BD-rate依次为`-2.546%/-3.354%/-4.024%`，首次预处理为`6.51/7.94/9.54 s`；Ocean temperature依次为`-26.246%/-27.267%/-27.613%`，首次预处理为`3.21/4.20/5.02 s`。三个文件仍得到最低BR，适合作为效果优先配置；两个文件已分别获得三文件约83.3%和98.7%的收益，可作为更快的离线训练候选。
 
 ## 3.4. 跨time step结果
 
@@ -424,12 +429,12 @@ Ocean velocityZonal全部31步的层次时间插值，相对其他方案的BD-ra
 
 ## 4.1. 投稿前主线
 
-- [ ] 用多组互不重叠的训练/测试time step和更多field验证基于训练数据的公共预测顺序，并比较训练文件数量和分布漂移。
+- [ ] Katrina和Ocean temperature的三组训练划分、全部held-out time step及1/2/3个训练文件已经验证；继续测试更多field和分布漂移。
 - [ ] 使用少量训练文件的预测误差或估计码长，在“先随机分轮”和“先生成全局顺序再分轮”之间离线选择；不能只根据坐标覆盖率判断。
 - [ ] 寻找更多具有不同网格结构、坐标尺度、点集分布和时间相关性的非结构数据，验证UNSZ、adjust coord和跨时间结论的普适性。
 - [x] 用户定义的有序多点集、`n-1`个条件标签通道及逐点集codec/error bound已经形成压缩—解压闭环。
 - [ ] 冻结串行参数、bitstream和实验脚本，在统一版本上重新生成五点RD、吞吐率以及各阶段流长度。
-- [ ] 完成adjust后独立partition的OpenMP版本：预测结构和数值阶段已经并行，下一步加入partition独立Huffman/Zstd片段和偏移表，并在大型数据上测试扩展性。
+- [x] 完成adjust后独立partition的OpenMP原型：预测结构、标签、数值、Huffman、Zstd和重建均已按partition并行，v9格式保存独立payload及偏移表。
 - [ ] 完成single-core throughput、strong/weak scaling和端到端压缩—传输—解压实验，再决定DCC或IPDPS投稿路线。
 
 详细参数、完整消融结果和已经否定的方案见`TODO_DETAIL.md`；面向日常决策的精简状态见`TODO.md`。
