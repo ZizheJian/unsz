@@ -18,33 +18,34 @@
 #include <string>
 #include <type_traits>
 #include <fstream>
+#include <sstream>
+#include <cctype>
+#include <cstdlib>
 
 using namespace std;
 
+#include "simple_json.hpp"
+
 namespace unsz
 {
-    enum class point_set_codec_e:uint8_t{inverse_proportion=0,fitting=1,constant=2,hybrid_loo=3,use_default=255};
-    enum class point_set_error_mode_e:uint8_t{use_global=0,relative=1,absolute=2};
+    enum class point_set_codec_e:uint8_t{inverse_proportion=0,fitting=1,constant=2,hybrid_loo=3};
+    enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1};
+    enum class point_set_classification_e:uint8_t{ordered_rules=0,label_file=1};
+    enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
     enum class partition_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
 
     struct point_set_config_c
     {
-        point_set_codec_e codec=point_set_codec_e::use_default;
-        point_set_error_mode_e error_mode=point_set_error_mode_e::use_global;
-        double error_bound=0;
+        point_set_codec_e codec=point_set_codec_e::inverse_proportion;
+        point_set_error_mode_e error_mode=point_set_error_mode_e::relative;
+        double eb=0;
     };
 
-    template<typename T_data>
-    using point_set_classifier_t=bool(*)(T_data);
-
-#ifndef UNSZ_POINT_SET_CONFIG_HEADER
-#define UNSZ_POINT_SET_CONFIG_HEADER user_point_set.hpp
-#endif
-#define UNSZ_STRINGIFY_POINT_SET_CONFIG_IMPL(value) #value
-#define UNSZ_STRINGIFY_POINT_SET_CONFIG(value) UNSZ_STRINGIFY_POINT_SET_CONFIG_IMPL(value)
-#include UNSZ_STRINGIFY_POINT_SET_CONFIG(UNSZ_POINT_SET_CONFIG_HEADER)
-#undef UNSZ_STRINGIFY_POINT_SET_CONFIG
-#undef UNSZ_STRINGIFY_POINT_SET_CONFIG_IMPL
+    struct point_set_rule_c
+    {
+        point_set_rule_operator_e operator_type=point_set_rule_operator_e::equal;
+        double value=0;
+    };
 
     template<typename T>
     class array_view_c
@@ -211,15 +212,17 @@ namespace unsz
             template<typename T_coord2>
             param_c(const param_c<T_coord2,T_data> &other);
 
-            string data_dir,variable_name,error_mode,coord_path,prediction_structure_path,hybrid_selector_path,adjust_coord_matrix_path,adjust_coord_training_type;
+            string data_dir,variable_name,error_mode,coord_path,prediction_structure_path,hybrid_selector_path,adjust_coord_matrix_path,adjust_coord_training_type,point_set_config_path;
             vector<string> original_data_path_vec,compressed_data_path_vec,decompressed_data_path_vec;
             uint32_t dim=3;
             uint32_t point_num=0;
             T_data rel_eb=0,abs_eb=0;
             bool got_rel_eb=false,got_abs_eb=false;
-            bool got_data_dir=false,got_variable=false,got_time_step=false,got_error_mode=false;
-            vector<point_set_classifier_t<T_data>> point_set_classifier_vec=get_user_point_set_classifier_vec<T_data>();
-            vector<point_set_config_c> point_set_config_vec=get_user_point_set_config_vec();
+            bool got_data_dir=false,got_variable=false,got_time_step=false,got_error_mode=false,got_predictor=false;
+            point_set_classification_e point_set_classification=point_set_classification_e::ordered_rules;
+            vector<point_set_rule_c> point_set_rule_vec;
+            vector<point_set_config_c> point_set_config_vec;
+            string point_set_label_path_pattern;
             bool check_original_data_files=true;
             bool cross_time_compress=false;
             string cross_time_predictor_experimental="none";//none / previous / interpolation
@@ -248,7 +251,7 @@ namespace unsz
             bool use_reverse_direction_only_order_experimental=false;
             bool use_reverse_direction_order_experimental=false;
             bool use_reverse_direction_distribution_order_experimental=false;
-            vector<uint32_t> order_training_time_step_vec_experimental;//非空时使用多个训练time step的预测误差生成公共顺序
+            vector<uint32_t> order_reference_time_step_vec_experimental;//非空时使用多个参考time step的预测误差搜索公共顺序
             bool use_global_order_before_round_split_experimental=false;
             uint32_t d_only_cache_refill_threshold_experimental=8;//0表示任一参考点失效就重新查询，即精确模式
             uint32_t order_candidate_num_experimental=0;//0表示使用max_ref_num
@@ -259,6 +262,7 @@ namespace unsz
             uint32_t thread_num=1;
             bool use_partition_adaptive_predictor_experimental=false;
             uint32_t partition_adaptive_sample_num_experimental=256;
+            double partition_adaptive_min_improvement_experimental=0;
             string partition_fitting_candidates_experimental="original";//original / weighted / ridge / mixed / residual / extended / all
             string multi_huffman_mode_experimental="none";//none / round / partition / partition_round
             string eb_schedule_experimental="round_point_ratio";//none / round / point / round_point / round_ratio / round_point_ratio / round_point_ratio_dag / round_point_ratio_dag_direct / round_point_ratio_dag_variance_direct
@@ -312,6 +316,8 @@ namespace unsz
             vector<uint8_t> hybrid_selector_vec;
 
             void init();
+            void configure_point_sets();
+            vector<uint8_t> load_point_set_label_ids();
             void prepare_time_interpolation();
             bool predict_time_interpolation(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
             void save_time_reconstruction();
@@ -379,6 +385,7 @@ namespace unsz
 #include "eb_schedule.tpp"
 #include "generate_pred_refs_structure.tpp"
 #include "prediction_dag.tpp"
+#include "point_set_config.tpp"
 #include "point_set.tpp"
 #include "time_prediction.tpp"
 #include "format.tpp"

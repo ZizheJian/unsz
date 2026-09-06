@@ -1,8 +1,12 @@
 # UNSZ点集格式
 
-用户在`user_point_set.hpp`中按优先级定义`classify0`到`classify<n-2>`。一个值依次经过这些分类函数，第一个返回`true`的函数决定点集编号；全部返回`false`时属于最后一个点集。分类函数可以重叠，此时编号较小的点集优先。
+不使用`-point-set-config`时全部数据属于唯一点集，codec和EB分别来自命令行`-predictor`和`-M`。使用`-point-set-config <JSON路径>`时，配置文件定义一个或多个点集，并忽略命令行中可能存在的`-predictor`和`-M`。
 
-同一文件中的每个点集独立统计点数和值域，只在同点集的已重建点之间执行数值预测。每个点集还可以独立选择常量、反比例、局部拟合或`hybrid_loo`压缩，并使用命令行全局EB、自己的REL EB或自己的ABS EB。常量点集自动使用常量编码，不保存量化索引。
+`rule_type=ordered`时，`labels`数组按优先级保存点集。除最后一个label外，每项都包含`method`、`eb_mode`、`eb_value`和`condition`；第一条成立的条件决定点集编号，全部不成立时属于最后一个label。最后一个label省略`condition`，`constant`还省略`eb_mode`和`eb_value`。比较符支持`<`、`<=`、`>`、`>=`、`==`和`!=`。只有一个label时也不写`condition`。
+
+`rule_type=label_file`允许用户用任意外部代码为每个time step生成逐点`uint8`点集编号。标签文件信息写在根对象的`label_file`中，各label不写`condition`。路径必须包含`{time_step}`，相对路径以JSON所在目录为准；每个文件必须恰好包含`point_num`个编号。该方式目前不能与训练数据感知的公共预测顺序一起使用。
+
+同一文件中的每个点集独立统计点数和值域，只在同点集的已重建点之间执行数值预测。每个非常量点集必须独立选择反比例、局部拟合或`hybrid_loo`压缩，并显式配置自己的REL或ABS EB。常量点集不配置EB，也不保存量化索引。
 
 ## 条件标签通道
 
@@ -36,6 +40,6 @@ partition之间不共享预测参考、Huffman树或Zstd frame，因此压缩和
 
 实验参数`-multi-huffman-experimental`支持`none`、`round`、`partition`和`partition_round`。非`none`模式下，每个点集按预测轮、partition或二者组合划分量化索引，分别建立带树头的Huffman流；分组数量、各组量化索引数量、各Huffman流长度和全部Huffman字节拼接后只做一次Zstd。该模式不写入通用文件头，解压时必须指定与压缩时相同的参数。
 
-数值codec写入容器，但相对或绝对误差上限仍不写入。使用逐点集EB时，压缩器和解压器必须使用同一份`user_point_set.hpp`；实际出现的所有非常量点集都有独立EB时可以省略`-M`，否则两端必须通过`-M REL <eb>`或`-M ABS <eb>`提供相同参数。REL模式始终根据对应点集自己的最大值和最小值换算ABS EB。
+数值codec写入容器，但相对或绝对误差上限仍不写入。使用JSON时压缩器和解压器必须使用相同配置；不使用JSON的单点集模式则必须在两端通过`-M REL <eb>`或`-M ABS <eb>`提供相同参数。REL模式始终根据对应点集自己的最大值和最小值换算ABS EB。
 
 预测结构仍由外部坐标重建。预测轮数、候选/实际参考点数量、距离指数、坐标变换、误差参数和实验开关都不保存在文件中，压缩和解压时必须由实验脚本保证一致。

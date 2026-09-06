@@ -1,4 +1,4 @@
-import math,os,re,shlex
+import json,math,os,re,shlex,tempfile
 from third_party.csv_tools.py_codes.write_csv_item import write_csv_item
 from third_party.get_max_cpus.py_codes.get_max_cpus import get_max_cpus
 from third_party.run_command.run_command import run_command
@@ -10,16 +10,16 @@ umc_root="/home/x-zjian1/umc"
 # umc：UMC的NBP-IDW预测器
 compressor_list=["unsz","umc"]
 dataset_list=[
-    # {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162,"adjust_coord":True,"umc_from_edge":0,"dim":3},
+    # {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162,"adjust_coord":True,"umc_from_edge":0,"dim":3,"point_set_config":{"rule_type":"ordered","labels":[{"method":"inverse_proportion","eb_mode":"REL","condition":{"operator":">=","value":-1000}},{"method":"constant"}]}},
     {"name":"Ocean-layerThickness","folder":"Ocean","variable":"layerThickness","time_step_num":31,"umc_from_edge":1,"dim":3},
     {"name":"Ocean-salinity","folder":"Ocean","variable":"salinity","time_step_num":31,"umc_from_edge":1,"dim":3},
-    {"name":"Ocean-temperature","folder":"Ocean","variable":"temperature","time_step_num":31,"adjust_coord":False,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-temperature","folder":"Ocean","variable":"temperature","time_step_num":31,"adjust_coord_matrix":"Ocean_temperature_spatial.txt","umc_from_edge":1,"dim":3},
     {"name":"Ocean-velocityMeridional","folder":"Ocean","variable":"velocityMeridional","time_step_num":31,"umc_from_edge":1,"dim":3},
     {"name":"Ocean-velocityX","folder":"Ocean","variable":"velocityX","time_step_num":31,"umc_from_edge":1,"dim":3},
-    {"name":"Ocean-velocityY","folder":"Ocean","variable":"velocityY","time_step_num":31,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-velocityY","folder":"Ocean","variable":"velocityY","time_step_num":31,"adjust_coord_matrix":"Ocean_velocityY_spatial.txt","umc_from_edge":1,"dim":3},
     {"name":"Ocean-velocityZ","folder":"Ocean","variable":"velocityZ","time_step_num":31,"umc_from_edge":1,"dim":3},
-    {"name":"Ocean-velocityZonal","folder":"Ocean","variable":"velocityZonal","time_step_num":31,"umc_from_edge":1,"dim":3},
-    {"name":"Ocean-zTop","folder":"Ocean","variable":"zTop","time_step_num":31,"umc_from_edge":1,"dim":3},
+    {"name":"Ocean-velocityZonal","folder":"Ocean","variable":"velocityZonal","time_step_num":31,"adjust_coord_matrix":"Ocean_velocityZonal_spatial.txt","umc_from_edge":1,"dim":3},
+    {"name":"Ocean-zTop","folder":"Ocean","variable":"zTop","time_step_num":31,"adjust_coord_matrix":"Ocean_zTop_spatial.txt","umc_from_edge":1,"dim":3},
     # {"name":"LES-velocity_x","folder":"LES","variable":"velocity_x","time_step_num":1,"umc_from_edge":0,"dim":3},
     # {"name":"LES-velocity_y","folder":"LES","variable":"velocity_y","time_step_num":1,"umc_from_edge":0,"dim":3},
     # {"name":"LES-velocity_z","folder":"LES","variable":"velocity_z","time_step_num":1,"umc_from_edge":0,"dim":3},
@@ -132,7 +132,7 @@ def write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,comp
     write_csv_item(csv_path,row_info,f"{method_name}_COMPRESSION_MB_S",compression_throughput)
     write_csv_item(csv_path,row_info,f"{method_name}_DECOMPRESSION_MB_S",decompression_throughput)
 
-def test(compressor,dataset,rel_eb):
+def test(compressor,dataset,rel_eb,prediction_structure_path=None,point_set_config_path=None):
     data_dir=os.path.join(data_root,dataset["folder"])
     variable=dataset["variable"]
     time_step_num=dataset["time_step_num"]
@@ -145,11 +145,17 @@ def test(compressor,dataset,rel_eb):
         raise FileNotFoundError("缺少测试文件："+", ".join(missing_paths))
     if compressor=="unsz":
         time_step_expression=f"[0,{time_step_num-1}]"
-        common_arguments=f"-data-dir {shlex.quote(data_dir)} -variable {shlex.quote(variable)} -time-step {shlex.quote(time_step_expression)} -M REL {rel_eb} -dim {dataset['dim']}"
+        common_arguments=f"-data-dir {shlex.quote(data_dir)} -variable {shlex.quote(variable)} -time-step {shlex.quote(time_step_expression)} -dim {dataset['dim']}"
+        common_arguments+=f" -point-set-config {shlex.quote(point_set_config_path)}" if point_set_config_path else f" -M REL {rel_eb}"
         if dataset.get("adjust_coord",False):
             common_arguments+=" -adjust-coord"
+        if "adjust_coord_matrix" in dataset:
+            matrix_path=os.path.join(project_root,"adjust_coord_matrices",dataset["adjust_coord_matrix"])
+            common_arguments+=f" -adjust-coord-matrix-file {shlex.quote(matrix_path)}"
         if unsz_extra_arguments:
             common_arguments+=" "+unsz_extra_arguments
+        if prediction_structure_path:
+            common_arguments+=f" -prediction-structure {shlex.quote(prediction_structure_path)}"
         compress_command=f"{shlex.quote(project_root+'/install/bin/s1_compress')} {common_arguments}"
         compress_output=run_command(compress_command)
         br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_unsz_result(compress_output,data_paths)
@@ -180,22 +186,38 @@ def test(compressor,dataset,rel_eb):
 def main():
     build_unsz()
     for dataset in dataset_list:
-        for rel_eb in rel_eb_list:
-            for compressor in compressor_list:
-                print(f"\n开始测试：compressor={compressor}, dataset={dataset['name']}, variable={dataset['variable']}, rel_eb={rel_eb}")
-                data_dir=os.path.join(data_root,dataset["folder"])
-                data_paths=[os.path.join(data_dir,f"{dataset['variable']}.dat.{time_step}") for time_step in range(dataset["time_step_num"])]
-                try:
-                    br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput=test(compressor,dataset,rel_eb)
-                    if write_to_csv:
-                        write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput)
-                except Exception as error:
-                    print(f"failed: {error}")
-                    if not continue_after_error:
-                        raise
-                finally:
-                    if cleanup_after_each_test:
-                        cleanup(data_paths)
+        with tempfile.TemporaryDirectory(prefix=f"unsz_prediction_{dataset['name']}_") as temporary_dir:
+            prediction_structure_path=os.path.join(temporary_dir,"prediction_structure.bin")
+            for rel_eb in rel_eb_list:
+                point_set_config_path=None
+                if "point_set_config" in dataset:
+                    config=json.loads(json.dumps(dataset["point_set_config"]))
+                    config["version"]=1
+                    for label in config["labels"]:
+                        if label["method"]!="constant" and "eb_value" not in label:
+                            if label["eb_mode"]!="REL":
+                                raise ValueError("t1自动填充的逐点集EB必须使用REL模式")
+                            label["eb_value"]=rel_eb
+                    point_set_config_path=os.path.join(temporary_dir,f"point_sets_{rel_eb}.json")
+                    with open(point_set_config_path,"w",encoding="utf-8") as file:
+                        json.dump(config,file,ensure_ascii=False,indent=2)
+                for compressor in compressor_list:
+                    print(f"\n开始测试：compressor={compressor}, dataset={dataset['name']}, variable={dataset['variable']}, rel_eb={rel_eb}")
+                    data_dir=os.path.join(data_root,dataset["folder"])
+                    data_paths=[os.path.join(data_dir,f"{dataset['variable']}.dat.{time_step}") for time_step in range(dataset["time_step_num"])]
+                    try:
+                        br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput=test(compressor,dataset,rel_eb,prediction_structure_path if compressor=="unsz" else None,point_set_config_path)
+                        if write_to_csv:
+                            write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput)
+                    except Exception as error:
+                        print(f"failed: {error}")
+                        if compressor=="unsz" and os.path.isfile(prediction_structure_path):
+                            os.remove(prediction_structure_path)
+                        if not continue_after_error:
+                            raise
+                    finally:
+                        if cleanup_after_each_test:
+                            cleanup(data_paths)
 
 if __name__=="__main__":
     main()

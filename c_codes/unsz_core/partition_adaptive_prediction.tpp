@@ -106,9 +106,11 @@ namespace unsz
         vector<partition_prediction_config_c> config_vec=get_partition_prediction_config_vec();
         partition_prediction_config_id_vec.assign(partition_point_ids_vec.size(),0);
         prepare_partition_adaptive_sample_mask();
-        for (uint32_t block_id=0;block_id<partition_point_ids_vec.size();block_id++)
+        vector<vector<double>> partition_score_vec(partition_point_ids_vec.size(),vector<double>(config_vec.size(),0));
+        vector<uint32_t> partition_sample_num_vec(partition_point_ids_vec.size());
+        for (uint32_t partition_id=0;partition_id<partition_point_ids_vec.size();partition_id++)
         {
-            auto &point_ids=partition_point_ids_vec[block_id];
+            auto &point_ids=partition_point_ids_vec[partition_id];
             vector<int> sample_ids;
             sample_ids.reserve(min<uint32_t>(partition_adaptive_sample_num_experimental,point_ids.size()));
             for (int point_id:point_ids)
@@ -116,7 +118,8 @@ namespace unsz
                     sample_ids.push_back(point_id);
             if (sample_ids.size()<=10)
                 throw runtime_error("partition自适应预测器的采样点数必须大于10");
-            vector<double> score_vec(config_vec.size(),0);
+            partition_sample_num_vec[partition_id]=(uint32_t)sample_ids.size();
+            vector<double> &score_vec=partition_score_vec[partition_id];
             for (int target_id:sample_ids)
             {
                 vector<pair<double,int>> distance_id_vec;
@@ -137,11 +140,24 @@ namespace unsz
                     score_vec[config_id]+=isfinite(qb)?log2(1+abs(qb)):numeric_limits<double>::max()/sample_ids.size();
                 }
             }
-            uint32_t best_config_id=min_element(score_vec.begin(),score_vec.end())-score_vec.begin();
-            partition_prediction_config_id_vec[block_id]=(uint8_t)best_config_id;
-            auto &best_config=config_vec[best_config_id];
-            const char *predictor_name=!best_config.use_fitting?"inverse_proportion":best_config.fitting_method==partition_fitting_method_e::continuous_mix?"continuous_mix":best_config.fitting_method==partition_fitting_method_e::idw_residual?"idw_residual_fitting":best_config.fitting_weight_power>0?"weighted_fitting":best_config.fitting_ridge>0?"ridge_fitting":"fitting";
-            printf("partition_adaptive_config: partition=%u,sample_num=%llu,config=%u,predictor=%s,ref_num=%u,power=%.6g,fitting_weight_power=%.6g,ridge=%.6g,normalize_coord=%u,score=%.6f\n",block_id,(unsigned long long)sample_ids.size(),best_config_id,predictor_name,best_config.ref_num,best_config.inverse_distance_power,best_config.fitting_weight_power,best_config.fitting_ridge,best_config.normalize_fitting_coord,score_vec[best_config_id]);
+        }
+        vector<double> field_score_vec(config_vec.size(),0);
+        for (const vector<double> &score_vec:partition_score_vec)
+            for (uint32_t config_id=0;config_id<config_vec.size();config_id++)
+                field_score_vec[config_id]+=score_vec[config_id];
+        uint32_t field_config_id=min_element(field_score_vec.begin(),field_score_vec.end())-field_score_vec.begin();
+        printf("partition_adaptive_field_config: config=%u,score=%.6f,min_local_improvement=%.6f\n",field_config_id,field_score_vec[field_config_id],partition_adaptive_min_improvement_experimental);
+        for (uint32_t partition_id=0;partition_id<partition_point_ids_vec.size();partition_id++)
+        {
+            vector<double> &score_vec=partition_score_vec[partition_id];
+            uint32_t local_config_id=min_element(score_vec.begin(),score_vec.end())-score_vec.begin();
+            double field_config_local_score=score_vec[field_config_id];
+            double local_improvement=field_config_local_score>0?(field_config_local_score-score_vec[local_config_id])/field_config_local_score:0;
+            uint32_t selected_config_id=local_config_id!=field_config_id&&local_improvement<partition_adaptive_min_improvement_experimental?field_config_id:local_config_id;
+            partition_prediction_config_id_vec[partition_id]=(uint8_t)selected_config_id;
+            auto &selected_config=config_vec[selected_config_id];
+            const char *predictor_name=!selected_config.use_fitting?"inverse_proportion":selected_config.fitting_method==partition_fitting_method_e::continuous_mix?"continuous_mix":selected_config.fitting_method==partition_fitting_method_e::idw_residual?"idw_residual_fitting":selected_config.fitting_weight_power>0?"weighted_fitting":selected_config.fitting_ridge>0?"ridge_fitting":"fitting";
+            printf("partition_adaptive_config: partition=%u,sample_num=%u,config=%u,local_config=%u,field_config=%u,local_improvement=%.6f,predictor=%s,ref_num=%u,power=%.6g,fitting_weight_power=%.6g,ridge=%.6g,normalize_coord=%u,score=%.6f\n",partition_id,partition_sample_num_vec[partition_id],selected_config_id,local_config_id,field_config_id,local_improvement,predictor_name,selected_config.ref_num,selected_config.inverse_distance_power,selected_config.fitting_weight_power,selected_config.fitting_ridge,selected_config.normalize_fitting_coord,score_vec[selected_config_id]);
         }
     }
 }

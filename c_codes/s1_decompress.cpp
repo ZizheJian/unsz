@@ -285,6 +285,12 @@ int decompress_main(int argc,char **argv)
             param.use_partition_adaptive_predictor_experimental=true;
         else if (option=="-partition-adaptive-sample-num-experimental")
             param.partition_adaptive_sample_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-partition-adaptive-min-improvement-experimental")
+        {
+            param.partition_adaptive_min_improvement_experimental=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+            if (param.partition_adaptive_min_improvement_experimental>1)
+                throw runtime_error("-partition-adaptive-min-improvement-experimental不能大于1");
+        }
         else if (option=="-partition-fitting-candidates-experimental")
         {
             param.partition_fitting_candidates_experimental=read_option_value(argc,argv,arg_id,option);
@@ -299,6 +305,8 @@ int decompress_main(int argc,char **argv)
         }
         else if (option=="-point-set-predictor")
             param.point_set_predictor=read_option_value(argc,argv,arg_id,option);
+        else if(option=="-point-set-config")
+            param.point_set_config_path=read_option_value(argc,argv,arg_id,option);
         else if (option=="-cross-time-predictor-experimental")
         {
             param.cross_time_predictor_experimental=read_option_value(argc,argv,arg_id,option);
@@ -376,11 +384,8 @@ int decompress_main(int argc,char **argv)
         else
             throw runtime_error("未知参数："+option);
     }
-    bool has_point_set_error_bound=false;
-    for (const point_set_config_c &config:param.point_set_config_vec)
-        has_point_set_error_bound|=config.error_mode!=point_set_error_mode_e::use_global;
-    if (!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && !has_point_set_error_bound))
-        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> [-M <REL|ABS> <误差>] [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|partition|partition_round>] [-parallelism-stats] [-prediction-geometry-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
+    if(!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && param.point_set_config_path.empty()))
+        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-partition-adaptive-min-improvement-experimental <比例>] [-multi-huffman-experimental <none|round|partition|partition_round>] [-parallelism-stats] [-prediction-geometry-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
     if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
         throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
     if(param.thread_num>1 && param.partition_size_experimental==0 && param.partition_num_experimental==0)
@@ -401,6 +406,7 @@ int decompress_main(int argc,char **argv)
         param.abs_eb=error_bound;
         param.got_abs_eb=true;
     }
+    param.configure_point_sets();
     param.cross_time_compress=false;
     param.check_original_data_files=false;
     param.load_adjust_coord_matrix_file();

@@ -62,7 +62,7 @@ def main():
     training_expression="{"+",".join(str(value) for value in training_time_step_vec)+"}"
     config_vec=(
         {"name":"reverse_d_only","order_arguments":["-reverse-mean-distance-only-order-experimental"]},
-        {"name":"training_data_aware","order_arguments":["-training-data-aware-order-experimental",training_expression]},
+        {"name":"training_data_aware","order_arguments":["-reference-data-order-experimental",training_expression]},
     )
     result_vec=[]
     result_map={}

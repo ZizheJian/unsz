@@ -5,10 +5,19 @@ namespace unsz
     template<typename T_coord,typename T_data>
     uint32_t param_c<T_coord,T_data>::get_point_set_id(T_data val)
     {
-        for (uint32_t classifier_id=0;classifier_id<point_set_classifier_vec.size();classifier_id++)
-            if (point_set_classifier_vec[classifier_id](val))
-                return classifier_id;
-        return (uint32_t)point_set_classifier_vec.size();
+        double value=(double)val;
+        for(uint32_t rule_id=0;rule_id<point_set_rule_vec.size();rule_id++)
+        {
+            const point_set_rule_c &rule=point_set_rule_vec[rule_id];
+            bool matches=rule.operator_type==point_set_rule_operator_e::less?value<rule.value:
+                rule.operator_type==point_set_rule_operator_e::less_equal?value<=rule.value:
+                rule.operator_type==point_set_rule_operator_e::greater?value>rule.value:
+                rule.operator_type==point_set_rule_operator_e::greater_equal?value>=rule.value:
+                rule.operator_type==point_set_rule_operator_e::equal?value==rule.value:value!=rule.value;
+            if(matches)
+                return rule_id;
+        }
+        return (uint32_t)point_set_rule_vec.size();
     }
 
     template<typename T_coord,typename T_data>

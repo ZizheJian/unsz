@@ -26,3 +26,5 @@ C++压缩和解压使用同一个矩阵文件：
 install/bin/s1_compress ... -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
 install/bin/s1_decompress ... -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
 ```
+
+当前已经保存的纯空间正式矩阵包括Katrina `attr0`、Ocean `temperature/velocityY/velocityZonal/zTop`、LES `velocity_x/y/z`以及Tsunami `momentum_x/y`和`velocity_x/y`。LES、Tsunami和Ocean velocityY采用二次方距离loss、4个训练近邻、4轮、吸收率0.5和单个参考文件；Ocean temperature、velocityZonal和zTop采用预测残差广义高斯码长近似loss、与C++一致的10个IDW参考点、4轮和`max_nfev=20`。完整训练历史保存在`py_codes/trash/results/adjust_coord_history/spatial_parameter_screen`。LES和Tsunami原5近邻正式矩阵以`*_ref5_baseline.txt`保留；Ocean历史及二次方矩阵以`*_previous_baseline.txt`和`*_ref4_candidate.txt`保留。Ocean其余5个二次方候选矩阵在实际BR筛选中退化，因此不作为正式矩阵。

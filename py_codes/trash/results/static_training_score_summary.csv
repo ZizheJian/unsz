@@ -1,0 +1,5 @@
+dataset,field,config,bd_rate_vs_dynamic_percent,generation_preprocessing_time_s,mean_load_preprocessing_time_s,mean_compression_time_s,mean_decompression_time_s
+Katrina,attr0,dynamic,0,9.222559,0.22918125,0.1823888,0.15539180000000002
+Katrina,attr0,static,6.336120526564537,4.223152,0.24823800000000001,0.1892326,0.1579332
+Ocean,temperature,dynamic,0,4.878707,0.1528365,0.1230734,0.09310320000000001
+Ocean,temperature,static,42.16502743610502,2.154114,0.14537075,0.1365824,0.0926692

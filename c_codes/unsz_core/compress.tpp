@@ -87,13 +87,10 @@ namespace unsz
         double layout_reorder_time=0,point_set_time=0,label_prediction_time=0,value_prediction_time=0,lossless_encoding_time=0,validation_time=0;
         if (current_data.size()!=point_num)
             throw runtime_error("当前数据点数与坐标点数不一致");
-        if (point_set_config_vec.size()!=point_set_classifier_vec.size()+1)
-            throw runtime_error("点集配置数量必须等于分类函数数量加1");
-        bool has_point_set_error_bound=false;
-        for (const point_set_config_c &config:point_set_config_vec)
-            has_point_set_error_bound|=config.error_mode!=point_set_error_mode_e::use_global;
-        if (!got_rel_eb && !got_abs_eb && !has_point_set_error_bound)
-            throw runtime_error("没有指定误差上限");
+        if(point_set_config_vec.empty())
+            throw runtime_error("尚未配置点集");
+        if(point_set_classification==point_set_classification_e::ordered_rules && point_set_config_vec.size()!=point_set_rule_vec.size()+1)
+            throw runtime_error("点集配置数量必须等于有序分类规则数量加1");
         if(eb_schedule_experimental!="none" && eb_schedule_experimental!="round" && eb_schedule_experimental!="point" && eb_schedule_experimental!="round_point" && eb_schedule_experimental!="round_ratio" && eb_schedule_experimental!="round_point_ratio" && eb_schedule_experimental!="round_point_ratio_dag" && eb_schedule_experimental!="round_point_ratio_dag_direct" && eb_schedule_experimental!="round_point_ratio_dag_variance_direct")
             throw runtime_error("未知的实验性EB序列模式："+eb_schedule_experimental);
         if (!(eb_schedule_start_ratio>0) || eb_schedule_start_ratio>1)
@@ -108,14 +105,16 @@ namespace unsz
             stage_start_time=chrono::steady_clock::now();
         }
 
+        vector<uint8_t> external_point_set_id_vec=point_set_classification==point_set_classification_e::label_file?load_point_set_label_ids():vector<uint8_t>();
         point_set_id_vec.resize(point_num);
-        uint32_t point_set_num=0,configured_point_set_num=(uint32_t)point_set_classifier_vec.size()+1;
+        uint32_t point_set_num=0,configured_point_set_num=(uint32_t)point_set_config_vec.size();
         point_set_point_num_vec.assign(configured_point_set_num,0);
         point_set_min_data_vec.assign(configured_point_set_num,numeric_limits<T_data>::infinity());
         point_set_max_data_vec.assign(configured_point_set_num,-numeric_limits<T_data>::infinity());
         for (uint32_t i=0;i<point_num;i++)
         {
-            uint32_t point_set_id=get_point_set_id(current_data[i]);
+            uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[i]:i;
+            uint32_t point_set_id=point_set_classification==point_set_classification_e::label_file?external_point_set_id_vec[original_id]:get_point_set_id(current_data[i]);
             if (point_set_id>=configured_point_set_num)
                 throw runtime_error("分类函数返回的点集编号越界");
             point_set_id_vec[i]=point_set_id;
@@ -140,37 +139,19 @@ namespace unsz
                 continue;
             }
             const point_set_config_c &config=point_set_config_vec[point_set_id];
-            if (config.codec!=point_set_codec_e::use_default && config.codec!=point_set_codec_e::inverse_proportion && config.codec!=point_set_codec_e::fitting && config.codec!=point_set_codec_e::constant && config.codec!=point_set_codec_e::hybrid_loo)
-                throw runtime_error("点集"+to_string(point_set_id)+"配置了未知的压缩方法");
-            if (config.error_mode!=point_set_error_mode_e::use_global && config.error_mode!=point_set_error_mode_e::relative && config.error_mode!=point_set_error_mode_e::absolute)
-                throw runtime_error("点集"+to_string(point_set_id)+"配置了未知的误差模式");
             bool is_constant=point_set_min_data_vec[point_set_id]==point_set_max_data_vec[point_set_id];
             if (is_constant)
                 point_set_codec_vec[point_set_id]=point_set_codec_e::constant;
-            else if (config.codec!=point_set_codec_e::use_default)
-                point_set_codec_vec[point_set_id]=config.codec;
-            else if (predictor=="inverse_proportion")
-                point_set_codec_vec[point_set_id]=point_set_codec_e::inverse_proportion;
-            else if (predictor=="fitting")
-                point_set_codec_vec[point_set_id]=point_set_codec_e::fitting;
-            else if (predictor=="hybrid_loo")
-                point_set_codec_vec[point_set_id]=point_set_codec_e::hybrid_loo;
             else
-                throw runtime_error("未知的默认数值预测器："+predictor);
+                point_set_codec_vec[point_set_id]=config.codec;
             if (!is_constant && point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
                 throw runtime_error("非常量点集不能使用常量编码");
             if (is_constant)
                 point_set_abs_eb_vec[point_set_id]=0;
             else if (config.error_mode==point_set_error_mode_e::absolute)
-                point_set_abs_eb_vec[point_set_id]=(T_data)config.error_bound;
-            else if (config.error_mode==point_set_error_mode_e::relative)
-                point_set_abs_eb_vec[point_set_id]=(T_data)(config.error_bound*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]));
+                point_set_abs_eb_vec[point_set_id]=(T_data)config.eb;
             else
-            {
-                if (!got_rel_eb && !got_abs_eb)
-                    throw runtime_error("点集"+to_string(point_set_id)+"没有指定误差上限");
-                point_set_abs_eb_vec[point_set_id]=got_abs_eb?abs_eb:rel_eb*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]);
-            }
+                point_set_abs_eb_vec[point_set_id]=(T_data)(config.eb*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]));
             if (!is_constant && !(point_set_abs_eb_vec[point_set_id]>0))
                 throw runtime_error("点集"+to_string(point_set_id)+"的绝对误差上限必须大于0");
         }

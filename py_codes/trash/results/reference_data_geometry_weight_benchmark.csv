@@ -1,0 +1,3 @@
+dataset,field,preprocessing_before_geometry_reuse_s,preprocessing_after_geometry_reuse_s,incremental_speedup,total_speedup_vs_uncached_reference_score,sorting_before_geometry_reuse_s,sorting_after_geometry_reuse_s,sorting_speedup,prediction_structure_sha256
+Katrina,attr0,6.194606,5.238416,1.182534,1.819661,4.693325,3.748024,1.252213,11b6fff4b653ba1e57550f9addb979bae35602260aa483bab481f19ed787c6fc
+Ocean,temperature,3.281140,2.843241,1.154014,1.715896,2.358305,1.865973,1.263847,88e92ab8220e241170ba45ef4c99239b07e600e691d513ff7d0a948679870203

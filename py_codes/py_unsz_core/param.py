@@ -17,7 +17,7 @@ class Param:
         self.cross_time_compress=False
         self.spatial_point_num=0
         self.if_adjust_coord=False
-        self.actual_ref_num=5
+        self.actual_ref_num=4
 
         self.point_num=0
         self.coord_array=np.empty((0,0),dtype=np.float32)

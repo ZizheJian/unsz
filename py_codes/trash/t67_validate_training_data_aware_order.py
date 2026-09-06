@@ -79,7 +79,7 @@ def benchmark(result_vec,experiment,dataset,split_name,training_time_step_vec,te
     if order_arguments is None:
         config_training_time_step_vec=config.get("training_time_step_vec",training_time_step_vec)
         training_expression="{"+",".join(str(value) for value in config_training_time_step_vec)+"}"
-        order_arguments=["-training-data-aware-order-experimental",training_expression]
+        order_arguments=["-reference-data-order-experimental",training_expression]
     structure_existed=prediction_structure_path.is_file()
     compression_output=run_command([compressor,*common_arguments,*order_arguments])
     per_file_metric_vec=[tuple(float(value) for value in values) for values in re.findall(r"^cr= ([^,]+), br= ([^,]+), psnr= ([^ ]+)$",compression_output,re.MULTILINE)]

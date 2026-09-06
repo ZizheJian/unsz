@@ -122,7 +122,7 @@ def train_joint_matrix(joint_raw_dir,variable,rel_eb,spatial_point_num,args):
     param.original_data_path_vec=[str(joint_raw_dir/f"{variable}.dat.0")]
     param.dim=4
     param.rel_eb=rel_eb
-    param.actual_ref_num=10
+    param.actual_ref_num=4
     param.cross_time_compress=True
     param.spatial_point_num=spatial_point_num
     init(param)

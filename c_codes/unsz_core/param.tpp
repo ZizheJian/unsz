@@ -14,6 +14,7 @@ namespace unsz
         hybrid_selector_path=other.hybrid_selector_path;
         adjust_coord_matrix_path=other.adjust_coord_matrix_path;
         adjust_coord_training_type=other.adjust_coord_training_type;
+        point_set_config_path=other.point_set_config_path;
         original_data_path_vec=other.original_data_path_vec;
         compressed_data_path_vec=other.compressed_data_path_vec;
         decompressed_data_path_vec=other.decompressed_data_path_vec;
@@ -27,8 +28,11 @@ namespace unsz
         got_variable=other.got_variable;
         got_time_step=other.got_time_step;
         got_error_mode=other.got_error_mode;
-        point_set_classifier_vec=other.point_set_classifier_vec;
+        got_predictor=other.got_predictor;
+        point_set_classification=other.point_set_classification;
+        point_set_rule_vec=other.point_set_rule_vec;
         point_set_config_vec=other.point_set_config_vec;
+        point_set_label_path_pattern=other.point_set_label_path_pattern;
         check_original_data_files=other.check_original_data_files;
         cross_time_compress=other.cross_time_compress;
         cross_time_predictor_experimental=other.cross_time_predictor_experimental;
@@ -57,7 +61,7 @@ namespace unsz
         use_reverse_direction_only_order_experimental=other.use_reverse_direction_only_order_experimental;
         use_reverse_direction_order_experimental=other.use_reverse_direction_order_experimental;
         use_reverse_direction_distribution_order_experimental=other.use_reverse_direction_distribution_order_experimental;
-        order_training_time_step_vec_experimental=other.order_training_time_step_vec_experimental;
+        order_reference_time_step_vec_experimental=other.order_reference_time_step_vec_experimental;
         use_global_order_before_round_split_experimental=other.use_global_order_before_round_split_experimental;
         d_only_cache_refill_threshold_experimental=other.d_only_cache_refill_threshold_experimental;
         order_candidate_num_experimental=other.order_candidate_num_experimental;
@@ -68,6 +72,7 @@ namespace unsz
         thread_num=other.thread_num;
         use_partition_adaptive_predictor_experimental=other.use_partition_adaptive_predictor_experimental;
         partition_adaptive_sample_num_experimental=other.partition_adaptive_sample_num_experimental;
+        partition_adaptive_min_improvement_experimental=other.partition_adaptive_min_improvement_experimental;
         partition_fitting_candidates_experimental=other.partition_fitting_candidates_experimental;
         multi_huffman_mode_experimental=other.multi_huffman_mode_experimental;
         eb_schedule_experimental=other.eb_schedule_experimental;
