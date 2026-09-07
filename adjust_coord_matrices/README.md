@@ -30,3 +30,5 @@ install/bin/s1_decompress ... -adjust-coord-matrix-file adjust_coord_matrices/Ka
 当前已经保存的纯空间正式矩阵包括Katrina `attr0`、Ocean `temperature/velocityY/velocityZonal/zTop`、LES `velocity_x/y/z`以及Tsunami `momentum_x/y`和`velocity_x/y`。LES、Tsunami和Ocean velocityY采用二次方距离loss、4个训练近邻、4轮、吸收率0.5和单个参考文件；Ocean temperature、velocityZonal和zTop采用预测残差广义高斯码长近似loss、与C++一致的10个IDW参考点、4轮和`max_nfev=20`。完整训练历史保存在`py_codes/trash/results/adjust_coord_history/spatial_parameter_screen`。LES和Tsunami原5近邻正式矩阵以`*_ref5_baseline.txt`保留；Ocean历史及二次方矩阵以`*_previous_baseline.txt`和`*_ref4_candidate.txt`保留。Ocean其余5个二次方候选矩阵在实际BR筛选中退化，因此不作为正式矩阵。
 
 E3SM-h0的8个field、Tsunami `bathy/height`、ADCIRC Haiyan `depth`以及TAPS新增field的文件是按当前默认二次方loss、4个训练近邻和4轮流程重新生成的首轮筛选矩阵，并不表示它们都已被选为正式压缩配置。完整五点结果显示矩阵会使E3SM-h0的PS/TREFHT、Tsunami height、Haiyan depth和TAPS PRESSURE退化，因此这些文件当前只用于复现和后续离线选择。
+
+`Katrina_attr0_spatiotemporal_t162_random_hyperrectangle_regions_r4.txt`是全部162步四维联合筛选矩阵。它在REL `1e-3`下同PSNR BR明显差于当前纯空间和上一时刻标签方案，只用于复现否定性实验，不是Katrina正式配置。

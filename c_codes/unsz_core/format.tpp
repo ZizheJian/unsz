@@ -22,13 +22,18 @@ namespace unsz
     }
 
     template<typename T>
-    vector<unsigned char> huffman_encode(vector<T> &value_vec)
+    vector<unsigned char> huffman_encode(vector<T> &value_vec,T *min_value=nullptr,T *max_value=nullptr)
     {
         if (value_vec.empty())
             return {};
         huffman_encoder_class<T> encoder;
         encoder.preprocess_encode(value_vec.data(),value_vec.size());
-        vector<unsigned char> bytes(max<uint64_t>(4096,(uint64_t)value_vec.size()*64));
+        if(min_value)
+            *min_value=encoder.get_min_value();
+        if(max_value)
+            *max_value=encoder.get_max_value();
+        uint64_t max_byte_num=(uint64_t)value_vec.size()*(2*sizeof(T)+1)+64;
+        vector<unsigned char> bytes(max<uint64_t>(4096,max_byte_num));
         unsigned char *cursor=bytes.data();
         encoder.save(cursor);
         encoder.encode(value_vec.data(),value_vec.size(),cursor);
@@ -67,18 +72,23 @@ namespace unsz
         return result;
     }
 
-    inline vector<unsigned char> zstd_decompress(vector<unsigned char> &source)
+    inline vector<unsigned char> zstd_decompress(const unsigned char *source,uint64_t source_size)
     {
-        uint64_t result_size=ZSTD_getFrameContentSize(source.data(),source.size());
+        uint64_t result_size=ZSTD_getFrameContentSize(source,source_size);
         if (result_size==ZSTD_CONTENTSIZE_ERROR || result_size==ZSTD_CONTENTSIZE_UNKNOWN)
             throw runtime_error("无法从Zstd帧中读取解压大小");
         vector<unsigned char> result(result_size);
-        uint64_t actual_size=ZSTD_decompress(result.data(),result.size(),source.data(),source.size());
+        uint64_t actual_size=ZSTD_decompress(result.data(),result.size(),source,source_size);
         if (ZSTD_isError(actual_size))
             throw runtime_error("Zstd解压失败："+string(ZSTD_getErrorName(actual_size)));
         if (actual_size!=result_size)
             throw runtime_error("Zstd解压后的大小与帧记录不一致");
         return result;
+    }
+
+    inline vector<unsigned char> zstd_decompress(const vector<unsigned char> &source)
+    {
+        return zstd_decompress(source.data(),source.size());
     }
 
     template<typename T>
@@ -151,13 +161,13 @@ namespace unsz
         throw runtime_error("变长无符号整数不完整或超出uint64_t范围");
     }
 
-    inline vector<uint32_t> decode_binary_one_position_delta_vec(vector<unsigned char> &bytes,uint64_t value_num)
+    inline vector<uint8_t> decode_binary_one_position_delta_vec(vector<unsigned char> &bytes,uint64_t value_num)
     {
         const unsigned char *cursor=bytes.data(),*end=bytes.data()+bytes.size();
         uint64_t one_num=read_varuint(cursor,end);
         if (one_num>value_num)
             throw runtime_error("二进制标签中1的数量超过标签总数");
-        vector<uint32_t> result(value_num,0);
+        vector<uint8_t> result(value_num,0);
         uint64_t position_plus_one=0;
         for (uint64_t i=0;i<one_num;i++)
         {

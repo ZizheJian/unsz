@@ -262,15 +262,24 @@ class huffman_encoder_class
                 tree.vecfreq.resize(tree.maxval);
                 tree.veclen.resize(tree.maxval);
                 tree.veccode.resize(tree.maxval);
-                std::vector<uint64_t> freq(tree.maxval);
-                for (uint64_t i=0;i<num_bin;i++)
-                    ++freq[(uint64_t)((int64_t)bins[i]-(int64_t)tree.offset)];
-                tree.ht.reserve(freq.size()<<1);
+                for(uint64_t i=0;i<num_bin;i++)
+                    ++tree.vecfreq[(uint64_t)((int64_t)bins[i]-(int64_t)tree.offset)];
+                tree.ht.reserve(tree.vecfreq.size()<<1);
                 for (uint64_t i=0;i<static_cast<uint64_t>(tree.maxval);i++)
-                    if (freq[i]) 
-                        tree.addElementInVector(i,freq[i]);
+                    if(tree.vecfreq[i])
+                        tree.addElementInVector(i,tree.vecfreq[i]);
             }
             tree.constructHuffmanTree();
+        }
+
+        T get_min_value() const
+        {
+            return tree.offset;
+        }
+
+        T get_max_value() const
+        {
+            return (T)((int64_t)tree.offset+(int64_t)tree.maxval-1);
         }
 
         uint64_t encode(const T *bins,uint64_t num_bin,unsigned char*& bytes)

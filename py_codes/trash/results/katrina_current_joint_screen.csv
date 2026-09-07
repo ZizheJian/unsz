@@ -1,0 +1,2 @@
+rel_eb,br,psnr,partition_num,thread_num,training_time_s,preprocessing_time_s,compression_time_s,decompression_time_s,compression_mb_s,decompression_mb_s,max_rss_kib,cross_time_target_ratio,cross_time_edge_ratio
+0.001,0.582223,72.699202,128,16,72.988679,88.984161,3.096984,2.491059,87.386,108.641,30196672,0.088103,0.046204

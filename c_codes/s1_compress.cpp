@@ -60,6 +60,15 @@ vector<uint32_t> parse_time_step_vec(string expression)
 }
 
 template<typename T_coord>
+void advance_previous_time_buffers(unsz::param_c<T_coord,float> &param)
+{
+    if(param.cross_time_predictor_experimental=="previous")
+        param.previous_time_decompressed_data.swap(param.current_decompressed_data);
+    if(param.cross_time_predictor_experimental=="previous" || param.cross_time_label_predictor_experimental=="previous")
+        param.previous_time_point_set_id_vec.swap(param.point_set_id_vec);
+}
+
+template<typename T_coord>
 void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::time_point preprocessing_start_time)
 {
     double adjust_coord_time=0;
@@ -134,10 +143,6 @@ void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::t
             param.restore_compression_result_to_original_order();
             printf("compression result reorder time excluded from compression= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-result_reorder_start_time).count());
         }
-        if (param.cross_time_predictor_experimental=="previous")
-            param.previous_time_decompressed_data=param.current_decompressed_data;
-        if (param.cross_time_predictor_experimental=="previous" || param.cross_time_label_predictor_experimental=="previous")
-            param.previous_time_point_set_id_vec=param.point_set_id_vec;
         param.save_time_reconstruction();
         if (!param.hybrid_selector_path.empty())
         {
@@ -172,9 +177,12 @@ void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::t
         uint32_t primary_point_set_id=0;
         while (param.point_set_point_num_vec[primary_point_set_id]==0)
             primary_point_set_id++;
+        double file_squared_error=0;
+        float file_min_data=numeric_limits<float>::infinity(),file_max_data=-numeric_limits<float>::infinity();
         for (uint32_t i=0;i<param.point_num;i++)
         {
             double error=(double)param.current_data[i]-param.current_decompressed_data[i];
+            file_squared_error+=error*error;
             total_squared_error+=error*error;
             uint32_t point_set_id=param.point_set_id_vec[i];
             double validation_abs_eb=param.point_set_abs_eb_vec[point_set_id];
@@ -190,10 +198,17 @@ void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::t
             }
             if (param.point_set_id_vec[i]==primary_point_set_id)
             {
+                file_min_data=min(file_min_data,param.current_data[i]);
+                file_max_data=max(file_max_data,param.current_data[i]);
                 total_min_data=min(total_min_data,param.current_data[i]);
                 total_max_data=max(total_max_data,param.current_data[i]);
             }
         }
+        double file_cr=(double)param.point_num*sizeof(float)/param.current_zstd_bs_vec.size();
+        double file_br=sizeof(float)*8/file_cr;
+        double file_mse=file_squared_error/param.point_num;
+        double file_psnr=file_mse==0?numeric_limits<double>::infinity():10*log10(pow((double)file_max_data-file_min_data,2)/file_mse);
+        printf("cr= %f, br= %f, psnr= %f\n",file_cr,file_br,file_psnr);
         FILE *f_compressed=fopen(param.compressed_data_path_vec.back().c_str(),"wb");
         if (!f_compressed)
             throw runtime_error("无法创建压缩文件："+param.compressed_data_path_vec.back());
@@ -204,6 +219,7 @@ void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::t
         }
         if (fclose(f_compressed)!=0)
             throw runtime_error("关闭压缩文件失败："+param.compressed_data_path_vec.back());
+        advance_previous_time_buffers(param);
     }
     printf("全部文件最大误差/用户误差上限= %.9f\n",max_error_ratio);
     if (max_error_ratio>1.1)

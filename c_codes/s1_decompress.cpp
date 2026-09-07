@@ -95,6 +95,15 @@ string read_option_value(int argc,char **argv,int &arg_id,string option)
 }
 
 template<typename T_coord>
+void advance_previous_time_buffers(unsz::param_c<T_coord,float> &param)
+{
+    if(param.cross_time_predictor_experimental=="previous")
+        param.previous_time_decompressed_data.swap(param.current_decompressed_data);
+    if(param.cross_time_predictor_experimental=="previous" || param.cross_time_label_predictor_experimental=="previous")
+        param.previous_time_point_set_id_vec.swap(param.point_set_id_vec);
+}
+
+template<typename T_coord>
 void run_decompression(unsz::param_c<T_coord,float> &param)
 {
     if (param.if_adjust_coord)
@@ -119,10 +128,6 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
 
         auto decompression_start_time=chrono::steady_clock::now();
         param.decompress();
-        if (param.cross_time_predictor_experimental=="previous")
-            param.previous_time_decompressed_data=param.current_decompressed_data;
-        if (param.cross_time_predictor_experimental=="previous" || param.cross_time_label_predictor_experimental=="previous")
-            param.previous_time_point_set_id_vec=param.point_set_id_vec;
         param.save_time_reconstruction();
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
         total_decompression_time+=decompression_time;
@@ -143,6 +148,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
         if (!f_original)
         {
             printf("Decompressed %s（原始文件不存在，跳过误差验证）\n",decompressed_path.c_str());
+            advance_previous_time_buffers(param);
             continue;
         }
         if (fread(original_data.data(),sizeof(float),param.point_num,f_original)!=param.point_num)
@@ -184,6 +190,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
         total_squared_error+=squared_error;
         total_point_num+=param.point_num;
         validated_file_num++;
+        advance_previous_time_buffers(param);
     }
     printf("全部文件最大误差/用户误差上限= %.9f\n",max_error_ratio);
     if (max_error_ratio>1.1)

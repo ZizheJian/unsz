@@ -109,6 +109,7 @@ namespace unsz
         pred_ref_value_normalized_weights=other.pred_ref_value_normalized_weights;
         pred_ref_rbf_weights=other.pred_ref_rbf_weights;
         cached_pred_eb_multiplier_vec=other.cached_pred_eb_multiplier_vec;
+        cached_pred_eb_inverse_multiplier_vec=other.cached_pred_eb_inverse_multiplier_vec;
         prediction_id_to_original_id=other.prediction_id_to_original_id;
         original_id_to_prediction_id=other.original_id_to_prediction_id;
         partition_point_ids_vec=other.partition_point_ids_vec;

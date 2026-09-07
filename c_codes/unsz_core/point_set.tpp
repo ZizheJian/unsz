@@ -84,18 +84,53 @@ namespace unsz
     template<typename T_coord,typename T_data>
     bool param_c<T_coord,T_data>::predict_binary_label_and_inverse_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights,array_view_c<double> normalized_ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,bool predict_value,uint32_t &predicted_label,T_data &predicted_value)
     {
-        if(value_point_set_id>1)
-            throw runtime_error("融合两点集预测遇到越界的目标点集编号");
         uint32_t label_ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
         predicted_label=0;
         predicted_value=0;
         if(!normalized_ref_weights.empty())
         {
-            if(normalized_ref_weights.size()!=ref_ids.size())
-                throw runtime_error("融合两点集预测的归一化权重数量不正确");
+            if(label_ref_num==4)
+            {
+                int ref_id0=ref_ids[0],ref_id1=ref_ids[1],ref_id2=ref_ids[2],ref_id3=ref_ids[3];
+                uint32_t point_set_id0=point_set_id_vec[ref_id0],point_set_id1=point_set_id_vec[ref_id1],point_set_id2=point_set_id_vec[ref_id2],point_set_id3=point_set_id_vec[ref_id3];
+                double weight0=normalized_ref_weights[0],weight1=normalized_ref_weights[1],weight2=normalized_ref_weights[2],weight3=normalized_ref_weights[3];
+                double label1_weight=(point_set_id0?weight0:0)+(point_set_id1?weight1:0)+(point_set_id2?weight2:0)+(point_set_id3?weight3:0);
+                double label0_weight=(point_set_id0?0:weight0)+(point_set_id1?0:weight1)+(point_set_id2?0:weight2)+(point_set_id3?0:weight3);
+                predicted_label=label1_weight>label0_weight;
+                bool all_value_refs_match=point_set_id0==value_point_set_id && point_set_id1==value_point_set_id && point_set_id2==value_point_set_id && point_set_id3==value_point_set_id;
+                if(predict_value && all_value_refs_match)
+                {
+                    predicted_value=(T_data)(weight0*data[ref_id0]+weight1*data[ref_id1]+weight2*data[ref_id2]+weight3*data[ref_id3]);
+                    return true;
+                }
+                if(!predict_value)
+                    return false;
+                double value_weight_sum=0,weighted_value_sum=0;
+                uint32_t value_ref_num=0;
+                for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+                {
+                    int ref_id=ref_ids[ref_index];
+                    if(point_set_id_vec[ref_id]!=value_point_set_id)
+                        continue;
+                    double weight=ref_weights[ref_index];
+                    value_ref_num++;
+                    if(isinf(weight))
+                    {
+                        predicted_value=data[ref_id];
+                        return false;
+                    }
+                    value_weight_sum+=weight;
+                    weighted_value_sum+=weight*data[ref_id];
+                    if(value_ref_num==actual_ref_num)
+                        break;
+                }
+                if(value_ref_num>0)
+                    predicted_value=(T_data)(weighted_value_sum/value_weight_sum);
+                return false;
+            }
             double label_weight_sum[2]={0,0},normalized_prediction=0;
             bool all_value_refs_match=predict_value && label_ref_num>0;
-            for(uint32_t ref_index=0;ref_index<label_ref_num;ref_index++)
+            auto add_normalized_ref=[&](uint32_t ref_index)
             {
                 int ref_id=ref_ids[ref_index];
                 uint32_t point_set_id=point_set_id_vec[ref_id];
@@ -107,7 +142,9 @@ namespace unsz
                     normalized_prediction+=weight*data[ref_id];
                 else
                     all_value_refs_match=false;
-            }
+            };
+            for(uint32_t ref_index=0;ref_index<label_ref_num;ref_index++)
+                add_normalized_ref(ref_index);
             predicted_label=label_weight_sum[1]>label_weight_sum[0];
             if(all_value_refs_match)
             {
@@ -772,8 +809,16 @@ namespace unsz
     {
         double pred=0;
         uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
-        for (uint32_t i=0;i<ref_num;i++)
-            pred+=ref_weights[i]*data[ref_ids[i]];
+        if(ref_num==4)
+        {
+            pred+=ref_weights[0]*data[ref_ids[0]];
+            pred+=ref_weights[1]*data[ref_ids[1]];
+            pred+=ref_weights[2]*data[ref_ids[2]];
+            pred+=ref_weights[3]*data[ref_ids[3]];
+        }
+        else
+            for (uint32_t i=0;i<ref_num;i++)
+                pred+=ref_weights[i]*data[ref_ids[i]];
         return (T_data)pred;
     }
 

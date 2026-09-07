@@ -207,10 +207,21 @@ namespace unsz
         select_partition_prediction_configs();
         point_set_setup_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
         stage_start_time=chrono::steady_clock::now();
+        bool use_fused_two_point_set_prediction=use_fused_two_point_set_prediction_experimental;
         bool data_dependent_eb_schedule=eb_schedule_experimental=="round_point_ratio_dag" || eb_schedule_experimental=="round_point_ratio_dag_direct" || eb_schedule_experimental=="round_point_ratio_dag_variance_direct";
         if(data_dependent_eb_schedule || cached_pred_eb_multiplier_vec.size()!=point_num)
+        {
             cached_pred_eb_multiplier_vec=generate_pred_eb_multiplier_vec(true);
+            cached_pred_eb_inverse_multiplier_vec.clear();
+        }
+        if(use_fused_two_point_set_prediction && !data_dependent_eb_schedule && cached_pred_eb_inverse_multiplier_vec.size()!=point_num)
+        {
+            cached_pred_eb_inverse_multiplier_vec.resize(point_num);
+            for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
+                cached_pred_eb_inverse_multiplier_vec[pred_ref_id]=1/cached_pred_eb_multiplier_vec[pred_ref_id];
+        }
         const vector<double> &pred_eb_multiplier_vec=cached_pred_eb_multiplier_vec;
+        const vector<double> &pred_eb_inverse_multiplier_vec=cached_pred_eb_inverse_multiplier_vec;
         point_set_eb_schedule_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
         point_set_time=point_set_classification_time+point_set_setup_time+point_set_eb_schedule_time;
 
@@ -219,11 +230,11 @@ namespace unsz
         bool use_partition_stream_format=!partition_pred_ref_ids_vec.empty();
         if(use_partition_stream_format && multi_huffman_mode_experimental!="none")
             throw runtime_error("partition独立码流不能和-multi-huffman-experimental同时使用");
-        vector<vector<uint32_t>> label_symbol_vec_vec(label_channel_num);
+        vector<vector<uint8_t>> label_symbol_vec_vec(label_channel_num);
         vector<vector<uint8_t>> label_symbol_file_order_vec_vec(label_channel_num);
-        vector<vector<vector<uint32_t>>> partition_label_symbol_vec_vec(use_partition_stream_format?partition_pred_ref_ids_vec.size():0,vector<vector<uint32_t>>(label_channel_num));
+        vector<vector<vector<uint8_t>>> partition_label_symbol_vec_vec(use_partition_stream_format?partition_pred_ref_ids_vec.size():0,vector<vector<uint8_t>>(label_channel_num));
         vector<uint64_t> label_channel_target_num_vec(label_channel_num,0),label_channel_error_num_vec(label_channel_num,0);
-        vector<uint32_t> actual_label_prediction_order_vec;
+        vector<uint8_t> actual_label_prediction_order_vec;
         uint64_t label_prediction_error_num=0;
         if (point_set_num>1 && point_set_predictor!="inverse_proportion" && point_set_predictor!="majority" && point_set_predictor!="continuous_actual" && point_set_predictor!="continuous_reflect")
             throw runtime_error("未知的点集标签预测器："+point_set_predictor);
@@ -231,7 +242,6 @@ namespace unsz
         bool use_majority=point_set_predictor=="majority";
         bool use_normalized_label_weights=use_normalized_weight_experimental && continuous;
         bool use_previous_time_label=cross_time_label_predictor_experimental=="previous" && previous_time_point_set_id_vec.size()==point_num;
-        bool use_fused_two_point_set_prediction=use_fused_two_point_set_prediction_experimental;
         if(use_fused_two_point_set_prediction)
         {
             if(point_set_num!=2)
@@ -259,8 +269,13 @@ namespace unsz
                 if(point_set_codec_vec[point_set_id]!=point_set_codec_e::constant)
                     point_set_group_qb_vec[point_set_id][0].reserve(point_set_point_num_vec[point_set_id]);
         uint64_t fused_value_prediction_num=0,fused_normalized_value_prediction_num=0;
+        vector<double> point_set_inverse_double_abs_eb_vec(point_set_num,0);
+        if(use_fused_two_point_set_prediction && !data_dependent_eb_schedule)
+            for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+                if(point_set_codec_vec[point_set_id]!=point_set_codec_e::constant)
+                    point_set_inverse_double_abs_eb_vec[point_set_id]=0.5/point_set_abs_eb_vec[point_set_id];
         if(use_fused_two_point_set_prediction)
-            current_decompressed_data.assign(point_num,0);
+            current_decompressed_data.resize(point_num);
         for (uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
         {
             vector<uint8_t> label_symbol_internal_vec(point_num,0);
@@ -374,45 +389,43 @@ namespace unsz
                 if(label_channel_id!=0)
                     throw runtime_error("融合两点集预测只能处理一个标签通道");
                 uint32_t pred_ref_id=0;
+                uint64_t ref_begin=pred_ref_begin[0];
                 for(uint32_t round_id=0;round_id<predict_round_num;round_id++)
                     for(uint32_t round_target_id=0;round_target_id<round_target_ids[round_id].size();round_target_id++,pred_ref_id++)
                     {
                         int pred_id=round_target_ids[round_id][round_target_id];
                         uint32_t actual_point_set_id=point_set_id_vec[pred_id];
-                        auto ref_ids=get_pred_ref_ids(pred_ref_id);
-                        auto ref_weights=get_pred_ref_weights(pred_ref_id);
-                        auto normalized_ref_weights=use_normalized_weight_experimental?get_pred_ref_weights(pred_ref_id,false,true):array_view_c<double>();
+                        uint64_t ref_end=pred_ref_begin[pred_ref_id+1];
+                        uint32_t ref_num=(uint32_t)(ref_end-ref_begin);
+                        array_view_c<int> ref_ids(ref_num?pred_ref_ids.data()+ref_begin:nullptr,ref_num);
+                        array_view_c<double> ref_weights(ref_num?pred_ref_weights.data()+ref_begin:nullptr,ref_num);
+                        array_view_c<double> normalized_ref_weights=use_normalized_weight_experimental?array_view_c<double>(ref_num?pred_ref_value_normalized_weights.data()+ref_begin:nullptr,ref_num):array_view_c<double>();
+                        ref_begin=ref_end;
                         uint32_t predicted_label;
                         T_data predicted_value;
                         bool predict_value=point_set_codec_vec[actual_point_set_id]!=point_set_codec_e::constant;
                         bool used_normalized_value=predict_binary_label_and_inverse_value(ref_ids,ref_weights,normalized_ref_weights,current_decompressed_data,actual_point_set_id,predict_value,predicted_label,predicted_value);
-                        fused_value_prediction_num+=predict_value;
                         fused_normalized_value_prediction_num+=used_normalized_value;
                         uint32_t actual_label=actual_point_set_id;
                         bool prediction_error=actual_label!=predicted_label;
-                        label_channel_target_num_vec[0]++;
                         label_channel_error_num_vec[0]+=prediction_error;
-                        label_prediction_error_num+=prediction_error;
                         if(print_label_compression_statistics)
                             actual_label_prediction_order_vec.push_back(actual_label);
                         if(print_label_compression_statistics || use_prediction_order_label_experimental)
                             label_symbol_vec_vec[0].push_back(prediction_error?1:0);
                         label_symbol_internal_vec[pred_id]=prediction_error?1:0;
-                        if(point_set_codec_vec[actual_point_set_id]==point_set_codec_e::constant)
+                        if(!predict_value)
                             current_decompressed_data[pred_id]=point_set_min_data_vec[actual_point_set_id];
                         else
                         {
                             double point_abs_eb=point_set_abs_eb_vec[actual_point_set_id]*pred_eb_multiplier_vec[pred_ref_id];
                             T_data pred=predicted_value;
-                            double qb_double=round(((double)current_data[pred_id]-pred)/(2*point_abs_eb));
+                            double qb_double=data_dependent_eb_schedule?round(((double)current_data[pred_id]-pred)/(2*point_abs_eb)):round(((double)current_data[pred_id]-pred)*point_set_inverse_double_abs_eb_vec[actual_point_set_id]*pred_eb_inverse_multiplier_vec[pred_ref_id]);
                             if(!isfinite(qb_double) || qb_double<numeric_limits<int32_t>::min() || qb_double>numeric_limits<int32_t>::max())
                                 throw runtime_error("量化索引超出int32_t范围，请增大误差上限");
                             int32_t qb=(int32_t)qb_double;
                             uint32_t huffman_group_id=get_multi_huffman_group_id(round_id,pred_id);
                             point_set_group_qb_vec[actual_point_set_id][huffman_group_id].push_back(qb);
-                            point_set_qb_num_vec[actual_point_set_id]++;
-                            point_set_qb_min_vec[actual_point_set_id]=min(point_set_qb_min_vec[actual_point_set_id],qb);
-                            point_set_qb_max_vec[actual_point_set_id]=max(point_set_qb_max_vec[actual_point_set_id],qb);
                             if(print_round_statistics)
                                 round_qb_vec[round_id].push_back(qb);
                             current_decompressed_data[pred_id]=pred+qb*2*point_abs_eb;
@@ -420,6 +433,15 @@ namespace unsz
                     }
                 if(pred_ref_id!=pred_target_ids.size())
                     throw runtime_error("融合两点集预测没有处理全部目标");
+                label_channel_target_num_vec[0]=pred_ref_id;
+                label_prediction_error_num+=label_channel_error_num_vec[0];
+                for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+                {
+                    if(point_set_codec_vec[point_set_id]!=point_set_codec_e::constant)
+                        fused_value_prediction_num+=point_set_point_num_vec[point_set_id];
+                    for(const vector<int32_t> &group_qb_vec:point_set_group_qb_vec[point_set_id])
+                        point_set_qb_num_vec[point_set_id]+=group_qb_vec.size();
+                }
             }
             else
             {
@@ -459,12 +481,17 @@ namespace unsz
             }
             if ((!use_partition_stream_format && !use_prediction_order_label_experimental) || print_label_compression_statistics)
             {
-                label_symbol_file_order_vec_vec[label_channel_id].reserve(label_channel_target_num_vec[label_channel_id]);
-                for (uint32_t original_id=0;original_id<point_num;original_id++)
+                if(use_fused_two_point_set_prediction && label_channel_id==0 && !use_prediction_order_layout_experimental)
+                    label_symbol_file_order_vec_vec[label_channel_id]=move(label_symbol_internal_vec);
+                else
                 {
-                    uint32_t internal_id=use_prediction_order_layout_experimental?original_id_to_prediction_id[original_id]:original_id;
-                    if (point_set_id_vec[internal_id]>=label_channel_id)
-                        label_symbol_file_order_vec_vec[label_channel_id].push_back(label_symbol_internal_vec[internal_id]);
+                    label_symbol_file_order_vec_vec[label_channel_id].reserve(label_channel_target_num_vec[label_channel_id]);
+                    for (uint32_t original_id=0;original_id<point_num;original_id++)
+                    {
+                        uint32_t internal_id=use_prediction_order_layout_experimental?original_id_to_prediction_id[original_id]:original_id;
+                        if (point_set_id_vec[internal_id]>=label_channel_id)
+                            label_symbol_file_order_vec_vec[label_channel_id].push_back(label_symbol_internal_vec[internal_id]);
+                    }
                 }
             }
             if(use_partition_stream_format)
@@ -482,7 +509,7 @@ namespace unsz
 
         stage_start_time=chrono::steady_clock::now();
         if(!use_fused_two_point_set_prediction)
-            current_decompressed_data.assign(point_num,0);
+            current_decompressed_data.resize(point_num);
         uint64_t value_huffman_byte_num=0;
         uint32_t pred_ref_index=0;
         hybrid_prediction_num=0;
@@ -787,7 +814,7 @@ namespace unsz
                     vector<unsigned char> &payload=partition_payload_vec[partition_id];
                     for(uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
                     {
-                        vector<uint32_t> &symbol_vec=partition_label_symbol_vec_vec[partition_id][label_channel_id];
+                        vector<uint8_t> &symbol_vec=partition_label_symbol_vec_vec[partition_id][label_channel_id];
                         vector<unsigned char> delta_bytes=symbol_vec.empty()?vector<unsigned char>():binary_one_position_delta_vec(symbol_vec);
                         vector<unsigned char> zstd_bytes=delta_bytes.empty()?vector<unsigned char>():zstd_compress(delta_bytes,zstd_compression_level);
                         append_binary<uint64_t>(payload,symbol_vec.size());
@@ -863,7 +890,7 @@ namespace unsz
         }
         if (point_set_num==2 && print_label_compression_statistics)
         {
-            const vector<uint32_t> &label_symbol_vec=label_symbol_vec_vec[0];
+            const vector<uint8_t> &label_symbol_vec=label_symbol_vec_vec[0];
             const vector<uint8_t> &label_symbol_file_order_vec=label_symbol_file_order_vec_vec[0];
             const vector<unsigned char> &label_position_delta_bytes=label_position_delta_bytes_vec[0];
             for (int zstd_level:{1,3,6,9,15,19})
@@ -873,7 +900,7 @@ namespace unsz
                 printf("label_candidate=%s, bytes_before_zstd=%llu, bytes_after_zstd=%llu\n",name,
                     (unsigned long long)bytes.size(),(unsigned long long)zstd_size(bytes));
             };
-            vector<uint32_t> point_set_id_file_order_vec(point_num);
+            vector<uint8_t> point_set_id_file_order_vec(point_num);
             if (use_prediction_order_layout_experimental)
                 for (uint32_t prediction_id=0;prediction_id<point_num;prediction_id++)
                     point_set_id_file_order_vec[prediction_id_to_original_id[prediction_id]]=point_set_id_vec[prediction_id];
@@ -895,7 +922,7 @@ namespace unsz
             for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
             {
                 uint64_t label_end=label_begin+round_target_ids[round_id].size();
-                vector<uint32_t> round_label_vec(label_symbol_vec.begin()+label_begin,label_symbol_vec.begin()+label_end);
+                vector<uint8_t> round_label_vec(label_symbol_vec.begin()+label_begin,label_symbol_vec.begin()+label_end);
                 vector<unsigned char> round_bit_vec=binary_to_bit_vec(round_label_vec);
                 round_bit_bytes+=round_bit_vec.size();
                 round_zstd_bytes+=zstd_size(round_bit_vec);
@@ -932,11 +959,21 @@ namespace unsz
             vector<unsigned char> qb_huffman_bytes;
             if (multi_huffman_mode_experimental=="none")
             {
-                qb_huffman_bytes=huffman_encode(point_set_group_qb_vec[point_set_id][0]);
+                qb_huffman_bytes=huffman_encode(point_set_group_qb_vec[point_set_id][0],&point_set_qb_min_vec[point_set_id],&point_set_qb_max_vec[point_set_id]);
                 huffman_payload_byte_num=qb_huffman_bytes.size();
             }
             else
+            {
                 qb_huffman_bytes=encode_multi_huffman_groups(point_set_group_qb_vec[point_set_id],huffman_payload_byte_num,multi_huffman_metadata_byte_num);
+                if(use_fused_two_point_set_prediction && point_set_qb_num_vec[point_set_id]>0)
+                    for(const vector<int32_t> &group_qb_vec:point_set_group_qb_vec[point_set_id])
+                        if(!group_qb_vec.empty())
+                        {
+                            auto range=minmax_element(group_qb_vec.begin(),group_qb_vec.end());
+                            point_set_qb_min_vec[point_set_id]=min(point_set_qb_min_vec[point_set_id],*range.first);
+                            point_set_qb_max_vec[point_set_id]=max(point_set_qb_max_vec[point_set_id],*range.second);
+                        }
+            }
             vector<unsigned char> qb_zstd_bytes=qb_huffman_bytes.empty()?vector<unsigned char>():zstd_compress(qb_huffman_bytes,zstd_compression_level);
             if (!qb_huffman_bytes.empty() && print_label_compression_statistics)
                 for (int zstd_level:{1,3,6,9,15,19})
@@ -1007,25 +1044,13 @@ namespace unsz
             }
         }
 
-        stage_start_time=chrono::steady_clock::now();
-        double squared_error=0;
-        for (uint32_t i=0;i<point_num;i++)
-        {
-            double error=(double)current_data[i]-current_decompressed_data[i];
-            squared_error+=error*error;
-        }
-        double mse=squared_error/point_num;
-        double psnr=mse==0?numeric_limits<double>::infinity():10*log10(pow((double)current_max_data-current_min_data,2)/mse);
-        double cr=(double)point_num*sizeof(T_data)/current_zstd_bs_vec.size();
-        double br=sizeof(T_data)*8/cr;
         printf("point_set_num=%u",point_set_num);
         for (uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {
             const char *codec_name=point_set_codec_vec[point_set_id]==point_set_codec_e::constant?"constant":point_set_codec_vec[point_set_id]==point_set_codec_e::fitting?"fitting":point_set_codec_vec[point_set_id]==point_set_codec_e::hybrid_loo?"hybrid_loo":point_set_codec_vec[point_set_id]==point_set_codec_e::quadratic_fitting?"quadratic_fitting":point_set_codec_vec[point_set_id]==point_set_codec_e::rbf_fitting?"rbf_fitting":"inverse_proportion";
             printf(", set%u_num=%u, set%u_codec=%s",point_set_id,point_set_point_num_vec[point_set_id],point_set_id,codec_name);
         }
-        printf("\ncr= %f, br= %f, psnr= %f\n",cr,br,psnr);
-        validation_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
+        printf("\n");
         if (print_compression_stage_time)
         {
             printf("compression stage time: layout_reorder=%f s, point_set=%f s, label_prediction=%f s, value_prediction=%f s, lossless_encoding=%f s, validation=%f s\n",layout_reorder_time,point_set_time,label_prediction_time,value_prediction_time,lossless_encoding_time,validation_time);
@@ -1039,7 +1064,7 @@ namespace unsz
         if (!use_prediction_order_layout_experimental)
             return;
         vector<T_data> prediction_order_data=move(current_data),prediction_order_decompressed_data=move(current_decompressed_data);
-        vector<uint32_t> prediction_order_point_set_id_vec=move(point_set_id_vec);
+        vector<uint8_t> prediction_order_point_set_id_vec=move(point_set_id_vec);
         current_data.resize(point_num);
         current_decompressed_data.resize(point_num);
         point_set_id_vec.resize(point_num);

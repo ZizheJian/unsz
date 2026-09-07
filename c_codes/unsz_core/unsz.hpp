@@ -296,6 +296,7 @@ namespace unsz
             vector<uint64_t> pred_ref_begin;//第i个目标的参考点区间为[pred_ref_begin[i],pred_ref_begin[i+1])
             vector<double> pred_ref_weights,pred_ref_label_normalized_weights,pred_ref_value_normalized_weights,pred_ref_rbf_weights;
             vector<double> cached_pred_eb_multiplier_vec;//不依赖当前field数据的EB调度只生成一次，由全部time step复用
+            vector<double> cached_pred_eb_inverse_multiplier_vec;//对应EB倍率的倒数，避免每个time step重复执行逐点除法
             vector<uint32_t> prediction_id_to_original_id,original_id_to_prediction_id;
             vector<vector<int>> partition_point_ids_vec;
             vector<uint32_t> point_partition_id_vec;
@@ -305,10 +306,10 @@ namespace unsz
 
             vector<T_data> current_data,current_decompressed_data;
             vector<T_data> previous_time_decompressed_data;
-            vector<uint32_t> previous_time_point_set_id_vec;
+            vector<uint8_t> previous_time_point_set_id_vec;
             vector<uint32_t> time_step_vec,reconstructed_time_step_vec;
             vector<vector<T_data>> reconstructed_time_data_vec;
-            vector<vector<uint32_t>> reconstructed_time_point_set_id_vec;
+            vector<vector<uint8_t>> reconstructed_time_point_set_id_vec;
             uint32_t current_time_step=0;
             int32_t interpolation_left_history_id=-1,interpolation_right_history_id=-1;
             double interpolation_right_weight=0;
@@ -316,7 +317,7 @@ namespace unsz
             T_data current_abs_eb=0;
             vector<int32_t> qb_vec;
             vector<unsigned char> current_zstd_bs_vec;
-            vector<uint32_t> point_set_id_vec;
+            vector<uint8_t> point_set_id_vec;
             vector<uint32_t> point_set_point_num_vec;
             vector<T_data> point_set_min_data_vec,point_set_max_data_vec,point_set_abs_eb_vec;
             vector<point_set_codec_e> point_set_codec_vec;
