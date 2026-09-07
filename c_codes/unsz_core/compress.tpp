@@ -250,8 +250,8 @@ namespace unsz
                 throw runtime_error("融合两点集预测目前只支持单线程非partition路径");
             if(point_set_predictor!="inverse_proportion")
                 throw runtime_error("融合两点集预测目前只支持反比例标签预测器");
-            if(cross_time_label_predictor_experimental!="none" || cross_time_predictor_experimental!="none")
-                throw runtime_error("融合两点集预测目前不能和跨时间预测同时使用");
+            if(cross_time_predictor_experimental!="none")
+                throw runtime_error("融合两点集预测目前不能和跨时间数值预测同时使用");
             if(use_partition_adaptive_predictor_experimental || print_pointwise_oracle_statistics_experimental || print_prediction_residual_statistics)
                 throw runtime_error("融合两点集预测目前不能和自适应预测器、逐点oracle或预测残差统计同时使用");
             for(point_set_codec_e codec:point_set_codec_vec)
@@ -293,7 +293,7 @@ namespace unsz
                 label_symbol_vec_vec[label_channel_id].reserve(point_num);
             if (print_label_compression_statistics && point_set_num==2)
                 actual_label_prediction_order_vec.reserve(point_num);
-            if(use_previous_time_label)
+            if(use_previous_time_label&&!use_fused_two_point_set_prediction)
             {
                 uint32_t pred_ref_id=0;
                 for(uint32_t round_id=0;round_id<predict_round_num;round_id++)
@@ -404,7 +404,15 @@ namespace unsz
                         uint32_t predicted_label;
                         T_data predicted_value;
                         bool predict_value=point_set_codec_vec[actual_point_set_id]!=point_set_codec_e::constant;
-                        bool used_normalized_value=predict_binary_label_and_inverse_value(ref_ids,ref_weights,normalized_ref_weights,current_decompressed_data,actual_point_set_id,predict_value,predicted_label,predicted_value);
+                        bool used_normalized_value;
+                        if(use_previous_time_label)
+                        {
+                            uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                            predicted_label=previous_time_point_set_id_vec[original_id];
+                            used_normalized_value=predict_known_point_set_inverse_value(ref_ids,ref_weights,normalized_ref_weights,current_decompressed_data,actual_point_set_id,predict_value,predicted_value);
+                        }
+                        else
+                            used_normalized_value=predict_binary_label_and_inverse_value(ref_ids,ref_weights,normalized_ref_weights,current_decompressed_data,actual_point_set_id,predict_value,predicted_label,predicted_value);
                         fused_normalized_value_prediction_num+=used_normalized_value;
                         uint32_t actual_label=actual_point_set_id;
                         bool prediction_error=actual_label!=predicted_label;

@@ -23,6 +23,7 @@
 - `t96_benchmark_katrina_current_spatial.py`使用当前4参考点融合快速路径重跑Katrina五点空间RD和核心吞吐率，并与数据目录中的UMC NBP-IDW-INP曲线对齐。
 - `slurm/run_katrina_current_joint_screen.slurm`在Katrina全部162步、REL EB `1e-3`下训练四维矩阵，并用128个独立partition和16线程筛选当前时空联合预测的BR及核心吞吐率。
 - `results/katrina_current_joint_screen.csv`记录上述任务`20476218`的结果；联合方案同PSNR下明显差于当前纯空间和上一时刻标签方案，因此没有继续补五点曲线。
+- `t97_benchmark_katrina_current_cross_time_label.py`使用当前4参考点融合路径重跑Katrina上一time step标签预测的五点RD；`t98_benchmark_katrina_cross_time_label_fused.py`在REL `1e-3`下交替重复比较分阶段、融合原始权重和融合预归一化数值权重三条路径，结果分别位于`results/katrina_current_cross_time_label_rd.csv`和`results/katrina_cross_time_label_fused_time.csv`。
 - `results`保存这些实验产生的历史CSV；`results/adjust_coord_history`保存已被正式矩阵取代的采样原型和区域数消融矩阵。关键结论已经整理到根目录的`TODO.md`和`TODO_DETAIL.md`。
 - `slurm`保存已完成但可能复用的Slurm实验脚本，`results/slurm_logs`保存对应的原始标准输出；日志由`.gitignore`忽略，只用于本地复查。
 - 归档程序中的部分路径按它们原先位于项目根目录时编写。重新启用某个实验时，应先把它移回根目录，或者修正其中的`project_root`和输出路径。

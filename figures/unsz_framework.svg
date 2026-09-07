@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="900" viewBox="0 0 1500 900" role="img" aria-labelledby="title desc">
+  <title id="title">UNSZ多time step压缩框架</title>
+  <desc id="desc">首先判断数据是否具有点集标签，然后分别决定标签和数值预测是否使用时间关系，最后确定执行计划、核心循环和输出码流。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#48535c"/>
+    </marker>
+    <style>
+      .background{fill:#fbfcfd}
+      .line{fill:none;stroke:#48535c;stroke-width:2.2;marker-end:url(#arrow)}
+      .root{fill:#9d1f63;stroke:#5f123d;stroke-width:2.5}
+      .decision{fill:#fff4b8;stroke:#72631d;stroke-width:2.2}
+      .choice{fill:#dcefd5;stroke:#3e5940;stroke-width:2.2}
+      .component{fill:#d9ebf5;stroke:#34576b;stroke-width:2.2}
+      .output{fill:#eee2f6;stroke:#674879;stroke-width:2.2}
+      .root-text{font-family:'Droid Sans Fallback','Microsoft YaHei',Arial,sans-serif;font-size:26px;font-weight:700;fill:white;text-anchor:middle;dominant-baseline:middle}
+      .box-title{font-family:'Droid Sans Fallback','Microsoft YaHei',Arial,sans-serif;font-size:22px;font-weight:700;fill:#253038;text-anchor:middle}
+      .box-text{font-family:'Droid Sans Fallback','Microsoft YaHei',Arial,sans-serif;font-size:19px;fill:#253038;text-anchor:middle}
+      .stage{font-family:'Droid Sans Fallback','Microsoft YaHei',Arial,sans-serif;font-size:19px;font-weight:700;fill:#56616a;text-anchor:end}
+      .note{font-family:'Droid Sans Fallback','Microsoft YaHei',Arial,sans-serif;font-size:17px;fill:#56616a;text-anchor:middle}
+    </style>
+  </defs>
+
+  <rect class="background" x="0" y="0" width="1500" height="900"/>
+
+  <!-- 连线绘制在节点下方。 -->
+  <path class="line" d="M750 80 L750 120"/>
+  <path class="line" d="M750 185 C750 215 355 205 355 240"/>
+  <path class="line" d="M750 185 C750 215 1095 205 1095 240"/>
+
+  <path class="line" d="M355 310 C355 350 1015 325 1015 370"/>
+  <path class="line" d="M1095 310 C1095 340 485 330 485 370"/>
+  <path class="line" d="M1095 310 C1095 345 1015 335 1015 370"/>
+
+  <path class="line" d="M485 505 C485 545 750 540 750 590"/>
+  <path class="line" d="M485 505 C485 545 1235 530 1235 590"/>
+  <path class="line" d="M1015 505 C1015 545 265 530 265 590"/>
+  <path class="line" d="M1015 505 C1015 545 750 540 750 590"/>
+  <path class="line" d="M1015 505 C1015 545 1235 540 1235 590"/>
+
+  <path class="line" d="M265 660 C265 700 980 680 980 725"/>
+  <path class="line" d="M750 660 C750 695 520 690 520 725"/>
+  <path class="line" d="M750 660 C750 695 980 690 980 725"/>
+  <path class="line" d="M1235 660 C1235 700 520 680 520 725"/>
+  <path class="line" d="M1235 660 C1235 700 980 690 980 725"/>
+
+  <!-- 输入与第一个决策。 -->
+  <rect class="root" x="545" y="20" width="410" height="60" rx="8"/>
+  <text class="root-text" x="750" y="51">多time step点云压缩任务</text>
+
+  <rect class="decision" x="590" y="120" width="320" height="65" rx="10"/>
+  <text class="box-title" x="750" y="160">数据是否具有点集标签？</text>
+
+  <rect class="choice" x="220" y="240" width="270" height="70" rx="10"/>
+  <text class="box-title" x="355" y="282">无标签</text>
+
+  <rect class="choice" x="960" y="240" width="270" height="70" rx="10"/>
+  <text class="box-title" x="1095" y="270">有标签</text>
+  <text class="box-text" x="1095" y="295">先恢复目标所属点集</text>
+  <text class="stage" x="1470" y="278">① 点集</text>
+
+  <!-- 标签和数值各自选择预测方式。 -->
+  <rect class="component" x="265" y="370" width="440" height="135" rx="10"/>
+  <text class="box-title" x="485" y="402">标签预测方式</text>
+  <text class="box-text" x="485" y="434">不使用时间：当前空间DAG</text>
+  <text class="box-text" x="485" y="462">使用时间：上一time step／时间插值</text>
+  <text class="box-text" x="485" y="490">联合时空：统一时空DAG</text>
+
+  <rect class="component" x="795" y="370" width="440" height="135" rx="10"/>
+  <text class="box-title" x="1015" y="402">数值预测方式</text>
+  <text class="box-text" x="1015" y="434">不使用时间：当前空间DAG</text>
+  <text class="box-text" x="1015" y="462">使用时间：上一time step／时间插值</text>
+  <text class="box-text" x="1015" y="490">联合时空：统一时空DAG</text>
+  <text class="stage" x="1470" y="442">② 分别选择预测方式</text>
+
+  <!-- 核心执行路径。 -->
+  <rect class="choice" x="100" y="590" width="330" height="70" rx="10"/>
+  <text class="box-title" x="265" y="621">无标签数值路径</text>
+  <text class="box-text" x="265" y="646">直接预测并量化数值</text>
+
+  <rect class="choice" x="585" y="590" width="330" height="70" rx="10"/>
+  <text class="box-title" x="750" y="621">有标签：分阶段执行</text>
+  <text class="box-text" x="750" y="646">全部标签完成后预测数值</text>
+
+  <rect class="choice" x="1070" y="590" width="330" height="70" rx="10"/>
+  <text class="box-title" x="1235" y="621">有标签：逐目标融合</text>
+  <text class="box-text" x="1235" y="646">恢复标签后立即预测数值</text>
+  <text class="stage" x="1470" y="630">③ 核心执行</text>
+
+  <!-- 独立输出码流。 -->
+  <rect class="output" x="320" y="725" width="400" height="70" rx="10"/>
+  <text class="box-title" x="520" y="756">各标签通道的修正流</text>
+  <text class="box-text" x="520" y="783">彼此独立无损编码</text>
+
+  <rect class="output" x="780" y="725" width="400" height="70" rx="10"/>
+  <text class="box-title" x="980" y="756">各点集的量化索引流</text>
+  <text class="box-text" x="980" y="783">彼此独立无损编码</text>
+  <text class="stage" x="1470" y="765">④ 输出码流</text>
+
+  <text class="note" x="750" y="845">是否使用时间关系由标签和数值预测器分别决定，而不是在入口处设置一个覆盖全部流程的总开关。</text>
+</svg>

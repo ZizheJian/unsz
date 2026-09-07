@@ -222,6 +222,59 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
+    bool param_c<T_coord,T_data>::predict_known_point_set_inverse_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights,array_view_c<double> normalized_ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,bool predict_value,T_data &predicted_value)
+    {
+        predicted_value=0;
+        if(!predict_value)
+            return false;
+        uint32_t normalized_ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+        if(!normalized_ref_weights.empty()&&normalized_ref_num>0)
+        {
+            bool all_value_refs_match=true;
+            for(uint32_t ref_index=0;ref_index<normalized_ref_num;ref_index++)
+                all_value_refs_match&=point_set_id_vec[ref_ids[ref_index]]==value_point_set_id;
+            if(all_value_refs_match)
+            {
+                double prediction=0;
+                if(normalized_ref_num==4)
+                {
+                    prediction+=normalized_ref_weights[0]*data[ref_ids[0]];
+                    prediction+=normalized_ref_weights[1]*data[ref_ids[1]];
+                    prediction+=normalized_ref_weights[2]*data[ref_ids[2]];
+                    prediction+=normalized_ref_weights[3]*data[ref_ids[3]];
+                }
+                else
+                    for(uint32_t ref_index=0;ref_index<normalized_ref_num;ref_index++)
+                        prediction+=normalized_ref_weights[ref_index]*data[ref_ids[ref_index]];
+                predicted_value=(T_data)prediction;
+                return true;
+            }
+        }
+        double value_weight_sum=0,weighted_value_sum=0;
+        uint32_t value_ref_num=0;
+        for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+        {
+            int ref_id=ref_ids[ref_index];
+            if(point_set_id_vec[ref_id]!=value_point_set_id)
+                continue;
+            double weight=ref_weights[ref_index];
+            value_ref_num++;
+            if(isinf(weight))
+            {
+                predicted_value=data[ref_id];
+                return false;
+            }
+            value_weight_sum+=weight;
+            weighted_value_sum+=weight*data[ref_id];
+            if(value_ref_num==actual_ref_num)
+                break;
+        }
+        if(value_ref_num>0)
+            predicted_value=(T_data)(weighted_value_sum/value_weight_sum);
+        return false;
+    }
+
+    template<typename T_coord,typename T_data>
     T_data param_c<T_coord,T_data>::predict_inverse_value_from_coords(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power)
     {
         if (ref_ids.empty())
