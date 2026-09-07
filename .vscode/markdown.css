@@ -1,0 +1,12 @@
+.fixed-layout-table{
+    display:table!important;
+    width:100%!important;
+    table-layout:fixed!important;
+    overflow:visible!important;
+}
+
+.fixed-layout-table th,.fixed-layout-table td{
+    white-space:normal!important;
+    overflow-wrap:anywhere!important;
+    word-break:break-word!important;
+}

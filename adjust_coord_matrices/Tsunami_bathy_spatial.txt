@@ -1,0 +1,6 @@
+UNSZ_ADJUST_COORD_MATRIX 1
+training_type spatial
+dataset Tsunami
+variable bathy
+dim 2
+lower_triangular 0.91666816184056077 -0.06923914946132631 1.0746745652753302

@@ -1,5 +1,6 @@
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <limits>
 #include <cmath>
 #include <chrono>
@@ -99,6 +100,8 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
     if (param.if_adjust_coord)
         param.adjust_coord();
     param.load_or_generate_pred_refs_structure();
+    if(param.rbf_parameter_specified || any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf_fitting;}))
+        param.prepare_rbf_fitting_weights();
     if (param.print_prediction_dag_statistics)
         param.print_prediction_dag_statistics_result();
     uint64_t total_point_num=0;
@@ -117,10 +120,9 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
         auto decompression_start_time=chrono::steady_clock::now();
         param.decompress();
         if (param.cross_time_predictor_experimental=="previous")
-        {
             param.previous_time_decompressed_data=param.current_decompressed_data;
+        if (param.cross_time_predictor_experimental=="previous" || param.cross_time_label_predictor_experimental=="previous")
             param.previous_time_point_set_id_vec=param.point_set_id_vec;
-        }
         param.save_time_reconstruction();
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
         total_decompression_time+=decompression_time;
@@ -265,6 +267,30 @@ int decompress_main(int argc,char **argv)
         }
         else if (option=="-inverse-distance-power")
             param.inverse_distance_power=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+        else if(option=="-rbf-kernel")
+        {
+            param.rbf_parameter_specified=true;
+            param.rbf_kernel=read_option_value(argc,argv,arg_id,option);
+            if(param.rbf_kernel!="gaussian" && param.rbf_kernel!="exponential" && param.rbf_kernel!="matern32" && param.rbf_kernel!="matern52" && param.rbf_kernel!="inverse_multiquadric")
+                throw runtime_error("-rbf-kernel必须是gaussian、exponential、matern32、matern52或inverse_multiquadric");
+        }
+        else if(option=="-rbf-shape")
+        {
+            param.rbf_parameter_specified=true;
+            param.rbf_shape=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+        }
+        else if(option=="-rbf-nugget")
+        {
+            param.rbf_parameter_specified=true;
+            param.rbf_nugget=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+        }
+        else if(option=="-rbf-polynomial-degree")
+        {
+            param.rbf_parameter_specified=true;
+            param.rbf_polynomial_degree=parse_uint32(read_option_value(argc,argv,arg_id,option),option);
+            if(param.rbf_polynomial_degree>2)
+                throw runtime_error("-rbf-polynomial-degree必须是0、1或2");
+        }
         else if (option=="-d-only-cache-refill-threshold-experimental")
             param.d_only_cache_refill_threshold_experimental=parse_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-cross-time-spatial-point-num-experimental")
@@ -313,6 +339,12 @@ int decompress_main(int argc,char **argv)
             if (param.cross_time_predictor_experimental!="previous" && param.cross_time_predictor_experimental!="interpolation")
                 throw runtime_error("-cross-time-predictor-experimental目前只支持previous或interpolation");
         }
+        else if (option=="-cross-time-label-predictor-experimental")
+        {
+            param.cross_time_label_predictor_experimental=read_option_value(argc,argv,arg_id,option);
+            if (param.cross_time_label_predictor_experimental!="previous")
+                throw runtime_error("-cross-time-label-predictor-experimental目前只支持previous");
+        }
         else if (option=="-adjust-coord")
             param.if_adjust_coord=true;
         else if (option=="-adjust-coord-matrix-file")
@@ -342,6 +374,8 @@ int decompress_main(int argc,char **argv)
             param.use_normalized_weight_experimental=true;
         else if (option=="-prediction-order-label-experimental")
             param.use_prediction_order_label_experimental=true;
+        else if (option=="-fused-two-point-set-prediction-experimental")
+            param.use_fused_two_point_set_prediction_experimental=true;
         else if (option=="-predictability-order-experimental")
             param.use_predictability_order_experimental=true;
         else if (option=="-forward-mean-distance-only-order-experimental")
@@ -385,7 +419,7 @@ int decompress_main(int argc,char **argv)
             throw runtime_error("未知参数："+option);
     }
     if(!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && param.point_set_config_path.empty()))
-        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental previous] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-partition-adaptive-min-improvement-experimental <比例>] [-multi-huffman-experimental <none|round|partition|partition_round>] [-parallelism-stats] [-prediction-geometry-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
+        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental <previous|interpolation>] [-cross-time-label-predictor-experimental previous] [-rbf-kernel <gaussian|exponential|matern32|matern52|inverse_multiquadric>] [-rbf-shape <正数>] [-rbf-nugget <正数>] [-rbf-polynomial-degree <0|1|2>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-partition-adaptive-min-improvement-experimental <比例>] [-multi-huffman-experimental <none|round|partition|partition_round>] [-parallelism-stats] [-prediction-geometry-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-fused-two-point-set-prediction-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
     if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
         throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
     if(param.thread_num>1 && param.partition_size_experimental==0 && param.partition_num_experimental==0)

@@ -7,10 +7,10 @@ project_root=os.path.dirname(os.path.abspath(__file__))
 data_root="/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data"
 umc_root="/home/x-zjian1/umc"
 # unsz：每个点完成后立即加入可用参考点集合
-# umc：UMC的NBP-IDW预测器
+# umc：UMC的NBP-IDW或NBP-IDW-INP预测器
 compressor_list=["unsz","umc"]
 dataset_list=[
-    # {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162,"adjust_coord":True,"umc_from_edge":0,"dim":3,"point_set_config":{"rule_type":"ordered","labels":[{"method":"inverse_proportion","eb_mode":"REL","condition":{"operator":">=","value":-1000}},{"method":"constant"}]}},
+    # {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162,"adjust_coord":True,"umc_from_edge":0,"dim":3,"umc_method":"NBP-IDW-INP","umc_neighbor_num":4,"umc_batch":10,"point_set_config":{"rule_type":"ordered","labels":[{"method":"inverse_proportion","eb_mode":"REL","condition":{"operator":">=","value":-1000}},{"method":"constant"}]}},
     {"name":"Ocean-layerThickness","folder":"Ocean","variable":"layerThickness","time_step_num":31,"umc_from_edge":1,"dim":3},
     {"name":"Ocean-salinity","folder":"Ocean","variable":"salinity","time_step_num":31,"umc_from_edge":1,"dim":3},
     {"name":"Ocean-temperature","folder":"Ocean","variable":"temperature","time_step_num":31,"adjust_coord_matrix":"Ocean_temperature_spatial.txt","umc_from_edge":1,"dim":3},
@@ -20,15 +20,15 @@ dataset_list=[
     {"name":"Ocean-velocityZ","folder":"Ocean","variable":"velocityZ","time_step_num":31,"umc_from_edge":1,"dim":3},
     {"name":"Ocean-velocityZonal","folder":"Ocean","variable":"velocityZonal","time_step_num":31,"adjust_coord_matrix":"Ocean_velocityZonal_spatial.txt","umc_from_edge":1,"dim":3},
     {"name":"Ocean-zTop","folder":"Ocean","variable":"zTop","time_step_num":31,"adjust_coord_matrix":"Ocean_zTop_spatial.txt","umc_from_edge":1,"dim":3},
-    # {"name":"LES-velocity_x","folder":"LES","variable":"velocity_x","time_step_num":1,"umc_from_edge":0,"dim":3},
-    # {"name":"LES-velocity_y","folder":"LES","variable":"velocity_y","time_step_num":1,"umc_from_edge":0,"dim":3},
-    # {"name":"LES-velocity_z","folder":"LES","variable":"velocity_z","time_step_num":1,"umc_from_edge":0,"dim":3},
-    # {"name":"Tsunami-momentum_x","folder":"Tsunami","variable":"momentum_x","time_step_num":1,"umc_from_edge":1,"dim":2},
-    # {"name":"Tsunami-momentum_y","folder":"Tsunami","variable":"momentum_y","time_step_num":1,"umc_from_edge":1,"dim":2},
-    # {"name":"Tsunami-velocity_x","folder":"Tsunami","variable":"velocity_x","time_step_num":1,"umc_from_edge":1,"dim":2},
-    # {"name":"Tsunami-velocity_y","folder":"Tsunami","variable":"velocity_y","time_step_num":1,"umc_from_edge":1,"dim":2},
+    {"name":"LES-velocity_x","folder":"LES","variable":"velocity_x","time_step_num":1,"adjust_coord_matrix":"LES_velocity_x_spatial.txt","umc_from_edge":0,"dim":3},
+    {"name":"LES-velocity_y","folder":"LES","variable":"velocity_y","time_step_num":1,"adjust_coord_matrix":"LES_velocity_y_spatial.txt","umc_from_edge":0,"dim":3},
+    {"name":"LES-velocity_z","folder":"LES","variable":"velocity_z","time_step_num":1,"adjust_coord_matrix":"LES_velocity_z_spatial.txt","umc_from_edge":0,"dim":3},
+    {"name":"Tsunami-momentum_x","folder":"Tsunami","variable":"momentum_x","time_step_num":1,"adjust_coord_matrix":"Tsunami_momentum_x_spatial.txt","umc_from_edge":1,"dim":2},
+    {"name":"Tsunami-momentum_y","folder":"Tsunami","variable":"momentum_y","time_step_num":1,"adjust_coord_matrix":"Tsunami_momentum_y_spatial.txt","umc_from_edge":1,"dim":2},
+    {"name":"Tsunami-velocity_x","folder":"Tsunami","variable":"velocity_x","time_step_num":1,"adjust_coord_matrix":"Tsunami_velocity_x_spatial.txt","umc_from_edge":1,"dim":2},
+    {"name":"Tsunami-velocity_y","folder":"Tsunami","variable":"velocity_y","time_step_num":1,"adjust_coord_matrix":"Tsunami_velocity_y_spatial.txt","umc_from_edge":1,"dim":2},
 ]
-rel_eb_list=[1e-2,1e-3,1e-4]
+rel_eb_list=[1e-1,1e-2,1e-3,1e-4,1e-5]
 build_max_cpus=get_max_cpus(8)
 silent_build=False
 build_before_test=True
@@ -80,7 +80,12 @@ def parse_unsz_decompression_result(output):
         raise RuntimeError("没有在UNSZ解压输出中找到total decompressed psnr或总解压时间")
     return float(match.group(1)),float(time_match.group(1))
 
-def parse_umc_decompression_result(output,data_paths):
+def parse_umc_decompression_result(output,data_paths,umc_method):
+    if umc_method=="NBP-IDW-INP":
+        decompression_times=[float(value) for value in re.findall(r"^decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
+        if len(decompression_times)!=len(data_paths):
+            raise RuntimeError(f"UMC动态异常点核心解压时间数量不一致：文件{len(data_paths)}，解压时间{len(decompression_times)}")
+        return sum(decompression_times)
     decompression_times=[float(value) for value in re.findall(r"^core decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
     if len(decompression_times)!=len(data_paths):
         raise RuntimeError(f"UMC核心解压时间数量不一致：文件{len(data_paths)}，核心解压时间{len(decompression_times)}")
@@ -122,10 +127,10 @@ def cleanup(data_paths):
             if os.path.isfile(output_path):
                 os.remove(output_path)
 
-def write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput):
+def write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput,method_name=None):
     csv_path=os.path.join(data_root,dataset["folder"],f"{dataset['variable']}.csv")
     row_info={"REL_EB":rel_eb,"TIME_STEP_NUM":dataset["time_step_num"]}
-    method_name=compressor.upper()
+    method_name=(method_name or compressor).upper()
     write_csv_item(csv_path,row_info,f"{method_name}_BR",br)
     write_csv_item(csv_path,row_info,f"{method_name}_PSNR",psnr)
     write_csv_item(csv_path,row_info,f"{method_name}_PREPROCESSING_MB_S",preprocessing_throughput)
@@ -169,12 +174,22 @@ def test(compressor,dataset,rel_eb,prediction_structure_path=None,point_set_conf
     elif compressor=="umc":
         umc_from_edge=dataset["umc_from_edge"]
         umc_dim=dataset["dim"]
-        command=f"{umc_root}/build/test/test_compress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 2 1 {time_step_num} 0 {rel_eb} 10"
+        umc_reorder=dataset.get("umc_reorder",1)
+        umc_method=dataset.get("umc_method","NBP-IDW")
+        umc_neighbor_num=dataset.get("umc_neighbor_num",4)
+        if umc_method=="NBP-IDW":
+            command=f"{umc_root}/build/test/test_compress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 2 {umc_reorder} {time_step_num} 0 {rel_eb} {umc_neighbor_num}"
+            decompress_command=f"{umc_root}/build/test/test_decompress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 2 {umc_reorder} {time_step_num}"
+        elif umc_method=="NBP-IDW-INP":
+            umc_batch=dataset.get("umc_batch",10)
+            command=f"{umc_root}/build/test/test_compress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 4 {umc_reorder} {time_step_num} 0 {rel_eb} {umc_neighbor_num} {umc_batch}"
+            decompress_command=f"{umc_root}/build/test/test_decompress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 4 {umc_reorder} {time_step_num} {umc_batch}"
+        else:
+            raise ValueError(f"未知UMC压缩方法：{umc_method}")
         output=run_command(command)
         br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_umc_result(output,data_paths)
-        decompress_command=f"{umc_root}/build/test/test_decompress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 2 1 {time_step_num}"
         decompress_output=run_command(decompress_command)
-        decompression_time=parse_umc_decompression_result(decompress_output,data_paths)
+        decompression_time=parse_umc_decompression_result(decompress_output,data_paths,umc_method)
     else:
         raise ValueError(f"未知压缩器：{compressor}")
     print(f"总结果：compressor={compressor}, dataset={dataset['name']}, variable={variable}, rel_eb={rel_eb}, br={br}, psnr={psnr}")
@@ -208,7 +223,8 @@ def main():
                     try:
                         br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput=test(compressor,dataset,rel_eb,prediction_structure_path if compressor=="unsz" else None,point_set_config_path)
                         if write_to_csv:
-                            write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput)
+                            method_name=dataset.get("result_name_map",{}).get(compressor,compressor)
+                            write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput,method_name)
                     except Exception as error:
                         print(f"failed: {error}")
                         if compressor=="unsz" and os.path.isfile(prediction_structure_path):

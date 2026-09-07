@@ -74,7 +74,7 @@ namespace unsz
             for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
             {
                 uint8_t codec=read_binary<uint8_t>(cursor,end);
-                if(codec>(uint8_t)point_set_codec_e::hybrid_loo)
+                if(codec>(uint8_t)point_set_codec_e::rbf_fitting)
                     throw runtime_error("压缩文件包含未知的点集编码方式");
                 point_set_codec_vec[point_set_id]=(point_set_codec_e)codec;
                 point_set_point_num_vec[point_set_id]=read_binary<uint32_t>(cursor,end);
@@ -201,7 +201,7 @@ namespace unsz
         for (uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {
             uint8_t codec=read_binary<uint8_t>(cursor,end);
-            if (codec>(uint8_t)point_set_codec_e::hybrid_loo)
+            if(codec>(uint8_t)point_set_codec_e::rbf_fitting)
                 throw runtime_error("压缩文件包含未知的点集编码方式");
             point_set_codec_vec[point_set_id]=(point_set_codec_e)codec;
             point_set_point_num_vec[point_set_id]=read_binary<uint32_t>(cursor,end);
@@ -254,6 +254,40 @@ namespace unsz
         if (cursor!=end)
             throw runtime_error("压缩文件末尾存在未解析数据");
 
+        bool use_fused_two_point_set_prediction=use_fused_two_point_set_prediction_experimental;
+        if(use_fused_two_point_set_prediction)
+        {
+            if(point_set_num!=2)
+                throw runtime_error("融合两点集预测要求压缩文件恰好包含两个点集");
+            if(use_partition_stream_format || thread_num>1)
+                throw runtime_error("融合两点集预测目前只支持单线程非partition路径");
+            if(point_set_predictor!="inverse_proportion")
+                throw runtime_error("融合两点集预测目前只支持反比例标签预测器");
+            if(cross_time_label_predictor_experimental!="none" || cross_time_predictor_experimental!="none")
+                throw runtime_error("融合两点集预测目前不能和跨时间预测同时使用");
+            if(use_partition_adaptive_predictor_experimental)
+                throw runtime_error("融合两点集预测目前不能和partition自适应预测器同时使用");
+            for(point_set_codec_e codec:point_set_codec_vec)
+                if(codec!=point_set_codec_e::constant && codec!=point_set_codec_e::inverse_proportion)
+                    throw runtime_error("融合两点集预测要求所有非常量点集使用反比例预测器");
+        }
+        bool data_dependent_eb_schedule=eb_schedule_experimental=="round_point_ratio_dag" || eb_schedule_experimental=="round_point_ratio_dag_direct" || eb_schedule_experimental=="round_point_ratio_dag_variance_direct";
+        if(data_dependent_eb_schedule || cached_pred_eb_multiplier_vec.size()!=point_num)
+            cached_pred_eb_multiplier_vec=generate_pred_eb_multiplier_vec();
+        const vector<double> &pred_eb_multiplier_vec=cached_pred_eb_multiplier_vec;
+        vector<vector<uint64_t>> qb_index(point_set_num,vector<uint64_t>(multi_huffman_group_num,0));
+        vector<uint32_t> fused_round_id_vec(use_fused_two_point_set_prediction?point_num:0);
+        if(use_fused_two_point_set_prediction)
+        {
+            current_decompressed_data.assign(point_num,0);
+            uint32_t pred_ref_id=0;
+            for(uint32_t round_id=0;round_id<predict_round_num;round_id++)
+                for(uint32_t i=0;i<round_target_ids[round_id].size();i++)
+                    fused_round_id_vec[pred_ref_id++]=round_id;
+            if(pred_ref_id!=point_num)
+                throw runtime_error("融合两点集预测的轮信息与目标数量不一致");
+        }
+
         point_set_id_vec.assign(point_num,point_set_num-1);
         if (label_channel_num>0)
         {
@@ -262,10 +296,83 @@ namespace unsz
             bool continuous=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
             bool use_majority=point_set_predictor=="majority";
             bool use_normalized_label_weights=use_normalized_weight_experimental && continuous;
+            bool use_previous_time_label=cross_time_label_predictor_experimental=="previous" && previous_time_point_set_id_vec.size()==point_num;
             for (uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
             {
                 vector<uint32_t> label_symbol_internal_vec;
                 uint64_t label_symbol_id=0;
+                if(use_previous_time_label)
+                {
+                    uint64_t decoded_target_num=0;
+                    if(use_partition_stream_format)
+                    {
+                        for(uint32_t partition_id=0;partition_id<partition_pred_ref_ids_vec.size();partition_id++)
+                        {
+                            uint64_t local_symbol_id=0;
+                            for(uint32_t pred_ref_id:partition_pred_ref_ids_vec[partition_id])
+                            {
+                                int pred_id=pred_target_ids[pred_ref_id];
+                                if(point_set_id_vec[pred_id]<label_channel_id)
+                                    continue;
+                                if(local_symbol_id>=partition_label_symbol_vec_vec[partition_id][label_channel_id].size())
+                                    throw runtime_error("partition跨时间标签流的修正值不足");
+                                uint32_t symbol=partition_label_symbol_vec_vec[partition_id][label_channel_id][local_symbol_id++];
+                                if(symbol>1)
+                                    throw runtime_error("点集标签修正值不是0或1");
+                                uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                                uint32_t predicted_label=previous_time_point_set_id_vec[original_id]==label_channel_id?0:1;
+                                uint32_t actual_label=symbol==0?predicted_label:1-predicted_label;
+                                if(actual_label==0)
+                                    point_set_id_vec[pred_id]=label_channel_id;
+                                decoded_target_num++;
+                            }
+                            if(local_symbol_id!=partition_label_symbol_vec_vec[partition_id][label_channel_id].size())
+                                throw runtime_error("partition跨时间标签流存在未使用的修正值");
+                        }
+                    }
+                    else if(use_prediction_order_label_experimental)
+                    {
+                        for(uint32_t pred_ref_id=0;pred_ref_id<pred_target_ids.size();pred_ref_id++)
+                        {
+                            int pred_id=pred_target_ids[pred_ref_id];
+                            if(point_set_id_vec[pred_id]<label_channel_id)
+                                continue;
+                            if(label_symbol_id>=label_symbol_vec_vec[label_channel_id].size())
+                                throw runtime_error("跨时间点集标签流的修正值不足");
+                            uint32_t symbol=label_symbol_vec_vec[label_channel_id][label_symbol_id++];
+                            if(symbol>1)
+                                throw runtime_error("点集标签修正值不是0或1");
+                            uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                            uint32_t predicted_label=previous_time_point_set_id_vec[original_id]==label_channel_id?0:1;
+                            uint32_t actual_label=symbol==0?predicted_label:1-predicted_label;
+                            if(actual_label==0)
+                                point_set_id_vec[pred_id]=label_channel_id;
+                            decoded_target_num++;
+                        }
+                    }
+                    else
+                    {
+                        for(uint32_t original_id=0;original_id<point_num;original_id++)
+                        {
+                            uint32_t internal_id=use_prediction_order_layout_experimental?original_id_to_prediction_id[original_id]:original_id;
+                            if(point_set_id_vec[internal_id]<label_channel_id)
+                                continue;
+                            if(label_symbol_id>=label_symbol_vec_vec[label_channel_id].size())
+                                throw runtime_error("跨时间点集标签流的修正值不足");
+                            uint32_t symbol=label_symbol_vec_vec[label_channel_id][label_symbol_id++];
+                            if(symbol>1)
+                                throw runtime_error("点集标签修正值不是0或1");
+                            uint32_t predicted_label=previous_time_point_set_id_vec[original_id]==label_channel_id?0:1;
+                            uint32_t actual_label=symbol==0?predicted_label:1-predicted_label;
+                            if(actual_label==0)
+                                point_set_id_vec[internal_id]=label_channel_id;
+                            decoded_target_num++;
+                        }
+                    }
+                    if(decoded_target_num!=label_channel_target_num_vec[label_channel_id] || (!use_partition_stream_format && label_symbol_id!=label_symbol_vec_vec[label_channel_id].size()))
+                        throw runtime_error("跨时间点集标签通道"+to_string(label_channel_id)+"的修正值数量不一致");
+                    continue;
+                }
                 if (!use_partition_stream_format && !use_prediction_order_label_experimental)
                 {
                     label_symbol_internal_vec.assign(point_num,0);
@@ -360,6 +467,61 @@ namespace unsz
                         rethrow_exception(label_exception);
                     decoded_target_num=accumulate(partition_decoded_target_num_vec.begin(),partition_decoded_target_num_vec.end(),(uint64_t)0);
                 }
+                else if(use_fused_two_point_set_prediction)
+                {
+                    if(label_channel_id!=0)
+                        throw runtime_error("融合两点集预测只能处理一个标签通道");
+                    for(uint32_t pred_ref_id=0;pred_ref_id<pred_target_ids.size();pred_ref_id++)
+                    {
+                        int pred_id=pred_target_ids[pred_ref_id];
+                        auto ref_ids=get_pred_ref_ids(pred_ref_id);
+                        auto ref_weights=get_pred_ref_weights(pred_ref_id);
+                        auto normalized_ref_weights=use_normalized_weight_experimental?get_pred_ref_weights(pred_ref_id,false,true):array_view_c<double>();
+                        uint32_t predicted_label=0,uniform_ref_point_set_id=0;
+                        bool uniform_ref_point_set=false;
+                        if(use_normalized_weight_experimental)
+                        {
+                            uint32_t label_ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+                            double label_weight_sum[2]={0,0};
+                            uniform_ref_point_set=label_ref_num>0;
+                            if(uniform_ref_point_set)
+                                uniform_ref_point_set_id=point_set_id_vec[ref_ids[0]];
+                            for(uint32_t ref_index=0;ref_index<label_ref_num;ref_index++)
+                            {
+                                uint32_t ref_point_set_id=point_set_id_vec[ref_ids[ref_index]];
+                                label_weight_sum[ref_point_set_id]+=normalized_ref_weights[ref_index];
+                                uniform_ref_point_set&=ref_point_set_id==uniform_ref_point_set_id;
+                            }
+                            predicted_label=label_weight_sum[1]>label_weight_sum[0];
+                        }
+                        else
+                            predicted_label=predict_binary_label(ref_ids,ref_weights,binary_label_vec,false);
+                        if(use_prediction_order_label_experimental && label_symbol_id>=label_symbol_vec_vec[0].size())
+                            throw runtime_error("融合两点集标签流的修正值不足");
+                        uint32_t symbol=use_prediction_order_label_experimental?label_symbol_vec_vec[0][label_symbol_id++]:label_symbol_internal_vec[pred_id];
+                        if(symbol>1)
+                            throw runtime_error("点集标签修正值不是0或1");
+                        uint32_t actual_label=symbol==0?predicted_label:1-predicted_label;
+                        binary_label_vec[pred_id]=actual_label;
+                        point_set_id_vec[pred_id]=actual_label;
+                        uint32_t point_set_id=actual_label;
+                        if(point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
+                            current_decompressed_data[pred_id]=point_set_min_data_vec[point_set_id];
+                        else
+                        {
+                            uint32_t round_id=fused_round_id_vec[pred_ref_id];
+                            uint32_t huffman_group_id=get_multi_huffman_group_id(round_id,pred_id);
+                            if(qb_index[point_set_id][huffman_group_id]>=point_set_group_qb_vec[point_set_id][huffman_group_id].size())
+                                throw runtime_error("点集"+to_string(point_set_id)+"的量化索引不足");
+                            int32_t qb=point_set_group_qb_vec[point_set_id][huffman_group_id][qb_index[point_set_id][huffman_group_id]++];
+                            double point_abs_eb=point_set_abs_eb_vec[point_set_id]*pred_eb_multiplier_vec[pred_ref_id];
+                            bool use_normalized_value=use_normalized_weight_experimental && uniform_ref_point_set && uniform_ref_point_set_id==point_set_id;
+                            T_data predicted_value=use_normalized_value?predict_value_normalized(ref_ids,normalized_ref_weights,current_decompressed_data):predict_value(pred_ref_id,pred_id,ref_ids,ref_weights,point_set_id,current_decompressed_data);
+                            current_decompressed_data[pred_id]=predicted_value+qb*2*point_abs_eb;
+                        }
+                        decoded_target_num++;
+                    }
+                }
                 else
                 {
                     for(uint32_t pred_ref_id=0;pred_ref_id<pred_target_ids.size();pred_ref_id++)
@@ -403,13 +565,14 @@ namespace unsz
         if (decoded_point_set_num!=point_set_point_num_vec)
             throw runtime_error("解码后的点集数量与文件头不一致");
 
-        vector<double> pred_eb_multiplier_vec=generate_pred_eb_multiplier_vec();
-        current_decompressed_data.assign(point_num,0);
-        vector<vector<uint64_t>> qb_index(point_set_num,vector<uint64_t>(multi_huffman_group_num,0));
+        if(!use_fused_two_point_set_prediction)
+            current_decompressed_data.assign(point_num,0);
         bool use_normalized_value_weights=use_normalized_weight_experimental && point_set_num==1 && point_set_codec_vec[0]==point_set_codec_e::inverse_proportion;
         bool has_previous_time=cross_time_predictor_experimental=="previous" && previous_time_decompressed_data.size()==point_num && previous_time_point_set_id_vec.size()==point_num;
         prepare_time_interpolation();
-        uint32_t pred_ref_index=0;
+        uint32_t pred_ref_index=use_fused_two_point_set_prediction?point_num:0;
+        if(!use_fused_two_point_set_prediction)
+        {
         if(use_partition_stream_format || thread_num>1)
         {
             if(partition_pred_ref_ids_vec.empty())
@@ -469,7 +632,7 @@ namespace unsz
                         else if(cross_time_predictor_experimental=="interpolation")
                             use_cross_time_prediction=predict_time_interpolation(original_id,point_set_id,pred);
                         if(!use_cross_time_prediction)
-                            pred=use_partition_config?predict_partition_adaptive_value(pred_id,ref_ids,current_decompressed_data,partition_prediction_config_id_vec[partition_id]):(use_normalized_value_weights?predict_value_normalized(ref_ids,ref_weights,current_decompressed_data):predict_value(pred_id,ref_ids,ref_weights,point_set_id,current_decompressed_data));
+                            pred=use_partition_config?predict_partition_adaptive_value(pred_id,ref_ids,current_decompressed_data,partition_prediction_config_id_vec[partition_id]):(use_normalized_value_weights?predict_value_normalized(ref_ids,ref_weights,current_decompressed_data):predict_value(current_pred_ref_id,pred_id,ref_ids,ref_weights,point_set_id,current_decompressed_data));
                         double point_abs_eb=point_set_abs_eb_vec[point_set_id]*pred_eb_multiplier_vec[current_pred_ref_id];
                         int32_t qb=0;
                         if(use_partition_stream_format)
@@ -528,12 +691,13 @@ namespace unsz
                     else if (cross_time_predictor_experimental=="interpolation")
                         use_cross_time_prediction=predict_time_interpolation(original_id,point_set_id,pred);
                     if (!use_cross_time_prediction)
-                        pred=use_partition_config?predict_partition_adaptive_value(pred_id,ref_ids,current_decompressed_data,partition_prediction_config_id_vec[point_partition_id_vec[pred_id]]):(use_normalized_value_weights?predict_value_normalized(ref_ids,ref_weights,current_decompressed_data):predict_value(pred_id,ref_ids,ref_weights,point_set_id,current_decompressed_data));
+                        pred=use_partition_config?predict_partition_adaptive_value(pred_id,ref_ids,current_decompressed_data,partition_prediction_config_id_vec[point_partition_id_vec[pred_id]]):(use_normalized_value_weights?predict_value_normalized(ref_ids,ref_weights,current_decompressed_data):predict_value(current_pred_ref_id,pred_id,ref_ids,ref_weights,point_set_id,current_decompressed_data));
                     int32_t qb=point_set_group_qb_vec[point_set_id][huffman_group_id][qb_index[point_set_id][huffman_group_id]++];
                     double point_abs_eb=point_set_abs_eb_vec[point_set_id]*eb_multiplier;
                     current_decompressed_data[pred_id]=pred+qb*2*point_abs_eb;
                 }
             }
+        }
         }
         }
         if (pred_ref_index!=pred_target_ids.size())

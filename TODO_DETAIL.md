@@ -6,6 +6,15 @@
 
 已完成的历史Python实验统一归档在`py_codes/trash`，对应CSV统一归档在`py_codes/trash/results`。下文只写文件名的旧实验脚本和根目录CSV均指这两个目录；当前入口仍保留在项目根目录。
 
+## 已完成：更多数据与field首轮筛选（2026-09-06）
+
+- [x] 新增统一转换入口`py_codes/prepare_additional_datasets.py`，接入E3SM-h0的8个单步field、Tsunami bathy/height、ADCIRC Haiyan depth及TAPS的PRESSURE/TKE/VELOCITY_X/RMS_T/CO2/C11H22。AODVIS中的481个NaN转换为`-99999`及独立点集标签；所有转换文件均检查长度和值域。
+- [x] 新增`py_codes/screen_more_fields.py`和Slurm array入口。每个field使用REL `1e-1～1e-5`五点曲线，分别测试原坐标和按当前二次方loss、4训练近邻、4外层迭代重新训练的空间矩阵；各EB都执行独立磁盘解压和误差检查。
+- [x] E3SM-h0原坐标UNSZ在8个field上相对UMC降低`11.325%～18.479%` BD-rate。矩阵只让TAUX/PRECC/FLNS/CLDTOT/U10改善`0.534%～0.683%`，AODVIS近似不变，并使PS/TREFHT分别退化`5.505%/7.048%`。Tsunami bathy接近持平；height和Haiyan depth的原坐标UNSZ相对UMC分别退化`3.927%/1.665%`，矩阵没有挽回。
+- [x] TAPS六个新增field没有可用于UMC的connectivity，只比较矩阵和原坐标。矩阵在C11H22、VELOCITY_X、CO2、RMS_T和TKE分别降低`13.186%/9.731%/5.300%/3.345%/3.014%` BD-rate，PRESSURE增加`0.354%`，平均/中位变化为`-5.704%/-4.322%`。核心压缩均值为`23.17/23.16 MB/s`，解压为`31.14/31.31 MB/s`，矩阵不增加逐文件成本。
+- [x] Slurm数组`20450907`全部成功。Haiyan任务用时`1:26`、峰值`0.92 GB`；TAPS任务用时`11:51～13:01`、峰值`4.56～4.64 GB`。TAPS每个field的adjust训练约`21～25 s`，两套DAG的轮内排序各约`152～168 s`，是主要离线成本。
+- [ ] 新数据进一步确认adjust coord必须允许field级关闭或选择不同目标。后续选择一个对当前UNSZ较弱但规模适中的多time step数据作为优化对象；最终固定方案仍需满足逐文件核心压缩不超过UMC两倍的约束。
+
 ## 已完成：adjust coord损失与训练加速（2026-08-28）
 
 - [x] 已取消尚未开始的Slurm任务`20194817`，队列查询为空；这次暂停没有产生需要续跑的进程或不完整结果。
@@ -69,6 +78,7 @@
 - [x] partition自适应已加入field级置信回退。先汇总全部partition样本，为当前文件选择一个field级配置；局部配置只有在本partition样本上的估计码长至少改善`-partition-adaptive-min-improvement-experimental`指定比例时才被采用，配置编号仍以每partition 1字节写入，不增加新类型元数据。Ocean全部9个field、time step 0、五个REL EB、4 partitions中，0.5%门槛相对原逐partition选择的BD-rate为：layerThickness `-0.042%`、salinity/temperature/velocityMeridional `0`、velocityX `-0.029%`、velocityY `-0.457%`、velocityZ `+0.206%`、velocityZonal `-0.062%`、zTop `-0.064%`；平均/中位改善只有`0.050%/0.029%`。固定门槛不能可靠消除误选，不设为默认；结果见`t71_benchmark_partition_adaptive_confidence.py`、`results/partition_adaptive_confidence_benchmark.csv`和`results/partition_adaptive_confidence_summary.csv`。
 - [ ] 如果以后继续partition自适应回退，改用独立验证样本、bootstrap一致性或父partition层次判断；同时比较不含局部拟合的20种纯IDW候选，分离自适应指数/参考点数收益与高成本拟合收益。
 - [ ] 局部拟合扩展正在逐项消融，原预测器始终保留。`-partition-fitting-candidates-experimental`现支持`original/weighted/ridge/mixed/residual/extended/all`。距离加权指数为`1/2/3.5`；局部坐标归一化但不加权从未被选择，说明收益主要来自距离权重。Ocean time step 0五点RD中，纯加权在1-block的salinity/temperature降低BR `31.341%/7.318%`，4-block的salinity/temperature/zTop降低`28.295%/6.658%/38.918%`，9-field平均收益为`4.295%/8.208%`。连续混合对每点使用重构参考值计算IDW与加权拟合LOO绝对误差，以另一预测器误差占总误差的比例进行连续加权，不保存selector；相对original，1/4-block平均收益为`6.507%/8.351%`，4-block中位收益为`0.934%`。新增收益包括1-block zTop `25.272%`及4-block velocityX/Z/Zonal `4.160%/0.360%/0.934%`；但相对纯加权，1-block temperature退化`5.790%`、4-block zTop退化`7.511%`，跨field平均为改善`2.165%`和退化`0.184%`，说明当前256点采样近似码长会在两种拟合器间误选。采用连续混合的代表组合核心压缩/解压平均约慢`3～4`倍。IDW残差拟合用参考点留一IDW残差拟合目标残差，但在1/4-block共18个代表组合中一次也未胜出，因此停止完整RD。ridge同样停止。结果见`ocean_weighted_fitting_rd_benchmark.csv`、`ocean_weighted_fitting_rd_summary.csv`、`ocean_mixed_residual_fitting_benchmark.csv`、`ocean_continuous_mix_rd_summary.csv`及`t56～t59`。下一步先研究纯加权与连续混合的置信回退和计算复用，再决定是否测试参考点近似低维时的低维拟合。
+- [x] 新增`rbf_fitting`，根据目标及参考点几何关系求解允许负值的局部RBF插值权重，并支持Gaussian、exponential、Matérn-3/2、Matérn-5/2、inverse-multiquadric核、nugget及0/1/2次多项式趋势。Tsunami momentum_x的10点Matérn-3/2、shape `0.03`、nugget `1e-6`、0次趋势相对当前UNSZ、UMC和10点局部二次拟合分别降低`26.836%/30.225%/8.878%` BD-rate。一次趋势几乎无变化，二次趋势明显变差；Matérn-5/2整体比3/2增加`4.878%` BD-rate。完整参考集合的几何权重改为公共预计算后，核心压缩/解压由约`0.583/0.566 s`降到约`0.018/0.012 s`；113885点的一次预计算约`0.561 s`，多time step共用。点集筛选改变参考集合时仍现场求解。结果见`t84～t90`及对应CSV。
 - [x] 新增多Huffman树实验，保持最终仍只有一个Zstd阶段。实现`none/round/block/block_round`四种模式，每个点集内先生成多棵自带树头的Huffman流，再把分组元数据和所有流拼接后整体做一次Zstd；解压端按轮和块分别消费量化索引，Ocean和Katrina均通过独立解压PSNR检查。Ocean全部9个field的time step 0、REL `0.001`、2/4块结果表明：block模式18组全部负收益，平均BR增加`1.143%/2.185%`；block×轮平均增加`1.820%/3.648%`；round模式18组中10组正收益，平均BR变化为`+0.215%/-0.059%`，中位降低`0.343%/0.218%`，field间范围约为增加`4.76%`到降低`3.59%`。Katrina首文件2块上round增加`4.04%`、block增加`0.058%`。结论是空间分树不值得继续，按轮分树可作为带默认回退的field级候选；完整RD应等选择规则确定后再跑。结果见`ocean_multi_huffman_benchmark.csv`、`ocean_multi_huffman_summary.csv`和`t55_benchmark_multi_huffman.py`。
 - [x] 完成`predict_round_num`、轮间目标点数量比例和逐轮EB比例的第一阶段消融。当前默认采用8轮、前两轮等大、此后目标点数增长比例2以及`round_point_ratio=0.8`；所有方案保持总点覆盖和确定性，最终参数不能在运行时逐field搜索。
 - [x] 完成Ocean velocityZonal单time step空间adjust coord基线。仅用`velocityZonal.dat.0`，二次方距离loss、第一次/第二次采样`0.25/0.10`、吸收率`0.5`训练4轮约5.93秒。第1～4轮相对不变换的五点BD-rate依次为`-5.237857%/-7.830259%/-5.052596%/-6.472458%`，第2轮最佳，矩阵为`[[0.60533851,0,0],[0.08032648,0.26534194,0],[0.27221464,0.13329533,1.56998030]]`。结果见`adjust_coord_history/ocean_velocity_zonal_t0_second_early_4.npz`、`adjust_coord_history/ocean_velocity_zonal_t0_adjust_rd.csv`和`t61_benchmark_ocean_velocity_zonal_adjust.py`。
@@ -134,16 +144,16 @@
 |排名|数据集|状态|总空间|time step数|类型及备注|
 |---:|---|---|---:|---:|---|
 |1|Tsunami|本地|6.88 MB|1|113885个cell center；目录同时保留NetCDF与转换后数据|
-|2|Tpost20|候选|42.63 MB展开后|20|131072个顶点、615195个四面体；binary有效载荷约12.06 MB|
+|2|Tpost20|已接入并初测|42.63 MB展开后|20|131072个顶点、615195个四面体；REL 1e-3下与UMC接近|
 |3|Ocean|本地|270.87 MB|31|MPAS cell-centered数据，235160个cell、9个field|
 |4|Katrina|本地|319.86 MB|162|ADCIRC区域三角形FE，417642个点、826866个三角形|
 |5|Chondrule|候选|370.29 MB压缩包|主模拟6，替代模拟另6|是否适合UNSZ还需检查坐标和网格结构|
 |—|`small datasets.zip`|本地重复副本|1.37 GB|混合|Katrina、Ocean、LES和Tsunami的旧归档，不是新数据集|
 |6|Atrial electrophysiology|候选|1.41 GB压缩包|尚未确认|患者特异有限元网格及跨时间的膜电位VTK结果|
 |7|LES|本地|1.44 GB|1|大规模非结构CFD；主要空间来自connectivity|
-|8|yfeng/E3SM|本地|6.54 GB|`h4`为720，`h0`为1|21600个水平cell、80层；包含4.79 GB structured duplicate|
-|9|TAPS_compressor|本地|10.68 GB|1|16002271个cell center；反应流和喷雾数据，不是典型finite-element data|
-|10|ADCIRC Global Storm Tide|候选|12.3 GB|Katrina每网格16，Haiyan每网格24|全球三角形FE；还包含潮汐谐波、网格和模型输入；其Katrina与当前Katrina不是同一数据集|
+|8|yfeng/E3SM|h0与h4均已接入并初测|6.54 GB|`h4`为720，`h0`为1|21600个水平cell；h0八个field原坐标UNSZ均优于UMC，AODDUST动态无效点使UNSZ明显优于UMC-INP|
+|9|TAPS_compressor|已接入并初测7个field|10.68 GB|1|16002271个cell center；没有可供UMC使用的connectivity，用于DAG预处理扩展性和adjust coord筛选|
+|10|ADCIRC Global Storm Tide|Haiyan 1.5 km的zeta/depth已接入|12.3 GB|Katrina每网格16，Haiyan每网格24|网格不完全连通，UMC必须关闭只遍历单连通分量的DPFS重排|
 |11|Ocean-large|候选|约16.13 GB原始field|12|3693225个cell、91个field；MPAS RRS18to6|
 |12|CAM Global RCE|候选|16.2 GB压缩包|不能用单一数量表示|11组海温模拟，每组保留22个月；发布的是处理后的TC轨迹、剖面和降水|
 |13|hyuan/pb|本地|32.03 GB|1|1947154个`8³`点谱元，约9.97亿个element-local point|
@@ -217,7 +227,7 @@
 - [ ] 检查相同坐标、相同距离、相同可预测性分数和浮点比较时预测顺序的确定性，并规定稳定的点编号tie-break。
 - [x] 新增`-predict-round-num`并完成8/10/12轮与`round_point_ratio=0.7/0.8/0.9`的第一阶段联合消融。采用REL EB `0.02/0.01/0.005/0.0025/0.00125`五点曲线，并以原10轮+0.8为基线：8轮+0.8在Katrina attr0、Ocean temperature、Ocean velocityZonal和Tsunami velocity_y上分别降低BD-rate `0.273615%/0.943852%/0.327420%/1.399576%`，是唯一在4个代表field全部改善的组合；12轮结果不稳定。各field单独最优公比仍不同，Tsunami偏向0.7，Ocean velocityZonal偏向0.9，因此不能逐field运行时调参。8/10/12轮的预测结构只相差轮边界的数个字节，核心压缩和公共预测结构生成耗时没有稳定差异。默认已改为8轮+0.8；待更多field、time step和新数据继续验证。
 - [x] 新增`-round-size-growth-ratio-experimental`。前两轮保持等大，第三轮开始按指定比例形成几何级数，再归一化到全部点；默认2生成的轮点数和旧整数除数实现完全相同，Katrina压缩文件SHA-256逐字节一致。8轮、EB公比0.8下对比例`1.25/1.5/1.75/2/2.25/2.5/2.75/3/3.5/4`完成4个代表field第0步的五点曲线：相对比例2，Katrina的最好值仍为2；Ocean temperature在4时为`-1.339312%`，Ocean velocityZonal在3.5时为`-3.833390%`，Tsunami velocity_y在1.75时为`-1.883505%`。四field平均以2.5最低，但只改善`0.375045%`，且Katrina/Tsunami分别退化`0.686171%/0.408437%`。各比例的公共预处理、核心压缩和解压没有稳定速度差异，默认继续使用2；串行和4-partition非默认比例均通过独立解压。脚本和完整结果为`t68_benchmark_round_size_growth.py`、`results/round_size_growth_benchmark.csv`和`results/round_size_growth_summary.csv`。
-- [ ] 如果后续速度仍然不够，在Katrina多个时间步上测试比`10/10`更小的`actual_ref_num/max_ref_num`组合。
+- [x] 在Katrina全部162个time step上完成`10点/cache-8`、`4点/cache-4`和`4点/cache-3`的五点RD及程序内部计时。相对10点基线，4点/cache-4和4点/cache-3的BD-rate分别为`+2.272%/+2.319%`，核心压缩几何平均吞吐率由`43.08 MB/s`升至`54.22/54.26 MB/s`，解压由`52.37 MB/s`升至`71.03/71.26 MB/s`；公共预测结构由`20,046,652 B`减半至`10,023,424 B`。cache-3将首次预处理由cache-4的`2.520 s`继续降至`2.211 s`，但不改善核心速度，因此4点/cache-4更适合作为忽略公共预处理成本时的快速版候选。完整结果见`t93_benchmark_katrina_reference_num_rd.py`和`results/katrina_reference_num_rd.csv`。
 - [x] 将每个block分别分配的`min_coord/max_coord vector`改为树内连续包围盒数组，并在建树时自底向上收紧到真实点范围；同时按`(距离,original_id)`固定等距离近邻选择。Ocean单步非adjust coord预处理由`7.05 s`降至`5.22 s`，Katrina单步由`14.45 s`降至`11.79 s`，压缩文件SHA、BR、PSNR和独立解压结果均不变。
 - [x] 用栈内有序小数组替代kd-tree查询中的`priority_queue`。最初容量64时，候选数5＋缓存阈值8下Ocean三次交替测试的排序/最终参考生成/总预处理平均由`2.055/1.051/3.213 s`降至`1.908/0.979/2.980 s`，总预处理缩短`7.2%`；Katrina由`4.308/2.159/6.644 s`降至`4.169/2.028/6.349 s`，缩短`4.4%`。容量现缩到默认路径真实上限11：默认`max_ref_num=10`时，反向参考查询为排除目标自身最多临时保存11项；大于11项自动退回原堆容器。保持tree-order和共享结构时，容量11与64的Ocean总预处理为`2.702/2.720 s`，Katrina为`6.036/5.996 s`，差异在约`0.7%`内且方向不一致，因此容量调整主要减少栈对象大小。两者压缩文件SHA与旧容器一致，独立解压PSNR一致。
 - [ ] 如果树查询仍是瓶颈，将递归查询改成显式栈，比较函数调用成本和遍历时间；该方案暂不实施。
@@ -368,6 +378,10 @@
 ## 已完成与当前结论：点集标签与参考结构
 
 - [x] 使用`-prediction-order-label-experimental`比较按预测顺序和原始点编号顺序编码标签预测错误位置。Katrina全部162个time step上，标签字节数由1569979增至1580348，总BR由0.279004624增至0.280230673；压缩吞吐率由71.520降至67.834 MB/s，解压吞吐率基本不变。预测顺序标签在BR和压缩速度上都更差，因此继续默认按原始编号编码。
+- [x] 新增`-fused-two-point-set-prediction-experimental`，在串行、非partition的两点集IDW路径中复用同一参考数组。压缩端一次遍历同时累加标签权重和真实点集的数值加权和；解压端先恢复目标标签，常量点集直接重构，只有非常量点集再次读取参考值。Katrina全部162步、REL `1e-3`、4参考点/cache-4下交替重复3次，核心压缩从`55.469`提高到`60.954 MB/s`，加快`9.889%`；解压从`70.068`提高到`80.071 MB/s`，加快`14.275%`。六次运行的BR均为`0.605492`、PSNR均为`81.640594 dB`，组合压缩文件SHA-256均为`6750206091b82e21a36e882219510c23507a90918abd446cbfd792717ac0acff`。当前格式不变，开关只影响执行路径；后续需推广到独立partition。三个以上点集仍受逐标签通道解码顺序限制，需单独设计按目标交错恢复方案。结果见`py_codes/trash/results/katrina_fused_prediction_time.csv`。
+- [x] 将已有`-normalized-weight-experimental`扩展到融合两点集路径。标签使用预归一化权重仍得到相同二分类；正常数值目标的前`actual_ref_num`个参考点全部同类时直接点积，混入其他点集时退回未归一化权重筛选与现场归一化。Katrina全部162步、REL `1e-3`、4参考点/cache-4中，20928463次正常数值预测有19010520次命中，比例为`90.835720%`。三次交替重复的核心压缩从`61.248`提高到`62.890 MB/s`，加快`2.681%`；解压从`79.213`提高到`80.492 MB/s`，加快`1.615%`。六次运行的BR、PSNR和组合SHA均相同。结果见`py_codes/trash/results/katrina_fused_normalized_weight_time.csv`。
+- [x] 删除融合压缩路径的逐点临时量化索引数组及其后的全点二次扫描。融合循环现在按预测轮遍历，在生成量化索引后直接写入对应点集和Huffman分组，同时更新逐点集和逐轮统计。Katrina全部162步、REL `1e-3`、4参考点/cache-4下各重复3次：原始权重路径由`61.248`提高到`64.152 MB/s`，加快`4.741%`；预归一化权重路径由`62.890`提高到`65.510 MB/s`，加快`4.166%`。新旧结果的BR均为`0.605492`、PSNR均为`81.640594 dB`，组合压缩文件SHA-256均为`6750206091b82e21a36e882219510c23507a90918abd446cbfd792717ac0acff`。旧两趟结果见`katrina_fused_normalized_weight_two_pass_time.csv`，当前一趟结果见`katrina_fused_normalized_weight_time.csv`。
+- [x] 细分原`point_set`阶段后发现Katrina一个规则、两个点集的分类本身每文件只需约`0.0012 s`，主要成本其实是默认EB调度每文件重新生成417642个倍率，约需`0.00875 s`，162步累计约`1.42 s`。两个点集现使用规则类型移到循环外的专用分类循环；与当前field数据无关的`none/round/point/round_point/round_ratio/round_point_ratio`倍率在第一次生成后由全部time step复用，解压端同样复用。三种DAG影响力模式依赖当前文件的点集标签，仍逐文件计算。Katrina全部162步、REL `1e-3`、4参考点/cache-4、融合且预归一化路径重复3次后，核心压缩/解压几何平均达到`107.011/138.288 MB/s`；相对只使用专用分类、尚未缓存倍率时的`67.889/80.661 MB/s`提高`57.626%/71.443%`。BR仍为`0.605492`、PSNR仍为`81.640594 dB`且组合SHA不变。结果见`py_codes/trash/results/katrina_fused_cached_eb_time.csv`。
 
 ## 已完成与当前结论：无损编码调研
 

@@ -243,6 +243,7 @@ namespace unsz
                         throw runtime_error("partition预测结构包含跨partition参考点");
         pred_ref_label_normalized_weights.clear();
         pred_ref_value_normalized_weights.clear();
+        pred_ref_rbf_weights.clear();
         if (use_normalized_weight_experimental)
         {
             bool normalize_label_weights=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
@@ -330,5 +331,31 @@ namespace unsz
             }
         }
         printf("Prepared continuous reference arrays: targets=%u, references=%llu\n",point_num,(unsigned long long)pred_ref_ids.size());
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::prepare_rbf_fitting_weights()
+    {
+        if(pred_ref_rbf_weights.size()==pred_ref_ids.size())
+            return;
+        auto start_time=chrono::steady_clock::now();
+        pred_ref_rbf_weights.assign(pred_ref_ids.size(),numeric_limits<double>::quiet_NaN());
+        uint64_t prepared_target_num=0;
+        for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
+        {
+            auto ref_ids=get_pred_ref_ids(pred_ref_id);
+            uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+            if(ref_num<2)
+                continue;
+            array_view_c<int> selected_ref_ids(ref_ids.begin(),ref_num);
+            vector<double> weights;
+            if(!calculate_rbf_fitting_weights(pred_target_ids[pred_ref_id],selected_ref_ids,weights))
+                continue;
+            uint64_t begin=pred_ref_begin[pred_ref_id];
+            for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
+                pred_ref_rbf_weights[begin+ref_index]=weights[ref_index];
+            prepared_target_num++;
+        }
+        printf("Precomputed RBF weights: targets=%llu,time=%f s\n",(unsigned long long)prepared_target_num,chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
     }
 }

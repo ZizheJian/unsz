@@ -22,6 +22,7 @@ parser.add_argument("-first-sample-region-num",type=int,choices=[1,2,4,8],defaul
 parser.add_argument("-first-sample-inner-ratio",type=float,default=0.25)
 parser.add_argument("-first-sample-pool-ratio",type=float,default=0.25)
 parser.add_argument("-second-sample-ratio",type=float,default=0.1)
+parser.add_argument("-second-sample-num",type=int,default=0,help="每轮第二次采样的固定目标总数；0表示使用second-sample-ratio")
 parser.add_argument("-new-matrix-weight",type=float,default=0.5)
 parser.add_argument("-max-nfev",type=int,default=100)
 parser.add_argument("-sample-file-num",type=int,default=3)
@@ -38,8 +39,8 @@ if not 0<args.first_sample_ratio<=1 or not 0<args.second_sample_ratio<=1:
     raise ValueError("两次采样率必须大于0且不大于1")
 if not 0<args.first_sample_inner_ratio<=1:
     raise ValueError("first-sample-inner-ratio必须大于0且不大于1")
-if args.first_sample_num<0 or not 0<args.first_sample_pool_ratio<=1:
-    raise ValueError("first-sample-num不能为负数，first-sample-pool-ratio必须大于0且不大于1")
+if args.first_sample_num<0 or args.second_sample_num<0 or not 0<args.first_sample_pool_ratio<=1:
+    raise ValueError("first-sample-num和second-sample-num不能为负数，first-sample-pool-ratio必须大于0且不大于1")
 if not 0<args.new_matrix_weight<=1:
     raise ValueError("new-matrix-weight必须大于0且不大于1")
 if not 0<args.new_matrix_scale_weight<=1:
@@ -57,7 +58,7 @@ param.cross_time_compress=False
 param.if_adjust_coord=True
 
 init(param)
-adjust_coord(param,args.loss,args.iteration_num,args.matrix_history_path or None,args.first_sample_ratio,args.second_sample_ratio,args.new_matrix_weight,args.max_nfev,args.sample_file_num,args.matrix_save_interval,args.optimizer,spatial_first_sample_mode=args.first_sample_mode,spatial_first_sample_region_num=args.first_sample_region_num,spatial_first_sample_inner_ratio=args.first_sample_inner_ratio,spatial_first_sample_num=args.first_sample_num,spatial_pool_sample_ratio=args.first_sample_pool_ratio,matrix_mix_space=args.matrix_mix_space,correct_small_eigenvalues=args.small_eigenvalue_correction=="on",matrix_scale_mode=args.matrix_scale_mode,new_matrix_scale_weight=args.new_matrix_scale_weight)
+adjust_coord(param,args.loss,args.iteration_num,args.matrix_history_path or None,args.first_sample_ratio,args.second_sample_ratio,args.new_matrix_weight,args.max_nfev,args.sample_file_num,args.matrix_save_interval,args.optimizer,spatial_first_sample_mode=args.first_sample_mode,spatial_first_sample_region_num=args.first_sample_region_num,spatial_first_sample_inner_ratio=args.first_sample_inner_ratio,spatial_first_sample_num=args.first_sample_num,spatial_pool_sample_ratio=args.first_sample_pool_ratio,matrix_mix_space=args.matrix_mix_space,correct_small_eigenvalues=args.small_eigenvalue_correction=="on",matrix_scale_mode=args.matrix_scale_mode,new_matrix_scale_weight=args.new_matrix_scale_weight,second_sample_num=args.second_sample_num)
 dataset=Path(args.data_dir).resolve().name
 default_output_name=f"{dataset}_{args.variable}_spatial.txt" if args.first_sample_mode=="random_points" else f"{dataset}_{args.variable}_spatial_{args.first_sample_mode}_r{args.first_sample_region_num}.txt"
 matrix_output_path=Path(args.matrix_output_path) if args.matrix_output_path else Path(__file__).resolve().parent/"adjust_coord_matrices"/default_output_name

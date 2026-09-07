@@ -47,7 +47,11 @@ namespace unsz
             return point_set_codec_e::constant;
         if(text=="hybrid_loo")
             return point_set_codec_e::hybrid_loo;
-        throw runtime_error(location+"的codec必须是inverse_proportion、fitting、constant或hybrid_loo："+text);
+        if(text=="quadratic_fitting")
+            return point_set_codec_e::quadratic_fitting;
+        if(text=="rbf_fitting")
+            return point_set_codec_e::rbf_fitting;
+        throw runtime_error(location+"的codec必须是inverse_proportion、fitting、constant、hybrid_loo、quadratic_fitting或rbf_fitting："+text);
     }
 
     inline point_set_error_mode_e parse_point_set_error_mode(const string &text,const string &location)

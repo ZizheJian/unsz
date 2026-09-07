@@ -1,0 +1,6 @@
+UNSZ_ADJUST_COORD_MATRIX 1
+training_type spatial
+dataset Tsunami
+variable height
+dim 2
+lower_triangular 0.78681756101320588 0.12028624425755151 1.1689522424477585
