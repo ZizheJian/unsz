@@ -123,6 +123,7 @@ namespace unsz
         current_decompressed_data=other.current_decompressed_data;
         previous_time_decompressed_data=other.previous_time_decompressed_data;
         previous_time_point_set_id_vec=other.previous_time_point_set_id_vec;
+        older_time_point_set_id_vec_vec=other.older_time_point_set_id_vec_vec;
         time_step_vec=other.time_step_vec;
         reconstructed_time_step_vec=other.reconstructed_time_step_vec;
         reconstructed_time_data_vec=other.reconstructed_time_data_vec;

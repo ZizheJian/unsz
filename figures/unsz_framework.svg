@@ -61,13 +61,13 @@
 
   <!-- 标签和数值各自选择预测方式。 -->
   <rect class="component" x="265" y="370" width="440" height="135" rx="10"/>
-  <text class="box-title" x="485" y="402">标签预测方式</text>
+  <text class="box-title" x="485" y="402">标签预测：比较候选码流</text>
   <text class="box-text" x="485" y="434">不使用时间：当前空间DAG</text>
-  <text class="box-text" x="485" y="462">使用时间：上一time step／时间插值</text>
-  <text class="box-text" x="485" y="490">联合时空：统一时空DAG</text>
+  <text class="box-text" x="485" y="462">使用时间：上一time step</text>
+  <text class="box-text" x="485" y="490">统一处理：统一时空DAG</text>
 
   <rect class="component" x="795" y="370" width="440" height="135" rx="10"/>
-  <text class="box-title" x="1015" y="402">数值预测方式</text>
+  <text class="box-title" x="1015" y="402">数值预测：比较候选码流</text>
   <text class="box-text" x="1015" y="434">不使用时间：当前空间DAG</text>
   <text class="box-text" x="1015" y="462">使用时间：上一time step／时间插值</text>
   <text class="box-text" x="1015" y="490">联合时空：统一时空DAG</text>
@@ -80,11 +80,11 @@
 
   <rect class="choice" x="585" y="590" width="330" height="70" rx="10"/>
   <text class="box-title" x="750" y="621">有标签：分阶段执行</text>
-  <text class="box-text" x="750" y="646">全部标签完成后预测数值</text>
+  <text class="box-text" x="750" y="646">效果优先，可分别选择最小码流</text>
 
   <rect class="choice" x="1070" y="590" width="330" height="70" rx="10"/>
   <text class="box-title" x="1235" y="621">有标签：逐目标融合</text>
-  <text class="box-text" x="1235" y="646">恢复标签后立即预测数值</text>
+  <text class="box-text" x="1235" y="646">速度优先，恢复标签后立即预测数值</text>
   <text class="stage" x="1470" y="630">③ 核心执行</text>
 
   <!-- 独立输出码流。 -->

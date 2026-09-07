@@ -10,7 +10,7 @@ umc_root="/home/x-zjian1/umc"
 # umc：UMC的NBP-IDW或NBP-IDW-INP预测器
 compressor_list=["unsz","umc"]
 dataset_list=[
-    # {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162,"adjust_coord":True,"umc_from_edge":0,"dim":3,"umc_method":"NBP-IDW-INP","umc_neighbor_num":4,"umc_batch":10,"point_set_config":{"rule_type":"ordered","labels":[{"method":"inverse_proportion","eb_mode":"REL","condition":{"operator":">=","value":-1000}},{"method":"constant"}]}},
+    # {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162,"adjust_coord_matrix":"Katrina_attr0_spatial.txt","umc_from_edge":0,"dim":3,"umc_method":"NBP-IDW-INP","umc_neighbor_num":4,"umc_batch":10,"unsz_extra_arguments":"-max-ref-num 4 -actual-ref-num 4 -d-only-cache-refill-threshold-experimental 4 -cross-time-label-predictor-experimental previous -fused-two-point-set-prediction-experimental","point_set_config":{"rule_type":"ordered","labels":[{"method":"inverse_proportion","eb_mode":"REL","condition":{"operator":">=","value":-1000}},{"method":"constant"}]}},
     {"name":"Ocean-layerThickness","folder":"Ocean","variable":"layerThickness","time_step_num":31,"umc_from_edge":1,"dim":3},
     {"name":"Ocean-salinity","folder":"Ocean","variable":"salinity","time_step_num":31,"umc_from_edge":1,"dim":3},
     {"name":"Ocean-temperature","folder":"Ocean","variable":"temperature","time_step_num":31,"adjust_coord_matrix":"Ocean_temperature_spatial.txt","umc_from_edge":1,"dim":3},
@@ -159,6 +159,8 @@ def test(compressor,dataset,rel_eb,prediction_structure_path=None,point_set_conf
             common_arguments+=f" -adjust-coord-matrix-file {shlex.quote(matrix_path)}"
         if unsz_extra_arguments:
             common_arguments+=" "+unsz_extra_arguments
+        if dataset.get("unsz_extra_arguments",""):
+            common_arguments+=" "+dataset["unsz_extra_arguments"]
         if prediction_structure_path:
             common_arguments+=f" -prediction-structure {shlex.quote(prediction_structure_path)}"
         compress_command=f"{shlex.quote(project_root+'/install/bin/s1_compress')} {common_arguments}"

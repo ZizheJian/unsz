@@ -33,6 +33,16 @@ namespace unsz
     enum class point_set_classification_e:uint8_t{ordered_rules=0,label_file=1};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
     enum class partition_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
+    enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,previous=2,lorenzo3=3,lorenzo4=4,endpoint_agreement=5,interpolation=6,joint_spatiotemporal=7};
+    enum class label_value_execution_e:uint8_t{no_label=0,staged=1,fused=2};
+
+    struct prediction_framework_c
+    {
+        bool has_label=false;
+        time_dimension_mode_e label_mode=time_dimension_mode_e::not_applicable;
+        time_dimension_mode_e value_mode=time_dimension_mode_e::spatial;
+        label_value_execution_e execution=label_value_execution_e::no_label;
+    };
 
     struct point_set_config_c
     {
@@ -226,7 +236,7 @@ namespace unsz
             bool check_original_data_files=true;
             bool cross_time_compress=false;
             string cross_time_predictor_experimental="none";//none / previous / interpolation
-            string cross_time_label_predictor_experimental="none";//none / previous
+            string cross_time_label_predictor_experimental="none";//none / previous / lorenzo3 / lorenzo4 / endpoint_agreement
             bool if_adjust_coord=false;
             vector<double> adjust_coord_matrix_parameter_vec;
             bool print_round_statistics=false;
@@ -307,6 +317,7 @@ namespace unsz
             vector<T_data> current_data,current_decompressed_data;
             vector<T_data> previous_time_decompressed_data;
             vector<uint8_t> previous_time_point_set_id_vec;
+            vector<vector<uint8_t>> older_time_point_set_id_vec_vec;//从t-2到t-4
             vector<uint32_t> time_step_vec,reconstructed_time_step_vec;
             vector<vector<T_data>> reconstructed_time_data_vec;
             vector<vector<uint8_t>> reconstructed_time_point_set_id_vec;
@@ -330,7 +341,10 @@ namespace unsz
             vector<uint8_t> load_point_set_label_ids();
             void prepare_time_interpolation();
             bool predict_time_interpolation(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
+            bool predict_time_label(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction);
             void save_time_reconstruction();
+            prediction_framework_c get_prediction_framework(uint32_t point_set_num) const;
+            void advance_time_prediction_buffers();
             bool need_double_coord();
             void load_adjust_coord_matrix_file();
             void adjust_coord();
@@ -404,6 +418,7 @@ namespace unsz
 #include "point_set_config.tpp"
 #include "point_set.tpp"
 #include "time_prediction.tpp"
+#include "prediction_framework.tpp"
 #include "format.tpp"
 #include "multi_huffman.tpp"
 #include "prediction_structure.tpp"

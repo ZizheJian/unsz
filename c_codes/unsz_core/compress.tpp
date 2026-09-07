@@ -207,7 +207,8 @@ namespace unsz
         select_partition_prediction_configs();
         point_set_setup_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
         stage_start_time=chrono::steady_clock::now();
-        bool use_fused_two_point_set_prediction=use_fused_two_point_set_prediction_experimental;
+        prediction_framework_c prediction_framework=get_prediction_framework(point_set_num);
+        bool use_fused_two_point_set_prediction=prediction_framework.execution==label_value_execution_e::fused;
         bool data_dependent_eb_schedule=eb_schedule_experimental=="round_point_ratio_dag" || eb_schedule_experimental=="round_point_ratio_dag_direct" || eb_schedule_experimental=="round_point_ratio_dag_variance_direct";
         if(data_dependent_eb_schedule || cached_pred_eb_multiplier_vec.size()!=point_num)
         {
@@ -241,7 +242,10 @@ namespace unsz
         bool continuous=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
         bool use_majority=point_set_predictor=="majority";
         bool use_normalized_label_weights=use_normalized_weight_experimental && continuous;
-        bool use_previous_time_label=cross_time_label_predictor_experimental=="previous" && previous_time_point_set_id_vec.size()==point_num;
+        prepare_time_interpolation();
+        bool use_previous_time_label=prediction_framework.label_mode==time_dimension_mode_e::previous && previous_time_point_set_id_vec.size()==point_num;
+        bool use_causal_time_label=(prediction_framework.label_mode==time_dimension_mode_e::previous || prediction_framework.label_mode==time_dimension_mode_e::lorenzo3 || prediction_framework.label_mode==time_dimension_mode_e::lorenzo4) && previous_time_point_set_id_vec.size()==point_num;
+        bool try_time_label=prediction_framework.label_mode==time_dimension_mode_e::previous || prediction_framework.label_mode==time_dimension_mode_e::lorenzo3 || prediction_framework.label_mode==time_dimension_mode_e::lorenzo4 || prediction_framework.label_mode==time_dimension_mode_e::endpoint_agreement;
         if(use_fused_two_point_set_prediction)
         {
             if(point_set_num!=2)
@@ -250,7 +254,7 @@ namespace unsz
                 throw runtime_error("融合两点集预测目前只支持单线程非partition路径");
             if(point_set_predictor!="inverse_proportion")
                 throw runtime_error("融合两点集预测目前只支持反比例标签预测器");
-            if(cross_time_predictor_experimental!="none")
+            if(prediction_framework.value_mode!=time_dimension_mode_e::spatial)
                 throw runtime_error("融合两点集预测目前不能和跨时间数值预测同时使用");
             if(use_partition_adaptive_predictor_experimental || print_pointwise_oracle_statistics_experimental || print_prediction_residual_statistics)
                 throw runtime_error("融合两点集预测目前不能和自适应预测器、逐点oracle或预测残差统计同时使用");
@@ -293,7 +297,7 @@ namespace unsz
                 label_symbol_vec_vec[label_channel_id].reserve(point_num);
             if (print_label_compression_statistics && point_set_num==2)
                 actual_label_prediction_order_vec.reserve(point_num);
-            if(use_previous_time_label&&!use_fused_two_point_set_prediction)
+            if(use_causal_time_label&&!use_fused_two_point_set_prediction)
             {
                 uint32_t pred_ref_id=0;
                 for(uint32_t round_id=0;round_id<predict_round_num;round_id++)
@@ -304,7 +308,9 @@ namespace unsz
                     if(actual_point_set_id<label_channel_id)
                         continue;
                     uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
-                    uint32_t predicted_label=previous_time_point_set_id_vec[original_id]==label_channel_id?0:1;
+                    uint32_t predicted_label;
+                    if(!predict_time_label(original_id,label_channel_id,predicted_label))
+                        throw runtime_error("因果时间标签预测缺少历史标签");
                     uint32_t actual_label=actual_point_set_id==label_channel_id?0:1;
                     bool prediction_error=actual_label!=predicted_label;
                     label_channel_target_num_vec[label_channel_id]++;
@@ -338,8 +344,12 @@ namespace unsz
                                 continue;
                             auto ref_ids=get_pred_ref_ids(pred_ref_id);
                             auto ref_weights=get_pred_ref_weights(pred_ref_id,use_normalized_label_weights,false);
-                            double predicted_value=continuous?(use_normalized_label_weights?predict_binary_label_value_normalized(ref_ids,ref_weights,binary_label_value_vec):predict_binary_label_value(ref_ids,ref_weights,binary_label_value_vec)):0;
-                            uint32_t predicted_label=continuous?(predicted_value>=0.5):predict_binary_label(ref_ids,ref_weights,binary_label_vec,use_majority);
+                            uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                            uint32_t predicted_label;
+                            bool used_time_label=try_time_label&&predict_time_label(original_id,label_channel_id,predicted_label);
+                            double predicted_value=used_time_label?predicted_label:(continuous?(use_normalized_label_weights?predict_binary_label_value_normalized(ref_ids,ref_weights,binary_label_value_vec):predict_binary_label_value(ref_ids,ref_weights,binary_label_value_vec)):0);
+                            if(!used_time_label)
+                                predicted_label=continuous?(predicted_value>=0.5):predict_binary_label(ref_ids,ref_weights,binary_label_vec,use_majority);
                             uint32_t actual_label=actual_point_set_id==label_channel_id?0:1;
                             bool prediction_error=actual_label!=predicted_label;
                             local_target_num++;
@@ -461,8 +471,12 @@ namespace unsz
                         continue;
                     auto ref_ids=get_pred_ref_ids(pred_ref_id);
                     auto ref_weights=get_pred_ref_weights(pred_ref_id,use_normalized_label_weights,false);
-                    double predicted_value=continuous?(use_normalized_label_weights?predict_binary_label_value_normalized(ref_ids,ref_weights,binary_label_value_vec):predict_binary_label_value(ref_ids,ref_weights,binary_label_value_vec)):0;
-                    uint32_t predicted_label=continuous?(predicted_value>=0.5):predict_binary_label(ref_ids,ref_weights,binary_label_vec,use_majority);
+                    uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                    uint32_t predicted_label;
+                    bool used_time_label=try_time_label&&predict_time_label(original_id,label_channel_id,predicted_label);
+                    double predicted_value=used_time_label?predicted_label:(continuous?(use_normalized_label_weights?predict_binary_label_value_normalized(ref_ids,ref_weights,binary_label_value_vec):predict_binary_label_value(ref_ids,ref_weights,binary_label_value_vec)):0);
+                    if(!used_time_label)
+                        predicted_label=continuous?(predicted_value>=0.5):predict_binary_label(ref_ids,ref_weights,binary_label_vec,use_majority);
                     uint32_t actual_label=actual_point_set_id==label_channel_id?0:1;
                     bool prediction_error=actual_label!=predicted_label;
                     label_channel_target_num_vec[label_channel_id]++;
@@ -546,7 +560,7 @@ namespace unsz
             oracle_config_count_vec.assign(oracle_config_vec.size(),0);
         }
         bool use_normalized_value_weights=use_normalized_weight_experimental && point_set_num==1 && point_set_codec_vec[0]==point_set_codec_e::inverse_proportion;
-        bool has_previous_time=cross_time_predictor_experimental=="previous" && previous_time_decompressed_data.size()==point_num && previous_time_point_set_id_vec.size()==point_num;
+        bool has_previous_time=prediction_framework.value_mode==time_dimension_mode_e::previous && previous_time_decompressed_data.size()==point_num && previous_time_point_set_id_vec.size()==point_num;
         prepare_time_interpolation();
         uint64_t cross_time_prediction_num=0;
         double prediction_residual_squared_error=0,prediction_residual_absolute_error=0;
@@ -596,7 +610,7 @@ namespace unsz
                             pred=previous_time_decompressed_data[original_id];
                             use_cross_time_prediction=true;
                         }
-                        else if(cross_time_predictor_experimental=="interpolation")
+                        else if(prediction_framework.value_mode==time_dimension_mode_e::interpolation)
                             use_cross_time_prediction=predict_time_interpolation(original_id,point_set_id,pred);
                         if(!use_cross_time_prediction)
                             pred=use_partition_config?predict_partition_adaptive_value(pred_id,ref_ids,current_decompressed_data,partition_prediction_config_id_vec[partition_id]):(use_normalized_value_weights?predict_value_normalized(ref_ids,ref_weights,current_decompressed_data):predict_value(current_pred_ref_id,pred_id,ref_ids,ref_weights,point_set_id,current_decompressed_data));
@@ -690,7 +704,7 @@ namespace unsz
                     pred=previous_time_decompressed_data[original_id];
                     use_cross_time_prediction=true;
                 }
-                else if (cross_time_predictor_experimental=="interpolation")
+                else if (prediction_framework.value_mode==time_dimension_mode_e::interpolation)
                     use_cross_time_prediction=predict_time_interpolation(original_id,point_set_id,pred);
                 if (!use_cross_time_prediction)
                     pred=use_partition_config?predict_partition_adaptive_value(pred_id,ref_ids,current_decompressed_data,partition_prediction_config_id_vec[point_partition_id_vec[pred_id]]):(use_normalized_value_weights?predict_value_normalized(ref_ids,ref_weights,current_decompressed_data):predict_value(current_pred_ref_id,pred_id,ref_ids,ref_weights,point_set_id,current_decompressed_data));
@@ -749,7 +763,7 @@ namespace unsz
             throw runtime_error("逐轮预测目标数量与预测参考结构不一致");
         if (hybrid_prediction_num>0)
             printf("hybrid_loo_fitting_ratio=%f, fitting_num=%llu, prediction_num=%llu\n",(double)hybrid_fitting_prediction_num/hybrid_prediction_num,(unsigned long long)hybrid_fitting_prediction_num,(unsigned long long)hybrid_prediction_num);
-        if (cross_time_predictor_experimental!="none")
+        if (prediction_framework.value_mode==time_dimension_mode_e::previous || prediction_framework.value_mode==time_dimension_mode_e::interpolation)
             printf("cross_time_prediction_num=%llu, ratio=%f\n",(unsigned long long)cross_time_prediction_num,(double)cross_time_prediction_num/point_num);
         if(print_prediction_residual_statistics)
         {

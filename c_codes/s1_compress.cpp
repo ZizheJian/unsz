@@ -60,15 +60,6 @@ vector<uint32_t> parse_time_step_vec(string expression)
 }
 
 template<typename T_coord>
-void advance_previous_time_buffers(unsz::param_c<T_coord,float> &param)
-{
-    if(param.cross_time_predictor_experimental=="previous")
-        param.previous_time_decompressed_data.swap(param.current_decompressed_data);
-    if(param.cross_time_predictor_experimental=="previous" || param.cross_time_label_predictor_experimental=="previous")
-        param.previous_time_point_set_id_vec.swap(param.point_set_id_vec);
-}
-
-template<typename T_coord>
 void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::time_point preprocessing_start_time)
 {
     double adjust_coord_time=0;
@@ -219,7 +210,7 @@ void run_compression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::t
         }
         if (fclose(f_compressed)!=0)
             throw runtime_error("关闭压缩文件失败："+param.compressed_data_path_vec.back());
-        advance_previous_time_buffers(param);
+        param.advance_time_prediction_buffers();
     }
     printf("全部文件最大误差/用户误差上限= %.9f\n",max_error_ratio);
     if (max_error_ratio>1.1)
@@ -476,8 +467,8 @@ namespace unsz
                 if (arg_id+1>=argc)
                     throw runtime_error("-cross-time-label-predictor-experimental后面缺少模式");
                 param.cross_time_label_predictor_experimental=argv[++arg_id];
-                if (param.cross_time_label_predictor_experimental!="previous")
-                    throw runtime_error("-cross-time-label-predictor-experimental目前只支持previous");
+                if (param.cross_time_label_predictor_experimental!="previous" && param.cross_time_label_predictor_experimental!="lorenzo3" && param.cross_time_label_predictor_experimental!="lorenzo4" && param.cross_time_label_predictor_experimental!="endpoint_agreement")
+                    throw runtime_error("-cross-time-label-predictor-experimental必须是previous、lorenzo3、lorenzo4或endpoint_agreement");
             }
             else if (strcmp(argv[arg_id],"-predictor")==0)
             {
@@ -588,7 +579,7 @@ namespace unsz
                 throw runtime_error("未知参数："+string(argv[arg_id]));
         }
         if(!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && param.point_set_config_path.empty()))
-            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental <previous|interpolation>] [-cross-time-label-predictor-experimental previous] [-predictor <inverse_proportion|fitting|hybrid_loo|quadratic_fitting|rbf_fitting>] [-rbf-kernel <gaussian|exponential|matern32|matern52|inverse_multiquadric>] [-rbf-shape <正数>] [-rbf-nugget <正数>] [-rbf-polynomial-degree <0|1|2>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-partition-adaptive-sample-num-experimental <数量>] [-partition-adaptive-min-improvement-experimental <比例>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|partition|partition_round>] [-round-stats] [-prediction-geometry-stats] [-label-stats] [-prediction-residual-stats] [-compression-stage-time] [-parallelism-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-fused-two-point-set-prediction-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-reference-data-order-experimental <time step列表>] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
+            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental <previous|interpolation>] [-cross-time-label-predictor-experimental <previous|lorenzo3|lorenzo4|endpoint_agreement>] [-predictor <inverse_proportion|fitting|hybrid_loo|quadratic_fitting|rbf_fitting>] [-rbf-kernel <gaussian|exponential|matern32|matern52|inverse_multiquadric>] [-rbf-shape <正数>] [-rbf-nugget <正数>] [-rbf-polynomial-degree <0|1|2>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-partition-adaptive-sample-num-experimental <数量>] [-partition-adaptive-min-improvement-experimental <比例>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-multi-huffman-experimental <none|round|partition|partition_round>] [-round-stats] [-prediction-geometry-stats] [-label-stats] [-prediction-residual-stats] [-compression-stage-time] [-parallelism-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-fused-two-point-set-prediction-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-reference-data-order-experimental <time step列表>] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
         if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
             throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
         if (param.use_partition_adaptive_predictor_experimental && param.partition_size_experimental==0 && param.partition_num_experimental==0)
