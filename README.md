@@ -1405,6 +1405,8 @@ Katrina三组参考数据顺序分别改善154/159、159/159和155/159个held-ou
 
 Ocean layerThickness进一步使用time step `8/16/24`搜索顺序，并在其余28步上测试。相对当前4点IDW+D-only，4点IDW+参考数据顺序和10点RBF+参考数据RBF评分分别降低`22.330%/22.877%` BD-rate；两者只相差约`0.55`个百分点。相反，10点RBF+D-only退化`8.960%`。参考数据顺序下，RBF相对IDW的核心压缩/解压时间约增加`8.1%/10.5%`，首次公共预处理由约`3.41 s`增至`11.61 s`，之后每次加载结构还需约`1.35 s`预计算RBF权重，而IDW只需约`0.04 s`。因此该field的收益主要来自参考数据辅助顺序，而不是RBF；当前优先保留4点IDW。与历史全部31步UMC曲线近似对齐时，当前28步IDW参考数据曲线约降低`32.39%` BD-rate，但训练步排除口径不同，正式数值仍需统一重测。实验入口和结果为`py_codes/benchmark_field_reference_order.py`与`results/ocean_layerThickness_reference_order.csv`。
 
+随后按当前流程重新使用3个等间隔time step训练layerThickness的空间矩阵。二次距离loss矩阵使D-only IDW、参考数据顺序IDW、D-only RBF和参考数据顺序RBF的BD-rate分别增加`6.728%/7.926%/5.338%/7.238%`；预测码长近似loss训练耗时约`25.94 s`，但仍使当前最佳的IDW参考数据顺序增加`1.335%`。因此layerThickness暂时不做adjust coord，两个失败矩阵不放入正式矩阵目录；完整消融结果保存在`results/ocean_layerThickness_reference_order_adjusted.csv`和`results/ocean_layerThickness_reference_order_prediction_ggd.csv`。
+
 ## 3.6. 跨time step结果
 
 Ocean velocityZonal全部31步的层次时间插值，相对其他方案的BD-rate为：

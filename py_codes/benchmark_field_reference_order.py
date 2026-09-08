@@ -23,6 +23,7 @@ def parse_arguments():
     parser.add_argument("-rbf-nugget",type=float,default=1e-6)
     parser.add_argument("-order-candidate-num",type=int,default=48)
     parser.add_argument("-rel-eb",type=float,action="append")
+    parser.add_argument("-configuration",choices=("idw_d_only","idw_reference_data","rbf_d_only","rbf_reference_data"),action="append")
     return parser.parse_args()
 
 def run_command(command):
@@ -87,12 +88,14 @@ def main():
         common_optional=["-adjust-coord-matrix-file",arguments.matrix_file]
     training_expression="{"+",".join(str(value) for value in training_time_step_vec)+"}"
     test_expression="{"+",".join(str(value) for value in test_time_step_vec)+"}"
-    config_vec=(
+    all_config_vec=(
         {"name":"idw_d_only","predictor":"inverse_proportion","ref_num":4,"cache_threshold":3,"power":2,"compress_extra":["-reverse-mean-distance-only-order-experimental"],"decompress_extra":[]},
         {"name":"idw_reference_data","predictor":"inverse_proportion","ref_num":4,"cache_threshold":3,"power":2,"compress_extra":["-reference-data-order-experimental",training_expression,"-order-candidate-num-experimental",arguments.order_candidate_num],"decompress_extra":[]},
         {"name":"rbf_d_only","predictor":"rbf_fitting","ref_num":arguments.rbf_ref_num,"cache_threshold":arguments.rbf_ref_num,"power":3.6,"compress_extra":["-reverse-mean-distance-only-order-experimental"],"decompress_extra":[]},
         {"name":"rbf_reference_data","predictor":"rbf_fitting","ref_num":arguments.rbf_ref_num,"cache_threshold":arguments.rbf_ref_num,"power":3.6,"compress_extra":["-reference-data-order-experimental",training_expression,"-reference-data-rbf-score-experimental","-order-candidate-num-experimental",arguments.order_candidate_num],"decompress_extra":[]},
     )
+    selected_configuration_set=set(arguments.configuration) if arguments.configuration else None
+    config_vec=tuple(config for config in all_config_vec if selected_configuration_set is None or config["name"] in selected_configuration_set)
     result_vec=[]
     temporary_root=os.environ.get("SLURM_TMPDIR","/tmp")
     with tempfile.TemporaryDirectory(prefix=f"unsz_{arguments.variable}_rbf_",dir=temporary_root) as temporary_dir_string:
@@ -118,10 +121,13 @@ def main():
                 print(f"{config['name']} REL={rel_eb:g}:BR={result['br']:.6f},PSNR={psnr:.6f},preprocessing={result['preprocessing_time']:.6f}s,compression={result['compression_time']:.6f}s,decompression={result['decompression_time']:.6f}s",flush=True)
                 cleanup(test_dir,arguments.variable,test_time_step_vec)
     result_map={name:[row for row in result_vec if row["config"]==name] for name in (config["name"] for config in config_vec)}
-    baseline=result_map["idw_d_only"]
-    for name in ("idw_reference_data","rbf_d_only","rbf_reference_data"):
-        rows=result_map[name]
-        print(f"{name}相对idw_d_only：BD-rate={calculate_bd_rate(baseline,rows):+.6f}%，压缩时间倍率={geometric_mean([row['compression_time'] for row in rows])/geometric_mean([row['compression_time'] for row in baseline]):.6f}，解压时间倍率={geometric_mean([row['decompression_time'] for row in rows])/geometric_mean([row['decompression_time'] for row in baseline]):.6f}",flush=True)
+    if "idw_d_only" in result_map:
+        baseline=result_map["idw_d_only"]
+        for name in ("idw_reference_data","rbf_d_only","rbf_reference_data"):
+            if name not in result_map:
+                continue
+            rows=result_map[name]
+            print(f"{name}相对idw_d_only：BD-rate={calculate_bd_rate(baseline,rows):+.6f}%，压缩时间倍率={geometric_mean([row['compression_time'] for row in rows])/geometric_mean([row['compression_time'] for row in baseline]):.6f}，解压时间倍率={geometric_mean([row['decompression_time'] for row in rows])/geometric_mean([row['decompression_time'] for row in baseline]):.6f}",flush=True)
     print(f"结果已写入{arguments.result}",flush=True)
 
 if __name__=="__main__":
