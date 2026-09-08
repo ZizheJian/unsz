@@ -123,7 +123,7 @@ namespace unsz
             else if (use_reverse_mean_distance_only_order_experimental)
                 printf("Using reverse mean-distance-only elimination with %u local candidates and %u references\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,max_ref_num);
             else if (use_reference_data_order)
-                printf("Using reverse reference-data-assisted elimination with %u local candidates, %u references and %llu reference time steps\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,max_ref_num,(unsigned long long)order_reference_data_vec.size());
+                printf("Using reverse reference-data-assisted elimination with %u local candidates, %u references, %llu reference time steps and %s error scoring\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,max_ref_num,(unsigned long long)order_reference_data_vec.size(),use_reference_data_rbf_score_experimental?"RBF":"IDW");
             else if (use_reverse_reference_reuse_order_experimental)
                 printf("Using reverse reference-reuse-first elimination with %u local candidates and %u references\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,max_ref_num);
             else if (use_reverse_s2_only_order_experimental)
@@ -300,6 +300,9 @@ namespace unsz
                                     uint32_t score_ref_num=d_only_cached_ref_num[candidate_id];
                                     if (cache_valid)
                                         reference_weight_reduced_list_reuse_num+=score_ref_num;
+                                    vector<int> valid_ref_ids,rbf_weight_ref_ids;
+                                    vector<double> rbf_weights;
+                                    bool rbf_weights_valid=false;
                                     for (uint32_t reference_file_id=0;reference_file_id<order_reference_data_vec.size();reference_file_id++)
                                     {
                                         auto &reference_data=order_reference_data_vec[reference_file_id];
@@ -307,11 +310,13 @@ namespace unsz
                                         double weight_sum=0,prediction=0;
                                         uint32_t valid_ref_num=0;
                                         bool exact_prediction=false;
+                                        valid_ref_ids.clear();
                                         for (uint32_t ref_index=0;ref_index<score_ref_num&&valid_ref_num<actual_ref_num;ref_index++)
                                         {
                                             int ref_id=d_only_cached_ref_ids[cache_begin+ref_index];
                                             if (get_point_set_id(reference_data[ref_id])!=target_point_set_id)
                                                 continue;
+                                            valid_ref_ids.push_back(ref_id);
                                             double weight=d_only_cached_ref_weight[cache_begin+ref_index];
                                             if (weight==numeric_limits<double>::infinity())
                                             {
@@ -322,6 +327,24 @@ namespace unsz
                                             weight_sum+=weight;
                                             prediction+=weight*reference_data[ref_id];
                                             valid_ref_num++;
+                                        }
+                                        bool try_rbf=use_reference_data_rbf_score_experimental&&point_set_config_vec[target_point_set_id].codec==point_set_codec_e::rbf_fitting;
+                                        if(try_rbf&&use_rbf_filtered_fallback_idw_experimental&&valid_ref_num<min(actual_ref_num,score_ref_num))
+                                            try_rbf=false;
+                                        if(try_rbf)
+                                        {
+                                            if(valid_ref_ids!=rbf_weight_ref_ids)
+                                            {
+                                                rbf_weights_valid=calculate_rbf_fitting_weights(candidate_id,valid_ref_ids,rbf_weights);
+                                                rbf_weight_ref_ids=valid_ref_ids;
+                                            }
+                                            if(rbf_weights_valid&&rbf_weights.size()==valid_ref_ids.size())
+                                            {
+                                                prediction=0;
+                                                for(uint32_t ref_index=0;ref_index<valid_ref_ids.size();ref_index++)
+                                                    prediction+=rbf_weights[ref_index]*reference_data[valid_ref_ids[ref_index]];
+                                                exact_prediction=true;
+                                            }
                                         }
                                         double normalized_error=1;
                                         if (exact_prediction||weight_sum>0)
