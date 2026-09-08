@@ -50,6 +50,7 @@ namespace unsz
         use_normalized_weight_experimental=other.use_normalized_weight_experimental;
         use_prediction_order_label_experimental=other.use_prediction_order_label_experimental;
         use_fused_two_point_set_prediction_experimental=other.use_fused_two_point_set_prediction_experimental;
+        use_linear_previous_label_experimental=other.use_linear_previous_label_experimental;
         use_predictability_order_experimental=other.use_predictability_order_experimental;
         use_forward_mean_distance_only_order_experimental=other.use_forward_mean_distance_only_order_experimental;
         use_forward_s2_only_order_experimental=other.use_forward_s2_only_order_experimental;
@@ -90,6 +91,7 @@ namespace unsz
         rbf_nugget=other.rbf_nugget;
         rbf_polynomial_degree=other.rbf_polynomial_degree;
         rbf_parameter_specified=other.rbf_parameter_specified;
+        use_rbf_filtered_fallback_idw_experimental=other.use_rbf_filtered_fallback_idw_experimental;
         zstd_compression_level=other.zstd_compression_level;
         point_set_predictor=other.point_set_predictor;
         predictor=other.predictor;

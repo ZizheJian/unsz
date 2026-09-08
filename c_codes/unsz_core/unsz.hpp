@@ -90,7 +90,7 @@ namespace unsz
     class nearest_queue_c
     {
         private:
-            static constexpr uint32_t small_capacity=11;//默认max_ref_num=10，反向查询额外包含目标自身
+            static constexpr uint32_t small_capacity=11;//常用max_ref_num不超过10，反向查询额外包含目标自身
             array<pair<T_coord,int>,small_capacity> small_data;
             uint32_t small_size=0;
             priority_queue<pair<T_coord,int>> large_queue;
@@ -250,6 +250,7 @@ namespace unsz
             bool use_normalized_weight_experimental=false;
             bool use_prediction_order_label_experimental=false;
             bool use_fused_two_point_set_prediction_experimental=false;
+            bool use_linear_previous_label_experimental=false;
             bool use_predictability_order_experimental=false;
             bool use_forward_mean_distance_only_order_experimental=false;
             bool use_forward_s2_only_order_experimental=false;
@@ -266,7 +267,7 @@ namespace unsz
             bool use_reverse_direction_distribution_order_experimental=false;
             vector<uint32_t> order_reference_time_step_vec_experimental;//非空时使用多个参考time step的预测误差搜索公共顺序
             bool use_global_order_before_round_split_experimental=false;
-            uint32_t d_only_cache_refill_threshold_experimental=8;//0表示任一参考点失效就重新查询，即精确模式
+            uint32_t d_only_cache_refill_threshold_experimental=3;//0表示任一参考点失效就重新查询，即精确模式
             uint32_t order_candidate_num_experimental=0;//0表示使用max_ref_num
             uint32_t cross_time_spatial_point_num_experimental=0;//仅用于统计展平时空点集中的跨时间参考
             uint32_t kd_tree_leaf_size=32;
@@ -282,14 +283,15 @@ namespace unsz
             double eb_schedule_start_ratio=0.8;
             uint32_t predict_round_num=8;
             double round_size_growth_ratio_experimental=2;
-            uint32_t max_ref_num=10;//不知道点集时先保留候选点，再筛选同点集参考点
-            uint32_t actual_ref_num=10;//标签预测使用的候选点数，也是数值预测最多使用的同点集参考点数
-            double inverse_distance_power=3.6;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
+            uint32_t max_ref_num=4;//不知道点集时先保留候选点，再筛选同点集参考点
+            uint32_t actual_ref_num=4;//标签预测使用的候选点数，也是数值预测最多使用的同点集参考点数
+            double inverse_distance_power=2;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
             string rbf_kernel="gaussian";//gaussian / exponential / matern32 / matern52 / inverse_multiquadric
             double rbf_shape=1;
             double rbf_nugget=1e-8;
             uint32_t rbf_polynomial_degree=0;
             bool rbf_parameter_specified=false;
+            bool use_rbf_filtered_fallback_idw_experimental=false;
             int zstd_compression_level=3;
             string point_set_predictor="inverse_proportion";//inverse_proportion / majority / continuous_actual / continuous_reflect
             string predictor="inverse_proportion";//没有逐点集配置时使用的默认预测器

@@ -768,6 +768,23 @@ namespace unsz
             }
             return valid_ref_num>0?(T_data)(prediction/total_weight):(T_data)0;
         };
+        if(codec==point_set_codec_e::rbf_fitting)
+        {
+            uint32_t expected_ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+            bool can_use_precomputed=pred_ref_rbf_weights.size()==pred_ref_ids.size() && expected_ref_num>0;
+            for(uint32_t ref_index=0;can_use_precomputed && ref_index<expected_ref_num;ref_index++)
+                can_use_precomputed=point_set_id_vec[ref_ids[ref_index]]==point_set_id && isfinite(pred_ref_rbf_weights[pred_ref_begin[pred_ref_id]+ref_index]);
+            if(can_use_precomputed)
+            {
+                double rbf_prediction=0;
+                for(uint32_t ref_index=0;ref_index<expected_ref_num;ref_index++)
+                    rbf_prediction+=pred_ref_rbf_weights[pred_ref_begin[pred_ref_id]+ref_index]*data[ref_ids[ref_index]];
+                if(isfinite(rbf_prediction))
+                    return (T_data)rbf_prediction;
+            }
+            if(use_rbf_filtered_fallback_idw_experimental)
+                return predict_current_inverse();
+        }
         if(codec==point_set_codec_e::fitting || codec==point_set_codec_e::hybrid_loo || codec==point_set_codec_e::quadratic_fitting || codec==point_set_codec_e::rbf_fitting)
         {
             vector<int> valid_ref_ids;
@@ -789,18 +806,6 @@ namespace unsz
             }
             else if(codec==point_set_codec_e::rbf_fitting)
             {
-                uint32_t expected_ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
-                bool can_use_precomputed=pred_ref_rbf_weights.size()==pred_ref_ids.size() && valid_ref_ids.size()==expected_ref_num;
-                for(uint32_t ref_index=0;can_use_precomputed && ref_index<expected_ref_num;ref_index++)
-                    can_use_precomputed=valid_ref_ids[ref_index]==ref_ids[ref_index] && isfinite(pred_ref_rbf_weights[pred_ref_begin[pred_ref_id]+ref_index]);
-                if(can_use_precomputed)
-                {
-                    double rbf_prediction=0;
-                    for(uint32_t ref_index=0;ref_index<expected_ref_num;ref_index++)
-                        rbf_prediction+=pred_ref_rbf_weights[pred_ref_begin[pred_ref_id]+ref_index]*data[valid_ref_ids[ref_index]];
-                    if(isfinite(rbf_prediction))
-                        return (T_data)rbf_prediction;
-                }
                 T_data rbf_prediction;
                 if(predict_rbf_fitting_value(pred_id,valid_ref_ids,data,rbf_prediction))
                     return rbf_prediction;

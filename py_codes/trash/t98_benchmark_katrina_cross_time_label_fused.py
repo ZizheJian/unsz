@@ -11,7 +11,7 @@ time_step_num=162
 point_num=417642
 total_mb=point_num*time_step_num*4/1e6
 rel_eb=1e-3
-repeat_num=3
+repeat_num=int(os.environ.get("UNSZ_BENCHMARK_REPEAT_NUM","3"))
 
 def run_command(command):
     result=subprocess.run([str(value) for value in command],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
@@ -55,17 +55,19 @@ def main():
         with open(config_path,"w",encoding="utf-8") as file:
             json.dump({"version":1,"rule_type":"ordered","labels":[{"method":"inverse_proportion","eb_mode":"REL","eb_value":rel_eb,"condition":{"operator":">=","value":-1000}},{"method":"constant"}]},file,ensure_ascii=False)
         prediction_structure_path=temporary_dir/"prediction_structure.bin"
-        common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step","[0,161]","-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",4,"-actual-ref-num",4,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",4,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-cross-time-label-predictor-experimental","previous"]
-        mode_vec=[("staged",False,False),("fused_raw",True,False),("fused_normalized",True,True)]
+        common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step","[0,161]","-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",4,"-actual-ref-num",4,"-inverse-distance-power",2,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",3,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-cross-time-label-predictor-experimental","previous"]
+        mode_vec=[("staged",False,False,False),("fused_raw",True,False,False),("fused_normalized",True,True,False),("fused_linear_label",True,False,True),("fused_linear_normalized",True,True,True)]
         for repeat_id in range(repeat_num):
             ordered_modes=mode_vec[repeat_id:]+mode_vec[:repeat_id]
-            for name,use_fused,use_normalized in ordered_modes:
+            for name,use_fused,use_normalized,use_linear_label in ordered_modes:
                 print(f"测试{name}，repeat={repeat_id}",flush=True)
                 arguments=[*common_arguments]
                 if use_fused:
                     arguments.append("-fused-two-point-set-prediction-experimental")
                 if use_normalized:
                     arguments.append("-normalized-weight-experimental")
+                if use_linear_label:
+                    arguments.append("-linear-previous-label-experimental")
                 compression_output=run_command([compressor,*arguments,"-compression-stage-time"])
                 current_sha=compressed_sha(test_dir)
                 if reference_sha is None:
@@ -91,10 +93,10 @@ def main():
         writer=csv.DictWriter(file,fieldnames=result_vec[0].keys(),lineterminator="\n")
         writer.writeheader()
         writer.writerows(result_vec)
-    result_map={name:[result for result in result_vec if result["name"]==name] for name,_,_ in mode_vec}
+    result_map={name:[result for result in result_vec if result["name"]==name] for name,_,_,_ in mode_vec}
     for name,results in result_map.items():
         print(f"{name}：compression={geometric_mean([result['compression_mb_s'] for result in results]):.3f} MB/s,decompression={geometric_mean([result['decompression_mb_s'] for result in results]):.3f} MB/s",flush=True)
-    for name in ("fused_raw","fused_normalized"):
+    for name in ("fused_raw","fused_normalized","fused_linear_label","fused_linear_normalized"):
         compression_change=geometric_mean([result["compression_mb_s"] for result in result_map[name]])/geometric_mean([result["compression_mb_s"] for result in result_map["staged"]])-1
         decompression_change=geometric_mean([result["decompression_mb_s"] for result in result_map[name]])/geometric_mean([result["decompression_mb_s"] for result in result_map["staged"]])-1
         print(f"{name}相对staged：compression={compression_change*100:+.3f}%,decompression={decompression_change*100:+.3f}%",flush=True)

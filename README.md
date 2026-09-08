@@ -211,13 +211,14 @@ install/bin/s1_compress -data-dir /path/to/data -variable field -time-step '[0,9
 
 | 参数 | 当前默认值 | 含义 |
 |---|---:|---|
-| `-max-ref-num` | 10 | 在未知点集标签时保留的候选参考点数 |
-| `-actual-ref-num` | 10 | 标签预测使用的候选点数，以及数值预测最多使用的同点集参考点数 |
+| `-max-ref-num` | 4 | 在未知点集标签时保留的候选参考点数 |
+| `-actual-ref-num` | 4 | 标签预测使用的候选点数，以及数值预测最多使用的同点集参考点数 |
 | `-predict-round-num` | 8 | 预测轮数；五点筛选中，8轮+逐轮EB公比0.8在4个代表field均优于原10轮默认值 |
 | `-round-size-growth-ratio-experimental` | 2 | 前两轮等大，此后每轮目标点数相对上一轮的增长比例 |
-| `-inverse-distance-power` | 3.6 | IDW使用的欧氏距离负指数 |
+| `-inverse-distance-power` | 2 | IDW使用的欧氏距离负指数 |
+| `-zstd-level` | 3 | 压缩端使用的Zstd等级，可设为1到22；解压端无需指定 |
 | `-kd-leaf-size` | 32 | kd-tree叶节点最多保存的点数 |
-| `-d-only-cache-refill-threshold-experimental` | 8 | 排序所用的有效参考点缓存少于8个时重新查询kd-tree |
+| `-d-only-cache-refill-threshold-experimental` | 3 | 排序所用的4个缓存参考点少于3个仍有效时重新查询kd-tree；仍有3个时直接复用并重新归一化 |
 | `-fused-two-point-set-prediction-experimental` | 关闭 | 在串行两点集IDW路径中合并标签与数值预测，减少对同一参考数组的重复访问；压缩和解压可以分别开关，码流不变 |
 | `-normalized-weight-experimental` | 关闭 | 公共预处理生成归一化IDW权重；单点集直接使用，多点集融合路径在全部数值参考点同类时使用 |
 
@@ -300,7 +301,7 @@ Adjust coord用少量训练文件提前学习一个下三角矩阵`C`，以后�
       <td>训练时使用4个近邻</td>
       <td>已采纳，可以再验证</td>
       <td>比较了3、4、5和10个训练近邻，4个近邻在LES和Tsunami的多个field上整体最稳定。3个近邻偶尔收益很大，但出现轻微退化的field更多；10个近邻的结果明显依赖field，BR变化范围达到<code>-13.704%～+10.460%</code>；5个近邻也没有表现出相对4个近邻的整体优势</td>
-      <td>默认使用4个训练近邻；保留其他近邻数的候选矩阵及筛选脚本。压缩预测仍默认使用10个参考点</td>
+      <td>默认使用4个训练近邻；保留其他近邻数的候选矩阵及筛选脚本。压缩预测也默认最多使用4个参考点</td>
     </tr>
   </tbody>
 </table>
@@ -359,9 +360,9 @@ L(C)=Σ_i(|Δv_i|-d_i(C))²=Σ_i(|Δv_i|-||Δc_iC||₂)²
     </tr>
     <tr>
       <td>Gauss–Newton快速训练</td>
-      <td>需要更多样本</td>
-      <td>Katrina约<code>1.2 s</code>，相对least-squares约有<code>0.17%</code> RD代价</td>
-      <td>在LES、Tsunami和新数据验证</td>
+      <td>已实现，尚未设为命令行默认</td>
+      <td>Katrina约<code>1.2 s</code>，相对least-squares约有<code>0.17%</code> RD代价。批量空间矩阵脚本已经显式使用<code>gauss_newton</code>，但<code>t2_adjust_coord.py</code>的<code>-optimizer</code>默认值目前仍是<code>least_squares</code></td>
+      <td>先保持代码与文档一致；若要把它设为所有训练入口的默认值，需要在LES、Tsunami和新数据验证后统一修改</td>
     </tr>
     <tr>
       <td>直接近似预测残差码长的训练目标</td>
@@ -480,7 +481,7 @@ L(C)=Σ_i(|Δv_i|-d_i(C))²=Σ_i(|Δv_i|-||Δc_iC||₂)²
       <td>让adjust coord支持多个用户定义点集</td>
       <td>待实现</td>
       <td>C++已支持多个点集和<code>n-1</code>个标签通道；Python仍只训练<code>is_abnormal()</code>筛出的单个有效点集。constant点集的距离loss会错误地把矩阵推向零，标签通道与数值流也可能需要不同几何</td>
-      <td>读取同一JSON配置；为每个非constant数值点集和每个递进标签通道分别训练候选矩阵，再比较独立矩阵、只共享预测顺序以及完全共享矩阵的BR与预处理代价</td>
+      <td>读取同一JSON配置。Katrina先把正常数值点集的平方loss和标签码流代理合并训练一个公共矩阵；第二个点集是常量<code>-99999</code>，不参与数值距离训练。虽然当前上一time step标签预测不使用空间矩阵，仍可用空间标签预测或联合预测作高压缩比消融</td>
     </tr>
     <tr>
       <td>让不同压缩partition使用不同的常变换矩阵</td>
@@ -595,7 +596,7 @@ L(C)=Σ_i(|Δv_i|-d_i(C))²=Σ_i(|Δv_i|-||Δc_iC||₂)²
       <td>先生成全局顺序再按照轮大小切分</td>
       <td>效果优先候选</td>
       <td>相对先随机分轮，LES三个field改善<code>12.22%～12.40%</code> BD-rate，Tsunami四个field改善<code>0.99%～6.42%</code>，Katrina退化<code>1.683%</code>；首次预处理慢约<code>23%～32%</code>，但核心压缩和解压通常略快</td>
-      <td>保留<code>-global-order-before-round-split-experimental</code>；不设为通用默认，等待离线选择方案</td>
+      <td>保留<code>-global-order-before-round-split-experimental</code>；先用当前Katrina 4点IDW高速版和RBF高压缩比版重测，不立即开发自动选择器</td>
     </tr>
     <tr>
       <td>利用参考数据搜索公共预测顺序</td>
@@ -635,9 +636,21 @@ L(C)=Σ_i(|Δv_i|-d_i(C))²=Σ_i(|Δv_i|-||Δc_iC||₂)²
     </tr>
     <tr>
       <td>在先随机分轮和先全局排序之间离线选择</td>
-      <td>待实现</td>
+      <td>暂缓</td>
       <td>先随机分轮能维持各轮空间覆盖；先全局排序再切分在LES和Tsunami较好、Katrina略差</td>
-      <td>用少量参考文件的预测误差或估计码长进行确定性选择</td>
+      <td>当前先分别报告高速版和高压缩比版，不立即实现自动决策；等候选方案和更多数据稳定后再考虑</td>
+    </tr>
+    <tr>
+      <td>在后几轮按cache子partition生成DAG并重排每个文件</td>
+      <td>待实现</td>
+      <td>这不是现有的互不引用partition。每轮仍先拥有全部更早轮次的可用点，然后依次处理adjust后kd-tree顶层划分出的互斥子partition；当前子partition可以引用所有更早轮次、已经处理的子partition以及当前子partition内已经处理的点。随后直接按照这个新顺序生成参考边、逐点EB和量化码流，不保留旧DAG作拓扑重排对照</td>
+      <td>先在Katrina最后三轮测试<code>2/4/8/16</code>个子partition。每个文件都按照新处理顺序物理重排数值和点集编号，重排与最终散射耗时计入核心压缩和解压；不先统计旧DAG的同区域参考比例</td>
+    </tr>
+    <tr>
+      <td>把内部数组整体改为DAG预测顺序</td>
+      <td>已有实验实现，待重新测速</td>
+      <td><code>-prediction-order-layout-experimental</code>会把坐标、目标编号、参考编号以及每个文件的数值和点集编号从原始编号映射到DAG预测编号，使目标写入连续；解压后再散射回原始编号。它不保证空间参考点集中在同一缓存区域，与上面的空间子partition顺序不是同一个方案</td>
+      <td>新的子partition DAG本身会形成新的处理顺序，可以复用这套编号映射和物理重排代码；需要检查它与上一time step线性标签及融合4点快速循环的分支冲突</td>
     </tr>
     <tr>
       <td>坐标或距离相同时按点编号打破并列</td>
@@ -712,7 +725,7 @@ squared_distanceᵢ=||coord_target-coordᵢ||₂²
 prediction=Σ(valueᵢ·squared_distanceᵢ^-1.8)/Σ(squared_distanceᵢ^-1.8)
 ```
 
-C++的kd-tree查询返回并保存的是欧氏距离的平方，因此程序实际对`squared_distance`使用`-1.8`次方，即`-inverse_distance_power/2`。这在数学上等价于对欧氏距离使用`-3.6`次方。
+C++的kd-tree查询返回并保存的是欧氏距离的平方，因此当前默认对`squared_distance`使用`-1`次方，即`-inverse_distance_power/2`。这在数学上等价于对欧氏距离使用`-2`次方。
 
 预测只使用已经重建且属于当前点集的参考点。压缩端立即用量化重建值替换原值，解压端因而可以严格复现后续预测。当前默认共有8个预测轮。若轮编号为`r=0,...,7`，第`r`轮开头使用的error bound是用户指定值的`0.8^(7-r)`倍：第一轮从约`0.21`倍开始，后续轮逐渐放宽。在同一轮内，error bound也按照等比数列平滑增加到下一轮的起始值；最后一轮使用完整的用户error bound。公比`0.8`仍是经验参数，需要和预测轮数一起验证。
 
@@ -735,16 +748,22 @@ C++的kd-tree查询返回并保存的是欧氏距离的平方，因此程序实�
   </thead>
   <tbody>
     <tr>
-      <td>距离权重为<code>d^-3.6</code>、最多使用10个参考点、有效缓存少于8点时重新查询</td>
+      <td>距离权重为<code>d^-2</code>、最多使用4个参考点、有效缓存少于3点时重新查询</td>
       <td>已采纳</td>
-      <td>跨Katrina、Ocean、LES和Tsunami比更小参考集合稳定</td>
-      <td>作为当前空间默认IDW预测配置</td>
+      <td>Katrina完整162步五点曲线中，相对4点、指数3.6、cache-4降低<code>1.056%</code> BD-rate，公共预处理快约<code>17.3%</code>，核心压缩略快；跨数据泛化仍待验证</td>
+      <td>作为当前速度优先的默认IDW预测配置；效果优先版本另用RBF</td>
     </tr>
     <tr>
-      <td>将最多使用的参考点数从10降至4</td>
-      <td>速度优先候选</td>
-      <td>Katrina全部162步的五点曲线中，有效缓存少于4点时重查相对当前10点/cache-8增加<code>2.272%</code> BD-rate；核心压缩几何平均吞吐率由<code>43.08</code>升至<code>54.22 MB/s</code>，解压由<code>52.37</code>升至<code>71.03 MB/s</code>，公共预测结构由<code>20.05</code>缩至<code>10.02 MB</code></td>
-      <td>暂不替换效果优先默认值；在其他数据上验证后作为快速版候选。允许缓存只剩3点时继续复用可把首次预处理由<code>2.520</code>缩至<code>2.211 s</code>，但核心速度几乎不变且BD-rate代价增至<code>2.319%</code></td>
+      <td>使用多于4个IDW参考点</td>
+      <td>暂不采纳</td>
+      <td>Katrina全部162步的旧空间五点曲线中，有效缓存少于4点时重查相对10点/cache-8增加<code>2.272%</code> BD-rate，但明显缩短公共预处理和核心预测。加入上一time step标签后的最新五点曲线中，4点、距离指数2、cache-3的组合相对4点、指数3.6、cache-4降低<code>1.056%</code> BD-rate，首次预处理由<code>2.628</code>缩至<code>2.175 s</code>，核心压缩还快约<code>0.8%</code></td>
+      <td>保留命令行参数和历史结果，不作为默认方案</td>
+    </tr>
+    <tr>
+      <td>Katrina使用5个参考点并重新选择距离指数</td>
+      <td>效果与速度折中候选</td>
+      <td>5点、距离指数<code>2.5</code>在全部162步五点曲线中相对当前4点、指数3.6降低<code>2.586%</code> BD-rate，核心压缩时间只增加约<code>2.9%</code>；与上一time step标签方案叠加后，同PSNR压缩率约达到UMC的2倍</td>
+      <td>在其他数据验证后决定是否作为折中配置</td>
     </tr>
     <tr>
       <td>Huffman+Zstd level 3</td>
@@ -754,9 +773,9 @@ C++的kd-tree查询返回并保存的是欧氏距离的平方，因此程序实�
     </tr>
     <tr>
       <td>联合调整轮数、轮大小和逐轮EB</td>
-      <td>已采纳</td>
+      <td>已完成，不再逐field调优</td>
       <td><code>8轮+EB公比0.8</code>相对原<code>10轮+0.8</code>在4个代表field均改善；轮大小增长比例的field最优值为Katrina/Ocean temperature/Ocean velocityZonal/Tsunami <code>2/4/3.5/1.75</code>，不存在共同最优值</td>
-      <td>默认保持8轮、轮大小增长比例2和EB公比0.8；更完整的联合调参留到更多数据后</td>
+      <td>默认固定8轮、轮大小增长比例2和EB公比0.8；不为每个field单独选择轮大小比例</td>
     </tr>
     <tr>
       <td>根据一个重构点会影响多少后续预测来分配EB</td>
@@ -779,8 +798,8 @@ C++的kd-tree查询返回并保存的是欧氏距离的平方，因此程序实�
     <tr>
       <td>根据参考点几何关系求RBF插值权重</td>
       <td>效果优先候选，待泛化验证</td>
-      <td>RBF允许正、负权重，并令常量数据被精确重建。Tsunami momentum_x使用10点Matérn-3/2核、shape <code>0.03</code>和nugget <code>1e-6</code>时，相对当前UNSZ、UMC和10点二次拟合分别降低<code>26.836%/30.225%/8.878%</code> BD-rate。将几何权重移到公共预处理后，五点平均核心压缩/解压约为<code>0.018/0.012 s</code>；113885点的一次权重预计算约<code>0.561 s</code>，可由全部time step复用。一次趋势项与无趋势项几乎相同，二次趋势明显变差；Matérn-5/2整体比3/2增加<code>4.878%</code> BD-rate</td>
-      <td>在Katrina、Ocean、LES及Tsunami其他field验证核参数是否可泛化；若不能，再研究用少量训练文件离线选择核参数</td>
+      <td>RBF允许正、负权重，并令常量数据被精确重建。Tsunami momentum_x使用10点Matérn-3/2核、shape <code>0.03</code>和nugget <code>1e-6</code>时，相对当前UNSZ、UMC和10点二次拟合分别降低<code>26.836%/30.225%/8.878%</code> BD-rate。Katrina使用8点、shape <code>0.01</code>时，在异类参考点使预计算权重失效的位置退回IDW，相对当前4点IDW降低<code>15.199%</code> BD-rate；与上一time step标签方案叠加后，估算相对UMC降低约<code>56.53%</code> BD-rate，同PSNR压缩率约为UMC的<code>2.30倍</code>。消除每点临时参考数组并使用线性标签修正流后，Katrina五点几何平均核心压缩/解压为<code>2.256/1.618 s</code>，约<code>119.94/167.22 MB/s</code></td>
+      <td>作为Katrina效果优先候选；继续在Ocean、LES和其他field验证核与回退规则是否泛化</td>
     </tr>
     <tr>
       <td>逐个移除参考点并比较IDW与局部拟合的预测误差</td>
@@ -796,9 +815,9 @@ C++的kd-tree查询返回并保存的是欧氏距离的平方，因此程序实�
     </tr>
     <tr>
       <td>按空间区域采样并选择预测器</td>
-      <td>实验性保留</td>
+      <td>暂缓</td>
       <td>旧实现把预测器选择区域同时作为互不引用的压缩partition，无法区分局部选择收益与边界损失；固定门槛回退在Ocean 9-field平均/中位仅改善<code>0.050%/0.029%</code></td>
-      <td>新实现应把线程间独立partition与线程内预测器选择区域分开：线程间禁止引用，同一线程内多个区域共享局部DAG并允许相互引用</td>
+      <td>field级和partition级预测器选择都先等待；恢复时再把线程间独立partition与线程内预测器选择区域分开</td>
     </tr>
     <tr>
       <td>先用IDW预测再拟合IDW残差</td>
@@ -906,10 +925,28 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
       <td>当前跨时间标签方案默认使用融合原始权重路径；若要严格量化“同步”本身的收益，需要再构造使用相同数值内核的快速分阶段对照</td>
     </tr>
     <tr>
+      <td>按原始编号线性恢复上一time step标签修正流，再单独遍历DAG解压数值</td>
+      <td>Katrina解压已采纳到实验路径</td>
+      <td>标签修正码流与数值码流本来相互独立。Katrina全部162步、REL <code>1e-3</code>的三次交替测试中，新旧压缩文件SHA与PSNR完全相同；4点、指数3.6时解压由<code>216.232</code>提高到<code>240.358 MB/s</code>，4点、指数2、cache-3的最新三次测试由约<code>220.04</code>提高到<code>233.54 MB/s</code>。压缩端线性扫描没有稳定收益，继续在DAG循环内同步处理标签</td>
+      <td>高速版只在解压端启用<code>-linear-previous-label-experimental</code>；压缩端使用同步DAG和预归一化权重</td>
+    </tr>
+    <tr>
       <td>全部数值参考点同类时直接使用预归一化权重</td>
       <td>实验性保留</td>
       <td>公共DAG的权重由所有time step和标签通道复用。Katrina全部162步、4参考点下，<code>90.836%</code>的正常数值目标命中全同类快速路径；三次交替重复中，融合路径的压缩/解压由<code>61.248/79.213</code>提高到<code>62.890/80.492 MB/s</code>，即提高<code>2.681%/1.615%</code>，BR、PSNR和组合码流SHA均不变</td>
-      <td>收益为正但较小；以后比较只保存每目标总权重倒数，是否能用更少内存流量获得相同收益</td>
+      <td>收益为正但较小，当前继续保存预归一化权重。只保存原始权重和每目标权重和倒数虽然能删除完整归一化权重数组，但命中时仍多一次标量读取和乘法；只有确认内存带宽是瓶颈后再考虑</td>
+    </tr>
+    <tr>
+      <td>为空间或联合标签预测单独选择距离度量、距离指数和参考点数</td>
+      <td>高压缩比候选，暂未测试</td>
+      <td>Katrina当前采用上一time step同位置标签预测，不使用空间DAG、距离或IDW权重。若改用空间或联合标签预测，独立参数可能降低标签BR，但会失去标签和数值之间的权重复用并增加执行路径</td>
+      <td>不纳入高速版；高压缩比版可以完整压缩若干标签候选并按最终标签字节数选择，再与当前上一time step方案比较</td>
+    </tr>
+    <tr>
+      <td>压缩和解压分别选择最快但码流兼容的标签/权重执行路径</td>
+      <td>Katrina高速版已采纳</td>
+      <td>4点、指数2、cache-3、REL <code>1e-3</code>的三次交替测试中，压缩端同步DAG并使用预归一化权重达到约<code>172.77 MB/s</code>；解压端线性恢复标签并使用原始权重达到约<code>233.54 MB/s</code>。所有组合的BR、PSNR和压缩文件SHA完全相同</td>
+      <td><code>t1_start_c_code.py</code>已支持分别追加压缩和解压参数；冻结版本时在独占节点补齐五点测速</td>
     </tr>
     <tr>
       <td>融合压缩时直接把量化索引写入点集和Huffman分组</td>
@@ -948,6 +985,18 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
       <td>解压端清零重构数组会预热缓存，删除后反而慢约1.3%，因此保留；以后单独处理跨time step历史数组复制</td>
     </tr>
     <tr>
+      <td>单Huffman树时把分组判断移出逐点循环，并连续读取预测目标编号</td>
+      <td>已采纳，待独占节点定量</td>
+      <td>默认路径不再为每个目标比较多Huffman模式字符串，融合循环也不再从多个分轮vector重复读取目标编号；码流SHA保持不变。登录节点负载变化较大，现有交替测试只能确认没有明显退化</td>
+      <td>冻结测速时与前一提交做同节点A/B，给出稳定百分比</td>
+    </tr>
+    <tr>
+      <td>高速版将Zstd level 3降至level 1</td>
+      <td>暂不采纳</td>
+      <td>Katrina五个EB、两次交替测试中，无损阶段由约<code>0.228</code>降至<code>0.221 s</code>，但总吞吐率为<code>157.02/157.21 MB/s</code>，没有可测加速；几何平均BR反而低约<code>0.33%</code></td>
+      <td>保留<code>-zstd-level</code>参数，换数据后再判断</td>
+    </tr>
+    <tr>
       <td>标签预测与编码</td>
       <td>需要更多样本</td>
       <td>当前各条件二分类通道分别保存预测错误bitstream并使用Zstd level 3</td>
@@ -962,7 +1011,7 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
     <tr>
       <td>按位打包、逐字节、游程、按轮或按预测顺序编码标签</td>
       <td>放弃</td>
-      <td>均未超过当前原始编号错误位置差分方案；预测顺序标签还同时降低速度</td>
+      <td>均未超过当前原始编号错误位置差分方案。最新版Katrina上一time step标签、4点、指数2、cache-3、REL <code>1e-3</code>的三次交替测试中，改用DAG顺序后标签Zstd字节由<code>157507</code>增至<code>160332</code>，总BR由<code>0.517489</code>增至<code>0.517823</code>；压缩/解压吞吐率由<code>184.28/265.82</code>降至<code>170.84/252.88 MB/s</code></td>
       <td>不再重复这些二分类实验</td>
     </tr>
   </tbody>
@@ -1073,9 +1122,9 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
 
 ## 2.8. 并行设计
 
-当前OpenMP原型已经支持adjust后独立partition：每个partition只引用本partition内的数据，因而具有独立预测DAG。kd-tree拓扑、包围盒、tree-order坐标和ID映射只保存一份；线程共享这些只读结构，并分别修改互不重叠的partition状态。预测结构生成、标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。v9容器使用`partition_payload_begin[P+1]`定位各独立payload，最终只按partition编号串行拼接字节。后续局部预测器选择采用两级边界：不同线程负责的顶层partition仍完全独立；一个线程负责的顶层partition内部可以再划分多个预测器选择区域，这些区域共享该线程的局部DAG并允许相互引用，只分别保存所选预测配置。
+当前OpenMP原型已经支持adjust后独立partition：每个partition只引用本partition内的数据，因而具有独立预测DAG。kd-tree拓扑、包围盒、tree-order坐标和ID映射只保存一份；线程共享这些只读结构，并分别修改互不重叠的partition状态。预测结构生成、标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。v9容器使用`partition_payload_begin[P+1]`定位各独立payload，最终只按partition编号串行拼接字节。field级和partition级预测器选择目前暂缓；以后恢复时采用两级边界，不同线程负责的顶层partition完全独立，同一线程内的多个预测器选择区域共享局部DAG并允许相互引用。
 
-并行实验不使用“多线程UNSZ对串行UMC”作为主要速度结论。单线程实验始终比较一核UNSZ与一核UMC，并继续用这一口径判断UNSZ核心时间是否超过UMC两倍。对于包含多个独立time step的数据，使用相同数量的进程把不同文件分配给UNSZ和UMC，比较双方相同资源下的总吞吐率；独立进程也避免依赖UMC接口是否线程安全。对于单个大field，单独报告UNSZ从1线程到多线程的strong/weak scaling；UMC官方当前没有通用的单field并行入口，因此只列其官方串行结果，不把二者直接解释为并行算法优劣。如果论文需要同核数的单field比较，再为UMC增加与UNSZ相同partition数量的外部分区，并同时报告两种方法因partition边界造成的BR变化。
+并行实验不使用“多线程UNSZ对串行UMC”作为主要速度结论。单线程实验始终比较一核UNSZ与一核UMC。高速版要求核心压缩和核心解压的耗时分别不超过UMC的`1.1倍`，高压缩比版分别不超过`2倍`；在同一节点上交替运行双方的五个EB，并以逐EB耗时倍率的几何平均作判断，暂不把可由全部time step复用的公共预处理计入该限制。对于包含多个独立time step的数据，使用相同数量的进程把不同文件分配给UNSZ和UMC，比较双方相同资源下的总吞吐率；独立进程也避免依赖UMC接口是否线程安全。对于单个大field，单独报告UNSZ从1线程到多线程的strong/weak scaling；UMC官方当前没有通用的单field并行入口，因此只列其官方串行结果，不把二者直接解释为并行算法优劣。如果论文需要同核数的单field比较，再为UMC增加与UNSZ相同partition数量的外部分区，并同时报告两种方法因partition边界造成的BR变化。
 
 <table class="fixed-layout-table" width="100%">
   <colgroup>
@@ -1207,9 +1256,9 @@ UMC论文的Ocean-large并行端到端实验只比较了其自身的NBP、CBM-SZ
 
 ## 3.3. 空间预测的rate-distortion
 
-UNSZ中的不少方案形成明确的压缩效果—速度权衡，强行冻结一个折中默认值会掩盖算法边界。论文实验将分别冻结一套“压缩效果优先”和一套“速度优先”的可复现配置，同时给出两者之间的Pareto关系及关键消融；不会针对测试field事后挑选最优配置。先生成全局顺序再分轮、基于训练数据排列公共顺序和复杂预测器属于效果优先候选，先随机分轮、只使用坐标的D-only顺序、纯IDW和快速adjust训练属于速度优先候选。最终吞吐率会分开报告一次性公共预处理、adjust训练、逐文件核心压缩和解压，避免把离线成本与逐time step成本混在一起。每次adjust coord实现或默认训练流程发生变化后，都重新训练各field的矩阵并重新生成依赖矩阵的预测结构，旧矩阵只保留为历史结果。现阶段不限制adjust coord、生成公共DAG及其他可由全部time step复用的离线预处理时间；进入最终配置的方案至少要求逐文件核心压缩总时间不超过UMC的两倍，核心解压时间也单独检查并优先采用相同限制。任何必须对每个文件重复执行的参数选择或统计都计入核心时间，不能作为离线预处理排除。
+UNSZ中的不少方案形成明确的压缩效果—速度权衡，强行冻结一个折中默认值会掩盖算法边界。论文实验将分别冻结一套“高压缩比版”和一套“高速版”的可复现配置，同时给出两者之间的Pareto关系及关键消融；不会针对测试field事后挑选最优配置。先生成全局顺序再分轮、基于训练数据排列公共顺序和复杂预测器属于高压缩比候选，先随机分轮、只使用坐标的D-only顺序、纯IDW和快速adjust训练属于高速候选。最终吞吐率会分开报告一次性公共预处理、adjust训练、逐文件核心压缩和解压，避免把离线成本与逐time step成本混在一起。每次adjust coord实现或默认训练流程发生变化后，都重新训练各field的矩阵并重新生成依赖矩阵的预测结构，旧矩阵只保留为历史结果。高速版的核心压缩和核心解压耗时分别不得超过UMC的`1.1倍`，高压缩比版分别不得超过`2倍`；采用同节点交替运行的五点耗时倍率几何平均判定。现阶段不限制adjust coord、生成公共DAG及其他可由全部time step复用的离线预处理时间。任何必须对每个文件重复执行的参数选择或统计都计入核心时间，不能作为离线预处理排除。
 
-下面统一使用REL`1e-1、1e-2、1e-3、1e-4、1e-5`五点曲线，并在共同PSNR范围内对`ln(BR)`进行三次拟合后计算BD-rate。UNSZ使用当前8轮、轮内反向D-only顺序、最多10个同点集参考点和距离负指数`3.6`，并按`t1_start_c_code.py`为部分field加载已选定的空间adjust coord矩阵。Katrina、E3SM AODDUST和ADCIRC Haiyan的UMC使用NBP-IDW-INP、4个邻点和batch 10；其余数据使用普通NBP-IDW和4个邻点。Haiyan网格包含多个连通分量，而UMC的DPFS只遍历0号点所在分量，因此该数据关闭UMC重排并保持原始点编号。
+下面统一使用REL`1e-1、1e-2、1e-3、1e-4、1e-5`五点曲线，并在共同PSNR范围内对`ln(BR)`进行三次拟合后计算BD-rate。UNSZ当前速度优先默认使用8轮、轮内反向D-only顺序、最多4个同点集参考点、有效缓存少于3点时重查和欧氏距离负指数`2`，并按`t1_start_c_code.py`为部分field加载已选定的空间adjust coord矩阵；表中较早实验若使用10点和指数3.6会单独注明。Katrina、E3SM AODDUST和ADCIRC Haiyan的UMC使用NBP-IDW-INP、4个邻点和batch 10；其余数据使用普通NBP-IDW和4个邻点。Haiyan网格包含多个连通分量，而UMC的DPFS只遍历0号点所在分量，因此该数据关闭UMC重排并保持原始点编号。
 
 | 数据 | field | UNSZ相对UMC的同PSNR BD-rate |
 |---|---|---:|
@@ -1293,7 +1342,7 @@ Katrina前5个time step上的等坐标范围消融进一步比较了三种策略
 | Tsunami velocity_y | `-5.696%` |
 | Katrina attr0，time step 0 | `+1.683%` |
 
-先生成全局顺序再分轮的首次预处理比先随机分轮慢约`23%～32%`，但LES核心压缩快约`4.7%～5.9%`、解压快约`5.9%～7.8%`。它不是通用赢家，下一步需要根据少量训练数据在两种分轮方法之间离线选择。
+先生成全局顺序再分轮的首次预处理比先随机分轮慢约`23%～32%`，但LES核心压缩快约`4.7%～5.9%`、解压快约`5.9%～7.8%`。它不是通用赢家；下一步只用当前Katrina 4点IDW高速版和RBF高压缩比版复测。根据少量训练数据自动选择两种分轮方法的功能暂缓到候选方案和更多数据稳定以后。
 
 ## 3.5. 利用参考数据搜索公共预测顺序
 
@@ -1404,7 +1453,8 @@ TAPS没有可供UMC直接使用的connectivity，因此下面只比较最新矩�
 - [ ] Katrina和Ocean temperature的三组参考/测试划分、全部held-out time step及1/2/3个参考文件已经验证；继续测试更多field和分布漂移。
 - [ ] 按同PSNR BD-rate对field排序；优先在稳定正收益但优势仍有限的中间梯队开发压缩优化，固定方案和参数后再应用到表尾弱势field，区分通用收益与单数据过拟合。
 - [ ] 为E3SM AODDUST补测UMC-INP的batch `1/2/5/10`，确认其大幅优势中有多少来自UMC每10步才更新动态无效状态。
-- [ ] 使用少量参考文件的预测误差或估计码长，在“先随机分轮”和“先生成全局顺序再分轮”之间离线选择；不能只根据坐标覆盖率判断。
+- [ ] 用当前Katrina 4点IDW高速版和RBF高压缩比版重测“先生成全局顺序再分轮”；自动选择随机分轮或全局排序的功能暂缓到候选方案和更多数据稳定后。
+- [ ] 实现后几轮cache子partition DAG：按adjust后kd-tree顶层区域依次生成目标和参考边，并将每个文件的数值与点集编号物理重排到该处理顺序。先测试2/4/8/16个子partition，所有重排和散射时间计入核心时间。
 - [ ] 寻找更多具有不同网格结构、坐标尺度、点集分布和时间相关性的非结构数据，验证UNSZ、adjust coord和跨时间结论的普适性。
 - [ ] 获取并接入Ocean-large，在同一数据和进程规模上比较UNSZ与UMC作者原始MPI程序的RD、吞吐率及端到端时间；SZ3和ZFP暂缓。
 - [x] 用户定义的有序多点集、`n-1`个条件标签通道及逐点集codec/error bound已经形成压缩—解压闭环。
