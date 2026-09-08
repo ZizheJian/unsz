@@ -782,6 +782,13 @@ namespace unsz
                 if(isfinite(rbf_prediction))
                     return (T_data)rbf_prediction;
             }
+            if(use_rbf_filtered_fallback_nearest_experimental)
+            {
+                for(int ref_id:ref_ids)
+                    if(point_set_id_vec[ref_id]==point_set_id)
+                        return data[ref_id];
+                return 0;
+            }
             if(use_rbf_filtered_fallback_idw_experimental)
                 return predict_current_inverse();
         }

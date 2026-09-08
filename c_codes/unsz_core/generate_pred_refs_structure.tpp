@@ -328,9 +328,12 @@ namespace unsz
                                             prediction+=weight*reference_data[ref_id];
                                             valid_ref_num++;
                                         }
-                                        bool try_rbf=use_reference_data_rbf_score_experimental&&point_set_config_vec[target_point_set_id].codec==point_set_codec_e::rbf_fitting;
-                                        if(try_rbf&&use_rbf_filtered_fallback_idw_experimental&&valid_ref_num<min(actual_ref_num,score_ref_num))
+                                        bool rbf_point_set=point_set_config_vec[target_point_set_id].codec==point_set_codec_e::rbf_fitting;
+                                        bool try_rbf=use_reference_data_rbf_score_experimental&&rbf_point_set;
+                                        bool incomplete_rbf_refs=valid_ref_num<min(actual_ref_num,score_ref_num);
+                                        if(try_rbf&&(use_rbf_filtered_fallback_idw_experimental||use_rbf_filtered_fallback_nearest_experimental)&&incomplete_rbf_refs)
                                             try_rbf=false;
+                                        bool used_rbf=false;
                                         if(try_rbf)
                                         {
                                             if(valid_ref_ids!=rbf_weight_ref_ids)
@@ -344,7 +347,25 @@ namespace unsz
                                                 for(uint32_t ref_index=0;ref_index<valid_ref_ids.size();ref_index++)
                                                     prediction+=rbf_weights[ref_index]*reference_data[valid_ref_ids[ref_index]];
                                                 exact_prediction=true;
+                                                used_rbf=true;
                                             }
+                                        }
+                                        if(use_reference_data_rbf_score_experimental&&rbf_point_set&&use_rbf_filtered_fallback_nearest_experimental&&!used_rbf&&!valid_ref_ids.empty())
+                                        {
+                                            int nearest_ref_id=valid_ref_ids[0];
+                                            double nearest_squared_distance=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[nearest_ref_id],dim);
+                                            for(uint32_t ref_index=1;ref_index<valid_ref_ids.size();ref_index++)
+                                            {
+                                                int ref_id=valid_ref_ids[ref_index];
+                                                double squared_distance=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[ref_id],dim);
+                                                if(squared_distance<nearest_squared_distance)
+                                                {
+                                                    nearest_ref_id=ref_id;
+                                                    nearest_squared_distance=squared_distance;
+                                                }
+                                            }
+                                            prediction=reference_data[nearest_ref_id];
+                                            exact_prediction=true;
                                         }
                                         double normalized_error=1;
                                         if (exact_prediction||weight_sum>0)
@@ -877,7 +898,7 @@ namespace unsz
                     nearest_queue.pop();
                 }
                 reverse(ref_ids.begin(),ref_ids.end());
-                for (int ref_id:ref_ids)
+                for(int ref_id:ref_ids)
                 {
                     double dist=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
                     pred_ref_ids.push_back(ref_id);

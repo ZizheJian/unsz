@@ -223,7 +223,7 @@ install/bin/s1_compress -data-dir /path/to/data -variable field -time-step '[0,9
 | `-fused-two-point-set-prediction-experimental` | 关闭 | 在串行两点集IDW路径中合并标签与数值预测，减少对同一参考数组的重复访问；压缩和解压可以分别开关，码流不变 |
 | `-normalized-weight-experimental` | 关闭 | 公共预处理生成归一化IDW权重；单点集直接使用，多点集融合路径在全部数值参考点同类时使用 |
 
-`rbf_fitting`还需要在压缩和解压端传入相同的`-rbf-kernel`、`-rbf-shape`、`-rbf-nugget`和`-rbf-polynomial-degree`。当前Tsunami momentum_x候选为`matern32/0.03/1e-6/0`。RBF权重只依赖坐标和DAG，程序会在公共预处理中计算一次并由全部time step复用；多点集筛掉部分参考点时则对改变后的参考集合现场求解。
+`rbf_fitting`还需要在压缩和解压端传入相同的`-rbf-kernel`、`-rbf-shape`、`-rbf-nugget`和`-rbf-polynomial-degree`。当前Tsunami momentum_x候选为`matern32/0.03/1e-6/0`。RBF权重只依赖坐标和DAG，程序会在公共预处理中计算一次并由全部time step复用；多点集筛掉部分参考点时则对改变后的参考集合现场求解。Katrina高压缩比配置使用10个参考点、`matern32/0.01/1e-6/0`、`-reference-data-order-experimental {40,80,120}`、`-reference-data-rbf-score-experimental`、`-order-candidate-num-experimental 48`和`-rbf-filtered-fallback-nearest-experimental`。最后一个开关要求压缩和解压两侧同时提供；参考数据和排序参数只在首次生成DAG的压缩端提供。
 
 可以通过`-adjust-coord-matrix`直接提供下三角变换矩阵。三维矩阵按行输入6个非零元素：
 
@@ -607,9 +607,21 @@ L(C)=Σ_i(|Δv_i|-d_i(C))²=Σ_i(|Δv_i|-||Δc_iC||₂)²
     </tr>
     <tr>
       <td>使用RBF的参考数据预测误差搜索RBF公共预测顺序</td>
-      <td>效果优先候选</td>
+      <td>Katrina效果优先配置已采纳</td>
       <td>原参考数据辅助顺序始终用IDW估计候选点是否好预测，即使最终数值预测器是RBF。新增开关令排序与最终预测器一致；Katrina的159个held-out time step上，相对RBF的D-only顺序降低<code>4.926%</code> BD-rate，相对IDW评分的参考数据顺序继续降低约<code>3.175%</code></td>
-      <td>首次公共DAG预处理由IDW评分的<code>6.52 s</code>增至<code>12.70 s</code>，结构加载及核心执行不变；作为高压缩比版候选在其他field验证</td>
+      <td>首次公共DAG预处理由IDW评分的<code>6.52 s</code>增至<code>12.70 s</code>，结构加载及核心执行不变；允许各field分别选择排序参数</td>
+    </tr>
+    <tr>
+      <td>扩大参考数据辅助排序时比较的局部目标候选数</td>
+      <td>Katrina效果优先配置已采纳</td>
+      <td>10点RBF下把每次比较的局部目标候选数从10增加到<code>16/24/32/48/64</code>，20步筛选的BD-rate依次降低<code>1.03%/2.42%/2.96%/3.73%/3.66%</code>；完整159步五点曲线中48候选仍降低<code>1.761%</code></td>
+      <td>Katrina使用48候选；它只增加首次DAG搜索时间，加载DAG后的核心压缩和解压基本不变</td>
+    </tr>
+    <tr>
+      <td>增加参考数据辅助排序所读取的time step数量</td>
+      <td>放弃</td>
+      <td>相对3个等间隔参考文件，1个文件退化<code>3.986%</code> BD-rate，5个退化<code>0.496%</code>，9个仅改善<code>0.042%</code></td>
+      <td>保持3个参考time step，不为不可见收益继续增加离线耗时</td>
     </tr>
     <tr>
       <td>参考数据辅助排序中复用未变化目标的预测误差</td>
@@ -640,6 +652,12 @@ L(C)=Σ_i(|Δv_i|-d_i(C))²=Σ_i(|Δv_i|-||Δc_iC||₂)²
       <td>放弃</td>
       <td>首次预处理约快<code>2.18～2.27</code>倍，但相对动态分数在Katrina和Ocean temperature增加BD-rate <code>6.336%/42.165%</code></td>
       <td>不以预测质量换取这部分速度</td>
+    </tr>
+    <tr>
+      <td>从更大的空间近邻池中优先选择长期与目标同类的最终参考点</td>
+      <td>放弃</td>
+      <td>最近同类点回退已经控制了点集不一致的损失；为了提高同类率而舍弃真正近邻会破坏RBF局部几何。候选池从10扩大到<code>12/16/24/32</code>后，BD-rate分别增加<code>7.25%/14.69%/22.76%/26.75%</code></td>
+      <td>核心活动路径已删除，只保留实验脚本和结果</td>
     </tr>
     <tr>
       <td>在先随机分轮和先全局排序之间离线选择</td>
@@ -719,6 +737,12 @@ L(C)=Σ_i(|Δv_i|-d_i(C))²=Σ_i(|Δv_i|-||Δc_iC||₂)²
       <td>已采纳，可选</td>
       <td>第一个REL EB生成结构，后续REL EB及解压直接加载，避免重复预处理；缓存较大，不适合作为必须传输的压缩元数据</td>
       <td>每次数据集测试使用独立临时缓存，测试结束后删除</td>
+    </tr>
+    <tr>
+      <td>压缩保存的公共预测DAG</td>
+      <td>待实现</td>
+      <td>参考数据辅助顺序不能由解压端仅根据坐标重建，因此需要保存目标顺序、轮边界和参考点编号；当前原始缓存较大</td>
+      <td>分别测试目标编号差分、参考数紧凑编码、相对目标或前一参考点的编号差分以及Zstd，统计均摊bit/value和解码时间</td>
     </tr>
   </tbody>
 </table>
@@ -804,9 +828,21 @@ C++的kd-tree查询返回并保存的是欧氏距离的平方，因此当前默�
     </tr>
     <tr>
       <td>根据参考点几何关系求RBF插值权重</td>
-      <td>效果优先候选，待泛化验证</td>
-      <td>RBF允许正、负权重，并令常量数据被精确重建。Tsunami momentum_x使用10点Matérn-3/2核、shape <code>0.03</code>和nugget <code>1e-6</code>时，相对当前UNSZ、UMC和10点二次拟合分别降低<code>26.836%/30.225%/8.878%</code> BD-rate。Katrina使用8点、shape <code>0.01</code>并在异类参考点处退回IDW；当前159个held-out time step上，D-only顺序相对4点IDW降低<code>14.520%</code>，参考数据RBF误差顺序将总降幅扩大到<code>18.733%</code></td>
-      <td>作为Katrina效果优先候选；继续在Ocean、LES和其他field验证RBF本身及RBF误差顺序是否泛化</td>
+      <td>Katrina效果优先配置已采纳</td>
+      <td>RBF允许正、负权重，并令常量数据被精确重建。Tsunami momentum_x使用10点Matérn-3/2核、shape <code>0.03</code>和nugget <code>1e-6</code>时，相对当前UNSZ、UMC和10点二次拟合分别降低<code>26.836%/30.225%/8.878%</code> BD-rate。Katrina最终使用10点、shape <code>0.01</code>、nugget <code>1e-6</code>和RBF参考数据评分顺序；RBF不能使用完整同类参考集合时，直接采用最近同类参考点。相对8点+IDW回退降低<code>3.956%</code>，再使用48个排序候选后相对4点IDW高速基线累计降低<code>23.298%</code> BD-rate</td>
+      <td>159个held-out time step上相对UMC约降低<code>60.938%</code> BD-rate，即同PSNR压缩率约为<code>2.56倍</code>；当前历史测量的核心压缩/解压约为<code>129.1/194.4 MB/s</code>，分别约比UMC慢<code>1.17/1.20倍</code>，冻结结果前仍需独占节点A/B复测</td>
+    </tr>
+    <tr>
+      <td>RBF缺少完整同类参考集合时改用最近同类参考点</td>
+      <td>Katrina效果优先配置已采纳</td>
+      <td>IDW回退的距离指数从<code>3.6</code>增加到<code>12</code>仍持续改善，说明平滑平均不是合适回退。显式最近同类点回退相对指数3.6和12的IDW回退分别降低约<code>8.83%/2.15%</code> BD-rate；完整159步五点曲线相对原8点RBF+IDW回退降低<code>1.975%</code></td>
+      <td>作为Katrina高压缩比配置的一部分；压缩和解压都必须使用相同回退模式</td>
+    </tr>
+    <tr>
+      <td>在参考数据RBF排序中允许缺少部分缓存参考点</td>
+      <td>放弃</td>
+      <td>10点缓存的重查阈值从10降为<code>9/8/6</code>会使BD-rate增加约<code>1.17%/1.82%/3.66%</code></td>
+      <td>效果优先版保持阈值10；离线排序时间不计入核心压缩速度</td>
     </tr>
     <tr>
       <td>逐个移除参考点并比较IDW与局部拟合的预测误差</td>
