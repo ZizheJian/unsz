@@ -93,7 +93,6 @@ namespace unsz
         rbf_nugget=other.rbf_nugget;
         rbf_polynomial_degree=other.rbf_polynomial_degree;
         rbf_parameter_specified=other.rbf_parameter_specified;
-        use_rbf_filtered_fallback_idw_experimental=other.use_rbf_filtered_fallback_idw_experimental;
         use_rbf_filtered_fallback_nearest_experimental=other.use_rbf_filtered_fallback_nearest_experimental;
         zstd_compression_level=other.zstd_compression_level;
         point_set_predictor=other.point_set_predictor;

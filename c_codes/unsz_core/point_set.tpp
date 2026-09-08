@@ -789,8 +789,6 @@ namespace unsz
                         return data[ref_id];
                 return 0;
             }
-            if(use_rbf_filtered_fallback_idw_experimental)
-                return predict_current_inverse();
         }
         if(codec==point_set_codec_e::fitting || codec==point_set_codec_e::hybrid_loo || codec==point_set_codec_e::quadratic_fitting || codec==point_set_codec_e::rbf_fitting)
         {

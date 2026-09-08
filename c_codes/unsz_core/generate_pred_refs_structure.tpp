@@ -331,7 +331,7 @@ namespace unsz
                                         bool rbf_point_set=point_set_config_vec[target_point_set_id].codec==point_set_codec_e::rbf_fitting;
                                         bool try_rbf=use_reference_data_rbf_score_experimental&&rbf_point_set;
                                         bool incomplete_rbf_refs=valid_ref_num<min(actual_ref_num,score_ref_num);
-                                        if(try_rbf&&(use_rbf_filtered_fallback_idw_experimental||use_rbf_filtered_fallback_nearest_experimental)&&incomplete_rbf_refs)
+                                        if(try_rbf&&use_rbf_filtered_fallback_nearest_experimental&&incomplete_rbf_refs)
                                             try_rbf=false;
                                         bool used_rbf=false;
                                         if(try_rbf)

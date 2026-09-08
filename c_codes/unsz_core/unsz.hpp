@@ -293,7 +293,6 @@ namespace unsz
             double rbf_nugget=1e-8;
             uint32_t rbf_polynomial_degree=0;
             bool rbf_parameter_specified=false;
-            bool use_rbf_filtered_fallback_idw_experimental=false;
             bool use_rbf_filtered_fallback_nearest_experimental=false;
             int zstd_compression_level=3;
             string point_set_predictor="inverse_proportion";//inverse_proportion / majority / continuous_actual / continuous_reflect

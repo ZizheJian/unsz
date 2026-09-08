@@ -138,6 +138,7 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -variable attr0 -time-step 
 | `py_codes/run_spatial_field_benchmark.py` | 只运行指定数据集和field的UNSZ/UMC五点空间RD及吞吐率实验 |
 | `py_codes/run_spatial_field_benchmark.slurm` | 以Slurm array并发运行同一数据集的不同field |
 | `py_codes/plot_dataset_rd.py` | 为一个数据集的各field分别绘制UNSZ/UMC空间RD与核心吞吐率，并计算同PSNR BD-rate |
+| `py_codes/benchmark_field_reference_order.py` | 在任意多time step field上比较当前4点IDW、RBF及其参考数据辅助顺序 |
 
 运行批量实验前需要编辑`t1_start_c_code.py`开头的`data_root`、`umc_root`、`dataset_list`、`rel_eb_list`和`unsz_extra_arguments`。UMC需要事先单独构建；脚本不会构建UMC。之后运行：
 
@@ -1401,6 +1402,8 @@ Katrina三组参考数据顺序分别改善154/159、159/159和155/159个held-ou
 缓存动态预测误差、让多个参考文件共用一次距离权重计算、再把原始IDW权重与缓存近邻编号一起保存后，Katrina/Ocean temperature单次首次预处理已从`9.532/4.879 s`降至`4.803/2.387 s`，累计加速`1.98/2.04`倍。相同版本的D-only为`4.316/2.015 s`，参考数据辅助搜索目前只慢约`11.3%/18.5%`；这些数字来自共享登录节点单次运行，主要用于判断优化方向。新旧预测结构SHA完全一致。
 
 固定相同held-out集合后，Katrina使用1/2/3个参考文件的总BD-rate依次为`-2.546%/-3.354%/-4.024%`，首次预处理为`6.51/7.94/9.54 s`；Ocean temperature依次为`-26.246%/-27.267%/-27.613%`，首次预处理为`3.21/4.20/5.02 s`。三个文件仍得到最低BR，适合作为效果优先配置；两个文件已分别获得三文件约83.3%和98.7%的收益，可作为更快的离线搜索候选。
+
+Ocean layerThickness进一步使用time step `8/16/24`搜索顺序，并在其余28步上测试。相对当前4点IDW+D-only，4点IDW+参考数据顺序和10点RBF+参考数据RBF评分分别降低`22.330%/22.877%` BD-rate；两者只相差约`0.55`个百分点。相反，10点RBF+D-only退化`8.960%`。参考数据顺序下，RBF相对IDW的核心压缩/解压时间约增加`8.1%/10.5%`，首次公共预处理由约`3.41 s`增至`11.61 s`，之后每次加载结构还需约`1.35 s`预计算RBF权重，而IDW只需约`0.04 s`。因此该field的收益主要来自参考数据辅助顺序，而不是RBF；当前优先保留4点IDW。与历史全部31步UMC曲线近似对齐时，当前28步IDW参考数据曲线约降低`32.39%` BD-rate，但训练步排除口径不同，正式数值仍需统一重测。实验入口和结果为`py_codes/benchmark_field_reference_order.py`与`results/ocean_layerThickness_reference_order.csv`。
 
 ## 3.6. 跨time step结果
 
