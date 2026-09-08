@@ -15,8 +15,10 @@ default_spatial_matrix=[0.60533851,0.08032648,0.26534194,0.27221464,0.13329533,1
 
 def run_command(command):
     print("运行："," ".join(str(value) for value in command),flush=True)
-    result=subprocess.run([str(value) for value in command],cwd=project_root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,check=True)
+    result=subprocess.run([str(value) for value in command],cwd=project_root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     print(result.stdout,end="")
+    if result.returncode!=0:
+        raise RuntimeError("命令执行失败："+" ".join(str(value) for value in command))
     return result.stdout
 
 def parse_result(output,prefix):
@@ -38,7 +40,8 @@ def parse_single_time(output,pattern,prefix):
     return float(match.group(1))
 
 def make_command(executable,data_dir,variable,time_step,dim,error_arguments,extra_flags,thread_num):
-    return [executable,"-data-dir",data_dir,"-variable",variable,"-time-step",time_step,"-dim",dim,*error_arguments,"-inverse-distance-power",3.6,"-max-ref-num",4,"-actual-ref-num",4,"-predict-round-num",8,"-reverse-mean-distance-only-order-experimental","-d-only-cache-refill-threshold-experimental",4,"-eb-schedule-experimental","round_point_ratio",0.8,"-normalized-weight-experimental","-thread-num",thread_num,*extra_flags]
+    compress_only_flags=["-normalized-weight-experimental"] if Path(executable)==compress_path else []
+    return [executable,"-data-dir",data_dir,"-variable",variable,"-time-step",time_step,"-dim",dim,*error_arguments,"-inverse-distance-power",3.6,"-max-ref-num",4,"-actual-ref-num",4,"-predict-round-num",8,"-reverse-mean-distance-only-order-experimental","-d-only-cache-refill-threshold-experimental",4,"-eb-schedule-experimental","round_point_ratio",0.8,*compress_only_flags,"-thread-num",thread_num,*extra_flags]
 
 def run_codec(data_dir,variable,time_step,dim,error_arguments,extra_flags,name,thread_num,compress_only=False):
     compression_output=run_command(make_command(compress_path,data_dir,variable,time_step,dim,error_arguments,extra_flags,thread_num))

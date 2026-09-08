@@ -1110,13 +1110,19 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
     <tr>
       <td>非因果层次时间插值</td>
       <td>实验性保留</td>
-      <td>Ocean velocityZonal上比上一time step预测改善<code>29.065%</code> BD-rate</td>
+      <td>Ocean velocityZonal、velocityX和velocityMeridional上比上一time step预测分别改善<code>29.065%/28.903%/31.210%</code> BD-rate；Ocean layerThickness上则增加约<code>1.96%</code> BD-rate，而且压缩和解压更慢</td>
       <td>在更多多time step数据上验证</td>
+    </tr>
+    <tr>
+      <td>上一time step同位置数值预测</td>
+      <td>Ocean layerThickness已采纳</td>
+      <td>全部31步五点曲线相对UMC和逐步空间UNSZ分别降低<code>91.803%/90.537%</code> BD-rate，同PSNR平均压缩率约为UMC的<code>12.2倍</code>；五点核心压缩吞吐率与UMC几何平均基本相同</td>
+      <td>在其他时间连续field上测试，并比较是否需要空间与时间预测的确定性切换</td>
     </tr>
     <tr>
       <td>纯空间、纯时间与联合四维比较</td>
       <td>需要更多样本</td>
-      <td>Ocean上层次时间插值当前最好；Katrina 162步联合方案在同PSNR下比纯空间和上一时刻标签方案分别增加约<code>62.65%/118.29%</code> BR</td>
+      <td>Ocean的最优纯时间方案与field有关：velocityZonal、velocityX和velocityMeridional采用层次插值，layerThickness采用上一时刻；Katrina 162步联合方案在同PSNR下比纯空间和上一时刻标签方案分别增加约<code>62.65%/118.29%</code> BR</td>
       <td>获得更多数据后判断联合方案是否有不可替代收益</td>
     </tr>
     <tr>
@@ -1409,6 +1415,28 @@ Ocean layerThickness进一步使用time step `8/16/24`搜索顺序，并在其�
 
 ## 3.6. 跨time step结果
 
+Ocean layerThickness全部31步具有极强的相邻时间相关性。使用原始坐标、首个time step空间预测、其余time step由上一重构time step同位置数值预测后，五点曲线相对UMC降低`91.803%` BD-rate，相对逐time step空间UNSZ降低`90.537%` BD-rate，等价于同PSNR平均压缩率约为UMC的`12.2倍`。上一时刻预测与层次时间插值的五点结果如下：
+
+| REL EB | 上一时刻BR/PSNR | 层次插值BR/PSNR |
+|---:|---:|---:|
+| `1e-1` | `0.008229 / 37.159` | `0.011268 / 37.881` |
+| `1e-2` | `0.033326 / 53.826` | `0.042211 / 54.334` |
+| `1e-3` | `0.119724 / 70.852` | `0.124746 / 71.717` |
+| `1e-4` | `0.448813 / 87.303` | `0.422045 / 88.325` |
+| `1e-5` | `1.435911 / 105.888` | `1.257784 / 107.029` |
+
+两种方案的压缩—独立解压总PSNR完全一致，全部文件最大误差不超过用户EB的`1.00236`倍。上一时刻预测的五点核心压缩/解压吞吐率范围为`94.41～119.14/185.66～233.51 MB/s`；按相同REL EB与历史UMC结果比较，压缩吞吐率几何平均为UMC的`0.993倍`，解压为`0.836倍`。层次插值相对UMC的BD-rate为`-91.643%`，略差于上一时刻预测且速度更慢，因此layerThickness采用上一时刻预测。完整数据见`results/ocean_layerThickness_temporal_rd.csv`。
+
+Ocean velocityX全部31步则更适合层次时间插值。使用field专属空间矩阵处理时间端点时，上一时刻预测和层次插值相对UMC分别降低`53.474%/66.754%` BD-rate，层次插值相对上一时刻继续降低`28.903%`。去掉空间adjust后，两者相对UMC分别降低`53.361%/66.689%`；因此当前矩阵只有`0.319%/0.413%`的BD-rate收益。该收益不足以保留field专属矩阵，velocityX的时间方案采用原始坐标。全部压缩—独立解压均通过，结果见`results/ocean_velocityX_temporal_rd.csv`。
+
+Ocean velocityMeridional同样直接使用原始坐标。上一时刻预测和层次时间插值相对UMC分别降低`37.728%/57.402%` BD-rate，层次插值相对当前逐time step空间UNSZ和上一时刻预测分别降低`48.739%/31.210%`，同PSNR平均压缩率约为UMC的`2.35倍`。全部五点压缩—独立解压均通过，结果见`results/ocean_velocityMeridional_temporal_rd.csv`。
+
+Ocean以外的数据也验证了时间预测。Tpost20 scalar的20步层次插值相对UMC和逐步空间UNSZ分别降低`36.863%/30.918%` BD-rate，同PSNR压缩率约为UMC的`1.58倍`；E3SM-h4 Mass_dst_srf的720步层次插值分别降低`64.399%/50.163%`，压缩率约为UMC的`2.81倍`。两者的上一时刻预测均弱于层次插值，分别只比UMC降低`12.327%/54.464%`。全部五点压缩—独立解压均通过，原始坐标已经取得稳定收益，因此不做adjust coord。结果见`results/tpost20_scalar_temporal_rd.csv`和`results/e3sm_h4_Mass_dst_srf_temporal_rd.csv`。
+
+E3SM-h4 AODDUST使用每个time step独立的外部点集标签。保持标签为空间预测，只把有效数值改为上一时刻同位置预测后，五点曲线相对UMC和空间UNSZ分别降低`86.933%/35.470%` BD-rate；层次插值相对空间UNSZ降低`36.623%`，与上一时刻方案只相差约`1.6%`。单独把标签改为上一时刻预测反而在五个REL EB上分别增加BR `24.98%/9.37%/3.52%/1.61%/0.89%`，因此保留空间标签预测和上一时刻数值预测。UMC的动态无效状态每10步才更新，AODDUST相对UMC的巨大优势不能完全归因于数值预测。完整结果见`results/e3sm_h4_AODDUST_temporal_rd.csv`。
+
+ADCIRC-Haiyan zeta是时间预测的反例。正确读取逐time step标签并分离极少量`-99999`后，REL `1e-3`的空间、上一时刻和层次插值结果分别为`0.930319/72.157 dB`、`6.384849/68.975 dB`和`5.549244/69.055 dB`；两个纯时间方案同时显著增加BR并降低PSNR，因此不补五点曲线，继续使用空间预测。筛选结果见`results/adcirc_haiyan_zeta_temporal_screen.csv`。
+
 Ocean velocityZonal全部31步的层次时间插值，相对其他方案的BD-rate为：
 
 | 基线 | BR变化 |
@@ -1453,7 +1481,7 @@ Katrina最近的热循环优化已把此前约3～4倍的速度差缩小到压�
 
 ## 3.8. 新数据补充结果
 
-Tpost20、E3SM-h4和ADCIRC Haiyan zeta已经补齐多time step五点RD；下表同时保留REL`1e-3`的直接结果，便于观察相同用户输入下的BR和PSNR。Tpost20完整测试20步，E3SM-h4完整测试720步，Haiyan zeta完整测试24步。
+Tpost20和E3SM-h4已经补齐多time step五点RD；ADCIRC Haiyan zeta在REL`1e-3`筛选中已经明显退化，因此没有继续补五点曲线。下表保留此前逐time step空间压缩在REL`1e-3`下的直接结果，便于观察相同用户输入下的BR和PSNR。Tpost20完整测试20步，E3SM-h4完整测试720步，Haiyan zeta筛选完整测试24步。
 
 | 数据与field | 同PSNR BD-rate | REL`1e-3` UNSZ BR/PSNR | REL`1e-3` UMC BR/PSNR | 主要观察 |
 |---|---:|---:|---:|---|

@@ -1,0 +1,16 @@
+config,rel_eb,br,psnr
+spatial_original,0.1,0.183740,44.929330
+spatial_original,0.01,0.585245,59.831019
+spatial_original,0.001,1.572071,76.682125
+spatial_original,0.0001,3.619468,93.997246
+spatial_original,0.00001,7.376146,112.186123
+previous_original,0.1,0.110088,43.404040
+previous_original,0.01,0.333758,57.912519
+previous_original,0.001,0.889157,75.027294
+previous_original,0.0001,2.144382,92.803494
+previous_original,0.00001,4.658603,111.762124
+interpolation_original,0.1,0.079622,44.667100
+interpolation_original,0.01,0.266109,59.071404
+interpolation_original,0.001,0.752054,76.105129
+interpolation_original,0.0001,1.860547,93.752427
+interpolation_original,0.00001,4.097870,112.470933

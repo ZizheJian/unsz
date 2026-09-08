@@ -1,0 +1,5 @@
+config,rel_eb,br,psnr
+spatial_original,0.001,0.930319,72.156770
+previous_label_only,0.001,0.930316,72.156770
+previous_value,0.001,6.384849,68.975335
+interpolation_value,0.001,5.549244,69.054918
