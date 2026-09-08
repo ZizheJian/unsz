@@ -8,6 +8,10 @@ namespace unsz
     {
         if (use_global_order_before_round_split_experimental && (partition_size_experimental>0 || partition_num_experimental>0))
             throw runtime_error("全局排序后分轮实验目前不能和partition同时使用");
+        if(cache_subpartition_num_experimental>0 && (partition_size_experimental>0 || partition_num_experimental>0))
+            throw runtime_error("cache subpartition实验不能和独立partition同时使用");
+        if(cache_subpartition_num_experimental>0 && (cache_subpartition_num_experimental&(cache_subpartition_num_experimental-1))!=0)
+            throw runtime_error("cache subpartition数量必须是2的幂");
         if (partition_size_experimental>0 || partition_num_experimental>0)
         {
             generate_partition_pred_refs_structure();
@@ -769,6 +773,56 @@ namespace unsz
             }
             if (begin!=point_num)
                 throw runtime_error("全局预测顺序重新分轮后没有覆盖全部点");
+        }
+
+        if(cache_subpartition_num_experimental>0)
+        {
+            vector<int> cache_subpartition_root_ids(1,0);
+            while(cache_subpartition_root_ids.size()<cache_subpartition_num_experimental)
+            {
+                vector<int> child_ids;
+                child_ids.reserve(cache_subpartition_root_ids.size()*2);
+                for(int root_id:cache_subpartition_root_ids)
+                {
+                    auto &root_block=tree.structure->block_vec[root_id];
+                    if(root_block.left_child_id==-1 || root_block.right_child_id==-1)
+                        throw runtime_error("kd-tree深度不足，无法生成指定数量的cache subpartition");
+                    child_ids.push_back(root_block.left_child_id);
+                    child_ids.push_back(root_block.right_child_id);
+                }
+                cache_subpartition_root_ids.swap(child_ids);
+            }
+            vector<uint32_t> point_cache_subpartition_id(point_num,numeric_limits<uint32_t>::max());
+            for(uint32_t cache_subpartition_id=0;cache_subpartition_id<cache_subpartition_root_ids.size();cache_subpartition_id++)
+            {
+                auto &root_block=tree.structure->block_vec[cache_subpartition_root_ids[cache_subpartition_id]];
+                for(uint32_t tree_id=root_block.index_begin;tree_id<root_block.index_end;tree_id++)
+                    point_cache_subpartition_id[tree.structure->tree_id_to_original_id[tree_id]]=cache_subpartition_id;
+            }
+            uint32_t first_grouped_round=predict_round_num>3?predict_round_num-3:0;
+            printf("Grouping rounds %u-%u by %u cache subpartitions and enabling prediction-order layout\n",first_grouped_round,predict_round_num-1,cache_subpartition_num_experimental);
+            for(uint32_t round_id=first_grouped_round;round_id<predict_round_num;round_id++)
+            {
+                vector<vector<int>> grouped_target_ids(cache_subpartition_num_experimental);
+                for(int target_id:round_target_ids[round_id])
+                {
+                    uint32_t cache_subpartition_id=point_cache_subpartition_id[target_id];
+                    if(cache_subpartition_id>=cache_subpartition_num_experimental)
+                        throw runtime_error("cache subpartition没有覆盖全部预测目标");
+                    grouped_target_ids[cache_subpartition_id].push_back(target_id);
+                }
+                vector<int> reordered_target_ids;
+                reordered_target_ids.reserve(round_target_ids[round_id].size());
+                uint32_t min_target_num=point_num,max_target_num=0;
+                for(auto &target_ids:grouped_target_ids)
+                {
+                    min_target_num=min<uint32_t>(min_target_num,target_ids.size());
+                    max_target_num=max<uint32_t>(max_target_num,target_ids.size());
+                    reordered_target_ids.insert(reordered_target_ids.end(),target_ids.begin(),target_ids.end());
+                }
+                round_target_ids[round_id].swap(reordered_target_ids);
+                printf("Cache-subpartition round %u target_num_range=[%u,%u]\n",round_id,min_target_num,max_target_num);
+            }
         }
 
         auto sorting_end_time=chrono::steady_clock::now();

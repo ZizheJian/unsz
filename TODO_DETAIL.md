@@ -95,6 +95,12 @@
 6. 同一field和矩阵的多EB实验复用预测结构；初筛允许只运行压缩，正式结果再独立解压，减少当前约`105 s`预测结构在压缩端和解压端的重复生成。
 7. 跨时间串行算法冻结后再实现分区并行；无损编码、复杂局部拟合和细粒度DAG并行暂时不抢占主线。
 
+## 已完成：全局分轮顺序与cache子partition（2026-09-07）
+
+- [x] 使用当前Katrina全部162步五点流程重测先生成全局D-only顺序再分轮。4点IDW高速版的global相对random为`+0.424440%` BD-rate，核心压缩/解压时间倍率为`0.943618/0.939468`；8点Matérn-3/2 RBF高压缩比版为`+1.196001%`和`0.935418/0.920619`。因此它在Katrina是以少量BR换取约`5.6%～7.9%`核心加速的速度候选，不是高压缩比默认。结果见`t112_benchmark_katrina_global_order_current.py`和`results/katrina_global_order_current_rd.csv`。
+- [x] 新增`-cache-subpartition-num-experimental`。程序在普通分轮和轮内排序后，将最后3轮按adjust后kd-tree的顶层区域稳定分组，再按新顺序重新生成参考边、逐点EB和码流；区域之间仍能引用全部已恢复点，并非独立partition。该开关自动启用prediction-order layout，使压缩端先把每个文件的数值与点集编号物理重排到DAG顺序，解压端再把输出散射回原始编号；压缩gather和解压scatter分别计入对应核心时间。
+- [x] Katrina全部162步五点结果中，`2/4/8/16`个cache子partition相对未重排基线的BD-rate为`-0.110314%/-1.006318%/-1.204893%/-1.147055%`，核心压缩时间倍率为`1.065670/1.080735/1.061593/1.069188`，解压为`1.183758/1.181872/1.178644/1.177312`。`1`个区域只启用物理重排而不改变DAG，BR和PSNR完全不变，但压缩/解压时间倍率为`1.084423/1.196748`；相对于这个layout严格对照，真正的空间分组略微追回速度并降低BR。压缩时间包含输入数据到DAG顺序的必要gather，但不包含仅为压缩端误差统计恢复原顺序的scatter；解压时间包含输出数据恢复原顺序的必要scatter。当前瓶颈是上一time step标签仍按原始点号编码，layout路径需要额外编号映射、随机访问和最终散射。先优化该路径，再决定是否采纳8区域方案。结果见`t113_benchmark_katrina_cache_subpartition.py`和`results/katrina_cache_subpartition_rd.csv`。
+
 ## 当前状态
 
 - [x] 在Katrina和Ocean上，UNSZ的BR/PSNR表现均显著好于UMC；Katrina上的优势尤其明显。UMC的串行压缩和解压更快；预处理在Katrina上UMC更快，在Ocean上UNSZ更快。

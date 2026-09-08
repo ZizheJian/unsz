@@ -219,6 +219,7 @@ install/bin/s1_compress -data-dir /path/to/data -variable field -time-step '[0,9
 | `-zstd-level` | 3 | 压缩端使用的Zstd等级，可设为1到22；解压端无需指定 |
 | `-kd-leaf-size` | 32 | kd-tree叶节点最多保存的点数 |
 | `-d-only-cache-refill-threshold-experimental` | 3 | 排序所用的4个缓存参考点少于3个仍有效时重新查询kd-tree；仍有3个时直接复用并重新归一化 |
+| `-cache-subpartition-num-experimental` | 关闭 | 将最后3轮按adjust后kd-tree的顶层区域连续处理，并自动启用DAG顺序物理重排；数量必须是2的幂，`1`只启用重排而不改变DAG |
 | `-fused-two-point-set-prediction-experimental` | 关闭 | 在串行两点集IDW路径中合并标签与数值预测，减少对同一参考数组的重复访问；压缩和解压可以分别开关，码流不变 |
 | `-normalized-weight-experimental` | 关闭 | 公共预处理生成归一化IDW权重；单点集直接使用，多点集融合路径在全部数值参考点同类时使用 |
 
@@ -595,8 +596,8 @@ L(C)=Σ_i(|Δv_i|-d_i(C))²=Σ_i(|Δv_i|-||Δc_iC||₂)²
     <tr>
       <td>先生成全局顺序再按照轮大小切分</td>
       <td>效果优先候选</td>
-      <td>相对先随机分轮，LES三个field改善<code>12.22%～12.40%</code> BD-rate，Tsunami四个field改善<code>0.99%～6.42%</code>，Katrina退化<code>1.683%</code>；首次预处理慢约<code>23%～32%</code>，但核心压缩和解压通常略快</td>
-      <td>保留<code>-global-order-before-round-split-experimental</code>；先用当前Katrina 4点IDW高速版和RBF高压缩比版重测，不立即开发自动选择器</td>
+      <td>相对先随机分轮，LES三个field改善<code>12.22%～12.40%</code> BD-rate，Tsunami四个field改善<code>0.99%～6.42%</code>。当前Katrina五点重测中，4点IDW和8点RBF分别增加<code>0.424%/1.196%</code> BD-rate，但核心压缩加快<code>5.64%/6.46%</code>、解压加快<code>6.05%/7.94%</code></td>
+      <td>保留<code>-global-order-before-round-split-experimental</code>作为速度候选；收益不稳定，不设为高压缩比默认，也暂不开发自动选择器</td>
     </tr>
     <tr>
       <td>利用参考数据搜索公共预测顺序</td>
@@ -642,15 +643,15 @@ L(C)=Σ_i(|Δv_i|-d_i(C))²=Σ_i(|Δv_i|-||Δc_iC||₂)²
     </tr>
     <tr>
       <td>在后几轮按cache子partition生成DAG并重排每个文件</td>
-      <td>待实现</td>
-      <td>这不是现有的互不引用partition。每轮仍先拥有全部更早轮次的可用点，然后依次处理adjust后kd-tree顶层划分出的互斥子partition；当前子partition可以引用所有更早轮次、已经处理的子partition以及当前子partition内已经处理的点。随后直接按照这个新顺序生成参考边、逐点EB和量化码流，不保留旧DAG作拓扑重排对照</td>
-      <td>先在Katrina最后三轮测试<code>2/4/8/16</code>个子partition。每个文件都按照新处理顺序物理重排数值和点集编号，重排与最终散射耗时计入核心压缩和解压；不先统计旧DAG的同区域参考比例</td>
+      <td>已实现，效果候选</td>
+      <td>这不是现有的互不引用partition。最后3轮依次处理adjust后kd-tree顶层的互斥区域，仍允许引用全部已恢复点，并直接按新顺序生成参考边、逐点EB和码流。Katrina的<code>2/4/8/16</code>区域相对原DAG的BD-rate分别为<code>-0.110%/-1.006%/-1.205%/-1.147%</code></td>
+      <td><code>8</code>区域压缩效果最好，但物理重排后核心压缩仍慢<code>6.16%</code>、解压慢<code>17.86%</code>；先优化DAG顺序布局路径，再判断是否采纳</td>
     </tr>
     <tr>
       <td>把内部数组整体改为DAG预测顺序</td>
-      <td>已有实验实现，待重新测速</td>
-      <td><code>-prediction-order-layout-experimental</code>会把坐标、目标编号、参考编号以及每个文件的数值和点集编号从原始编号映射到DAG预测编号，使目标写入连续；解压后再散射回原始编号。它不保证空间参考点集中在同一缓存区域，与上面的空间子partition顺序不是同一个方案</td>
-      <td>新的子partition DAG本身会形成新的处理顺序，可以复用这套编号映射和物理重排代码；需要检查它与上一time step线性标签及融合4点快速循环的分支冲突</td>
+      <td>已实现，暂不采纳</td>
+      <td><code>-prediction-order-layout-experimental</code>会把坐标、目标编号、参考编号以及每个文件的数值和点集编号映射到DAG预测编号，使目标写入连续；解压后再散射回原始编号。Katrina五点的单区域严格对照保持BR和PSNR不变，但核心压缩慢<code>8.44%</code>、解压慢<code>19.67%</code></td>
+      <td>当前上一time step标签仍以原始点号顺序编码，layout路径需要在原始编号与DAG编号之间映射；定位并消除这部分随机访问和复制后再测</td>
     </tr>
     <tr>
       <td>坐标或距离相同时按点编号打破并列</td>
@@ -1453,8 +1454,8 @@ TAPS没有可供UMC直接使用的connectivity，因此下面只比较最新矩�
 - [ ] Katrina和Ocean temperature的三组参考/测试划分、全部held-out time step及1/2/3个参考文件已经验证；继续测试更多field和分布漂移。
 - [ ] 按同PSNR BD-rate对field排序；优先在稳定正收益但优势仍有限的中间梯队开发压缩优化，固定方案和参数后再应用到表尾弱势field，区分通用收益与单数据过拟合。
 - [ ] 为E3SM AODDUST补测UMC-INP的batch `1/2/5/10`，确认其大幅优势中有多少来自UMC每10步才更新动态无效状态。
-- [ ] 用当前Katrina 4点IDW高速版和RBF高压缩比版重测“先生成全局顺序再分轮”；自动选择随机分轮或全局排序的功能暂缓到候选方案和更多数据稳定后。
-- [ ] 实现后几轮cache子partition DAG：按adjust后kd-tree顶层区域依次生成目标和参考边，并将每个文件的数值与点集编号物理重排到该处理顺序。先测试2/4/8/16个子partition，所有重排和散射时间计入核心时间。
+- [x] 用当前Katrina 4点IDW高速版和RBF高压缩比版重测“先生成全局顺序再分轮”；两者分别增加`0.424%/1.196%` BD-rate但加快核心执行，保留为速度候选。自动选择功能继续暂缓。
+- [x] 实现后3轮cache子partition DAG及逐文件物理重排。Katrina以8个区域得到`-1.205%` BD-rate，但压缩/解压仍慢`6.16%/17.86%`；下一步优化layout路径中的标签编号映射和复制。
 - [ ] 寻找更多具有不同网格结构、坐标尺度、点集分布和时间相关性的非结构数据，验证UNSZ、adjust coord和跨时间结论的普适性。
 - [ ] 获取并接入Ocean-large，在同一数据和进程规模上比较UNSZ与UMC作者原始MPI程序的RD、吞吐率及端到端时间；SZ3和ZFP暂缓。
 - [x] 用户定义的有序多点集、`n-1`个条件标签通道及逐点集codec/error bound已经形成压缩—解压闭环。

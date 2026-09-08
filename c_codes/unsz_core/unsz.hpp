@@ -267,6 +267,7 @@ namespace unsz
             bool use_reverse_direction_distribution_order_experimental=false;
             vector<uint32_t> order_reference_time_step_vec_experimental;//非空时使用多个参考time step的预测误差搜索公共顺序
             bool use_global_order_before_round_split_experimental=false;
+            uint32_t cache_subpartition_num_experimental=0;//后3轮按kd-tree上层区域连续处理；0表示关闭
             uint32_t d_only_cache_refill_threshold_experimental=3;//0表示任一参考点失效就重新查询，即精确模式
             uint32_t order_candidate_num_experimental=0;//0表示使用max_ref_num
             uint32_t cross_time_spatial_point_num_experimental=0;//仅用于统计展平时空点集中的跨时间参考

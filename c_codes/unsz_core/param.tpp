@@ -67,6 +67,7 @@ namespace unsz
         use_reverse_direction_distribution_order_experimental=other.use_reverse_direction_distribution_order_experimental;
         order_reference_time_step_vec_experimental=other.order_reference_time_step_vec_experimental;
         use_global_order_before_round_split_experimental=other.use_global_order_before_round_split_experimental;
+        cache_subpartition_num_experimental=other.cache_subpartition_num_experimental;
         d_only_cache_refill_threshold_experimental=other.d_only_cache_refill_threshold_experimental;
         order_candidate_num_experimental=other.order_candidate_num_experimental;
         cross_time_spatial_point_num_experimental=other.cross_time_spatial_point_num_experimental;

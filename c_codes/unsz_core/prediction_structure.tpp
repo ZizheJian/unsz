@@ -20,6 +20,8 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::load_or_generate_pred_refs_structure()
     {
+        if(cache_subpartition_num_experimental>0)
+            use_prediction_order_layout_experimental=true;
         if (prediction_structure_path.empty())
         {
             generate_pred_refs_structure();
