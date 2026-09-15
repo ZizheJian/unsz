@@ -1,0 +1,4 @@
+dataset,field,original_second_sample_num,fixed_second_sample_num,original_br,fixed_br,br_change_percent,original_psnr,fixed_psnr,psnr_change_db
+Katrina,attr0,31324,10000,0.397677,0.417486,4.981178,82.694494,82.580649,-0.113845
+Ocean,temperature,5879,10000,0.424088,0.422999,-0.256786,67.694156,67.692834,-0.001322
+Tsunami,momentum_x,2848,10000,2.275980,2.269728,-0.274695,66.720902,66.856042,0.135140

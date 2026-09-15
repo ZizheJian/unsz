@@ -42,7 +42,7 @@ def write_point_set_config(path,rel_eb):
         json.dump(config,file,ensure_ascii=False,indent=2)
 
 def benchmark(test_dir,rel_eb,config_path,prediction_structure_path):
-    common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step","[0,161]","-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-cross-time-label-predictor-experimental","previous"]
+    common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step","[0,161]","-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-cross-time-label-predictor-experimental","previous"]
     compression_output=run_command([compressor,*common_arguments,"-label-stats"])
     br=read_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR")
     psnr=read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"总PSNR")

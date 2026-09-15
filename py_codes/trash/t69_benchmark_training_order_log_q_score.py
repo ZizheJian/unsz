@@ -71,7 +71,7 @@ def calculate_bd_rate(base_result_vec,test_result_vec):
     return (math.exp((test_integral-base_integral)/(max_psnr-min_psnr))-1)*100
 
 def get_common_arguments(dataset,test_dir,rel_eb,prediction_structure_path):
-    return ["-data-dir",test_dir,"-variable",dataset["field"],"-time-step","{0,1,2,3,4}","-dim",dataset["dim"],"-M","REL",rel_eb,"-adjust-coord-matrix-file",project_root/"adjust_coord_matrices"/dataset["matrix_file"],"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-round-size-growth-ratio-experimental",2,"-max-ref-num",10,"-actual-ref-num",10,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","round_point_ratio",0.8]
+    return ["-data-dir",test_dir,"-variable",dataset["field"],"-time-step","{0,1,2,3,4}","-dim",dataset["dim"],"-M","REL",rel_eb,"-adjust-coord-matrix-file",project_root/"adjust_coord_matrices"/dataset["matrix_file"],"-dag-cache",prediction_structure_path,"-predict-round-num",8,"-round-size-growth-ratio-experimental",2,"-max-ref-num",10,"-actual-ref-num",10,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","round_point_ratio",0.8]
 
 def get_order_arguments(dataset,config):
     if not config["training"]:
@@ -91,7 +91,7 @@ def benchmark_dataset(dataset,result_vec):
         for time_step in sorted(set(range(5))|set(dataset["training_time_steps"])):
             (test_dir/f"{dataset['field']}.dat.{time_step}").symlink_to(source_dir/f"{dataset['field']}.dat.{time_step}")
         for config in config_vec:
-            prediction_structure_path=test_dir/f"{config['name']}.pred"
+            prediction_structure_path=test_dir/f"{config['name']}.dag"
             for rel_eb in rel_eb_vec:
                 if row_exists(result_vec,dataset,config,rel_eb):
                     continue

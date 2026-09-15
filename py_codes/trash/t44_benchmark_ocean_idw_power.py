@@ -43,7 +43,7 @@ def calculate_bd_rate(base_result_vec,test_result_vec):
 def benchmark(field,power,rel_eb,test_dir,prediction_structure_path,time_step=0):
     variable=f"{field}_t{time_step}_p{power:g}_{str(rel_eb).replace('.','_')}"
     os.symlink(os.path.join(data_dir,f"{field}.dat.{time_step}"),os.path.join(test_dir,f"{variable}.dat.{time_step}"))
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"{{{time_step}}}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predictor","inverse_proportion","-actual-ref-num","10","-inverse-distance-power",str(power)]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"{{{time_step}}}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-predictor","inverse_proportion","-actual-ref-num","10","-inverse-distance-power",str(power)]
     compression_output=run_command([compressor,*arguments])
     decompression_arguments=[]
     skip_next=False

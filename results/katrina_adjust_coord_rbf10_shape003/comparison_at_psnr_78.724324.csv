@@ -1,0 +1,4 @@
+coordinate,psnr,interpolated_br,cr_over_umc,br_change_from_original,rel_1e-3_total_time
+original,78.724324,0.625827000,1.164015,0.000000%,3.698376
+current_matrix,78.724324,0.343421115,2.121221,-45.125%,3.527488
+candidate_matrix,78.724324,0.448489569,1.624279,-28.336%,3.801513

@@ -1,0 +1,927 @@
+{
+  "field": {
+    "key": "katrina_attr0",
+    "folder": "Katrina",
+    "variable": "attr0",
+    "steps": 162,
+    "dim": 3,
+    "runner": "spatial",
+    "config": "rbf_split_rounds_then_sort_reference_data_prediction_error",
+    "ref_num": 10,
+    "shape": 0.01,
+    "matrix": "Katrina_attr0_spatial.txt",
+    "training": [
+      40,
+      80,
+      120
+    ],
+    "condition": [
+      ">=",
+      -1000
+    ],
+    "common_extra": [
+      "-cross-time-label-predictor-experimental",
+      "previous",
+      "-fused-two-point-set-prediction-experimental",
+      "-rbf-filtered-fallback-nearest-experimental",
+      "-linear-previous-label-experimental"
+    ],
+    "compression_extra": [
+      "-normalized-weight-experimental"
+    ],
+    "persist_dag": true,
+    "umc": {
+      "umc_from_edge": 0,
+      "umc_method": "NBP-IDW-INP",
+      "umc_neighbor_num": 4,
+      "umc_batch": 10
+    }
+  },
+  "hostname": "a243.anvil.rcac.purdue.edu",
+  "slurm_job_id": "20622862",
+  "slurm_array_task_id": "0",
+  "allocated_cpus": "1",
+  "OMP_NUM_THREADS": "1",
+  "OPENBLAS_NUM_THREADS": "1",
+  "MKL_NUM_THREADS": "1",
+  "git_head": "88242455540430c1e9b7c82a568a4bf26098d684",
+  "tracked_diff_sha256": "57ea5f0871ee22ae9793e98670ff8d44adc639954c1f822b692ae8b361c06996",
+  "umc_git_head": "91da7b70724eed29273b1549e4547cac8b0b67e1",
+  "umc_tracked_diff_sha256": "17e0dcbd8f9ebff235b00d1cf7815602fa7fecb2f19f4060a7bacadb212990da",
+  "sources": {
+    "/home/x-zjian1/unsz/py_codes/refresh_selected_results.py": "f5338845f7f997422217331faaed4f237e36937c85bb621a1c569005b532d176",
+    "/home/x-zjian1/unsz/py_codes/benchmark_field_reference_order.py": "1f2dd5cea50a2691373bb649ac83b20b1fd426796b7f2c83fc23b13f16a926d2",
+    "/home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py": "d105ad10030f4d9ac158744eabaeffa4b6e186d080d2c22e6565f4c7fad13094",
+    "/home/x-zjian1/unsz/py_codes/screen_field_geometric_order.py": "9c24311960173e9b7498c20d0e89af6449cecfb6dfdc723f907ad4c58cbed320",
+    "/home/x-zjian1/unsz/t1_start_c_code.py": "0e6943ddf487e9f5cc9694311865e071513dad89875de3d3aff69ad8b6f7c905",
+    "/home/x-zjian1/umc/include/compress.hpp": "883b4773d65e09bb85b430dfabcb4832e844a2c9cbd9f4dfb757162d1111b87e",
+    "/home/x-zjian1/umc/include/decompress.hpp": "2c96475ca38fdb699013c00b0786211149b2cc7a70eff6a79cd542ff337a3bdd",
+    "/home/x-zjian1/umc/test/test_compress.cpp": "d3deba89f3e1fbd45772d00ecfa2a5fd62a00e41ca5019cfe496feda85aefecf",
+    "/home/x-zjian1/umc/test/test_decompress.cpp": "39cbf55c8ec23555673f892014d6068cc361849e261afa0b74420082187601b8"
+  },
+  "binaries": {
+    "/home/x-zjian1/unsz/install/bin/s1_compress": "5da49cf8584402f6da6485d114fd662e5b506871b7dd2eceb24f356d14c4d4d6",
+    "/home/x-zjian1/unsz/install/bin/s1_decompress": "6bb771ba71f25c2d8711c60eb73543f22ebac510b8936396d1250f8eab0bcbe6",
+    "/home/x-zjian1/umc/build/test/test_compress": "252d9cf527d9a8812599191af1dbad4ab0f7d8c4bd5979cba4f6e7d90907f77d",
+    "/home/x-zjian1/umc/build/test/test_decompress": "f2f31125a1d93d129d6a1e4fcb7ae7916555506dc13dd669277cb535fe0216c6"
+  },
+  "inputs": {
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/coords.dat": {
+      "bytes": 5011704,
+      "sha256": "c92514e5d4f86cc278fd3bfb07d187dde160a0bc76f96c192249d4210a05f1f6"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.0": {
+      "bytes": 1670568,
+      "sha256": "5ec5c22b1b843997f272ffe2bd94dd96d06ed7369a334d542e04cfc448140b31"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.1": {
+      "bytes": 1670568,
+      "sha256": "454c6c75b331aadcee834b0c4d9beffbd215f8ca149b82764b7630ff0de76a7b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.2": {
+      "bytes": 1670568,
+      "sha256": "a8c796eee5efe8d2c16045eaadb8d786de9ae19aa927e914bae753196d61a471"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.3": {
+      "bytes": 1670568,
+      "sha256": "7d3f0d502bc1a2f084048ecf092984a35b4059d0078d602dc8569d8b17b71130"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.4": {
+      "bytes": 1670568,
+      "sha256": "c645180e7facfe944b082d66471ba65c44b076df51f92f42de25bbdb38d5c28d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.5": {
+      "bytes": 1670568,
+      "sha256": "e156fe7ac6a75bb69d4fb09e0745efc05db54cd79836383350907371ec9a093a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.6": {
+      "bytes": 1670568,
+      "sha256": "50eccdfadaf8226bb1ceacad9b95e66e30a1f0a775f467d1524f63b6547107a6"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.7": {
+      "bytes": 1670568,
+      "sha256": "bd3a396870d20f58152d4eba72f13f5cad80605183803cc00ef12dd98e91ec05"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.8": {
+      "bytes": 1670568,
+      "sha256": "90d37d698c06823f38263f5bb3b239ff7dcfdf79b6782b6634a4bd3cd7df0a29"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.9": {
+      "bytes": 1670568,
+      "sha256": "5d060520bd774b1d5316fbdc909929b2110fee985faeaea3d75724492866ff88"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.10": {
+      "bytes": 1670568,
+      "sha256": "741e54a58e9614015fd9d1d44f8261e9b894173f0fed18810b2c182344eb27d4"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.11": {
+      "bytes": 1670568,
+      "sha256": "a4fd1fa64d6f0725f70f2f0f6ee850d08de9f3b68df9c3aa789341d7676bca6a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.12": {
+      "bytes": 1670568,
+      "sha256": "90484d06232cde3917e826435156c51d669e50540be4ec7da686e0bf0ce9cfea"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.13": {
+      "bytes": 1670568,
+      "sha256": "a86d875d53046b5362a944ff9dd9c9f1c723c1691d89a9f3fdeeeecdff55edf6"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.14": {
+      "bytes": 1670568,
+      "sha256": "72853254f8301de63477c4b46dfd3317b27718a3fa651f5c2bb72c6876e7fdce"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.15": {
+      "bytes": 1670568,
+      "sha256": "65164c0f6053ba252d4b3373ca3a67827eb9870a0b66949c6708970d56a9ff15"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.16": {
+      "bytes": 1670568,
+      "sha256": "33a2a6ecfa073a48e1e6e2b4e69b1a23d795f5b5c35834fbc035eee2964c5d95"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.17": {
+      "bytes": 1670568,
+      "sha256": "906a2e3dc5477a293bea7cabefc84a07cbb787767911050b93fbc3ff5b975eaf"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.18": {
+      "bytes": 1670568,
+      "sha256": "be3ffac50015f961304aeb8a73cca716a7bc3f2cdd36fd55301b4ad794c6cd05"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.19": {
+      "bytes": 1670568,
+      "sha256": "e8406f71d969daa762744a58db37e223d5bb834b67d1b6ea7b83901be387ffe4"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.20": {
+      "bytes": 1670568,
+      "sha256": "6b392e39742a9c62583f00650075204859f085cb8c55890f8e313ad18ba5ec32"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.21": {
+      "bytes": 1670568,
+      "sha256": "381340eb77bcfa12264920a9be71a21491e4d6f32e5d61c22977cdba89cf2820"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.22": {
+      "bytes": 1670568,
+      "sha256": "094767f5a0c69a7ab25bd3cded49e3f4eb8c240908eb12001f0efa799456e301"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.23": {
+      "bytes": 1670568,
+      "sha256": "b2e485935e355688fbfa3c0c5c89a86137f0037dc768e27d75bc2ca54fb523c3"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.24": {
+      "bytes": 1670568,
+      "sha256": "b77c09a030fb72d6a1e2cce280c4b2d913c315cb7e4f924bac503807950fed60"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.25": {
+      "bytes": 1670568,
+      "sha256": "1b34fbeabba2d97aa9b4f344125727435306c4d11e6f327af4a1411213fce119"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.26": {
+      "bytes": 1670568,
+      "sha256": "5b897c594bcd8c6f7ec4616960280d614fe8c0b4a0f2a51c663335277a9f20ab"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.27": {
+      "bytes": 1670568,
+      "sha256": "58d7de2dc9f38eadc644bdae0aeb5a76dcff9456b5a750db4fddcb864082251a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.28": {
+      "bytes": 1670568,
+      "sha256": "c0be4957c2f4b166f4826b560ff3666205008e667a9e7f3f78aeb8638cad40f7"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.29": {
+      "bytes": 1670568,
+      "sha256": "45edcd1b9cc22a6831da30b85297fcd1fa57ae651d9824d6de62a8cd7dc51a1d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.30": {
+      "bytes": 1670568,
+      "sha256": "6048e7e7e11ee5150537086dcbb22423c667ac7d8f3f18dcc282528024f7666d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.31": {
+      "bytes": 1670568,
+      "sha256": "a3c1ad5add22331ae2a7f11e1e210f65375bc4d0fff18d104c0ad55a8a9ba2cc"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.32": {
+      "bytes": 1670568,
+      "sha256": "df42fd76f60608369015af7f9ece3e4b50e6e4b71d1e6359cff11bb8bea5c7f6"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.33": {
+      "bytes": 1670568,
+      "sha256": "768573f00c9d5513d9c5855fa7cef3c35b125968652ab779a8fcff1b875339ce"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.34": {
+      "bytes": 1670568,
+      "sha256": "9aad9db71175642497543047c4bcd9da62c33164a9068b1d4b30b13ca3bcdd7e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.35": {
+      "bytes": 1670568,
+      "sha256": "77771c7b03cbc7afed1289c1eb41f9252010a8b5805c7363eefcf96ee53fd223"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.36": {
+      "bytes": 1670568,
+      "sha256": "914dbaa21ede7bb7cf5098ec7e5567a3ab9a129db3b553d09dfb79ff2ed50188"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.37": {
+      "bytes": 1670568,
+      "sha256": "f0e703e9b17c918ce7fa9c66bafc05bd6a535799ad858cf1acccd49c35529cb9"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.38": {
+      "bytes": 1670568,
+      "sha256": "6dbdf354c944c8e182345da76dd04e8930f80e89fdb0125342dd021880e9d41e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.39": {
+      "bytes": 1670568,
+      "sha256": "cad2b9bd4c5c35b74fd85d9d057c87956ae05cc3ac53c8e9eaa17f60d428af26"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.40": {
+      "bytes": 1670568,
+      "sha256": "ad3bba130119d9a384de9d89bc1afc3a0434602e8056145c615ee7c91f9ab945"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.41": {
+      "bytes": 1670568,
+      "sha256": "e88e78c1af9bd0ff9f9008b34be8092a4ce88db48cd92a6b53d0feff527af990"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.42": {
+      "bytes": 1670568,
+      "sha256": "2bc2ffdb671dcc0c53ee3c185a6bb65ae8c0ff94e80ae91bba77e498649d3d45"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.43": {
+      "bytes": 1670568,
+      "sha256": "0e285cb76cca83673b0a4696105b165a7ef101718b1bdca2623ccac8f5e79240"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.44": {
+      "bytes": 1670568,
+      "sha256": "9bc9692d558fec9ec38c48686e98952d90cda9bb3ecf22f90f5cb8e9a935b2d2"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.45": {
+      "bytes": 1670568,
+      "sha256": "24e3687da86c72aaee401475e70b0c81675ff265cb5b39c511073621e245f35d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.46": {
+      "bytes": 1670568,
+      "sha256": "988393d1aa74b8a195f14d95c5b7ffd76e5ae43eda08650c165e8980c94b51fe"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.47": {
+      "bytes": 1670568,
+      "sha256": "cf38254cbc15ec23d592bb0adf5a8a1b7c6067892f0e314655efc8d2ba076698"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.48": {
+      "bytes": 1670568,
+      "sha256": "caa1f6dfc88618a27cf93c701c23cae466de0cb1bd8983cdd1d55bb9e25fcefa"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.49": {
+      "bytes": 1670568,
+      "sha256": "bd69badfe075a9eefafc243a059c68bff5226271bd9538b2aaf8e41f0ca6661e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.50": {
+      "bytes": 1670568,
+      "sha256": "d7e4ac5a6c34a04d99eedcd9e8df77ceb96a9cad17d3ae5b8f1bc7e7b24263d5"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.51": {
+      "bytes": 1670568,
+      "sha256": "2196fa9bdaa8fe634921d4fec2c2909e49c944f0e7a8cd3121f5496d54835aa6"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.52": {
+      "bytes": 1670568,
+      "sha256": "723fac98362eb5627c786ffba8871e16dc68046bd4d0ef9fe8e8e29605b713ae"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.53": {
+      "bytes": 1670568,
+      "sha256": "4a3d77328220e0a24c12f724c5f6f6f4b647ea015d0ef2ab9fb9c622093af263"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.54": {
+      "bytes": 1670568,
+      "sha256": "9e8553205ac79c8afdea9a90326ab129e31a75489756b03be390c19cae35c85a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.55": {
+      "bytes": 1670568,
+      "sha256": "fd9110e3ec4d59c7e7468b88843cdcbeca1f72456ad9e223825191ad27b4221f"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.56": {
+      "bytes": 1670568,
+      "sha256": "6489cbf28f830ea966071da00467693b836a757e4622e310524c11cbeb555207"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.57": {
+      "bytes": 1670568,
+      "sha256": "bd4b5cc6a25765561488ef5dfd5154e248aa50104e1053d25b7e7aceefa8894e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.58": {
+      "bytes": 1670568,
+      "sha256": "a45b32fc53ccf193c21df03f39915b2df850262d7f436d37ec5a3e730a1237c2"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.59": {
+      "bytes": 1670568,
+      "sha256": "bf12fa4548174585710ea274e3b73aacd16e35b5986df228304dfe46244de210"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.60": {
+      "bytes": 1670568,
+      "sha256": "0e8bc3e6ef1f61d75e2640a923eb534ca191c657c2ca720f2522e4f4c6607ed6"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.61": {
+      "bytes": 1670568,
+      "sha256": "4043d7056379f122821f509420d60a698d1c10068c4ff14c936e69dc5ff6871c"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.62": {
+      "bytes": 1670568,
+      "sha256": "75a7614efa144c525b002b66ad8c7ef1070877ca3122b5379c77de44a54fdbbe"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.63": {
+      "bytes": 1670568,
+      "sha256": "004ca41bc03d004790a33f1c7364bbceb58aa619c4bfadcaa6947695da2ff3a4"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.64": {
+      "bytes": 1670568,
+      "sha256": "09232b88c787d03cc64709e8e69bb959674e12908a0512bbe3cdc6d3540193bc"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.65": {
+      "bytes": 1670568,
+      "sha256": "05d569c0f68185de70a9933c6473e607b81b2f05d7af7291638374cb3dc6eed8"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.66": {
+      "bytes": 1670568,
+      "sha256": "8e2e50d1f8942ffeec9355923766f9659f090a6ed535b5f392795090ca4a4331"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.67": {
+      "bytes": 1670568,
+      "sha256": "faa6039a0fc751f3bc3fcae7e100c266e023054826d2982f7b2e063936624a70"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.68": {
+      "bytes": 1670568,
+      "sha256": "810ae92c1dacafcb013c0a01710a174d8b427896c9228bbf66d7cf66362441d4"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.69": {
+      "bytes": 1670568,
+      "sha256": "34b854aad892860f5a30f7f56adce844f9fed5de3058f3d539c7df4ff3d4e3be"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.70": {
+      "bytes": 1670568,
+      "sha256": "7be38cbdcb75ec1ab9a638a6ee5a6a2dd51fe79ceaf2942e510b8ff332755adf"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.71": {
+      "bytes": 1670568,
+      "sha256": "a6e594488437e604b11ae80b68bf8daab71c297d318a83fd4f6430a94d575413"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.72": {
+      "bytes": 1670568,
+      "sha256": "fd893dada35413faa84e9963236ec0dd20fc01442d7437e3a6a9829b0adda0b2"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.73": {
+      "bytes": 1670568,
+      "sha256": "91a065461c88c6e4ada1c89ccfaeb70baccdd3a6f4342e3ae30df85d7529b29b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.74": {
+      "bytes": 1670568,
+      "sha256": "f9ceaa8866f71ee3b28e2747895247292d5108a38f69519cadc7fa332bec9e10"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.75": {
+      "bytes": 1670568,
+      "sha256": "3c9dad3d8eba8caf01ccf66bf36e7f76ab5c6efdc8024c16eac6f78d04340331"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.76": {
+      "bytes": 1670568,
+      "sha256": "21cc1f22320d0d54e3cf59450c59de795db463a290b3aca78c501965af6c0a7c"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.77": {
+      "bytes": 1670568,
+      "sha256": "26f30a7fed7ab838c326d03b9c1644d95343d8c72c5b219a465580a711588578"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.78": {
+      "bytes": 1670568,
+      "sha256": "ae5847e62a50d6a88ab3e8a165b8c0eedfb35f89fe0c8846e717dac37e46ae22"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.79": {
+      "bytes": 1670568,
+      "sha256": "27af866e281682213b6178b5c6ae84760b78f1ef02bc920dab0e47e19c75f6f7"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.80": {
+      "bytes": 1670568,
+      "sha256": "3389cc1f238b5af65045ab58f12e5a2423b54121bf889fbbd5777023d18cb72b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.81": {
+      "bytes": 1670568,
+      "sha256": "ac334d91c0cebd6a98707a56ff7087ae7c709697a1fbc5e61578776f183fc2e8"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.82": {
+      "bytes": 1670568,
+      "sha256": "67e7af186694d67659811e7626ad970ac0ca0bcef7db4758e989d7412ab23a1d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.83": {
+      "bytes": 1670568,
+      "sha256": "8657bf81c50d6952a0df1ff5ba1a52ea1d41e7b29fe0e0e1124d8c2eac67228b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.84": {
+      "bytes": 1670568,
+      "sha256": "cca7678ce4ca4e71fd61c0cf2d855467b7cc599d46390ec02da941c288f091cd"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.85": {
+      "bytes": 1670568,
+      "sha256": "bdedd20bbb7c68c1853aa198d10399cca1cc51a539e9d1354bdf187000da047d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.86": {
+      "bytes": 1670568,
+      "sha256": "5c536c809bc0cde869cdbab487e74040dfd001c3432e88ee25005f033f07d92b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.87": {
+      "bytes": 1670568,
+      "sha256": "91ad2a8caf830bd4b68042e29d31696060951c1835dfa7d0a95722ed6c84d72a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.88": {
+      "bytes": 1670568,
+      "sha256": "ec8a181e37102c32b65c2ff5f18cca788d930678236427951c4fe5ce99679d54"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.89": {
+      "bytes": 1670568,
+      "sha256": "7b519c4cfe23560cd3095e96e65e0d680f1f187612fddd2f88d5963032680396"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.90": {
+      "bytes": 1670568,
+      "sha256": "7b86064b31aceb3e8fda9cbf8b272e3ce2519763b289ad7a50431f6f939cf2be"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.91": {
+      "bytes": 1670568,
+      "sha256": "d323ae9f87e5f26e1268ffdda4ec21a563d26208bda6d1fc503f8b8ffbb5f628"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.92": {
+      "bytes": 1670568,
+      "sha256": "41c978afcc7148be1699671b55d41a0678300dcfaff9683db587e67323494f19"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.93": {
+      "bytes": 1670568,
+      "sha256": "f8daa6b65087a81a3b74d344686162845caaeb57e5ad4f80fedb98e0cc9526d0"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.94": {
+      "bytes": 1670568,
+      "sha256": "1afdf15a7363a59fd22dabba197cc60c6538d2bd6e70c3c739cc15e1fbc5ea1d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.95": {
+      "bytes": 1670568,
+      "sha256": "46ffea7f1f85499e92ac2c2644d430dd2c1c86db95c4c57f9c9d8a9772b35d1d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.96": {
+      "bytes": 1670568,
+      "sha256": "7af245b393a780d39a7636a36bdbb86ba48c9d4fc4ff18bcebbe3b14ee2834bf"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.97": {
+      "bytes": 1670568,
+      "sha256": "f8f3d1b67b8d112ba23cb401030782eb1d972ede12c3b7b4fcdc0545ee2e359e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.98": {
+      "bytes": 1670568,
+      "sha256": "816e56081034479b374b3078b8357f6e7780d6181d9dceb60c43c9abfdc8623d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.99": {
+      "bytes": 1670568,
+      "sha256": "84c11aa34af75ec2b3c3078b0ba39c517ee4a507838d7ed7463ea0e357ab2d0d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.100": {
+      "bytes": 1670568,
+      "sha256": "fa1e42bb284c4b9a287a597f9db7ac7012e050cd04d8a39824e50e81b8cbea16"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.101": {
+      "bytes": 1670568,
+      "sha256": "4dd8530b639b111668ebd8a045ac9f52f589004b42c0c45a3b367baa2755b82a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.102": {
+      "bytes": 1670568,
+      "sha256": "58b2f681b837f173c5aeed0f72a840f9838042995372b7149b132b3a56b48268"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.103": {
+      "bytes": 1670568,
+      "sha256": "ba4628e2bb892f11def5b2d26e39fa8b7c21a515d16e14ca204125c4e2855f98"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.104": {
+      "bytes": 1670568,
+      "sha256": "ddb3565bd94c85f12b9b6bd0827e7746a0d8852506186c449dc120d91bd0a234"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.105": {
+      "bytes": 1670568,
+      "sha256": "ca3f4031f41884031f8e1f3d8cd5cd53881b4203cf00ff11d4896932ce0e3f34"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.106": {
+      "bytes": 1670568,
+      "sha256": "a415bb4c17d66af578315cbd6f40613039034f09d55e804536e5cc3bedd13039"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.107": {
+      "bytes": 1670568,
+      "sha256": "c26111f90a1b6ec53473305c5a462c1dc7e16c5860f6fcdae9ae7d33579c8649"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.108": {
+      "bytes": 1670568,
+      "sha256": "333c8572723643839134150d44fb5aa0ecbabf050164cb60b0c638de72fdab84"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.109": {
+      "bytes": 1670568,
+      "sha256": "ab21a5363cfae30b1915a15a96c231daf435f87037b9266eb533d57f1870b5d1"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.110": {
+      "bytes": 1670568,
+      "sha256": "1857da0167675995e304d41740e974e9f94c0a9de882a8d7c4189cc04f78d8c2"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.111": {
+      "bytes": 1670568,
+      "sha256": "5253653785717a19aad9777d9325f33e886b8fc1f453c325af0098f9a2138804"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.112": {
+      "bytes": 1670568,
+      "sha256": "74131408cb6e10a9fcb9e20caffe303b7d3eb5a462d32141ae0a3c3929730db2"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.113": {
+      "bytes": 1670568,
+      "sha256": "35f2a3c441af4ceda9488f873d7e718644b40234cb023268fd6508ff8c649342"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.114": {
+      "bytes": 1670568,
+      "sha256": "bb2144c636ccfa33da5864e3d055b4e35cef2d5e44f7da9bb17091c5a8eeb0a5"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.115": {
+      "bytes": 1670568,
+      "sha256": "5dd0851077450ae644049dec993ef9c3222abd7903638fe76e640be25630b763"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.116": {
+      "bytes": 1670568,
+      "sha256": "023c9dd5f4c226658802ec8f4906b16e58d7cffcedb3d08b7f82f157b339cbef"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.117": {
+      "bytes": 1670568,
+      "sha256": "ac99591d6350dc0eef097e806b384ad70da940443c0a6722c86cbb2bbfbea889"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.118": {
+      "bytes": 1670568,
+      "sha256": "a9e04ce8a55cd70ea16159c9cfd0a975834726f72c7777178dad1f464b3da4ae"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.119": {
+      "bytes": 1670568,
+      "sha256": "70c0cbbd0a1d12d5e848fb446b9a674645cc074886b100ed72e5e64af010ea1b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.120": {
+      "bytes": 1670568,
+      "sha256": "0f07d75e21ea01357b4e4994ece64e5e7e3c97b1cbf9282868a63e28c0d9cd7f"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.121": {
+      "bytes": 1670568,
+      "sha256": "c4af07f5ef3ecee75e8b4eb026d9b5bd7c458db22dea005681c4fe9e541de42e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.122": {
+      "bytes": 1670568,
+      "sha256": "fd37122e21121d49e25ed9f2dce33535de3a6a8fd6ea0a249a66071e4d141a18"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.123": {
+      "bytes": 1670568,
+      "sha256": "2fd387cf441a0c0a06a1fca5de0e5be11ac4dcf4054c3ac68254a1bd7ada609a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.124": {
+      "bytes": 1670568,
+      "sha256": "5df123f2629987de10c954ca56368f04737e403ff2e230ce31a59cf2f40c8b60"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.125": {
+      "bytes": 1670568,
+      "sha256": "aaac0c92b824b72ef94d39bd8b5d529f9ba6b1d1beecba87cd24ce5b1c8c7b79"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.126": {
+      "bytes": 1670568,
+      "sha256": "1bbe9b2ceeb8086c0f803e98069f74934da4ffad173d095bc51f9aaca6e1bc2f"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.127": {
+      "bytes": 1670568,
+      "sha256": "d76c19086354e9439ff45e9debf9f63c381cac8b65215f2ebc323466d8ec80df"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.128": {
+      "bytes": 1670568,
+      "sha256": "0cc3144e77ef7fdeb960883397690408c56daf5db6f71ba3c6e9bee5aebc2106"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.129": {
+      "bytes": 1670568,
+      "sha256": "8c21267ca45a38934aa229cf3bf3cbd868fd5462a81b38324705d92dce5f12b3"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.130": {
+      "bytes": 1670568,
+      "sha256": "869f078ac13885287769599cd725b7ff972999c00464807fe0b25a5ff7cb1d19"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.131": {
+      "bytes": 1670568,
+      "sha256": "24a635d19fed61eed0eb3707b5c7c7380e6f45972b7eb402a05c40579ef4a223"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.132": {
+      "bytes": 1670568,
+      "sha256": "a4b7fb6bd7ddd201ea77c190c6418cff70ad63dca28d115eae9188f5b8615b96"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.133": {
+      "bytes": 1670568,
+      "sha256": "1ead4bea0112d1733023503754dfd340b4f66055ac7d94156ce191c0533d3c39"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.134": {
+      "bytes": 1670568,
+      "sha256": "b2e7d2cc9dc67fbf1d578f5e2ebc81511d8db5dd37e41743566653aa7568b84e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.135": {
+      "bytes": 1670568,
+      "sha256": "e5ecd84ad6c3b15e2c16834d5b933d030d17ba8d2db5f40885a195136325ce4e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.136": {
+      "bytes": 1670568,
+      "sha256": "9f641bd8b663058c6f12e668b25b8269df874d01c886372fad6e5ea5e73072a1"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.137": {
+      "bytes": 1670568,
+      "sha256": "1f34b63f4d323327caffea2a719aead6b3418cb10ff05644e5b3670d134b561c"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.138": {
+      "bytes": 1670568,
+      "sha256": "acb8beaad59394346d73e9d209877125f1c216623a7db6b4de03d198c770a3c4"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.139": {
+      "bytes": 1670568,
+      "sha256": "7e1e39977d80a4c90968559a58093682d591d6e42515e9a5b35cfeeb2f039dc9"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.140": {
+      "bytes": 1670568,
+      "sha256": "50b4e0683ea59b6f638f7578169c29a62cda2e74cf6326c95cac3b19e9cbd7de"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.141": {
+      "bytes": 1670568,
+      "sha256": "19be4159d38b919006881f5c0d4f8c406d61dce032a5de31cd16f781a084a1a1"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.142": {
+      "bytes": 1670568,
+      "sha256": "38c9a9f148a24bf96167a91880b790d150ac54a3b397c71d1c83fa5d5b50206b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.143": {
+      "bytes": 1670568,
+      "sha256": "02b875d01ab098703b8d90a9f84b518536665a006fb7927d46ae04645db778c4"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.144": {
+      "bytes": 1670568,
+      "sha256": "4b8cabde59cfed19632f6144b5c4c4592be2186af457c20c1e039ff77c2f67cd"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.145": {
+      "bytes": 1670568,
+      "sha256": "6101c2a1fb573556f339ef27c57bdef4d7388df34df12ad8e1137d64fa315658"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.146": {
+      "bytes": 1670568,
+      "sha256": "6f0f86f3b06ee8e23d424ab0570c0213f051a204b5649047cd4a934eb11d9402"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.147": {
+      "bytes": 1670568,
+      "sha256": "49f664ac92ac4bd54bb72213b6a1be67126482ac88cdfc7e06b6a38608ec781e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.148": {
+      "bytes": 1670568,
+      "sha256": "2197d83693c5a78912cef9d675f0211f7981ac12d039677719767a737b5b870b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.149": {
+      "bytes": 1670568,
+      "sha256": "4ee4648c2166fb4f565a58e55da912877de69560c557a9df3bec46d80fd8e0b3"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.150": {
+      "bytes": 1670568,
+      "sha256": "e33686726a1cdb14f7493dc315a75b085e94afbb32c078cfe5588c55dfe024e2"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.151": {
+      "bytes": 1670568,
+      "sha256": "bcc191ea331e3d8989422f995e5fd38b38a0a4240a8d9a4e76deb206176f675e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.152": {
+      "bytes": 1670568,
+      "sha256": "b648566375d04185caf7492470f2c30807dc17c188462aebdf77e6508576d419"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.153": {
+      "bytes": 1670568,
+      "sha256": "4973459be10d88e45f83ddf7ef9b098feb8ea5e16fc20e909e944c4fd854a826"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.154": {
+      "bytes": 1670568,
+      "sha256": "7cd6f0c9f204ebdc7c3f4415440b808e1000e70bac55051b2b0e906f648ef3ec"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.155": {
+      "bytes": 1670568,
+      "sha256": "88098ce0f6247b50b4a6f6ac5796b37d81881c955329500a9c38190b247a0dde"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.156": {
+      "bytes": 1670568,
+      "sha256": "80bc471567b734c825723ec087ac68f8c9f66e113ec97d4a6ec7e8b2542fa130"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.157": {
+      "bytes": 1670568,
+      "sha256": "a743c6ea443f59dbec7caef42bbb8c1591cc8885d6de89f3c6e1eb3de1477f49"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.158": {
+      "bytes": 1670568,
+      "sha256": "96bfdc60a063960efe5db19078d82669410793a6ed2b1dff3e2655fc033d6187"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.159": {
+      "bytes": 1670568,
+      "sha256": "5267cba96ebb045464b52649e016fc94a159ec854a11b495eeccbb591ddebb96"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.160": {
+      "bytes": 1670568,
+      "sha256": "3ae44306285718d83bff034c999b9e1ab496336e4800afed2a22e41458076078"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/attr0.dat.161": {
+      "bytes": 1670568,
+      "sha256": "c4f7561c013d3a27cdf912b7b775c6cf6efd4d32527407a0a5d677b6e2e9dd42"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina/conn.dat": {
+      "bytes": 13229856,
+      "sha256": "e8f9870b646d23c1b3d899c34ca7db7d77606f93f4bb59976eb4567930271245"
+    },
+    "/home/x-zjian1/unsz/adjust_coord_matrices/Katrina_attr0_spatial.txt": {
+      "bytes": 228,
+      "sha256": "f5842e1b867c294c91077edeacd48083991fa53a0ccb5df819830788374aaa6b"
+    }
+  },
+  "prediction_structure": {
+    "path": "/home/x-zjian1/unsz/results/current/prediction_structures/katrina_attr0.dag",
+    "bytes": 20046652,
+    "sha256": "6a0cda53a8e9b2edea75de37fd74626fd04ee25795806c876fda9aa039387505"
+  },
+  "rows": [
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.1,
+      "br": 0.039427,
+      "psnr": 50.280767,
+      "preprocessing_time": 20.21933,
+      "compression_time": 2.539025,
+      "decompression_time": 2.59395,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_reference_order.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina -variable attr0 -time-step-num 162 -dim 3 -configuration rbf_split_rounds_then_sort_reference_data_prediction_error -rel-eb 0.1 -result /home/x-zjian1/unsz/results/current/partial/katrina_attr0_unsz_0.1.csv -rbf-ref-num 10 -rbf-shape 0.01 -matrix-file /home/x-zjian1/unsz/adjust_coord_matrices/Katrina_attr0_spatial.txt -training-time-step 40 -training-time-step 80 -training-time-step 120 -condition-operator >= -condition-value -1000 -common-extra=-cross-time-label-predictor-experimental -common-extra=previous -common-extra=-fused-two-point-set-prediction-experimental -common-extra=-rbf-filtered-fallback-nearest-experimental -common-extra=-linear-previous-label-experimental -compression-extra=-normalized-weight-experimental -prediction-structure-result /home/x-zjian1/unsz/results/current/prediction_structures/katrina_attr0.pred",
+      "field": "katrina_attr0",
+      "dataset": "Katrina",
+      "variable": "attr0",
+      "time_step_num": 162,
+      "input_bytes": 270632016,
+      "compression_decompression_time": 5.132975,
+      "preprocessing_MB_s": 13.384816213000134,
+      "compression_MB_s": 106.58895284607279,
+      "decompression_MB_s": 104.33200948360609
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.1,
+      "br": 0.43032165122695615,
+      "psnr": 39.44960881670554,
+      "preprocessing_time": 1.0645960000000003,
+      "compression_time": 2.0225730000000004,
+      "decompression_time": 1.195509,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "katrina_attr0",
+      "dataset": "Katrina",
+      "variable": "attr0",
+      "time_step_num": 162,
+      "input_bytes": 270632016,
+      "compression_decompression_time": 3.2180820000000003,
+      "preprocessing_MB_s": 254.21100210784175,
+      "compression_MB_s": 133.8058087396598,
+      "decompression_MB_s": 226.37388426185
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.01,
+      "br": 0.4361024898103704,
+      "psnr": 59.054373322333255,
+      "preprocessing_time": 0.945709,
+      "compression_time": 2.0584130000000003,
+      "decompression_time": 1.2939730000000003,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "katrina_attr0",
+      "dataset": "Katrina",
+      "variable": "attr0",
+      "time_step_num": 162,
+      "input_bytes": 270632016,
+      "compression_decompression_time": 3.3523860000000005,
+      "preprocessing_MB_s": 286.1683837205737,
+      "compression_MB_s": 131.47605266775906,
+      "decompression_MB_s": 209.14811669177018
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.01,
+      "br": 0.119987,
+      "psnr": 66.154727,
+      "preprocessing_time": 2.910475,
+      "compression_time": 2.333978,
+      "decompression_time": 2.436134,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_reference_order.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina -variable attr0 -time-step-num 162 -dim 3 -configuration rbf_split_rounds_then_sort_reference_data_prediction_error -rel-eb 0.01 -result /home/x-zjian1/unsz/results/current/partial/katrina_attr0_unsz_0.01.csv -rbf-ref-num 10 -rbf-shape 0.01 -matrix-file /home/x-zjian1/unsz/adjust_coord_matrices/Katrina_attr0_spatial.txt -training-time-step 40 -training-time-step 80 -training-time-step 120 -condition-operator >= -condition-value -1000 -common-extra=-cross-time-label-predictor-experimental -common-extra=previous -common-extra=-fused-two-point-set-prediction-experimental -common-extra=-rbf-filtered-fallback-nearest-experimental -common-extra=-linear-previous-label-experimental -compression-extra=-normalized-weight-experimental -prediction-structure-result /home/x-zjian1/unsz/results/current/prediction_structures/katrina_attr0.pred",
+      "field": "katrina_attr0",
+      "dataset": "Katrina",
+      "variable": "attr0",
+      "time_step_num": 162,
+      "input_bytes": 270632016,
+      "compression_decompression_time": 4.770112,
+      "preprocessing_MB_s": 92.98551473556722,
+      "compression_MB_s": 115.95311352549167,
+      "decompression_MB_s": 111.09077579476335
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.001,
+      "br": 0.397677,
+      "psnr": 82.694494,
+      "preprocessing_time": 2.761163,
+      "compression_time": 2.351266,
+      "decompression_time": 2.472705,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_reference_order.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina -variable attr0 -time-step-num 162 -dim 3 -configuration rbf_split_rounds_then_sort_reference_data_prediction_error -rel-eb 0.001 -result /home/x-zjian1/unsz/results/current/partial/katrina_attr0_unsz_0.001.csv -rbf-ref-num 10 -rbf-shape 0.01 -matrix-file /home/x-zjian1/unsz/adjust_coord_matrices/Katrina_attr0_spatial.txt -training-time-step 40 -training-time-step 80 -training-time-step 120 -condition-operator >= -condition-value -1000 -common-extra=-cross-time-label-predictor-experimental -common-extra=previous -common-extra=-fused-two-point-set-prediction-experimental -common-extra=-rbf-filtered-fallback-nearest-experimental -common-extra=-linear-previous-label-experimental -compression-extra=-normalized-weight-experimental -prediction-structure-result /home/x-zjian1/unsz/results/current/prediction_structures/katrina_attr0.pred",
+      "field": "katrina_attr0",
+      "dataset": "Katrina",
+      "variable": "attr0",
+      "time_step_num": 162,
+      "input_bytes": 270632016,
+      "compression_decompression_time": 4.823971,
+      "preprocessing_MB_s": 98.0137775278026,
+      "compression_MB_s": 115.10055263845095,
+      "decompression_MB_s": 109.4477570110466
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.001,
+      "br": 0.7284719779791317,
+      "psnr": 78.72432418162651,
+      "preprocessing_time": 1.0000820000000001,
+      "compression_time": 2.061339,
+      "decompression_time": 1.2052520000000002,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "katrina_attr0",
+      "dataset": "Katrina",
+      "variable": "attr0",
+      "time_step_num": 162,
+      "input_bytes": 270632016,
+      "compression_decompression_time": 3.266591,
+      "preprocessing_MB_s": 270.6098259942684,
+      "compression_MB_s": 131.28942692104502,
+      "decompression_MB_s": 224.5439260835078
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.0001,
+      "br": 1.6217176019558603,
+      "psnr": 98.45476519345743,
+      "preprocessing_time": 1.0030020000000002,
+      "compression_time": 2.271616,
+      "decompression_time": 1.4644,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "katrina_attr0",
+      "dataset": "Katrina",
+      "variable": "attr0",
+      "time_step_num": 162,
+      "input_bytes": 270632016,
+      "compression_decompression_time": 3.736016,
+      "preprocessing_MB_s": 269.82201032500427,
+      "compression_MB_s": 119.13633994477941,
+      "decompression_MB_s": 184.80744059000276
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.0001,
+      "br": 1.096224,
+      "psnr": 100.407971,
+      "preprocessing_time": 2.914995,
+      "compression_time": 2.667302,
+      "decompression_time": 2.504066,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_reference_order.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina -variable attr0 -time-step-num 162 -dim 3 -configuration rbf_split_rounds_then_sort_reference_data_prediction_error -rel-eb 0.0001 -result /home/x-zjian1/unsz/results/current/partial/katrina_attr0_unsz_0.0001.csv -rbf-ref-num 10 -rbf-shape 0.01 -matrix-file /home/x-zjian1/unsz/adjust_coord_matrices/Katrina_attr0_spatial.txt -training-time-step 40 -training-time-step 80 -training-time-step 120 -condition-operator >= -condition-value -1000 -common-extra=-cross-time-label-predictor-experimental -common-extra=previous -common-extra=-fused-two-point-set-prediction-experimental -common-extra=-rbf-filtered-fallback-nearest-experimental -common-extra=-linear-previous-label-experimental -compression-extra=-normalized-weight-experimental -prediction-structure-result /home/x-zjian1/unsz/results/current/prediction_structures/katrina_attr0.pred",
+      "field": "katrina_attr0",
+      "dataset": "Katrina",
+      "variable": "attr0",
+      "time_step_num": 162,
+      "input_bytes": 270632016,
+      "compression_decompression_time": 5.171367999999999,
+      "preprocessing_MB_s": 92.84133111720604,
+      "compression_MB_s": 101.46283248016161,
+      "decompression_MB_s": 108.07702991854049
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 1e-05,
+      "br": 2.20367,
+      "psnr": 119.501037,
+      "preprocessing_time": 2.834605,
+      "compression_time": 3.618221,
+      "decompression_time": 2.738584,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_reference_order.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina -variable attr0 -time-step-num 162 -dim 3 -configuration rbf_split_rounds_then_sort_reference_data_prediction_error -rel-eb 1e-05 -result /home/x-zjian1/unsz/results/current/partial/katrina_attr0_unsz_1e-05.csv -rbf-ref-num 10 -rbf-shape 0.01 -matrix-file /home/x-zjian1/unsz/adjust_coord_matrices/Katrina_attr0_spatial.txt -training-time-step 40 -training-time-step 80 -training-time-step 120 -condition-operator >= -condition-value -1000 -common-extra=-cross-time-label-predictor-experimental -common-extra=previous -common-extra=-fused-two-point-set-prediction-experimental -common-extra=-rbf-filtered-fallback-nearest-experimental -common-extra=-linear-previous-label-experimental -compression-extra=-normalized-weight-experimental -prediction-structure-result /home/x-zjian1/unsz/results/current/prediction_structures/katrina_attr0.pred",
+      "field": "katrina_attr0",
+      "dataset": "Katrina",
+      "variable": "attr0",
+      "time_step_num": 162,
+      "input_bytes": 270632016,
+      "compression_decompression_time": 6.356805,
+      "preprocessing_MB_s": 95.47433099144327,
+      "compression_MB_s": 74.79698337940108,
+      "decompression_MB_s": 98.82187875193897
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 1e-05,
+      "br": 3.092452446572323,
+      "psnr": 118.41753368776193,
+      "preprocessing_time": 0.9551250000000001,
+      "compression_time": 2.462433,
+      "decompression_time": 2.409928,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "katrina_attr0",
+      "dataset": "Katrina",
+      "variable": "attr0",
+      "time_step_num": 162,
+      "input_bytes": 270632016,
+      "compression_decompression_time": 4.872361,
+      "preprocessing_MB_s": 283.347222614841,
+      "compression_MB_s": 109.90431658445124,
+      "decompression_MB_s": 112.29879730846731
+    }
+  ]
+}

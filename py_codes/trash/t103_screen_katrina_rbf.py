@@ -65,7 +65,7 @@ def main():
             for rel_eb in rel_eb_vec:
                 config_path=temporary_dir/f"point_sets_{rel_eb}.json"
                 write_point_set_config(config_path,rel_eb)
-                arguments=["-data-dir",test_dir,"-variable","attr0","-time-step",f"[0,{time_step_num-1}]","-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",ref_num,"-actual-ref-num",ref_num,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",cache_threshold,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-cross-time-label-predictor-experimental","previous","-rbf-kernel","matern32","-rbf-shape",shape,"-rbf-nugget",1e-6,*extra_arguments]
+                arguments=["-data-dir",test_dir,"-variable","attr0","-time-step",f"[0,{time_step_num-1}]","-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-dag-cache",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",ref_num,"-actual-ref-num",ref_num,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",cache_threshold,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-cross-time-label-predictor-experimental","previous","-rbf-kernel","matern32","-rbf-shape",shape,"-rbf-nugget",1e-6,*extra_arguments]
                 output=run_command([compressor,*arguments])
                 psnr=read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",output,"总PSNR")
                 decompression_time=float("nan")

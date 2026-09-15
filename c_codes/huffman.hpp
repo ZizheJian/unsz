@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <array>
 #include <map>
 #include <queue>
 #include <stack>
@@ -343,99 +344,60 @@ class huffman_encoder_class
 
             uint64_t len=bytesToInt64_bigEndian(bytes)^0x1234abcd;
             bytes+=8;
-            uint64_t outLen=0;
-
-            uint64_t byteIndex=0;
-            uint64_t i=0;
-            unsigned char b;
-            Node *u=&tree.ht[tree.root];
+            uint64_t outLen=0,bitIndex=0;
             auto offset=tree.offset;
-
-            for (;i+8<len;i+=8,byteIndex++)
+            constexpr uint32_t tableBitNum=12,tableSize=1<<tableBitNum;
+            struct decode_entry_c
             {
-                b=bytes[byteIndex];
-
-                u=u->p[b&1];
-                if (u->isLeaf())
+                Node *node;
+                T value;
+                uint8_t bitNum;
+            };
+            array<decode_entry_c,tableSize> decodeTable;
+            for(uint32_t key=0;key<tableSize;key++)
+            {
+                Node *node=&tree.ht[tree.root];
+                uint8_t bitNum=0;
+                while(bitNum<tableBitNum&&!node->isLeaf())
                 {
-                    if (outLen>=targetLength)
-                        throw runtime_error("Huffman解码结果超过预期长度");
-                    out[outLen++]=u->c+offset;
-                    u=&tree.ht[tree.root];
+                    node=node->p[(key>>bitNum)&1];
+                    bitNum++;
                 }
-                u=u->p[(b>>1)&1];
-                if (u->isLeaf())
+                decodeTable[key]={node,node->isLeaf()?(T)(node->c+offset):(T)0,node->isLeaf()?bitNum:(uint8_t)0};
+            }
+            uint64_t byteNum=(len+7)>>3;
+            while(bitIndex<len)
+            {
+                Node *node=&tree.ht[tree.root];
+                uint64_t byteIndex=bitIndex>>3;
+                if(len-bitIndex>=tableBitNum&&byteIndex+2<byteNum)
                 {
-                    if (outLen>=targetLength)
-                        throw runtime_error("Huffman解码结果超过预期长度");
-                    out[outLen++]=u->c+offset;
-                    u=&tree.ht[tree.root];
+                    uint32_t packed=(uint32_t)bytes[byteIndex]|(uint32_t)bytes[byteIndex+1]<<8|(uint32_t)bytes[byteIndex+2]<<16;
+                    const decode_entry_c &entry=decodeTable[(packed>>(bitIndex&7))&(tableSize-1)];
+                    if(entry.bitNum)
+                    {
+                        if(outLen>=targetLength)
+                            throw runtime_error("Huffman解码结果超过预期长度");
+                        out[outLen++]=entry.value;
+                        bitIndex+=entry.bitNum;
+                        continue;
+                    }
+                    node=entry.node;
+                    bitIndex+=tableBitNum;
                 }
-                u=u->p[(b>>2)&1];
-                if (u->isLeaf())
+                while(!node->isLeaf()&&bitIndex<len)
                 {
-                    if (outLen>=targetLength)
-                        throw runtime_error("Huffman解码结果超过预期长度");
-                    out[outLen++]=u->c+offset;
-                    u=&tree.ht[tree.root];
+                    node=node->p[(bytes[bitIndex>>3]>>(bitIndex&7))&1];
+                    bitIndex++;
                 }
-                u=u->p[(b>>3)&1];
-                if (u->isLeaf())
-                {
-                    if (outLen>=targetLength)
-                        throw runtime_error("Huffman解码结果超过预期长度");
-                    out[outLen++]=u->c+offset;
-                    u=&tree.ht[tree.root];
-                }
-                u=u->p[(b>>4)&1];
-                if (u->isLeaf())
-                {
-                    if (outLen>=targetLength)
-                        throw runtime_error("Huffman解码结果超过预期长度");
-                    out[outLen++]=u->c+offset;
-                    u=&tree.ht[tree.root];
-                }
-                u=u->p[(b>>5)&1];
-                if (u->isLeaf())
-                {
-                    if (outLen>=targetLength)
-                        throw runtime_error("Huffman解码结果超过预期长度");
-                    out[outLen++]=u->c+offset;
-                    u=&tree.ht[tree.root];
-                }
-                u=u->p[(b>>6)&1];
-                if (u->isLeaf())
-                {
-                    if (outLen>=targetLength)
-                        throw runtime_error("Huffman解码结果超过预期长度");
-                    out[outLen++]=u->c+offset;
-                    u=&tree.ht[tree.root];
-                }
-                u=u->p[(b>>7)&1];
-                if (u->isLeaf())
-                {
-                    if (outLen>=targetLength)
-                        throw runtime_error("Huffman解码结果超过预期长度");
-                    out[outLen++]=u->c+offset;
-                    u=&tree.ht[tree.root];
-                }
+                if(!node->isLeaf())
+                    throw runtime_error("Huffman字节流在符号中间结束");
+                if(outLen>=targetLength)
+                    throw runtime_error("Huffman解码结果超过预期长度");
+                out[outLen++]=node->c+offset;
             }
 
-            b=bytes[byteIndex];
-
-            for (uint64_t j=0;j<len-i;j++)
-            {
-                u=u->p[(b>>j)&1];
-                if (u->isLeaf())
-                {
-                    if (outLen>=targetLength)
-                        throw runtime_error("Huffman解码结果超过预期长度");
-                    out[outLen++]=u->c+tree.offset;
-                    u=&tree.ht[tree.root];
-                }
-            }
-
-            bytes+=(len+7)>>3;
+            bytes+=byteNum;
             if (outLen!=targetLength)
                 throw runtime_error("Huffman解码结果少于预期长度");
         }

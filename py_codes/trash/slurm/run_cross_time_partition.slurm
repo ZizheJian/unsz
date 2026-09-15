@@ -17,5 +17,5 @@ mkdir -p "$task_tmp_dir"
 
 for block_num in 1 8 32 64 128
 do
-    ./unsz_env/bin/python t5_cross_time.py -variable velocityZonal -time-step-num 0 -rel-eb 0.001 -joint-only -compress-only -joint-block-num "$block_num" -joint-matrix-history-input "$history_path" -work-dir "$task_tmp_dir/block_${block_num}"
+    ./unsz_env/bin/python py_codes/trash/t5_cross_time.py -variable velocityZonal -time-step-num 0 -rel-eb 0.001 -joint-only -compress-only -joint-block-num "$block_num" -joint-matrix-history-input "$history_path" -work-dir "$task_tmp_dir/block_${block_num}"
 done

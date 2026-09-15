@@ -1,0 +1,6 @@
+value_flow,psnr,interpolated_br,interpolated_cr,cr_over_spatial
+spatial,82.694494,0.397677354,80.467242,1.000000
+constant_extrapolation,82.694494,1.547519138,20.678258,0.256977
+linear_interpolation,82.694494,1.268142735,25.233753,0.313590
+constant_extrapolation_spatial_residual,82.694494,0.316655952,101.056051,1.255866
+linear_interpolation_spatial_residual,82.694494,0.281815628,113.549416,1.411126

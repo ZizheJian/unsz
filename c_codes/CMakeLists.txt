@@ -24,6 +24,9 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${SRC_FILE}")
 endif()
 
 add_executable(${CODE_NAME} ${SRC_FILE})
+if(CODE_NAME STREQUAL "s1_compress")
+    target_sources(${CODE_NAME} PRIVATE compress_cli.cpp)
+endif()
 target_link_libraries(${CODE_NAME} PRIVATE libzstd_static libparsers OpenMP::OpenMP_CXX)
 install(TARGETS ${CODE_NAME} DESTINATION bin)
 

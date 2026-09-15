@@ -84,7 +84,7 @@ def main():
             for file_id,time_step in enumerate(dataset["time_steps"]):
                 os.symlink(os.path.join(source_dir,f"{dataset['variable']}.dat.{time_step}"),os.path.join(test_dir,f"hybrid.dat.{file_id}"))
             selector_path=os.path.join(test_dir,"selector")
-            arguments=["-data-dir",test_dir,"-variable","hybrid","-time-step",f"[0,{len(dataset['time_steps'])-1}]","-M","REL","0.01","-predictor","hybrid_loo","-hybrid-selector-path",selector_path,"-reverse-mean-distance-only-order-experimental","-prediction-structure",os.path.join(test_dir,"prediction_structure.bin")]
+            arguments=["-data-dir",test_dir,"-variable","hybrid","-time-step",f"[0,{len(dataset['time_steps'])-1}]","-M","REL","0.01","-predictor","hybrid_loo","-hybrid-selector-path",selector_path,"-reverse-mean-distance-only-order-experimental","-dag-cache",os.path.join(test_dir,"prediction_structure.bin")]
             if dataset["adjust_coord"]:
                 arguments.append("-adjust-coord")
             output=run_command([compressor,*arguments])

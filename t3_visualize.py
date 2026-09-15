@@ -12,6 +12,7 @@ dataset_config={
         "cell_point_num":3,
         "view":"isometric",
         "zoom":0.8,
+        # 仅为避免Katrina原坐标图被严重拉长而缩放z轴；不是PyVista自动变换，也不参与压缩或adjust coord训练
         "original_plot_scale":np.array([1,1,0.001],dtype=np.float64),
         "abnormal_upper_bound":-1000,
         "output_prefix":"Katrina_80",

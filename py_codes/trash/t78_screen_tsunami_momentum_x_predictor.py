@@ -34,7 +34,7 @@ def cleanup(test_dir):
             path.unlink()
 
 def benchmark(test_dir,prediction_structure_path,config,rel_eb):
-    common_arguments=["-data-dir",test_dir,"-variable","momentum_x","-time-step","{0}","-dim",2,"-M","REL",rel_eb,"-adjust-coord-matrix-file",matrix_path,"-reverse-mean-distance-only-order-experimental",*config.get("extra_arguments",()),"-prediction-structure",prediction_structure_path,"-max-ref-num",config.get("max_ref_num",10),"-actual-ref-num",config["ref_num"],"-inverse-distance-power",config["power"]]
+    common_arguments=["-data-dir",test_dir,"-variable","momentum_x","-time-step","{0}","-dim",2,"-M","REL",rel_eb,"-adjust-coord-matrix-file",matrix_path,"-reverse-mean-distance-only-order-experimental",*config.get("extra_arguments",()),"-dag-cache",prediction_structure_path,"-max-ref-num",config.get("max_ref_num",10),"-actual-ref-num",config["ref_num"],"-inverse-distance-power",config["power"]]
     compression_output=run_command([compressor,*common_arguments,"-predictor",config["predictor"],"-prediction-residual-stats"])
     decompression_output=run_command([decompressor,*common_arguments])
     psnr=read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"总PSNR")

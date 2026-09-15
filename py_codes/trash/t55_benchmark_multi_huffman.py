@@ -28,7 +28,7 @@ def read_value(pattern,text,name):
 
 def benchmark(field,block_num,mode,test_dir,prediction_structure_path,adjust_coord=False):
     variable=field
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num",str(block_num),"-multi-huffman-experimental",mode]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num",str(block_num),"-multi-huffman-experimental",mode]
     if adjust_coord:
         arguments.append("-adjust-coord")
     compression_output=run_command([compressor,*arguments])

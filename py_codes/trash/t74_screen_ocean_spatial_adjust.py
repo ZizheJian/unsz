@@ -49,7 +49,7 @@ def row_exists(row_vec,field,config,rel_eb):
     return any(row["field"]==field and row["config"]==config and math.isclose(float(row["rel_eb"]),rel_eb,rel_tol=1e-12) for row in row_vec)
 
 def benchmark(field,config,test_dir,rel_eb,prediction_structure_path):
-    arguments=["-data-dir",test_dir,"-variable",field,"-time-step","{0}","-M","REL",rel_eb,"-dim",3,"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",10,"-actual-ref-num",10,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-global-order-before-round-split-experimental"]
+    arguments=["-data-dir",test_dir,"-variable",field,"-time-step","{0}","-M","REL",rel_eb,"-dim",3,"-dag-cache",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",10,"-actual-ref-num",10,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-global-order-before-round-split-experimental"]
     if config=="ref4_adjust":
         arguments.extend(("-adjust-coord-matrix-file",project_root/"adjust_coord_matrices"/f"Ocean_{field}_spatial_ref4_candidate.txt"))
     elif config=="existing_adjust":

@@ -16,7 +16,7 @@ mkdir -p "$task_tmp_dir"
 
 for region_num in 1 2 4 8
 do
-    ./unsz_env/bin/python t5_cross_time.py -variable velocityZonal -time-step-num 0 -cross-time-first-sample-mode random_hyperrectangle_regions -cross-time-first-sample-num 117580 -cross-time-first-sample-region-num "$region_num" -iteration-num 4 -second-sample-ratio 0.1 -new-matrix-weight 0.5 -max-nfev 100 -work-dir "$task_tmp_dir/train_r${region_num}" -joint-only -train-only
+    ./unsz_env/bin/python py_codes/trash/t5_cross_time.py -variable velocityZonal -time-step-num 0 -cross-time-first-sample-mode random_hyperrectangle_regions -cross-time-first-sample-num 117580 -cross-time-first-sample-region-num "$region_num" -iteration-num 4 -second-sample-ratio 0.1 -new-matrix-weight 0.5 -max-nfev 100 -work-dir "$task_tmp_dir/train_r${region_num}" -joint-only -train-only
 done
 
 for region_num in 1 2 4 8
@@ -27,5 +27,5 @@ do
         extra_args=()
     fi
     history_path="/home/x-zjian1/unsz/adjust_coord_history/ocean_velocityZonal_joint_t31_random_hyperrectangle_regions_r${region_num}.npz"
-    ./unsz_env/bin/python t5_cross_time.py -variable velocityZonal -time-step-num 0 -cross-time-first-sample-mode random_hyperrectangle_regions -cross-time-first-sample-num 117580 -cross-time-first-sample-region-num "$region_num" -work-dir "$task_tmp_dir/codec_r${region_num}" -joint-matrix-history-input "$history_path" "${extra_args[@]}"
+    ./unsz_env/bin/python py_codes/trash/t5_cross_time.py -variable velocityZonal -time-step-num 0 -cross-time-first-sample-mode random_hyperrectangle_regions -cross-time-first-sample-num 117580 -cross-time-first-sample-region-num "$region_num" -work-dir "$task_tmp_dir/codec_r${region_num}" -joint-matrix-history-input "$history_path" "${extra_args[@]}"
 done

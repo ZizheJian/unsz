@@ -5,9 +5,6 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::adjust_coord()
     {
-        if (cross_time_compress)
-            throw runtime_error("暂未实现跨时间步的坐标调整");
-
         // Katrina attr0使用的变换矩阵：
         // {
         //     {1.12670515e+00,0,0},

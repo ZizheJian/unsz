@@ -65,7 +65,7 @@ def read_float(pattern,output,name):
     return float(match.group(1))
 
 def benchmark(test_dir,config,rel_eb,prediction_structure_path):
-    arguments=["-data-dir",test_dir,"-variable",field,"-time-step","{0}","-M","REL",rel_eb,"-dim",3,"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",10,"-actual-ref-num",10,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-global-order-before-round-split-experimental"]
+    arguments=["-data-dir",test_dir,"-variable",field,"-time-step","{0}","-M","REL",rel_eb,"-dim",3,"-dag-cache",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",10,"-actual-ref-num",10,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-global-order-before-round-split-experimental"]
     compression_output=run_command([compressor,*arguments])
     decompression_output=run_command([decompressor,*arguments])
     psnr=read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"压缩PSNR")

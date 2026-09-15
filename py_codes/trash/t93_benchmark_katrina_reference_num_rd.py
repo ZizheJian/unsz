@@ -50,7 +50,7 @@ def cleanup(test_dir):
 def benchmark(test_dir,point_set_config_path,config,prediction_structure_path,rel_eb):
     ref_num=config["ref_num"]
     cache_threshold=config["cache_threshold"]
-    common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step","[0,161]","-dim",3,"-point-set-config",point_set_config_path,"-adjust-coord-matrix-file",matrix_path,"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",ref_num,"-actual-ref-num",ref_num,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",cache_threshold,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental"]
+    common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step","[0,161]","-dim",3,"-point-set-config",point_set_config_path,"-adjust-coord-matrix-file",matrix_path,"-dag-cache",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",ref_num,"-actual-ref-num",ref_num,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",cache_threshold,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental"]
     compression_output=run_command([compressor,*common_arguments,"-compression-stage-time"])
     decompression_output=run_command([decompressor,*common_arguments])
     br=read_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR")

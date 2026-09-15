@@ -1,0 +1,3 @@
+anchor_stride,rel_eb,br,psnr,cr,compression_time,decompression_time,decompression_verified
+8,0.0009,0.302586,83.389102,105.754959,7.300118,6.776186,True
+8,0.001,0.288090,82.583263,111.076459,7.435137,6.561705,True

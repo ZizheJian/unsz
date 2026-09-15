@@ -1,0 +1,2 @@
+config,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
+linear_interpolation,0.001,0.422999,67.692834,2.175566,0.81604,0.350183

@@ -1,0 +1,372 @@
+{
+  "field": {
+    "key": "ocean_velocityMeridional",
+    "folder": "Ocean",
+    "variable": "velocityMeridional",
+    "steps": 31,
+    "dim": 3,
+    "runner": "temporal",
+    "config": "interpolation_spatial_residual",
+    "predictor": "rbf_fitting",
+    "ref_num": 10,
+    "shape": 0.03,
+    "umc": {
+      "umc_from_edge": 1
+    }
+  },
+  "hostname": "a066.anvil.rcac.purdue.edu",
+  "slurm_job_id": "20622866",
+  "slurm_array_task_id": "4",
+  "allocated_cpus": "1",
+  "OMP_NUM_THREADS": "1",
+  "OPENBLAS_NUM_THREADS": "1",
+  "MKL_NUM_THREADS": "1",
+  "git_head": "88242455540430c1e9b7c82a568a4bf26098d684",
+  "tracked_diff_sha256": "57ea5f0871ee22ae9793e98670ff8d44adc639954c1f822b692ae8b361c06996",
+  "umc_git_head": "91da7b70724eed29273b1549e4547cac8b0b67e1",
+  "umc_tracked_diff_sha256": "17e0dcbd8f9ebff235b00d1cf7815602fa7fecb2f19f4060a7bacadb212990da",
+  "sources": {
+    "/home/x-zjian1/unsz/py_codes/refresh_selected_results.py": "f5338845f7f997422217331faaed4f237e36937c85bb621a1c569005b532d176",
+    "/home/x-zjian1/unsz/py_codes/benchmark_field_reference_order.py": "1f2dd5cea50a2691373bb649ac83b20b1fd426796b7f2c83fc23b13f16a926d2",
+    "/home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py": "d105ad10030f4d9ac158744eabaeffa4b6e186d080d2c22e6565f4c7fad13094",
+    "/home/x-zjian1/unsz/py_codes/screen_field_geometric_order.py": "9c24311960173e9b7498c20d0e89af6449cecfb6dfdc723f907ad4c58cbed320",
+    "/home/x-zjian1/unsz/t1_start_c_code.py": "0e6943ddf487e9f5cc9694311865e071513dad89875de3d3aff69ad8b6f7c905",
+    "/home/x-zjian1/umc/include/compress.hpp": "883b4773d65e09bb85b430dfabcb4832e844a2c9cbd9f4dfb757162d1111b87e",
+    "/home/x-zjian1/umc/include/decompress.hpp": "2c96475ca38fdb699013c00b0786211149b2cc7a70eff6a79cd542ff337a3bdd",
+    "/home/x-zjian1/umc/test/test_compress.cpp": "d3deba89f3e1fbd45772d00ecfa2a5fd62a00e41ca5019cfe496feda85aefecf",
+    "/home/x-zjian1/umc/test/test_decompress.cpp": "39cbf55c8ec23555673f892014d6068cc361849e261afa0b74420082187601b8"
+  },
+  "binaries": {
+    "/home/x-zjian1/unsz/install/bin/s1_compress": "5da49cf8584402f6da6485d114fd662e5b506871b7dd2eceb24f356d14c4d4d6",
+    "/home/x-zjian1/unsz/install/bin/s1_decompress": "6bb771ba71f25c2d8711c60eb73543f22ebac510b8936396d1250f8eab0bcbe6",
+    "/home/x-zjian1/umc/build/test/test_compress": "252d9cf527d9a8812599191af1dbad4ab0f7d8c4bd5979cba4f6e7d90907f77d",
+    "/home/x-zjian1/umc/build/test/test_decompress": "f2f31125a1d93d129d6a1e4fcb7ae7916555506dc13dd669277cb535fe0216c6"
+  },
+  "inputs": {
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/coords.dat": {
+      "bytes": 2821920,
+      "sha256": "646ec3eb385832de8ce5fd7a019d640f51bfc3b52948c8c6f5aaedf2d7397599"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.0": {
+      "bytes": 940640,
+      "sha256": "8fd7cd6ff9f0eb4e46c31a589a506746e51ebfadd91997a8a479d27ff1d1bc95"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.1": {
+      "bytes": 940640,
+      "sha256": "9cd0eea44b24f1fd01c76d3d56a0afe6f08378b70154002e3f1523e165e537b8"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.2": {
+      "bytes": 940640,
+      "sha256": "7285e3de8b3054fe83d20867a16a8f456d726fc7067597a7bd41e4d29b331338"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.3": {
+      "bytes": 940640,
+      "sha256": "d062d5126b3a831fcbcfa00ef26464c7bbc6864a19360fcffd97b32ca878199f"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.4": {
+      "bytes": 940640,
+      "sha256": "6c95280b4ba60815bc5f0d722d44df52fe209cce703aba4defe0930b496eebb9"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.5": {
+      "bytes": 940640,
+      "sha256": "a5850cfb3e07285abc6daa5bf485467661e735a9e553531952c6c2722ae1b252"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.6": {
+      "bytes": 940640,
+      "sha256": "96c49df39ffe597642325adbe3288aeaffe8ca18cb70226214be1fa05c8c7e66"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.7": {
+      "bytes": 940640,
+      "sha256": "defbf45b1b8361705aa588b796f283f7108f65546c5cfe5f1f482fe979f273be"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.8": {
+      "bytes": 940640,
+      "sha256": "a1fc5ddcd49d7358309a053a184eb1744efa0be82e182840fde29d4f818eb64b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.9": {
+      "bytes": 940640,
+      "sha256": "bb386b575030316b147c40de3bf7feb6d57f6754ccdde0c0c566c9266fbe397d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.10": {
+      "bytes": 940640,
+      "sha256": "19825b1db9e0538cb287b266ebd241d5edc48928dafc629fd8d81a889a014be8"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.11": {
+      "bytes": 940640,
+      "sha256": "53593a500f7345af257ce0673d9dc368cf59c1041ee2291983c395bf615410c5"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.12": {
+      "bytes": 940640,
+      "sha256": "ae3b0b831306fcff618b69ee5c3e4f712b37553157f7e055ae40f7372a25abbb"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.13": {
+      "bytes": 940640,
+      "sha256": "d929672e705e798b1145d1e570c5b7c8c96d64e5474dbde942bd19acd7217be7"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.14": {
+      "bytes": 940640,
+      "sha256": "3492f7e69fd2e902d02169f64cc3858526b1249c362154d6fa1a11f250ec0383"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.15": {
+      "bytes": 940640,
+      "sha256": "5a60fd40037a5b7462129a7489b8bc6346c8b65770b368c4e4384de7b883e4b9"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.16": {
+      "bytes": 940640,
+      "sha256": "c53cc9cd680f18283f32ab75044e8bec0783cd7a1002b50a37aaa23fd86f6cc3"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.17": {
+      "bytes": 940640,
+      "sha256": "c0fa4ac0e343e6f83e479c6a72874b66a688ebcd56e4fc800069cd6eaa777842"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.18": {
+      "bytes": 940640,
+      "sha256": "0500c39f4fbad73c18140fadaf72ba664e868b7c07f0c48ce1e8ff01aeeeb505"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.19": {
+      "bytes": 940640,
+      "sha256": "8a3dc7957a223190e79ec1d5d0c1871f6d6645fe17326ee6d5bfde226a3044b6"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.20": {
+      "bytes": 940640,
+      "sha256": "dfd8f0704d8eace80a6c33e88181f1ac8efbc535c09d9f0bb8b354ca7203a521"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.21": {
+      "bytes": 940640,
+      "sha256": "91883a09ebc74775b7e06d64f59f473be1dd717283d461ee1a9b1eca7bcc5b3f"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.22": {
+      "bytes": 940640,
+      "sha256": "c836b95fb69c53b1ab215c6bcec47722f93efa1df23771108556ad8b42634e17"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.23": {
+      "bytes": 940640,
+      "sha256": "379c6105d56892ee0de0adaa3abd51557296f6e22e99cb44080a6689434b2990"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.24": {
+      "bytes": 940640,
+      "sha256": "ec8a6d0fa7902a561f4127be6d0563ca4486ac53cf06567b42e96eadd821ebd5"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.25": {
+      "bytes": 940640,
+      "sha256": "4247a26c0c65809e4f8941bb1f6f63d3bcac7434be5588503144f101456a3ca6"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.26": {
+      "bytes": 940640,
+      "sha256": "6c141ba99a9ff13982fdadb64a5addb4703a8b13502f0acf440f0aed268e72d6"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.27": {
+      "bytes": 940640,
+      "sha256": "3525dfdb0050c5ec06c15db25a2b981bd2e0bb7a5026b40f9462233c1018eac3"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.28": {
+      "bytes": 940640,
+      "sha256": "3ea05cbf5dd46f0ae54974433b267a3b928666b0e61ca9b55186cc67058035bc"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.29": {
+      "bytes": 940640,
+      "sha256": "b02b8e99177ca390e58601e9ae8843a5c969ca853074bb499ef0a1cc76d95807"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityMeridional.dat.30": {
+      "bytes": 940640,
+      "sha256": "b5ddd8cb9eaf637c4c1c5abd6bbd290c042cae5b8a50a65d573a8fd8931bc9b0"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/conn.dat": {
+      "bytes": 5573424,
+      "sha256": "0e72bf27ab6f7ef440a01a6c8c3bbe5a27622cb468a4a579926177db572904bf"
+    }
+  },
+  "prediction_structure": null,
+  "rows": [
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.1,
+      "br": 0.028243,
+      "psnr": 36.725904,
+      "preprocessing_time": 5.819839,
+      "compression_time": 3.172774,
+      "decompression_time": 2.437412,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable velocityMeridional -time-step-num 31 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.1 -result /home/x-zjian1/unsz/results/current/partial/ocean_velocityMeridional_unsz_0.1.csv -rbf-shape 0.03",
+      "field": "ocean_velocityMeridional",
+      "dataset": "Ocean",
+      "variable": "velocityMeridional",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 5.610186000000001,
+      "preprocessing_MB_s": 5.010420391354469,
+      "compression_MB_s": 9.190645157833492,
+      "decompression_MB_s": 11.963443193026045
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.1,
+      "br": 0.045037284155194264,
+      "psnr": 29.473369960440515,
+      "preprocessing_time": 3.0983500000000004,
+      "compression_time": 0.314554,
+      "decompression_time": 0.145824,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_velocityMeridional",
+      "dataset": "Ocean",
+      "variable": "velocityMeridional",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.460378,
+      "preprocessing_MB_s": 9.411409298497585,
+      "compression_MB_s": 92.70217514321865,
+      "decompression_MB_s": 199.9659863945578
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.01,
+      "br": 0.6218689814484578,
+      "psnr": 45.71080606824209,
+      "preprocessing_time": 3.0954090000000005,
+      "compression_time": 0.322394,
+      "decompression_time": 0.146608,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_velocityMeridional",
+      "dataset": "Ocean",
+      "variable": "velocityMeridional",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.46900200000000003,
+      "preprocessing_MB_s": 9.420351236298657,
+      "compression_MB_s": 90.44783711855679,
+      "decompression_MB_s": 198.8966495689185
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.01,
+      "br": 0.255329,
+      "psnr": 51.407527,
+      "preprocessing_time": 5.864425,
+      "compression_time": 3.170099,
+      "decompression_time": 1.829267,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable velocityMeridional -time-step-num 31 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.01 -result /home/x-zjian1/unsz/results/current/partial/ocean_velocityMeridional_unsz_0.01.csv -rbf-shape 0.03",
+      "field": "ocean_velocityMeridional",
+      "dataset": "Ocean",
+      "variable": "velocityMeridional",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 4.999366,
+      "preprocessing_MB_s": 4.972327210255055,
+      "compression_MB_s": 9.198400428503968,
+      "decompression_MB_s": 15.940723798111483
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.001,
+      "br": 0.889373,
+      "psnr": 68.346081,
+      "preprocessing_time": 5.695229,
+      "compression_time": 2.622122,
+      "decompression_time": 1.943889,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable velocityMeridional -time-step-num 31 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.001 -result /home/x-zjian1/unsz/results/current/partial/ocean_velocityMeridional_unsz_0.001.csv -rbf-shape 0.03",
+      "field": "ocean_velocityMeridional",
+      "dataset": "Ocean",
+      "variable": "velocityMeridional",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 4.566011,
+      "preprocessing_MB_s": 5.1200469726502655,
+      "compression_MB_s": 11.120703003140203,
+      "decompression_MB_s": 15.000774221161805
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.001,
+      "br": 2.7782308819252783,
+      "psnr": 65.05784587995764,
+      "preprocessing_time": 2.924223,
+      "compression_time": 0.33799500000000005,
+      "decompression_time": 0.202517,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_velocityMeridional",
+      "dataset": "Ocean",
+      "variable": "velocityMeridional",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.5405120000000001,
+      "preprocessing_MB_s": 9.971824994195039,
+      "compression_MB_s": 86.27299220402666,
+      "decompression_MB_s": 143.9871220687646
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.0001,
+      "br": 6.378395491881985,
+      "psnr": 85.02058919798858,
+      "preprocessing_time": 2.863688,
+      "compression_time": 0.38866899999999993,
+      "decompression_time": 0.349746,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_velocityMeridional",
+      "dataset": "Ocean",
+      "variable": "velocityMeridional",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.7384149999999999,
+      "preprocessing_MB_s": 10.182617659465697,
+      "compression_MB_s": 75.02486691760858,
+      "decompression_MB_s": 83.37433451704952
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.0001,
+      "br": 2.303323,
+      "psnr": 86.804466,
+      "preprocessing_time": 5.944925,
+      "compression_time": 2.687009,
+      "decompression_time": 1.006995,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable velocityMeridional -time-step-num 31 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.0001 -result /home/x-zjian1/unsz/results/current/partial/ocean_velocityMeridional_unsz_0.0001.csv -rbf-shape 0.03",
+      "field": "ocean_velocityMeridional",
+      "dataset": "Ocean",
+      "variable": "velocityMeridional",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 3.6940040000000005,
+      "preprocessing_MB_s": 4.9049971193917505,
+      "compression_MB_s": 10.852155686862233,
+      "decompression_MB_s": 28.957283799820257
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 1e-05,
+      "br": 4.789394,
+      "psnr": 106.201797,
+      "preprocessing_time": 5.00822,
+      "compression_time": 1.133457,
+      "decompression_time": 0.952655,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable velocityMeridional -time-step-num 31 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 1e-05 -result /home/x-zjian1/unsz/results/current/partial/ocean_velocityMeridional_unsz_1e-05.csv -rbf-shape 0.03",
+      "field": "ocean_velocityMeridional",
+      "dataset": "Ocean",
+      "variable": "velocityMeridional",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 2.086112,
+      "preprocessing_MB_s": 5.822395981007225,
+      "compression_MB_s": 25.726463377084443,
+      "decompression_MB_s": 30.609024253271123
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 1e-05,
+      "br": 10.779767241521215,
+      "psnr": 105.03075549463752,
+      "preprocessing_time": 1.5681510000000003,
+      "compression_time": 0.386964,
+      "decompression_time": 0.293246,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_velocityMeridional",
+      "dataset": "Ocean",
+      "variable": "velocityMeridional",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.68021,
+      "preprocessing_MB_s": 18.595046012788305,
+      "compression_MB_s": 75.35543358038474,
+      "decompression_MB_s": 99.43815090401915
+    }
+  ]
+}

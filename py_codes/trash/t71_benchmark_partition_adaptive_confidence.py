@@ -28,7 +28,7 @@ def read_value(pattern,text,name):
 def benchmark(field,rel_eb,threshold,test_dir,prediction_structure_path):
     variable=f"{field}_threshold_{threshold:g}_eb_{rel_eb:g}".replace(".","_")
     os.symlink(os.path.join(data_dir,f"{field}.dat.0"),os.path.join(test_dir,f"{variable}.dat.0"))
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num","4","-partition-adaptive-predictor-experimental","-partition-adaptive-sample-num-experimental","256","-partition-fitting-candidates-experimental","original"]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num","4","-partition-adaptive-predictor-experimental","-partition-adaptive-sample-num-experimental","256","-partition-fitting-candidates-experimental","original"]
     if threshold>0:
         arguments.extend(["-partition-adaptive-min-improvement-experimental",str(threshold)])
     compression_output=run_command([compressor,*arguments])

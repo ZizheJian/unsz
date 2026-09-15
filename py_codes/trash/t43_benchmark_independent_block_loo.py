@@ -49,7 +49,7 @@ def benchmark(dataset,block_num,rel_eb,test_dir):
     variable=f"{dataset['variable']}_{config_name}_{str(rel_eb).replace('.','_')}"
     source_dir=os.path.join(data_root,dataset["folder"])
     os.symlink(os.path.join(source_dir,f"{dataset['variable']}.dat.0"),os.path.join(test_dir,f"{variable}.dat.0"))
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",os.path.join(test_dir,f"prediction_structure_{config_name}.bin"),"-predictor","hybrid_loo"]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-dag-cache",os.path.join(test_dir,f"prediction_structure_{config_name}.bin"),"-predictor","hybrid_loo"]
     if block_num>1:
         arguments.extend(["-partition-num",str(block_num)])
     if dataset["adjust_coord"]:

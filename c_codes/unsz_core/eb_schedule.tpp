@@ -9,7 +9,8 @@ namespace unsz
         bool use_dag_direct=eb_schedule_experimental=="round_point_ratio_dag_direct";
         bool use_dag_variance_direct=eb_schedule_experimental=="round_point_ratio_dag_variance_direct";
         bool use_dag_influence=use_dag_rank || use_dag_direct || use_dag_variance_direct;
-        if(eb_schedule_experimental!="none" && eb_schedule_experimental!="round" && eb_schedule_experimental!="point" && eb_schedule_experimental!="round_point" && eb_schedule_experimental!="round_ratio" && eb_schedule_experimental!="round_point_ratio" && !use_dag_influence)
+        bool use_point_log2_ratio=eb_schedule_experimental=="point_log2_ratio";
+        if(eb_schedule_experimental!="none" && eb_schedule_experimental!="round" && eb_schedule_experimental!="point" && eb_schedule_experimental!="round_point" && eb_schedule_experimental!="round_ratio" && eb_schedule_experimental!="round_point_ratio" && !use_point_log2_ratio && !use_dag_influence)
             throw runtime_error("未知的实验性EB序列模式："+eb_schedule_experimental);
         if(!(eb_schedule_start_ratio>0) || eb_schedule_start_ratio>1)
             throw runtime_error("实验性EB序列起始倍率必须在(0,1]内");
@@ -40,7 +41,9 @@ namespace unsz
             double round_point_eb_multiplier=round_eb_multiplier_vec[round_id];
             for(uint32_t i=0;i<round_target_ids[round_id].size();i++)
             {
-                result[pred_ref_id++]=(eb_schedule_experimental=="round" || eb_schedule_experimental=="round_ratio")?round_eb_multiplier_vec[round_id]:(use_round_point_schedule?round_point_eb_multiplier:point_eb_multiplier);
+                double log2_exponent=use_point_log2_ratio?clamp(log2((double)point_num/(pred_ref_id+1))-eb_schedule_log2_shift_experimental,0.0,(double)predict_round_num-1):0;
+                result[pred_ref_id]=use_point_log2_ratio?pow(eb_schedule_start_ratio,log2_exponent):((eb_schedule_experimental=="round" || eb_schedule_experimental=="round_ratio")?round_eb_multiplier_vec[round_id]:(use_round_point_schedule?round_point_eb_multiplier:point_eb_multiplier));
+                pred_ref_id++;
                 if(eb_schedule_experimental=="point")
                     point_eb_multiplier=min(1.0,point_eb_multiplier*schedule_common_ratio);
                 else if(use_round_point_schedule)
@@ -151,7 +154,7 @@ namespace unsz
                 printf("DAG influence EB: mapping=%s, propagation=%s, direct_edges=%llu, affected_points=%u, max_transitive_influence=%.9g, reassigned_points=%u, time=%.6f s\n",use_dag_rank?"rank":"direct",use_dag_variance_direct?"variance":"absolute",(unsigned long long)direct_edge_num,affected_point_num,max_influence,changed_num,chrono::duration<double>(chrono::steady_clock::now()-dag_start_time).count());
         }
         if(print_statistics && eb_schedule_experimental!="none")
-            printf("experimental eb schedule: mode=%s, start_ratio=%.9g, common_ratio=%.12g\n",eb_schedule_experimental.c_str(),eb_schedule_start_ratio,schedule_common_ratio);
+            printf("experimental eb schedule: mode=%s, start_ratio=%.9g, log2_shift=%.9g, common_ratio=%.12g\n",eb_schedule_experimental.c_str(),eb_schedule_start_ratio,eb_schedule_log2_shift_experimental,schedule_common_ratio);
         return result;
     }
 }

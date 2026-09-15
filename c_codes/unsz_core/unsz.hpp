@@ -7,6 +7,7 @@
 #include <random>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -21,6 +22,9 @@
 #include <sstream>
 #include <cctype>
 #include <cstdlib>
+#include <filesystem>
+#include "../huffman.hpp"
+#include "../third_party/zstd/lib/zstd.h"
 
 using namespace std;
 
@@ -28,12 +32,12 @@ using namespace std;
 
 namespace unsz
 {
-    enum class point_set_codec_e:uint8_t{inverse_proportion=0,fitting=1,constant=2,hybrid_loo=3,quadratic_fitting=4,rbf_fitting=5};
+    enum class point_set_codec_e:uint8_t{inverse_proportion=0,constant=2,rbf_fitting=5};
     enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1};
     enum class point_set_classification_e:uint8_t{ordered_rules=0,label_file=1};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
     enum class partition_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
-    enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,previous=2,lorenzo3=3,lorenzo4=4,endpoint_agreement=5,interpolation=6,joint_spatiotemporal=7};
+    enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,endpoint_agreement=5,linear_interpolation=6,joint_spatiotemporal=7,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
     enum class label_value_execution_e:uint8_t{no_label=0,staged=1,fused=2};
 
     struct prediction_framework_c
@@ -91,9 +95,13 @@ namespace unsz
     {
         private:
             static constexpr uint32_t small_capacity=11;//常用max_ref_num不超过10，反向查询额外包含目标自身
+            struct distance_less_c
+            {
+                inline bool operator()(const pair<T_coord,int> &a,const pair<T_coord,int> &b) const{return a.first<b.first;}
+            };
             array<pair<T_coord,int>,small_capacity> small_data;
             uint32_t small_size=0;
-            priority_queue<pair<T_coord,int>> large_queue;
+            priority_queue<pair<T_coord,int>,vector<pair<T_coord,int>>,distance_less_c> large_queue;
             bool use_large_queue=false;
 
         public:
@@ -116,7 +124,7 @@ namespace unsz
                     return;
                 }
                 uint32_t insert_id=small_size;
-                while (insert_id>0 && value<small_data[insert_id-1])
+                while (insert_id>0 && value.first<small_data[insert_id-1].first)
                 {
                     small_data[insert_id]=small_data[insert_id-1];
                     insert_id--;
@@ -222,21 +230,21 @@ namespace unsz
             template<typename T_coord2>
             param_c(const param_c<T_coord2,T_data> &other);
 
-            string data_dir,variable_name,error_mode,coord_path,prediction_structure_path,hybrid_selector_path,adjust_coord_matrix_path,adjust_coord_training_type,point_set_config_path;
+            string data_dir,variable_name,error_mode,coord_path,time_step_coordinate_path,prediction_structure_path,adjust_coord_matrix_path,adjust_coord_training_type,point_set_config_path;
             vector<string> original_data_path_vec,compressed_data_path_vec,decompressed_data_path_vec;
             uint32_t dim=3;
             uint32_t point_num=0;
             T_data rel_eb=0,abs_eb=0;
             bool got_rel_eb=false,got_abs_eb=false;
-            bool got_data_dir=false,got_variable=false,got_time_step=false,got_error_mode=false,got_predictor=false;
+            bool got_data_dir=false,got_variable=false,got_time_step=false,got_error_mode=false,got_predictor=false,no_prediction_dag_cache=false;
             point_set_classification_e point_set_classification=point_set_classification_e::ordered_rules;
             vector<point_set_rule_c> point_set_rule_vec;
             vector<point_set_config_c> point_set_config_vec;
             string point_set_label_path_pattern;
             bool check_original_data_files=true;
             bool cross_time_compress=false;
-            string cross_time_predictor_experimental="none";//none / previous / interpolation
-            string cross_time_label_predictor_experimental="none";//none / previous / lorenzo3 / lorenzo4 / endpoint_agreement
+            string cross_time_predictor_experimental="none";//none / constant_extrapolation / linear_interpolation / constant_extrapolation_spatial_residual / linear_interpolation_spatial_residual
+            string cross_time_label_predictor_experimental="none";//none / previous / endpoint_agreement
             bool if_adjust_coord=false;
             vector<double> adjust_coord_matrix_parameter_vec;
             bool print_round_statistics=false;
@@ -246,7 +254,9 @@ namespace unsz
             bool print_compression_stage_time=false;
             bool print_prediction_dag_statistics=false;
             bool print_pointwise_oracle_statistics_experimental=false;
-            bool use_prediction_order_layout_experimental=false;
+            bool reorder_data_by_prediction_order_experimental=false;
+            string qb_storage_order="prediction";//prediction / original
+            double last_reorder_data_by_prediction_order_time=0;
             bool use_normalized_weight_experimental=false;
             bool use_prediction_order_label_experimental=false;
             bool use_fused_two_point_set_prediction_experimental=false;
@@ -271,7 +281,10 @@ namespace unsz
             uint32_t cache_subpartition_num_experimental=0;//后3轮按kd-tree上层区域连续处理；0表示关闭
             uint32_t d_only_cache_refill_threshold_experimental=3;//0表示任一参考点失效就重新查询，即精确模式
             uint32_t order_candidate_num_experimental=0;//0表示使用max_ref_num
-            uint32_t cross_time_spatial_point_num_experimental=0;//仅用于统计展平时空点集中的跨时间参考
+            uint32_t ordering_msd_ref_num_experimental=0;//0表示使用max_ref_num；只控制反向MSD排序评分的参考点数量
+            uint32_t time_anchor_stride_experimental=0;//非0时使用固定步长锚点和区间内插的两点集时间流程
+            uint32_t time_anchor_first_step=0,time_anchor_last_step=0,time_anchor_last_regular_step=0;
+            uint32_t cross_time_spatial_point_num_experimental=0;//非0时启用联合时空压缩，并记录每个time step的空间点数
             uint32_t kd_tree_leaf_size=32;
             uint32_t partition_size_experimental=0;//0表示不分区；非0时所有参考点必须来自同一partition
             uint32_t partition_num_experimental=0;//直接指定2、4、8等2的幂个partition
@@ -281,8 +294,9 @@ namespace unsz
             double partition_adaptive_min_improvement_experimental=0;
             string partition_fitting_candidates_experimental="original";//original / weighted / ridge / mixed / residual / extended / all
             string multi_huffman_mode_experimental="none";//none / round / partition / partition_round
-            string eb_schedule_experimental="round_point_ratio";//none / round / point / round_point / round_ratio / round_point_ratio / round_point_ratio_dag / round_point_ratio_dag_direct / round_point_ratio_dag_variance_direct
+            string eb_schedule_experimental="round_point_ratio";//none / round / point / point_log2_ratio / round_point / round_ratio / round_point_ratio / round_point_ratio_dag / round_point_ratio_dag_direct / round_point_ratio_dag_variance_direct
             double eb_schedule_start_ratio=0.8;
+            double eb_schedule_log2_shift_experimental=0;//point_log2_ratio的指数位移
             uint32_t predict_round_num=8;
             double round_size_growth_ratio_experimental=2;
             uint32_t max_ref_num=4;//不知道点集时先保留候选点，再筛选同点集参考点
@@ -309,6 +323,7 @@ namespace unsz
             vector<int> pred_target_ids,pred_ref_ids;//预测目标与连续参考点数组；实验性内部重排关闭时为原始id，开启时为预测id
             vector<uint64_t> pred_ref_begin;//第i个目标的参考点区间为[pred_ref_begin[i],pred_ref_begin[i+1])
             vector<double> pred_ref_weights,pred_ref_label_normalized_weights,pred_ref_value_normalized_weights,pred_ref_rbf_weights;
+            uint32_t single_point_set_rbf10_fast_begin=0;
             vector<double> cached_pred_eb_multiplier_vec;//不依赖当前field数据的EB调度只生成一次，由全部time step复用
             vector<double> cached_pred_eb_inverse_multiplier_vec;//对应EB倍率的倒数，避免每个time step重复执行逐点除法
             vector<uint32_t> prediction_id_to_original_id,original_id_to_prediction_id;
@@ -321,13 +336,15 @@ namespace unsz
             vector<T_data> current_data,current_decompressed_data;
             vector<T_data> previous_time_decompressed_data;
             vector<uint8_t> previous_time_point_set_id_vec;
-            vector<vector<uint8_t>> older_time_point_set_id_vec_vec;//从t-2到t-4
             vector<uint32_t> time_step_vec,reconstructed_time_step_vec;
+            vector<double> time_step_coordinate_vec;
             vector<vector<T_data>> reconstructed_time_data_vec;
             vector<vector<uint8_t>> reconstructed_time_point_set_id_vec;
+            vector<T_data> current_time_spatial_residual_data;
             uint32_t current_time_step=0;
-            int32_t interpolation_left_history_id=-1,interpolation_right_history_id=-1;
-            double interpolation_right_weight=0;
+            prediction_framework_c current_prediction_framework;
+            int32_t linear_interpolation_left_history_id=-1,linear_interpolation_right_history_id=-1;
+            double linear_interpolation_right_weight=0;
             T_data current_min_data=0,current_max_data=0;
             T_data current_abs_eb=0;
             vector<int32_t> qb_vec;
@@ -337,17 +354,26 @@ namespace unsz
             vector<T_data> point_set_min_data_vec,point_set_max_data_vec,point_set_abs_eb_vec;
             vector<point_set_codec_e> point_set_codec_vec;
             uint32_t current_valid_node_num=0;
-            uint64_t hybrid_prediction_num=0,hybrid_fitting_prediction_num=0;
-            vector<uint8_t> hybrid_selector_vec;
 
             void init();
+            void load_time_step_coordinates();
+            void prepare_linear_interpolation_order();
+            void prepare_time_anchor_order();
             void configure_point_sets();
             vector<uint8_t> load_point_set_label_ids();
-            void prepare_time_interpolation();
-            bool predict_time_interpolation(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
-            bool predict_time_label(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction);
+            void prepare_linear_interpolation();
+            bool predict_linear_interpolation(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
+            template<time_dimension_mode_e value_mode>
+            bool predict_time_spatial_residual_baseline_fixed(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
+            template<time_dimension_mode_e value_mode>
+            void update_time_spatial_residual_fixed(int pred_id,uint32_t original_id,uint32_t point_set_id);
+            template<time_dimension_mode_e label_mode>
+            bool predict_time_label_fixed(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction);
             void save_time_reconstruction();
             prediction_framework_c get_prediction_framework(uint32_t point_set_num) const;
+            uint32_t get_last_regular_time_anchor() const;
+            bool current_time_step_is_regular_anchor() const;
+            void resolve_single_point_set_time_mode();
             void advance_time_prediction_buffers();
             bool need_double_coord();
             void load_adjust_coord_matrix_file();
@@ -390,17 +416,33 @@ namespace unsz
             T_data predict_inverse_value_from_coords(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power=-1);
             bool predict_inverse_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error);
             bool predict_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double weight_power=0,double ridge=0,bool normalize_coord=false);
-            bool predict_quadratic_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double ridge=1e-8);
             bool calculate_rbf_fitting_weights(int pred_id,array_view_c<int> ref_ids,vector<double> &weights);
             bool predict_rbf_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction);
             bool predict_fitting_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power=0,double ridge=0,bool normalize_coord=true);
             bool predict_continuous_mix_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction);
             bool predict_idw_residual_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction);
-            T_data predict_value(uint32_t pred_ref_id,int pred_id,array_view_c<int> ref_ids,array_view_c<double> ref_weights,uint32_t point_set_id,vector<T_data> &data);
+            template<point_set_codec_e codec>
+            T_data predict_value_fixed(uint32_t pred_ref_id,int pred_id,array_view_c<int> ref_ids,array_view_c<double> ref_weights,uint32_t point_set_id,vector<T_data> &data);
+            T_data predict_single_point_set_rbf_value(uint32_t pred_ref_id,vector<T_data> &data);
+            T_data predict_single_point_set_rbf10_value(uint32_t pred_ref_id,uint64_t ref_begin,vector<T_data> &data);
             T_data predict_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights,vector<T_data> &data);
-            void compress();
+            void prepare_compression_structure(chrono::steady_clock::time_point preprocessing_start_time);
+            void prepare_joint_spatiotemporal_coordinates();
+            void compress_files(void(param_c<T_coord,T_data>::*compress_current_file)());
+            void compress_joint_spatiotemporal_files(void(param_c<T_coord,T_data>::*compress_current_field)());
+            void decompress_joint_spatiotemporal_files(void(param_c<T_coord,T_data>::*decompress_current_field)());
+            void compress_two_point_sets();
+            template<time_dimension_mode_e label_mode,time_dimension_mode_e value_mode,label_value_execution_e execution>
+            void compress_two_point_sets_fixed();
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
+            void compress_point_sets();
             void restore_compression_result_to_original_order();
-            void decompress();
+            void decompress_single_point_set();
+            void decompress_two_point_sets();
+            template<time_dimension_mode_e label_mode,time_dimension_mode_e value_mode,label_value_execution_e execution>
+            void decompress_two_point_sets_fixed();
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
+            void decompress_point_sets();
             
             bool solve_4x4(double A_in[4][4],double b_in[4],double x[4]);
             bool solve_linear_system(vector<vector<double>> A,vector<double> b,vector<double> &x);
@@ -426,5 +468,7 @@ namespace unsz
 #include "format.tpp"
 #include "multi_huffman.tpp"
 #include "prediction_structure.tpp"
+#include "two_point_sets_compress_entry.tpp"
+#include "compress_entry.tpp"
 #include "compress.tpp"
 #include "decompress.tpp"

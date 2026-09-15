@@ -1,0 +1,7 @@
+field,representative_psnr,umc_br,unsz_br_interpolated,cr_unsz_over_umc,total_time_unsz_over_umc
+tsunami_bathy,64.904878,4.463450,4.254757,1.049049,1.359278
+tsunami_height,65.464054,4.484173,4.628924,0.968729,1.354981
+tsunami_momentum_x,66.491777,3.133266,2.225292,1.408024,1.377145
+tsunami_momentum_y,66.476754,3.143452,2.318758,1.355662,1.265197
+tsunami_velocity_x,67.027796,1.066550,0.769848,1.385402,1.392269
+tsunami_velocity_y,67.158046,0.940598,0.747192,1.258844,1.458297

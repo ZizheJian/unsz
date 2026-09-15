@@ -28,14 +28,15 @@ namespace unsz
         if (experimental_order_num>1)
             throw runtime_error("实验性预测顺序不能同时启用多个");
         bool use_reverse_d_only=use_reverse_mean_distance_only_order_experimental || use_reverse_reference_reuse_order_experimental || use_reference_data_order;
+        uint32_t ordering_msd_ref_num=ordering_msd_ref_num_experimental>0?ordering_msd_ref_num_experimental:max_ref_num;
         if (order_candidate_num_experimental>0 && !use_reverse_d_only)
             throw runtime_error("D-only排序候选数实验只能和反向D-only顺序一起使用");
-        if (use_reverse_d_only && d_only_cache_refill_threshold_experimental>max_ref_num)
-            throw runtime_error("D-only缓存重查阈值不能大于max_ref_num");
+        if(use_reverse_d_only&&d_only_cache_refill_threshold_experimental>ordering_msd_ref_num)
+            throw runtime_error("D-only缓存重查阈值不能大于MSD评分参考点数");
         if (use_global_order_before_round_split_experimental && !use_reverse_mean_distance_only_order_experimental)
             throw runtime_error("全局排序后分轮实验目前只能和反向D-only顺序同时使用");
         if (use_reference_data_order && prediction_structure_path.empty())
-            throw runtime_error("参考数据辅助顺序必须通过-prediction-structure保存公共预测结构");
+            throw runtime_error("参考数据辅助顺序必须通过-dag-cache保存公共预测DAG");
 
         vector<vector<T_data>> order_reference_data_vec;
         vector<vector<double>> order_reference_point_set_range_vec;
@@ -111,6 +112,18 @@ namespace unsz
         for (uint32_t d=0;d<dim;d++)
             center_coord[d]=(min_coord[d]+max_coord[d])/2;
 
+        uint32_t effective_order_candidate_num=order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num;
+        bool reuse_global_order_candidate_refs=use_global_order_before_round_split_experimental&&effective_order_candidate_num>=max_ref_num;
+        vector<uint64_t> order_candidate_ref_begin;
+        vector<uint8_t> order_candidate_ref_num;
+        vector<int> order_candidate_ref_ids;
+        if(reuse_global_order_candidate_refs)
+        {
+            order_candidate_ref_begin.assign(point_num,numeric_limits<uint64_t>::max());
+            order_candidate_ref_num.assign(point_num,0);
+            order_candidate_ref_ids.reserve((uint64_t)point_num*max_ref_num);
+        }
+
         auto sorting_start_time=chrono::steady_clock::now();
         printf("Sorting targets in each round\n");
         unique_ptr<block_tree_c<T_coord>> reference_tree;
@@ -136,7 +149,7 @@ namespace unsz
                 printf("Using reverse direction-concentration and distribution elimination with %u local candidates and references\n",max_ref_num);
             else
                 printf("Using reverse predictability elimination with %u local candidates\n",max_ref_num);
-            uint32_t reverse_ref_query_num=min<uint64_t>((uint64_t)max_ref_num+1,point_num);
+            uint32_t reverse_ref_query_num=min<uint64_t>((uint64_t)(use_reverse_d_only?ordering_msd_ref_num:max_ref_num)+1,point_num);
             vector<double> d_only_cached_score;
             vector<double> d_only_cached_reference_data_error;
             vector<uint32_t> d_only_cached_ref_num;
@@ -161,7 +174,7 @@ namespace unsz
                 d_only_cached_ref_ids.resize((uint64_t)point_num*reverse_ref_query_num);
                 if (use_reference_data_order)
                     d_only_cached_ref_weight.resize((uint64_t)point_num*reverse_ref_query_num);
-                printf("D-only order candidates: %u, cache refill threshold: %u\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,d_only_cache_refill_threshold_experimental>0?d_only_cache_refill_threshold_experimental:max_ref_num);
+                printf("D-only order candidates: %u, MSD references: %u, cache refill threshold: %u\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,ordering_msd_ref_num,d_only_cache_refill_threshold_experimental>0?d_only_cache_refill_threshold_experimental:ordering_msd_ref_num);
             }
             bool reverse_center_seed_selected=false;
             for (int round_id=predict_round_num-1;round_id>=0;round_id--)
@@ -178,6 +191,7 @@ namespace unsz
                 vector<int> removed_target_ids;
                 removed_target_ids.reserve(target_ids.size());
                 T_coord *query_coord=center_coord.data();
+                int previous_removed_id=-1;
                 nearest_queue_c<T_coord> nearest_queue;
                 nearest_queue_c<T_coord> d_only_ref_queue;
                 while (removed_target_ids.size()<target_ids.size())
@@ -187,6 +201,22 @@ namespace unsz
                     tree.find_original_nearest(nearest_queue,coord_array,candidate_num,0,query_coord,true);
                     if (nearest_queue.empty())
                         throw runtime_error("无法找到尚未剔除的预测目标");
+                    if(reuse_global_order_candidate_refs&&previous_removed_id>=0)
+                    {
+                        nearest_queue_c<T_coord> ref_queue=nearest_queue;
+                        uint32_t keep_num=min<uint32_t>(max_ref_num,ref_queue.size());
+                        uint64_t ref_begin=order_candidate_ref_ids.size();
+                        order_candidate_ref_ids.resize(ref_begin+keep_num);
+                        while(ref_queue.size()>keep_num)
+                            ref_queue.pop();
+                        for(uint32_t ref_index=keep_num;ref_index>0;ref_index--)
+                        {
+                            order_candidate_ref_ids[ref_begin+ref_index-1]=ref_queue.top().second;
+                            ref_queue.pop();
+                        }
+                        order_candidate_ref_begin[previous_removed_id]=ref_begin;
+                        order_candidate_ref_num[previous_removed_id]=keep_num;
+                    }
                     int original_id=-1;
                     T_coord best_ref_dist=numeric_limits<T_coord>::infinity(),best_route_dist=numeric_limits<T_coord>::infinity();
                     if (!reverse_center_seed_selected)
@@ -196,7 +226,7 @@ namespace unsz
                             int candidate_id=nearest_queue.top().second;
                             T_coord route_dist=nearest_queue.top().first;
                             nearest_queue.pop();
-                            if (original_id==-1 || route_dist<best_route_dist || (route_dist==best_route_dist && candidate_id<original_id))
+                            if (original_id==-1 || route_dist<best_route_dist)
                             {
                                 original_id=candidate_id;
                                 best_route_dist=route_dist;
@@ -384,7 +414,7 @@ namespace unsz
                                 }
                             }
                             bool better=original_id==-1;
-                            bool route_better=route_dist<best_route_dist || (route_dist==best_route_dist && candidate_id<original_id);
+                            bool route_better=route_dist<best_route_dist;
                             bool d_better=mean_target_ref_squared_dist<best_mean_target_ref_squared_dist || (mean_target_ref_squared_dist==best_mean_target_ref_squared_dist && route_better);
                             if (use_reverse_reference_reuse_order_experimental)
                                 better=better || reference_overlap>best_reference_overlap || (reference_overlap==best_reference_overlap && d_better);
@@ -486,7 +516,7 @@ namespace unsz
                         }
                         vector<uint32_t> score_order(candidate_scores.size());
                         iota(score_order.begin(),score_order.end(),0);
-                        sort(score_order.begin(),score_order.end(),[&](uint32_t a,uint32_t b){return candidate_scores[a].first_score<candidate_scores[b].first_score || (candidate_scores[a].first_score==candidate_scores[b].first_score && candidate_scores[a].id<candidate_scores[b].id);});
+                        sort(score_order.begin(),score_order.end(),[&](uint32_t a,uint32_t b){return candidate_scores[a].first_score<candidate_scores[b].first_score;});
                         uint32_t current_rank=0;
                         for (uint32_t rank=0;rank<score_order.size();rank++)
                         {
@@ -497,7 +527,7 @@ namespace unsz
                         bool use_second_score=use_reverse_distribution_order_experimental || use_reverse_direction_order_experimental || use_reverse_direction_distribution_order_experimental;
                         if (use_second_score)
                         {
-                            sort(score_order.begin(),score_order.end(),[&](uint32_t a,uint32_t b){return candidate_scores[a].second_score<candidate_scores[b].second_score || (candidate_scores[a].second_score==candidate_scores[b].second_score && candidate_scores[a].id<candidate_scores[b].id);});
+                            sort(score_order.begin(),score_order.end(),[&](uint32_t a,uint32_t b){return candidate_scores[a].second_score<candidate_scores[b].second_score;});
                             current_rank=0;
                             for (uint32_t rank=0;rank<score_order.size();rank++)
                             {
@@ -510,7 +540,7 @@ namespace unsz
                         for (candidate_score_c &candidate:candidate_scores)
                         {
                             uint32_t rank_sum=candidate.first_rank+candidate.second_rank;
-                            if (original_id==-1 || rank_sum<best_rank_sum || (rank_sum==best_rank_sum && (candidate.route_dist<best_route_dist || (candidate.route_dist==best_route_dist && candidate.id<original_id))))
+                            if (original_id==-1 || rank_sum<best_rank_sum || (rank_sum==best_rank_sum && candidate.route_dist<best_route_dist))
                             {
                                 original_id=candidate.id;
                                 best_rank_sum=rank_sum;
@@ -534,7 +564,7 @@ namespace unsz
                                     ref_dist=min(ref_dist,ref_queue.top().first);
                                 ref_queue.pop();
                             }
-                            if (original_id==-1 || ref_dist<best_ref_dist || (ref_dist==best_ref_dist && (route_dist<best_route_dist || (route_dist==best_route_dist && candidate_id<original_id))))
+                            if (original_id==-1 || ref_dist<best_ref_dist || (ref_dist==best_ref_dist && route_dist<best_route_dist))
                             {
                                 original_id=candidate_id;
                                 best_ref_dist=ref_dist;
@@ -566,6 +596,7 @@ namespace unsz
                         }
                         previous_route_ref_ids.assign(d_only_cached_ref_ids.begin()+cache_begin,d_only_cached_ref_ids.begin()+cache_begin+d_only_cached_ref_num[original_id]);
                     }
+                    previous_removed_id=original_id;
                     query_coord=coord_array[original_id];
                 }
                 reverse(removed_target_ids.begin(),removed_target_ids.end());
@@ -710,7 +741,7 @@ namespace unsz
                         }
                         vector<uint32_t> score_order(candidate_scores.size());
                         iota(score_order.begin(),score_order.end(),0);
-                        sort(score_order.begin(),score_order.end(),[&](uint32_t a,uint32_t b){return candidate_scores[a].first_score<candidate_scores[b].first_score || (candidate_scores[a].first_score==candidate_scores[b].first_score && candidate_scores[a].id<candidate_scores[b].id);});
+                        sort(score_order.begin(),score_order.end(),[&](uint32_t a,uint32_t b){return candidate_scores[a].first_score<candidate_scores[b].first_score;});
                         uint32_t current_rank=0;
                         for (uint32_t rank=0;rank<score_order.size();rank++)
                         {
@@ -721,7 +752,7 @@ namespace unsz
                         bool use_second_score=use_forward_mean_distance_s2_order_experimental || use_forward_mean_distance_direction_order_experimental;
                         if (use_second_score)
                         {
-                            sort(score_order.begin(),score_order.end(),[&](uint32_t a,uint32_t b){return candidate_scores[a].second_score<candidate_scores[b].second_score || (candidate_scores[a].second_score==candidate_scores[b].second_score && candidate_scores[a].id<candidate_scores[b].id);});
+                            sort(score_order.begin(),score_order.end(),[&](uint32_t a,uint32_t b){return candidate_scores[a].second_score<candidate_scores[b].second_score;});
                             current_rank=0;
                             for (uint32_t rank=0;rank<score_order.size();rank++)
                             {
@@ -734,7 +765,7 @@ namespace unsz
                         for (candidate_score_c &candidate:candidate_scores)
                         {
                             uint32_t rank_sum=candidate.first_rank+candidate.second_rank;
-                            if (original_id==-1 || rank_sum>best_rank_sum || (rank_sum==best_rank_sum && (candidate.route_dist<best_route_dist || (candidate.route_dist==best_route_dist && candidate.id<original_id))))
+                            if (original_id==-1 || rank_sum>best_rank_sum || (rank_sum==best_rank_sum && candidate.route_dist<best_route_dist))
                             {
                                 original_id=candidate.id;
                                 best_rank_sum=rank_sum;
@@ -772,7 +803,7 @@ namespace unsz
                                 else
                                     predictability_score=ref_queue.top().first;
                             }
-                            if (original_id==-1 || predictability_score>best_predictability_score || (predictability_score==best_predictability_score && (route_dist<best_route_dist || (route_dist==best_route_dist && candidate_id<original_id))))
+                            if (original_id==-1 || predictability_score>best_predictability_score || (predictability_score==best_predictability_score && route_dist<best_route_dist))
                             {
                                 original_id=candidate_id;
                                 best_predictability_score=predictability_score;
@@ -844,7 +875,7 @@ namespace unsz
                     point_cache_subpartition_id[tree.structure->tree_id_to_original_id[tree_id]]=cache_subpartition_id;
             }
             uint32_t first_grouped_round=predict_round_num>3?predict_round_num-3:0;
-            printf("Grouping rounds %u-%u by %u cache subpartitions and enabling prediction-order layout\n",first_grouped_round,predict_round_num-1,cache_subpartition_num_experimental);
+            printf("Grouping rounds %u-%u by %u cache subpartitions and reordering data by prediction order\n",first_grouped_round,predict_round_num-1,cache_subpartition_num_experimental);
             for(uint32_t round_id=first_grouped_round;round_id<predict_round_num;round_id++)
             {
                 vector<vector<int>> grouped_target_ids(cache_subpartition_num_experimental);
@@ -883,21 +914,37 @@ namespace unsz
         pred_ref_weights.clear();
         pred_ref_weights.reserve((uint64_t)point_num*max_ref_num);
         tree.clear_all_valid_num();
+        uint64_t reused_reference_query_num=0;
         for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
         {
             for (int pred_id:round_target_ids[round_id])
             {
-                nearest_queue_c<T_coord> nearest_queue;
-                tree.find_original_nearest(nearest_queue,coord_array,max_ref_num,0,coord_array[pred_id],true);
                 pred_target_ids.push_back(pred_id);
                 vector<int> ref_ids;
-                ref_ids.reserve(nearest_queue.size());
-                while (!nearest_queue.empty())
+                uint64_t saved_ref_begin=reuse_global_order_candidate_refs?order_candidate_ref_begin[pred_id]:numeric_limits<uint64_t>::max();
+                if(saved_ref_begin!=numeric_limits<uint64_t>::max())
                 {
-                    ref_ids.push_back(nearest_queue.top().second);
-                    nearest_queue.pop();
+                    uint32_t saved_ref_num=order_candidate_ref_num[pred_id];
+                    ref_ids.assign(order_candidate_ref_ids.begin()+saved_ref_begin,order_candidate_ref_ids.begin()+saved_ref_begin+saved_ref_num);
+                    reused_reference_query_num++;
                 }
-                reverse(ref_ids.begin(),ref_ids.end());
+                else if(reuse_global_order_candidate_refs)
+                {
+                    if(pred_target_ids.size()!=1)
+                        throw runtime_error("全局排序没有保存预测目标的参考点");
+                }
+                else
+                {
+                    nearest_queue_c<T_coord> nearest_queue;
+                    tree.find_original_nearest(nearest_queue,coord_array,max_ref_num,0,coord_array[pred_id],true);
+                    ref_ids.reserve(nearest_queue.size());
+                    while(!nearest_queue.empty())
+                    {
+                        ref_ids.push_back(nearest_queue.top().second);
+                        nearest_queue.pop();
+                    }
+                    reverse(ref_ids.begin(),ref_ids.end());
+                }
                 for(int ref_id:ref_ids)
                 {
                     double dist=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
@@ -912,6 +959,8 @@ namespace unsz
 
         if (pred_target_ids.size()!=point_num || pred_ref_begin.size()!=(uint64_t)point_num+1 || pred_ref_ids.size()!=pred_ref_weights.size())
             throw runtime_error("预测参考结构没有覆盖所有点");
+        if(reuse_global_order_candidate_refs)
+            printf("Reused sorting candidate queries for prediction references: %llu targets, additional kd-tree queries: 0\n",(unsigned long long)reused_reference_query_num);
         if (!prediction_structure_path.empty())
             save_pred_refs_structure();
         print_prediction_geometry_statistics_result();

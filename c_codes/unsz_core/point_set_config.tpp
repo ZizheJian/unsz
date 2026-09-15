@@ -41,17 +41,11 @@ namespace unsz
     {
         if(text=="inverse_proportion")
             return point_set_codec_e::inverse_proportion;
-        if(text=="fitting")
-            return point_set_codec_e::fitting;
         if(text=="constant")
             return point_set_codec_e::constant;
-        if(text=="hybrid_loo")
-            return point_set_codec_e::hybrid_loo;
-        if(text=="quadratic_fitting")
-            return point_set_codec_e::quadratic_fitting;
         if(text=="rbf_fitting")
             return point_set_codec_e::rbf_fitting;
-        throw runtime_error(location+"的codec必须是inverse_proportion、fitting、constant、hybrid_loo、quadratic_fitting或rbf_fitting："+text);
+        throw runtime_error(location+"的codec必须是inverse_proportion、constant或rbf_fitting："+text);
     }
 
     inline point_set_error_mode_e parse_point_set_error_mode(const string &text,const string &location)
@@ -129,8 +123,8 @@ namespace unsz
         const json_value_c &labels=require_json_field(root,"labels","点集配置根对象");
         if(labels.type!=json_type_e::array_value || labels.array_value.empty())
             throw runtime_error("labels必须是包含至少一个label的数组");
-        if(labels.array_value.size()>256)
-            throw runtime_error("label数量不能超过256");
+        if(labels.array_value.size()>2)
+            throw runtime_error("UNSZ目前只支持一个或两个点集");
         for(uint32_t label_id=0;label_id<labels.array_value.size();label_id++)
         {
             const json_value_c &label=labels.array_value[label_id];

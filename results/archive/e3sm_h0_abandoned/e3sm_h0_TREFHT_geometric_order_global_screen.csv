@@ -1,0 +1,4 @@
+config,coordinate,predictor,ref_num,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree,round_formation,ordering_construction,ordering_score,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
+reverse_mean_reference_distance,original,rbf_fitting,12,matern32,0.03,1e-06,0,sort_all_then_split_rounds,reverse_elimination,mean_reference_distance,0.01,0.915926,49.221725,0.754634,0.002181,0.001654
+reverse_mean_reference_distance,original,rbf_fitting,12,matern32,0.03,1e-06,0,sort_all_then_split_rounds,reverse_elimination,mean_reference_distance,0.001,3.03037,66.866702,0.15689,0.002499,0.00175
+reverse_mean_reference_distance,original,rbf_fitting,12,matern32,0.03,1e-06,0,sort_all_then_split_rounds,reverse_elimination,mean_reference_distance,0.0001,6.608148,85.727671,0.158221,0.003563,0.002015

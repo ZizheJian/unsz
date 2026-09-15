@@ -45,8 +45,8 @@ def calculate_bd_rate(base_result_vec,test_result_vec):
 
 def benchmark(test_dir,config,rel_eb,matrix_parameter):
     test_variable=f"{variable_name}_{config['name']}"
-    prediction_structure_path=test_dir/f"{config['name']}.pred"
-    common_arguments=["-data-dir",test_dir,"-variable",test_variable,"-time-step",f"[0,{time_step_num-1}]","-M","REL",rel_eb,"-adjust-coord-matrix",*matrix_parameter,"-prediction-structure",prediction_structure_path]
+    prediction_structure_path=test_dir/f"{config['name']}.dag"
+    common_arguments=["-data-dir",test_dir,"-variable",test_variable,"-time-step",f"[0,{time_step_num-1}]","-M","REL",rel_eb,"-adjust-coord-matrix",*matrix_parameter,"-dag-cache",prediction_structure_path]
     first_generation=not prediction_structure_path.is_file()
     compression_output=run_command([compressor,*common_arguments,*config["order_arguments"]])
     result={"config":config["name"],"rel_eb":rel_eb,"br":read_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR"),"psnr":read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"总PSNR"),"preprocessing_time":read_float(r"^preprocessing time excluding adjust coord= ([^ ]+) s$",compression_output,"预处理时间"),"compression_time":read_float(r"^total compression time= ([^ ]+) s$",compression_output,"压缩时间"),"first_generation":int(first_generation)}

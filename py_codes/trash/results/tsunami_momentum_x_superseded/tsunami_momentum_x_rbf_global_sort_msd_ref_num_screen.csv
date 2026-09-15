@@ -1,0 +1,13 @@
+config,ordering_scope,ordering_construction,ordering_score,ordering_candidate_num,ordering_score_max_ref_num,ordering_score_min_ref_num,kernel,shape,prediction_ref_num,nugget,polynomial_degree,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
+matern32_shape_0.03_ref_4_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,4,1e-06,0,0.01,0.781209,48.029496,2.931282,0.006963,0.004259
+matern32_shape_0.03_ref_4_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,4,1e-06,0,0.001,2.705888,66.98227,0.164588,0.007311,0.004294
+matern32_shape_0.03_ref_4_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,4,1e-06,0,0.0001,5.381218,86.899869,0.158652,0.007301,0.004506
+matern32_shape_0.03_ref_6_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,6,1e-06,0,0.01,0.712297,48.14896,0.263084,0.006859,0.00434
+matern32_shape_0.03_ref_6_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,6,1e-06,0,0.001,2.523879,66.958234,0.261555,0.007533,0.004507
+matern32_shape_0.03_ref_6_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,6,1e-06,0,0.0001,5.217614,86.902948,0.262393,0.007406,0.004634
+matern32_shape_0.03_ref_8_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,8,1e-06,0,0.01,0.673451,48.158755,0.424946,0.006968,0.004463
+matern32_shape_0.03_ref_8_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,8,1e-06,0,0.001,2.397787,66.892089,0.418734,0.007742,0.004548
+matern32_shape_0.03_ref_8_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,8,1e-06,0,0.0001,5.022751,86.836174,0.415885,0.007588,0.00479
+matern32_shape_0.03_ref_10_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,10,1e-06,0,0.01,0.623928,48.290454,0.595228,0.007116,0.004541
+matern32_shape_0.03_ref_10_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,10,1e-06,0,0.001,2.309488,66.796529,0.597554,0.007917,0.004632
+matern32_shape_0.03_ref_10_nugget_1e-06_degree_0,global_sort,reverse_elimination,msd,16,10,10,matern32,0.03,10,1e-06,0,0.0001,4.936489,86.810046,0.611645,0.007828,0.004848

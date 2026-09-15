@@ -27,7 +27,7 @@ def read_value(pattern,text,name):
     return float(match.group(1))
 
 def benchmark(field,block_num,mode,rel_eb,test_dir,prediction_structure_path):
-    arguments=["-data-dir",test_dir,"-variable",field,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num",str(block_num),"-partition-adaptive-predictor-experimental","-partition-adaptive-sample-num-experimental","256","-partition-fitting-candidates-experimental",mode]
+    arguments=["-data-dir",test_dir,"-variable",field,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num",str(block_num),"-partition-adaptive-predictor-experimental","-partition-adaptive-sample-num-experimental","256","-partition-fitting-candidates-experimental",mode]
     compression_output=run_command([compressor,*arguments])
     decompression_arguments=[]
     skip_next=False

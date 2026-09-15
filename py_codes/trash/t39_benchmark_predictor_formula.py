@@ -52,7 +52,7 @@ def benchmark(dataset,config,rel_eb,test_dir,prediction_structure_path):
     variable=f"{config['name']}_{str(rel_eb).replace('.','_')}"
     source_dir=os.path.join(data_root,dataset["folder"])
     os.symlink(os.path.join(source_dir,f"{dataset['variable']}.dat.0"),os.path.join(test_dir,f"{variable}.dat.0"))
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predictor",config["predictor"],"-actual-ref-num",str(config["ref_num"]),"-inverse-distance-power",str(config["power"])]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-predictor",config["predictor"],"-actual-ref-num",str(config["ref_num"]),"-inverse-distance-power",str(config["power"])]
     if dataset["adjust_coord"]:
         arguments.append("-adjust-coord")
     compression_output=run_command([compressor,*arguments])

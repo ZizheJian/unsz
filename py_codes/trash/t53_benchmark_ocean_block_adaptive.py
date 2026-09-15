@@ -31,7 +31,7 @@ def benchmark(field,block_num,rel_eb,test_dir,prediction_structure_path,test_tim
     for time_step in range(test_time_step_num):
         os.symlink(os.path.join(data_dir,f"{field}.dat.{time_step}"),os.path.join(test_dir,f"{variable}.dat.{time_step}"))
     time_step_expression=f"[0,{test_time_step_num-1}]"
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",time_step_expression,"-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num",str(block_num),"-partition-adaptive-predictor-experimental","-partition-adaptive-sample-num-experimental","256"]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",time_step_expression,"-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num",str(block_num),"-partition-adaptive-predictor-experimental","-partition-adaptive-sample-num-experimental","256"]
     compression_output=run_command([compressor,*arguments])
     decompression_arguments=[]
     skip_next=False

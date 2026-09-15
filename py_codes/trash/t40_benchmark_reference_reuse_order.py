@@ -53,12 +53,12 @@ def main():
             os.symlink(os.path.join(source_dir,"coords.dat"),os.path.join(test_dir,"coords.dat"))
             result_map={}
             for config in config_vec:
-                prediction_structure_path=os.path.join(test_dir,f"{config['name']}.pred")
+                prediction_structure_path=os.path.join(test_dir,f"{config['name']}.dag")
                 config_result_vec=[]
                 for rel_eb in rel_eb_vec:
                     variable=f"{config['name']}_{str(rel_eb).replace('.','_')}"
                     os.symlink(os.path.join(source_dir,f"{dataset['variable']}.dat.0"),os.path.join(test_dir,f"{variable}.dat.0"))
-                    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),config["flag"],"-prediction-structure",prediction_structure_path]
+                    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),config["flag"],"-dag-cache",prediction_structure_path]
                     if dataset["adjust_coord"]:
                         arguments.append("-adjust-coord")
                     compression_output=run_command([compressor,*arguments])

@@ -55,7 +55,7 @@ def main():
         with open(config_path,"w",encoding="utf-8") as file:
             json.dump({"version":1,"rule_type":"ordered","labels":[{"method":"inverse_proportion","eb_mode":"REL","eb_value":rel_eb,"condition":{"operator":">=","value":-1000}},{"method":"constant"}]},file,ensure_ascii=False)
         prediction_structure_path=temporary_dir/"prediction_structure.bin"
-        common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step","[0,161]","-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",4,"-actual-ref-num",4,"-inverse-distance-power",2,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",3,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-cross-time-label-predictor-experimental","previous"]
+        common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step","[0,161]","-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-dag-cache",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",4,"-actual-ref-num",4,"-inverse-distance-power",2,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",3,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-cross-time-label-predictor-experimental","previous"]
         mode_vec=[("staged",False,False,False),("fused_raw",True,False,False),("fused_normalized",True,True,False),("fused_linear_label",True,False,True),("fused_linear_normalized",True,True,True)]
         for repeat_id in range(repeat_num):
             ordered_modes=mode_vec[repeat_id:]+mode_vec[:repeat_id]

@@ -1,0 +1,6 @@
+UNSZ_ADJUST_COORD_MATRIX 1
+training_type spatial
+dataset Tsunami
+variable momentum_y
+dim 2
+lower_triangular 0.98579498338542515 -0.028922560927465094 1.0135934767950741

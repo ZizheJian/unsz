@@ -26,7 +26,7 @@ def read_value(pattern,text,name):
 def benchmark(config_name,matrix_parameter,rel_eb,test_dir,prediction_structure_path):
     variable=f"velocityZonal_{config_name}_{str(rel_eb).replace('.','_')}"
     os.symlink(os.path.join(data_dir,"velocityZonal.dat.0"),os.path.join(test_dir,f"{variable}.dat.0"))
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num","4","-partition-adaptive-predictor-experimental","-partition-adaptive-sample-num-experimental","256","-partition-fitting-candidates-experimental","mixed"]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num","4","-partition-adaptive-predictor-experimental","-partition-adaptive-sample-num-experimental","256","-partition-fitting-candidates-experimental","mixed"]
     if matrix_parameter is not None:
         arguments.extend(["-adjust-coord-matrix",*matrix_parameter])
     compression_output=run_command([compressor,*arguments])
@@ -57,7 +57,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="unsz_velocity_zonal_adjust_",dir=temporary_root) as test_dir:
         os.symlink(os.path.join(data_dir,"coords.dat"),os.path.join(test_dir,"coords.dat"))
         for config_name,matrix_parameter in config_vec:
-            prediction_structure_path=os.path.join(test_dir,f"{config_name}.pred")
+            prediction_structure_path=os.path.join(test_dir,f"{config_name}.dag")
             for rel_eb in rel_eb_vec:
                 result=benchmark(config_name,matrix_parameter,rel_eb,test_dir,prediction_structure_path)
                 result_vec.append(result)

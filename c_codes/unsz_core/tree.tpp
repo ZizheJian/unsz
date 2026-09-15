@@ -33,7 +33,7 @@ namespace unsz
         nth_element(structure->tree_id_to_original_id.begin()+index_begin,
                     structure->tree_id_to_original_id.begin()+partition_pos,
                     structure->tree_id_to_original_id.begin()+index_end,
-                    [&](int id1,int id2){return coord_array[id1][slice_dim]<coord_array[id2][slice_dim] || (coord_array[id1][slice_dim]==coord_array[id2][slice_dim] && id1<id2);});
+                    [&](int id1,int id2){return coord_array[id1][slice_dim]<coord_array[id2][slice_dim];});
         T_coord slice_coord=coord_array[structure->tree_id_to_original_id[partition_pos]][slice_dim];
         if (partition_pos!=index_begin)//有一些点在左边
         {
@@ -245,13 +245,12 @@ namespace unsz
                     continue;
                 int original_id=structure->tree_id_to_original_id[tree_id];
                 T_coord dist=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
-                pair<T_coord,int> candidate={dist,original_id};
                 if (nearest_queue.size()<nearest_num)
-                    nearest_queue.push(candidate);
-                else if (candidate<nearest_queue.top())
+                    nearest_queue.push({dist,original_id});
+                else if (dist<nearest_queue.top().first)
                 {
                     nearest_queue.pop();
-                    nearest_queue.push(candidate);
+                    nearest_queue.push({dist,original_id});
                 }
             }
         }
@@ -271,7 +270,7 @@ namespace unsz
             }
             if (first_child_id!=-1)
                 find_original_nearest(nearest_queue,coord_array,nearest_num,first_child_id,query_coord,valid_only);
-            if ((second_child_id!=-1) && ((nearest_queue.size()<nearest_num) || (dist_second<=nearest_queue.top().first)))
+            if ((second_child_id!=-1) && ((nearest_queue.size()<nearest_num) || (dist_second<nearest_queue.top().first)))
                 find_original_nearest(nearest_queue,coord_array,nearest_num,second_child_id,query_coord,valid_only);
         }
     }

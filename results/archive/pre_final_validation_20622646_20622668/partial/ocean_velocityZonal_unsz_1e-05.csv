@@ -1,0 +1,2 @@
+config,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
+interpolation_spatial_residual,1e-05,5.148639,106.420846,4.205706,1.27562,0.78391

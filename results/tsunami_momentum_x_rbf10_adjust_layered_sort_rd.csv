@@ -1,0 +1,16 @@
+configuration,coordinate,ordering_scope,rel_eb,file_bytes,br,psnr,preprocessing_time,compression_time,decompression_time
+global_sort_original_coord,original,global_sort,0.1,1777,0.124828,31.144554,,,
+global_sort_original_coord,original,global_sort,0.01,9197,0.646055,48.100767,,,
+global_sort_original_coord,original,global_sort,0.001,32039,2.250621,66.829448,,,
+global_sort_original_coord,original,global_sort,0.0001,69266,4.865680,86.756551,,,
+global_sort_original_coord,original,global_sort,0.00001,107561,7.555762,106.650240,,,
+global_sort_trained_adjust,adjusted,global_sort,0.1,1701,0.119489,30.869262,2.383754,0.004049,0.002066
+global_sort_trained_adjust,adjusted,global_sort,0.01,9375,0.658559,48.160711,0.628127,0.004563,0.002062
+global_sort_trained_adjust,adjusted,global_sort,0.001,32326,2.270782,66.889930,0.612082,0.005698,0.002221
+global_sort_trained_adjust,adjusted,global_sort,0.0001,69539,4.884858,86.835428,0.630817,0.005090,0.002394
+global_sort_trained_adjust,adjusted,global_sort,0.00001,107902,7.579716,106.719925,0.611924,0.011196,0.003013
+layered_sort_original_coord,original,layered_sort,0.1,1763,0.123844,34.304574,1.712936,0.003768,0.002031
+layered_sort_original_coord,original,layered_sort,0.01,9819,0.689748,49.615610,0.596462,0.004335,0.002072
+layered_sort_original_coord,original,layered_sort,0.001,34799,2.444501,67.533137,0.612052,0.005249,0.002412
+layered_sort_original_coord,original,layered_sort,0.0001,72998,5.127839,87.425716,0.626776,0.004992,0.002446
+layered_sort_original_coord,original,layered_sort,0.00001,112921,7.932283,107.364421,0.643494,0.011737,0.003484

@@ -42,8 +42,8 @@ def calculate_bd_rate(base_result_vec,test_result_vec):
 
 def benchmark(test_dir,config,rel_eb,matrix_parameter):
     variable=f"attr0_{config['name']}"
-    prediction_structure_path=test_dir/f"{config['name']}.pred"
-    common_arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"[0,{time_step_num-1}]","-M","REL",rel_eb,"-adjust-coord-matrix",*matrix_parameter,"-prediction-structure",prediction_structure_path]
+    prediction_structure_path=test_dir/f"{config['name']}.dag"
+    common_arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"[0,{time_step_num-1}]","-M","REL",rel_eb,"-adjust-coord-matrix",*matrix_parameter,"-dag-cache",prediction_structure_path]
     compression_arguments=[compressor,*common_arguments,*config["order_arguments"]]
     first_generation=not prediction_structure_path.is_file()
     compression_output=run_command(compression_arguments)

@@ -69,7 +69,7 @@ def result_exists(result_vec,experiment,dataset_name,split_name,config_name,rel_
 
 def make_common_arguments(dataset,test_dir,test_time_step_vec,rel_eb,prediction_structure_path):
     time_step_expression="{"+",".join(str(value) for value in test_time_step_vec)+"}"
-    return ["-data-dir",test_dir,"-variable",dataset["field"],"-time-step",time_step_expression,"-dim",dataset["dim"],"-M","REL",rel_eb,"-adjust-coord-matrix-file",project_root/"adjust_coord_matrices"/dataset["matrix"],"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",10,"-actual-ref-num",10,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","round_point_ratio",0.8]
+    return ["-data-dir",test_dir,"-variable",dataset["field"],"-time-step",time_step_expression,"-dim",dataset["dim"],"-M","REL",rel_eb,"-adjust-coord-matrix-file",project_root/"adjust_coord_matrices"/dataset["matrix"],"-dag-cache",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",10,"-actual-ref-num",10,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","round_point_ratio",0.8]
 
 def benchmark(result_vec,experiment,dataset,split_name,training_time_step_vec,test_time_step_vec,config,test_dir,rel_eb,prediction_structure_path):
     if result_exists(result_vec,experiment,dataset["name"],split_name,config["name"],rel_eb):
@@ -172,7 +172,7 @@ def main():
                 test_time_step_vec=[time_step for time_step in range(test_time_step_num) if time_step not in training_time_step_vec]
                 for config in current_config_vec:
                     structure_name=config["name"] if config["name"]!="training_data_aware" else f"{config['name']}_{split_name}"
-                    prediction_structure_path=test_dir/f"{structure_name}.pred"
+                    prediction_structure_path=test_dir/f"{structure_name}.dag"
                     for rel_eb in rel_eb_vec:
                         benchmark(result_vec,experiment,dataset,split_name,training_time_step_vec,test_time_step_vec,config,test_dir,rel_eb,prediction_structure_path)
     generate_summary(result_vec,experiment)

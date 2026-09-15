@@ -12,7 +12,7 @@ def benchmark(field,ref_num,missing_num,rel_eb,test_dir,prediction_structure_pat
     threshold=ref_num-missing_num
     variable=f"{field}_t{current_time_step}_r{ref_num}_m{missing_num}_{str(rel_eb).replace('.','_')}"
     os.symlink(os.path.join(common.data_dir,f"{field}.dat.{current_time_step}"),os.path.join(test_dir,f"{variable}.dat.{current_time_step}"))
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"{{{current_time_step}}}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num",str(ref_num),"-actual-ref-num",str(ref_num),"-d-only-cache-refill-threshold-experimental",str(threshold),"-inverse-distance-power",str(power)]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"{{{current_time_step}}}","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-predictor","inverse_proportion","-max-ref-num",str(ref_num),"-actual-ref-num",str(ref_num),"-d-only-cache-refill-threshold-experimental",str(threshold),"-inverse-distance-power",str(power)]
     compression_output=common.run_command([common.compressor,*arguments])
     decompression_arguments=[]
     skip_next=False

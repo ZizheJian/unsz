@@ -50,13 +50,13 @@ def main():
         os.symlink(os.path.join(data_dir,"coords.dat"),os.path.join(test_dir,"coords.dat"))
         result_map={}
         for config in config_vec:
-            prediction_structure_path=os.path.join(test_dir,f"{config['name']}.pred")
+            prediction_structure_path=os.path.join(test_dir,f"{config['name']}.dag")
             config_result_vec=[]
             for rel_eb in rel_eb_vec:
                 variable=f"{config['name']}_{str(rel_eb).replace('.','_')}"
                 for time_step in range(time_step_num):
                     os.symlink(os.path.join(data_dir,f"temperature.dat.{time_step}"),os.path.join(test_dir,f"{variable}.dat.{time_step}"))
-                arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"[0,{time_step_num-1}]","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path]
+                arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"[0,{time_step_num-1}]","-M","REL",str(rel_eb),"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path]
                 if config["matrix"] is not None:
                     arguments.extend(["-adjust-coord-matrix",*config["matrix"]])
                 compression_output=run_command([compressor,*arguments])

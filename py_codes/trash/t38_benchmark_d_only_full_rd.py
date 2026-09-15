@@ -56,7 +56,7 @@ def cleanup(test_dir,variable,time_step_num):
 def benchmark(dataset,config,rel_eb,test_dir,total_mb,prediction_structure_path):
     eb_name=str(rel_eb).replace(".","_")
     variable=f"{config['name']}_{eb_name}"
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"[0,{dataset['time_step_num']-1}]","-M","REL",str(rel_eb),"-kd-leaf-size","32","-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,*config["flags"]]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step",f"[0,{dataset['time_step_num']-1}]","-M","REL",str(rel_eb),"-kd-leaf-size","32","-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,*config["flags"]]
     if dataset["adjust_coord"]:
         arguments.append("-adjust-coord")
     compression_output=run_command([compressor,*arguments])
@@ -64,7 +64,7 @@ def benchmark(dataset,config,rel_eb,test_dir,total_mb,prediction_structure_path)
     br=read_value(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR")
     psnr=read_value(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"总PSNR")
     compression_time=read_value(r"^total compression time= ([^ ]+) s$",compression_output,"总压缩时间")
-    structure_generated="Saved prediction structure:" in compression_output
+    structure_generated="Saved prediction DAG:" in compression_output
     sorting=read_value(r"^Target sorting time: ([^ ]+) s$",compression_output,"排序时间") if structure_generated else 0
     reference_generation=read_value(r"^Prediction reference generation time: ([^ ]+) s$",compression_output,"参考生成时间") if structure_generated else 0
     decompression_output=run_command([decompressor,*arguments])

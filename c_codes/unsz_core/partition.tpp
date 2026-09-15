@@ -83,7 +83,7 @@ namespace unsz
             tree_leaf_size=min(tree_leaf_size,(point_num+partition_num_experimental-1)/partition_num_experimental);
         block_tree_c<T_coord> query_tree(coord_array,min_coord,max_coord,tree_leaf_size);
         build_partitions(query_tree);
-        printf("Generating fully independent partition prediction structure with partition_num=%llu, thread_num=%u\n",(unsigned long long)partition_point_ids_vec.size(),thread_num);
+        printf("Generating fully independent partition prediction DAG with partition_num=%llu, thread_num=%u\n",(unsigned long long)partition_point_ids_vec.size(),thread_num);
         printf("Round size growth ratio: %.9g\n",round_size_growth_ratio_experimental);
         vector<vector<vector<int>>> partition_round_target_ids(partition_point_ids_vec.size(),vector<vector<int>>(predict_round_num));
         mt19937 rng(0);
@@ -202,7 +202,7 @@ namespace unsz
                             d_only_cache_initialized[candidate_id]=1;
                             d_only_cache_miss_num++;
                         }
-                        if (selected_id==-1 || mean_squared_distance<best_mean_squared_distance || (mean_squared_distance==best_mean_squared_distance && (route_distance<best_route_distance || (route_distance==best_route_distance && candidate_id<selected_id))))
+                        if (selected_id==-1 || mean_squared_distance<best_mean_squared_distance || (mean_squared_distance==best_mean_squared_distance && route_distance<best_route_distance))
                         {
                             selected_id=candidate_id;
                             best_mean_squared_distance=mean_squared_distance;
@@ -300,7 +300,7 @@ namespace unsz
                     pred_ref_begin.push_back(pred_ref_ids.size());
                 }
         if (pred_target_ids.size()!=point_num)
-            throw runtime_error("独立partition预测结构没有覆盖所有点");
+            throw runtime_error("独立partition预测DAG没有覆盖所有点");
         if (!prediction_structure_path.empty())
             save_pred_refs_structure();
         prepare_pred_refs_structure();

@@ -7,8 +7,6 @@ namespace unsz
     {
         if (adjust_coord_matrix_path.empty())
             return;
-        if (!adjust_coord_matrix_parameter_vec.empty())
-            throw runtime_error("不能同时使用-adjust-coord-matrix和-adjust-coord-matrix-file");
         ifstream file(adjust_coord_matrix_path);
         if (!file)
             throw runtime_error("找不到坐标变换矩阵文件："+adjust_coord_matrix_path);
@@ -63,8 +61,9 @@ namespace unsz
             throw runtime_error("坐标变换矩阵文件缺少必要字段："+adjust_coord_matrix_path);
         if (adjust_coord_training_type!="spatial" && adjust_coord_training_type!="spatiotemporal")
             throw runtime_error("坐标变换矩阵训练类型必须是spatial或spatiotemporal");
-        if (matrix_dim!=dim)
-            throw runtime_error("坐标变换矩阵维数"+to_string(matrix_dim)+"与当前dim="+to_string(dim)+"不一致");
+        uint32_t expected_dim=dim+(cross_time_spatial_point_num_experimental>0);
+        if(matrix_dim!=expected_dim)
+            throw runtime_error("坐标变换矩阵维数"+to_string(matrix_dim)+"与当前流程要求的dim="+to_string(expected_dim)+"不一致");
         if (matrix_variable!=variable_name)
             throw runtime_error("坐标变换矩阵field="+matrix_variable+"与当前field="+variable_name+"不一致");
         if_adjust_coord=true;

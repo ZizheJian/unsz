@@ -60,7 +60,7 @@ def get_matrix_arguments(dataset):
     return ["-adjust-coord-matrix",*[f"{value:.17g}" for value in parameter]]
 
 def get_arguments(dataset,test_dir,growth_ratio,rel_eb,prediction_structure_path):
-    return ["-data-dir",test_dir,"-variable",dataset["field"],"-time-step","{0}","-dim",dataset["dim"],"-M","REL",rel_eb,*get_matrix_arguments(dataset),"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-round-size-growth-ratio-experimental",growth_ratio,"-max-ref-num",10,"-actual-ref-num",10,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","round_point_ratio",0.8]
+    return ["-data-dir",test_dir,"-variable",dataset["field"],"-time-step","{0}","-dim",dataset["dim"],"-M","REL",rel_eb,*get_matrix_arguments(dataset),"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-predict-round-num",8,"-round-size-growth-ratio-experimental",growth_ratio,"-max-ref-num",10,"-actual-ref-num",10,"-inverse-distance-power",3.6,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",8,"-eb-schedule-experimental","round_point_ratio",0.8]
 
 def calculate_bd_rate(base_result_vec,test_result_vec):
     base_psnr=np.asarray([float(row["psnr"]) for row in base_result_vec])
@@ -85,7 +85,7 @@ def benchmark_dataset(dataset,result_vec):
         (test_dir/"coords.dat").symlink_to(source_dir/"coords.dat")
         (test_dir/f"{dataset['field']}.dat.0").symlink_to(source_dir/f"{dataset['field']}.dat.0")
         for growth_ratio in growth_ratio_vec:
-            prediction_structure_path=test_dir/f"growth_{growth_ratio:g}.pred"
+            prediction_structure_path=test_dir/f"growth_{growth_ratio:g}.dag"
             for rel_eb in rel_eb_vec:
                 if row_exists(result_vec,dataset,growth_ratio,rel_eb):
                     continue

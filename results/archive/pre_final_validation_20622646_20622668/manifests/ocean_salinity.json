@@ -1,0 +1,371 @@
+{
+  "field": {
+    "key": "ocean_salinity",
+    "folder": "Ocean",
+    "variable": "salinity",
+    "steps": 31,
+    "dim": 3,
+    "runner": "temporal",
+    "config": "interpolation",
+    "predictor": "inverse_proportion",
+    "ref_num": 4,
+    "umc": {
+      "umc_from_edge": 1
+    }
+  },
+  "hostname": "a249.anvil.rcac.purdue.edu",
+  "slurm_job_id": "20622649",
+  "slurm_array_task_id": "2",
+  "allocated_cpus": "1",
+  "OMP_NUM_THREADS": "1",
+  "OPENBLAS_NUM_THREADS": "1",
+  "MKL_NUM_THREADS": "1",
+  "git_head": "88242455540430c1e9b7c82a568a4bf26098d684",
+  "tracked_diff_sha256": "681e0563382860e25eb03c38811d3958698119728529186f8cbdd667aaaba031",
+  "umc_git_head": "91da7b70724eed29273b1549e4547cac8b0b67e1",
+  "umc_tracked_diff_sha256": "4b9331efd7393a635481a6f7eed96d1c6eed9c97e2b3dfb98643def20cd0ce7d",
+  "sources": {
+    "/home/x-zjian1/unsz/py_codes/refresh_selected_results.py": "86f6933a4cbe23c78b8e8420661733ff5efe254cd4655fc86756a6527671697f",
+    "/home/x-zjian1/unsz/py_codes/benchmark_field_reference_order.py": "1f2dd5cea50a2691373bb649ac83b20b1fd426796b7f2c83fc23b13f16a926d2",
+    "/home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py": "d105ad10030f4d9ac158744eabaeffa4b6e186d080d2c22e6565f4c7fad13094",
+    "/home/x-zjian1/unsz/py_codes/screen_field_geometric_order.py": "9c24311960173e9b7498c20d0e89af6449cecfb6dfdc723f907ad4c58cbed320",
+    "/home/x-zjian1/unsz/t1_start_c_code.py": "64a0eee178a8556236bbc53a37f71060c1ef40f41fd0e6b832a4037e1da85d95",
+    "/home/x-zjian1/umc/include/compress.hpp": "883b4773d65e09bb85b430dfabcb4832e844a2c9cbd9f4dfb757162d1111b87e",
+    "/home/x-zjian1/umc/include/decompress.hpp": "fc5b929cd2b1358223d6c6c6aa2681bdfec9347a9763624097f6f271206732dd",
+    "/home/x-zjian1/umc/test/test_compress.cpp": "d3deba89f3e1fbd45772d00ecfa2a5fd62a00e41ca5019cfe496feda85aefecf",
+    "/home/x-zjian1/umc/test/test_decompress.cpp": "39cbf55c8ec23555673f892014d6068cc361849e261afa0b74420082187601b8"
+  },
+  "binaries": {
+    "/home/x-zjian1/unsz/install/bin/s1_compress": "5da49cf8584402f6da6485d114fd662e5b506871b7dd2eceb24f356d14c4d4d6",
+    "/home/x-zjian1/unsz/install/bin/s1_decompress": "6bb771ba71f25c2d8711c60eb73543f22ebac510b8936396d1250f8eab0bcbe6",
+    "/home/x-zjian1/umc/build/test/test_compress": "252d9cf527d9a8812599191af1dbad4ab0f7d8c4bd5979cba4f6e7d90907f77d",
+    "/home/x-zjian1/umc/build/test/test_decompress": "8a0abb9af16d8b9a5ced5fcb79b52357ef0e1c464c02ef3096ae7997333c5485"
+  },
+  "inputs": {
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/coords.dat": {
+      "bytes": 2821920,
+      "sha256": "646ec3eb385832de8ce5fd7a019d640f51bfc3b52948c8c6f5aaedf2d7397599"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.0": {
+      "bytes": 940640,
+      "sha256": "de965e844b199b1953f3b32f488765e9cef45a033819c90ee08032bac69d615f"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.1": {
+      "bytes": 940640,
+      "sha256": "d40f1dfad84242d028a962ea5467eff997f5d80e3828d29b97fe8733951cc766"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.2": {
+      "bytes": 940640,
+      "sha256": "239c394437c854e3c1e5a49040360b152bfc3decd407f736e3224d604dd6627a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.3": {
+      "bytes": 940640,
+      "sha256": "86feed5f7f68a210f4aa65e215207fd39ff1d583dd2d64bb64729e868b5c076a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.4": {
+      "bytes": 940640,
+      "sha256": "80aafe151b42232bd3b6e58261a53cc0370a3b8b8b470324c3d566167538b9f2"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.5": {
+      "bytes": 940640,
+      "sha256": "ea750c5d17b7259b1ebafa7a4b0831b8609a05ab262c9fbc9e7c842a6bfea160"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.6": {
+      "bytes": 940640,
+      "sha256": "2eca897353107efd19f2ade514657157fecbe9666cee184dc1ce0163f3f571aa"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.7": {
+      "bytes": 940640,
+      "sha256": "e7bf11681b7757eff7781afb405d5194f1cbc79cae0a37f79b9105eca8f51bb7"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.8": {
+      "bytes": 940640,
+      "sha256": "d5365f53c7800c5faa278f1064c21e6449e4a9a8be8135476409026d2e6ba283"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.9": {
+      "bytes": 940640,
+      "sha256": "90925d566e060e4148039cc38596ded4d1ff30092cefe32848aacf28bb84259f"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.10": {
+      "bytes": 940640,
+      "sha256": "eed0e8d7097fb8b72813740a26428deeb120b353cb4b3d0b8e43bd662d50080e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.11": {
+      "bytes": 940640,
+      "sha256": "167a9324aa32f25be0fbed3d4fd5e33f00e4d74ec19a84745e4ad619915eede1"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.12": {
+      "bytes": 940640,
+      "sha256": "65eca07c0abd02b8966195218b0656c537d7c3052ab40384287536a7790f4ba9"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.13": {
+      "bytes": 940640,
+      "sha256": "beeb23d8cb0ae42c0b2200915b497a74c2ecbea9f73d658b9ca6057501c5b7b0"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.14": {
+      "bytes": 940640,
+      "sha256": "c83775d0d38217e82e3afa3d8a171c8e5f16f141fe9d022296787b7aeebc8870"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.15": {
+      "bytes": 940640,
+      "sha256": "0da9386e62b31c8fd3c47ad589c9788a41274f4945bf7ccfbe3f0a10f00f95d5"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.16": {
+      "bytes": 940640,
+      "sha256": "cf87cbd29684acb30e5b14ba0f0b4180ef86e32dc2ef97b72da59d58ec9edd02"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.17": {
+      "bytes": 940640,
+      "sha256": "2f3ac03fbb56f584af9bceb7796f3974e12c07b66bee6789daa757341ef36bcd"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.18": {
+      "bytes": 940640,
+      "sha256": "8ffe46be66b67a69688b6f6a485b100c902d840cb2142f71c4d6241b956f05ca"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.19": {
+      "bytes": 940640,
+      "sha256": "46cd6e42f2add48997bce17651a41a5a458d9cadf10858548f2690d220c62f77"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.20": {
+      "bytes": 940640,
+      "sha256": "0e055d19bb6a68437c89840104d696ca44f48621c72a77373b63ecf88d916837"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.21": {
+      "bytes": 940640,
+      "sha256": "61376ce89e01eb45d84441fb26774afbc00f7d81ad13659d569a864298fb3b56"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.22": {
+      "bytes": 940640,
+      "sha256": "2f12de00b1269f96778435a4b2eb165b4911d5b123d98aea73367fce8531914f"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.23": {
+      "bytes": 940640,
+      "sha256": "96ea608427480bca3787978e81590b3a2cb193daec2e35a36c7fc7c9b8e4caf6"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.24": {
+      "bytes": 940640,
+      "sha256": "ad2a39170bbe7ad6011ef8de98ea520b3ff79055ec559277ca45219725fe60e3"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.25": {
+      "bytes": 940640,
+      "sha256": "fbdfdf123f82bae3e0acb664dce1d9e0fbeac3c311ac5ac8c9a8f6d026c1a7e1"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.26": {
+      "bytes": 940640,
+      "sha256": "9dc02fc4c263f7c5911e2a17bb67620738fc5d2480e28a400c6d6d69e3136a46"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.27": {
+      "bytes": 940640,
+      "sha256": "d8aabe467b232875b3e3f707c71ecc96f92d37e9deb1e63053b36763f63e6537"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.28": {
+      "bytes": 940640,
+      "sha256": "618d4c57217a0bad7c9bfe9dfaeb943b9b7f8e46fcdbd48a0042b12a2ca1096c"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.29": {
+      "bytes": 940640,
+      "sha256": "ab671a6a1e2ff5f63f13762ace6bd13b44d19241cdaf81232cb83af08782d3b3"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/salinity.dat.30": {
+      "bytes": 940640,
+      "sha256": "de061cc818a8e91b38acf42a57b4e2a480ea4419f6abf14f34340a49352a1aa4"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/conn.dat": {
+      "bytes": 5573424,
+      "sha256": "0e72bf27ab6f7ef440a01a6c8c3bbe5a27622cb468a4a579926177db572904bf"
+    }
+  },
+  "prediction_structure": null,
+  "rows": [
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.1,
+      "br": 0.004008,
+      "psnr": 39.803435,
+      "preprocessing_time": 1.168908,
+      "compression_time": 0.518039,
+      "decompression_time": 0.327072,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable salinity -time-step-num 31 -dim 3 -configuration interpolation -predictor inverse_proportion -ref-num 4 -rel-eb 0.1 -result /home/x-zjian1/unsz/results/current/partial/ocean_salinity_unsz_0.1.csv",
+      "field": "ocean_salinity",
+      "dataset": "Ocean",
+      "variable": "salinity",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.845111,
+      "preprocessing_MB_s": 24.946223312698688,
+      "compression_MB_s": 56.28888944654746,
+      "decompression_MB_s": 89.15419234908522
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.1,
+      "br": 0.010587712415431634,
+      "psnr": 28.42742352349427,
+      "preprocessing_time": 1.298198,
+      "compression_time": 0.21550500000000003,
+      "decompression_time": 0.074318,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_salinity",
+      "dataset": "Ocean",
+      "variable": "salinity",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.28982300000000005,
+      "preprocessing_MB_s": 22.461781638856323,
+      "compression_MB_s": 135.30934317069207,
+      "decompression_MB_s": 392.36577948814556
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.01,
+      "br": 0.1928811680722528,
+      "psnr": 44.72033657454076,
+      "preprocessing_time": 1.274213,
+      "compression_time": 0.22627200000000003,
+      "decompression_time": 0.07973399999999999,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_salinity",
+      "dataset": "Ocean",
+      "variable": "salinity",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.306006,
+      "preprocessing_MB_s": 22.884588369448434,
+      "compression_MB_s": 128.8707396407863,
+      "decompression_MB_s": 365.7139990468308
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.01,
+      "br": 0.018971,
+      "psnr": 54.601447,
+      "preprocessing_time": 1.130245,
+      "compression_time": 0.498717,
+      "decompression_time": 0.372457,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable salinity -time-step-num 31 -dim 3 -configuration interpolation -predictor inverse_proportion -ref-num 4 -rel-eb 0.01 -result /home/x-zjian1/unsz/results/current/partial/ocean_salinity_unsz_0.01.csv",
+      "field": "ocean_salinity",
+      "dataset": "Ocean",
+      "variable": "salinity",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.871174,
+      "preprocessing_MB_s": 25.799574428553104,
+      "compression_MB_s": 58.46971328428748,
+      "decompression_MB_s": 78.29048722402854
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.001,
+      "br": 0.201105,
+      "psnr": 68.771222,
+      "preprocessing_time": 1.124037,
+      "compression_time": 0.499053,
+      "decompression_time": 0.365683,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable salinity -time-step-num 31 -dim 3 -configuration interpolation -predictor inverse_proportion -ref-num 4 -rel-eb 0.001 -result /home/x-zjian1/unsz/results/current/partial/ocean_salinity_unsz_0.001.csv",
+      "field": "ocean_salinity",
+      "dataset": "Ocean",
+      "variable": "salinity",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.864736,
+      "preprocessing_MB_s": 25.942064184719897,
+      "compression_MB_s": 58.43034707736453,
+      "decompression_MB_s": 79.74075907274882
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.001,
+      "br": 1.0935302800015365,
+      "psnr": 64.49577476457247,
+      "preprocessing_time": 1.2946369999999998,
+      "compression_time": 0.25357799999999997,
+      "decompression_time": 0.10126,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_salinity",
+      "dataset": "Ocean",
+      "variable": "salinity",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.354838,
+      "preprocessing_MB_s": 22.52356452040225,
+      "compression_MB_s": 114.99357199757078,
+      "decompression_MB_s": 287.9699782737507
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.0001,
+      "br": 3.8312989371683797,
+      "psnr": 84.69022624868273,
+      "preprocessing_time": 1.292861,
+      "compression_time": 0.28478799999999993,
+      "decompression_time": 0.144386,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_salinity",
+      "dataset": "Ocean",
+      "variable": "salinity",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.42917399999999994,
+      "preprocessing_MB_s": 22.554505086006923,
+      "compression_MB_s": 102.3913928957681,
+      "decompression_MB_s": 201.95753050849808
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.0001,
+      "br": 0.910371,
+      "psnr": 86.995038,
+      "preprocessing_time": 1.139904,
+      "compression_time": 0.542944,
+      "decompression_time": 0.366261,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable salinity -time-step-num 31 -dim 3 -configuration interpolation -predictor inverse_proportion -ref-num 4 -rel-eb 0.0001 -result /home/x-zjian1/unsz/results/current/partial/ocean_salinity_unsz_0.0001.csv",
+      "field": "ocean_salinity",
+      "dataset": "Ocean",
+      "variable": "salinity",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.909205,
+      "preprocessing_MB_s": 25.58096120375049,
+      "compression_MB_s": 53.706901632580895,
+      "decompression_MB_s": 79.61491941538956
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 1e-05,
+      "br": 2.441934,
+      "psnr": 106.632499,
+      "preprocessing_time": 1.13985,
+      "compression_time": 0.57393,
+      "decompression_time": 0.380489,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable salinity -time-step-num 31 -dim 3 -configuration interpolation -predictor inverse_proportion -ref-num 4 -rel-eb 1e-05 -result /home/x-zjian1/unsz/results/current/partial/ocean_salinity_unsz_1e-05.csv",
+      "field": "ocean_salinity",
+      "dataset": "Ocean",
+      "variable": "salinity",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.9544190000000001,
+      "preprocessing_MB_s": 25.582173092950825,
+      "compression_MB_s": 50.80731099611451,
+      "decompression_MB_s": 76.63780030434519
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 1e-05,
+      "br": 7.868145229877805,
+      "psnr": 104.77942908790314,
+      "preprocessing_time": 1.279564,
+      "compression_time": 0.279877,
+      "decompression_time": 0.178289,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_salinity",
+      "dataset": "Ocean",
+      "variable": "salinity",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.45816599999999996,
+      "preprocessing_MB_s": 22.788887464792694,
+      "compression_MB_s": 104.18805403802385,
+      "decompression_MB_s": 163.55378065949105
+    }
+  ]
+}

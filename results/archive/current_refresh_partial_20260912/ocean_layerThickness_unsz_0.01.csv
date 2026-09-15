@@ -1,0 +1,2 @@
+config,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
+previous,0.01,0.033657,53.811096,1.295121,0.42125,0.267034

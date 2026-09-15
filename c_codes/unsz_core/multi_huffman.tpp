@@ -30,7 +30,7 @@ namespace unsz
             return 0;
         if (multi_huffman_mode_experimental=="round")
             return round_id;
-        uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+        uint32_t original_id=reorder_data_by_prediction_order_experimental?prediction_id_to_original_id[pred_id]:pred_id;
         if (original_id>=point_partition_id_vec.size())
             throw runtime_error("多Huffman树无法找到预测目标所属的partition");
         uint32_t block_id=point_partition_id_vec[original_id];

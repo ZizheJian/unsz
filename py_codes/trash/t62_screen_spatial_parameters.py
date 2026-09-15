@@ -77,7 +77,7 @@ def benchmark(dataset,config,matrix,test_dir,current_rel_eb):
         temporary_data_path.symlink_to(data_path)
     prediction_structure_path=Path(test_dir)/f"prediction_{config['config']}.bin"
     matrix_parameter=matrix[np.tril_indices(dataset["dim"])]
-    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(current_rel_eb),"-dim",str(dataset["dim"]),"-adjust-coord-matrix",*[f"{value:.17g}" for value in matrix_parameter],"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-max-ref-num",str(config["ref_num"]),"-actual-ref-num",str(config["ref_num"]),"-inverse-distance-power",str(config["power"]),"-d-only-cache-refill-threshold-experimental",str(config["threshold"])]
+    arguments=["-data-dir",test_dir,"-variable",variable,"-time-step","{0}","-M","REL",str(current_rel_eb),"-dim",str(dataset["dim"]),"-adjust-coord-matrix",*[f"{value:.17g}" for value in matrix_parameter],"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-max-ref-num",str(config["ref_num"]),"-actual-ref-num",str(config["ref_num"]),"-inverse-distance-power",str(config["power"]),"-d-only-cache-refill-threshold-experimental",str(config["threshold"])]
     if config["global_order"]:
         arguments.append("-global-order-before-round-split-experimental")
     compression_output=run_command([compressor,*arguments])

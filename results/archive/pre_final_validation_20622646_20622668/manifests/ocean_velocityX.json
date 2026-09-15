@@ -1,0 +1,372 @@
+{
+  "field": {
+    "key": "ocean_velocityX",
+    "folder": "Ocean",
+    "variable": "velocityX",
+    "steps": 31,
+    "dim": 3,
+    "runner": "temporal",
+    "config": "interpolation_spatial_residual",
+    "predictor": "rbf_fitting",
+    "ref_num": 10,
+    "shape": 0.03,
+    "umc": {
+      "umc_from_edge": 1
+    }
+  },
+  "hostname": "a188.anvil.rcac.purdue.edu",
+  "slurm_job_id": "20622652",
+  "slurm_array_task_id": "5",
+  "allocated_cpus": "1",
+  "OMP_NUM_THREADS": "1",
+  "OPENBLAS_NUM_THREADS": "1",
+  "MKL_NUM_THREADS": "1",
+  "git_head": "88242455540430c1e9b7c82a568a4bf26098d684",
+  "tracked_diff_sha256": "681e0563382860e25eb03c38811d3958698119728529186f8cbdd667aaaba031",
+  "umc_git_head": "91da7b70724eed29273b1549e4547cac8b0b67e1",
+  "umc_tracked_diff_sha256": "4b9331efd7393a635481a6f7eed96d1c6eed9c97e2b3dfb98643def20cd0ce7d",
+  "sources": {
+    "/home/x-zjian1/unsz/py_codes/refresh_selected_results.py": "86f6933a4cbe23c78b8e8420661733ff5efe254cd4655fc86756a6527671697f",
+    "/home/x-zjian1/unsz/py_codes/benchmark_field_reference_order.py": "1f2dd5cea50a2691373bb649ac83b20b1fd426796b7f2c83fc23b13f16a926d2",
+    "/home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py": "d105ad10030f4d9ac158744eabaeffa4b6e186d080d2c22e6565f4c7fad13094",
+    "/home/x-zjian1/unsz/py_codes/screen_field_geometric_order.py": "9c24311960173e9b7498c20d0e89af6449cecfb6dfdc723f907ad4c58cbed320",
+    "/home/x-zjian1/unsz/t1_start_c_code.py": "64a0eee178a8556236bbc53a37f71060c1ef40f41fd0e6b832a4037e1da85d95",
+    "/home/x-zjian1/umc/include/compress.hpp": "883b4773d65e09bb85b430dfabcb4832e844a2c9cbd9f4dfb757162d1111b87e",
+    "/home/x-zjian1/umc/include/decompress.hpp": "fc5b929cd2b1358223d6c6c6aa2681bdfec9347a9763624097f6f271206732dd",
+    "/home/x-zjian1/umc/test/test_compress.cpp": "d3deba89f3e1fbd45772d00ecfa2a5fd62a00e41ca5019cfe496feda85aefecf",
+    "/home/x-zjian1/umc/test/test_decompress.cpp": "39cbf55c8ec23555673f892014d6068cc361849e261afa0b74420082187601b8"
+  },
+  "binaries": {
+    "/home/x-zjian1/unsz/install/bin/s1_compress": "5da49cf8584402f6da6485d114fd662e5b506871b7dd2eceb24f356d14c4d4d6",
+    "/home/x-zjian1/unsz/install/bin/s1_decompress": "6bb771ba71f25c2d8711c60eb73543f22ebac510b8936396d1250f8eab0bcbe6",
+    "/home/x-zjian1/umc/build/test/test_compress": "252d9cf527d9a8812599191af1dbad4ab0f7d8c4bd5979cba4f6e7d90907f77d",
+    "/home/x-zjian1/umc/build/test/test_decompress": "8a0abb9af16d8b9a5ced5fcb79b52357ef0e1c464c02ef3096ae7997333c5485"
+  },
+  "inputs": {
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/coords.dat": {
+      "bytes": 2821920,
+      "sha256": "646ec3eb385832de8ce5fd7a019d640f51bfc3b52948c8c6f5aaedf2d7397599"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.0": {
+      "bytes": 940640,
+      "sha256": "4b18670e60a0913a646e0aab108c18aa9d85b084e621f0e364177d7295d72632"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.1": {
+      "bytes": 940640,
+      "sha256": "1dfeeb3f01b2208330756ba0c15520f3cc57aab08e3953a68425684cdb7b5b8e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.2": {
+      "bytes": 940640,
+      "sha256": "775ea6f0b83064e78ff7064d9a6cff71b7650c320e324b645c980687fa261977"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.3": {
+      "bytes": 940640,
+      "sha256": "eac5cd8ee6af3d0e70aad5f4117dc0d5ad625065ff6001c35eaa31377ed29fea"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.4": {
+      "bytes": 940640,
+      "sha256": "c1ec721f69eced30d52614bc983fe23cd3fe1d3d8c41d18c6a22e33658ffa8c4"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.5": {
+      "bytes": 940640,
+      "sha256": "59455a9548275f05a2e76c903598c895d79dddd217b14529e633bceb487c1b36"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.6": {
+      "bytes": 940640,
+      "sha256": "5dc22ab6524c641dfe5e5d74f1b3dadda4fc9699cc12f5446ccd60be2ca2ed13"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.7": {
+      "bytes": 940640,
+      "sha256": "ea282c41e91da7c3bb4f66958a48fb8b4a4fb96043b030e70c3ea546b0002a50"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.8": {
+      "bytes": 940640,
+      "sha256": "a256a4dedc21a9a8afe3d24392d3836cef0103f417de769843bd5a9c389b6de8"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.9": {
+      "bytes": 940640,
+      "sha256": "c4ab7247611135f5cc48fd211ffe74c7cbe323392dbae8724eb1effd0c7fccd5"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.10": {
+      "bytes": 940640,
+      "sha256": "4be121658998af4b6c35f2c79906fa50a184dc8dc187a9492ec5d324f03334bc"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.11": {
+      "bytes": 940640,
+      "sha256": "bfc7bc17e58c61845640c8b0e71f70c5ebad44c7257bf93683db9fb69bae6cd1"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.12": {
+      "bytes": 940640,
+      "sha256": "48415989256213921997a5513e6d19314281ba7e2469705debb0fc7df4d0bf3c"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.13": {
+      "bytes": 940640,
+      "sha256": "4463696a3c7109752369c956ae2f1718b97ebb4a90f1f9cf69b27ff87163d0ad"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.14": {
+      "bytes": 940640,
+      "sha256": "6ba007ea2d18462cdcfb341bcd1c4e6f24d80878f9f754b438f1102e183c523e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.15": {
+      "bytes": 940640,
+      "sha256": "6678f36ccf66121aa06c517b3c715a9d50119f2671a541d695d3b84c80bd03b1"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.16": {
+      "bytes": 940640,
+      "sha256": "656dde6f9b835d20ef784b6723ae144f2b4d56e989a996ac59a2576ddd278787"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.17": {
+      "bytes": 940640,
+      "sha256": "ca0c758187abbe3392173474093870580dffa4141d44a2b61a74ff31ecdc3b10"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.18": {
+      "bytes": 940640,
+      "sha256": "72f731ed4451364a8ec84802cc95784b8ff5d953dfb84b6a53894f7be3f8a19a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.19": {
+      "bytes": 940640,
+      "sha256": "3afe802f54a6c7fe498fa75037804f67d7ad29ed59e4a0cd4d6fb0329f913d22"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.20": {
+      "bytes": 940640,
+      "sha256": "1cb451e0541009628b0fdfb174f74c6abc70c457cf24c63a4b5ade10bc23cbde"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.21": {
+      "bytes": 940640,
+      "sha256": "1eac2ccfabeeadbb2b8928bc1aff2a4bbbadea7e5f995ea73e51517bb2a272f7"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.22": {
+      "bytes": 940640,
+      "sha256": "b6d36b9113205a52e109ba185de0d179aab6fedd3cd9255a31b0a40b0963538c"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.23": {
+      "bytes": 940640,
+      "sha256": "67e82393e348ea5c50cf898fdd59f02cfb7fe251018492ca1386cb33fe146c5a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.24": {
+      "bytes": 940640,
+      "sha256": "bd97f3d15b60cac853da29cafd5885e1f2d640c97088de4d70cbfe6dcf4c31e5"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.25": {
+      "bytes": 940640,
+      "sha256": "711f3394e3a4851d7318846f92312076d28725f90a6e0de6e2076f7665599ea5"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.26": {
+      "bytes": 940640,
+      "sha256": "32e67e97db298a4c84fcd32ab3ac79526a8c9654193e12af7695dcaaea1f5a64"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.27": {
+      "bytes": 940640,
+      "sha256": "8f512680a89b3a61bf40eeab8cac98799c630c71f30e5d849b752f9c01abc406"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.28": {
+      "bytes": 940640,
+      "sha256": "85cb1f5ab7c43d3a78bf8d46c9b3907db858abf98c536c166cdfa024d8e259a7"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.29": {
+      "bytes": 940640,
+      "sha256": "1f933499ab6fffdab3d766f1477783544b08e8d7e92619eb1cb0ca3de61b9073"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/velocityX.dat.30": {
+      "bytes": 940640,
+      "sha256": "c4f2478e90aed3872bde09e6de35b706645976cbb79696e412b57ba8e5d123ce"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean/conn.dat": {
+      "bytes": 5573424,
+      "sha256": "0e72bf27ab6f7ef440a01a6c8c3bbe5a27622cb468a4a579926177db572904bf"
+    }
+  },
+  "prediction_structure": null,
+  "rows": [
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.1,
+      "br": 0.034463,
+      "psnr": 36.131177,
+      "preprocessing_time": 4.214556,
+      "compression_time": 0.871759,
+      "decompression_time": 0.730902,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable velocityX -time-step-num 31 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.1 -result /home/x-zjian1/unsz/results/current/partial/ocean_velocityX_unsz_0.1.csv -rbf-shape 0.03",
+      "field": "ocean_velocityX",
+      "dataset": "Ocean",
+      "variable": "velocityX",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 1.602661,
+      "preprocessing_MB_s": 6.918840323868042,
+      "compression_MB_s": 33.44942811029195,
+      "decompression_MB_s": 39.89569053033102
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.1,
+      "br": 0.09108088384572756,
+      "psnr": 27.646096296547633,
+      "preprocessing_time": 1.5973690000000003,
+      "compression_time": 0.22108800000000003,
+      "decompression_time": 0.080511,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_velocityX",
+      "dataset": "Ocean",
+      "variable": "velocityX",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.30159900000000006,
+      "preprocessing_MB_s": 18.254917930672246,
+      "compression_MB_s": 131.89245911130408,
+      "decompression_MB_s": 362.18454621107674
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.01,
+      "br": 0.8500216736442999,
+      "psnr": 45.73548834910134,
+      "preprocessing_time": 1.6078720000000002,
+      "compression_time": 0.24086499999999997,
+      "decompression_time": 0.09202899999999999,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_velocityX",
+      "dataset": "Ocean",
+      "variable": "velocityX",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.33289399999999997,
+      "preprocessing_MB_s": 18.135672491342593,
+      "compression_MB_s": 121.06300209661015,
+      "decompression_MB_s": 316.85490443229855
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.01,
+      "br": 0.285275,
+      "psnr": 51.244345,
+      "preprocessing_time": 4.196553,
+      "compression_time": 0.906016,
+      "decompression_time": 0.732378,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable velocityX -time-step-num 31 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.01 -result /home/x-zjian1/unsz/results/current/partial/ocean_velocityX_unsz_0.01.csv -rbf-shape 0.03",
+      "field": "ocean_velocityX",
+      "dataset": "Ocean",
+      "variable": "velocityX",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 1.638394,
+      "preprocessing_MB_s": 6.948521798723858,
+      "compression_MB_s": 32.18468548016812,
+      "decompression_MB_s": 39.815286641597645
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.001,
+      "br": 0.946459,
+      "psnr": 68.458329,
+      "preprocessing_time": 4.175299,
+      "compression_time": 0.948885,
+      "decompression_time": 0.733246,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable velocityX -time-step-num 31 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.001 -result /home/x-zjian1/unsz/results/current/partial/ocean_velocityX_unsz_0.001.csv -rbf-shape 0.03",
+      "field": "ocean_velocityX",
+      "dataset": "Ocean",
+      "variable": "velocityX",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 1.682131,
+      "preprocessing_MB_s": 6.983892650562272,
+      "compression_MB_s": 30.730636483873177,
+      "decompression_MB_s": 39.76815420745562
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.001,
+      "br": 3.35881239403234,
+      "psnr": 65.30307636981198,
+      "preprocessing_time": 1.5398379999999998,
+      "compression_time": 0.271898,
+      "decompression_time": 0.143207,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_velocityX",
+      "dataset": "Ocean",
+      "variable": "velocityX",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.41510499999999995,
+      "preprocessing_MB_s": 18.936953108054226,
+      "compression_MB_s": 107.2455111843412,
+      "decompression_MB_s": 203.62021409567967
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.0001,
+      "br": 7.07901387661935,
+      "psnr": 85.36928607137297,
+      "preprocessing_time": 1.525057,
+      "compression_time": 0.303553,
+      "decompression_time": 0.191136,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_velocityX",
+      "dataset": "Ocean",
+      "variable": "velocityX",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.49468900000000005,
+      "preprocessing_MB_s": 19.12049188981133,
+      "compression_MB_s": 96.06177504422621,
+      "decompression_MB_s": 152.56068977063453
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.0001,
+      "br": 2.381409,
+      "psnr": 87.102207,
+      "preprocessing_time": 4.186553,
+      "compression_time": 0.964609,
+      "decompression_time": 0.757765,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable velocityX -time-step-num 31 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.0001 -result /home/x-zjian1/unsz/results/current/partial/ocean_velocityX_unsz_0.0001.csv -rbf-shape 0.03",
+      "field": "ocean_velocityX",
+      "dataset": "Ocean",
+      "variable": "velocityX",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 1.722374,
+      "preprocessing_MB_s": 6.965119037069398,
+      "compression_MB_s": 30.22969928748332,
+      "decompression_MB_s": 38.48137615223717
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 1e-05,
+      "br": 4.93741,
+      "psnr": 106.541097,
+      "preprocessing_time": 4.216987,
+      "compression_time": 1.186766,
+      "decompression_time": 0.766746,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean -variable velocityX -time-step-num 31 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 1e-05 -result /home/x-zjian1/unsz/results/current/partial/ocean_velocityX_unsz_1e-05.csv -rbf-shape 0.03",
+      "field": "ocean_velocityX",
+      "dataset": "Ocean",
+      "variable": "velocityX",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 1.953512,
+      "preprocessing_MB_s": 6.914851765016112,
+      "compression_MB_s": 24.570842103666603,
+      "decompression_MB_s": 38.030638568704624
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 1e-05,
+      "br": 11.795596134958217,
+      "psnr": 105.37755528886026,
+      "preprocessing_time": 1.471767,
+      "compression_time": 0.350232,
+      "decompression_time": 0.270797,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "ocean_velocityX",
+      "dataset": "Ocean",
+      "variable": "velocityX",
+      "time_step_num": 31,
+      "input_bytes": 29159840,
+      "compression_decompression_time": 0.621029,
+      "preprocessing_MB_s": 19.812810043981145,
+      "compression_MB_s": 83.25863998720848,
+      "decompression_MB_s": 107.68154743220936
+    }
+  ]
+}

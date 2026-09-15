@@ -1,0 +1,2 @@
+config,coordinate,predictor,ref_num,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree,round_formation,ordering_construction,ordering_score,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
+reverse_nearest_reference_distance_direction_concentration,original,rbf_fitting,24,matern32,0.3,1e-06,0,split_rounds_then_sort,reverse_elimination,nearest_reference_distance+direction_concentration,0.01,0.683707,49.540774,14.192199,0.009654,0.007084

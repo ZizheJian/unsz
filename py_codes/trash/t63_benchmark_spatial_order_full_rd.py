@@ -83,7 +83,7 @@ def calculate_bd_rate(base_result_vec,test_result_vec):
 
 def get_unsz_arguments(dataset,config,matrix,test_dir,rel_eb,prediction_structure_path):
     matrix_parameter=matrix[np.tril_indices(dataset["dim"])]
-    arguments=["-data-dir",test_dir,"-variable",dataset["field"],"-time-step","{0}","-M","REL",str(rel_eb),"-dim",str(dataset["dim"]),"-adjust-coord-matrix",*[f"{value:.17g}" for value in matrix_parameter],"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path,"-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.61","-d-only-cache-refill-threshold-experimental","8"]
+    arguments=["-data-dir",test_dir,"-variable",dataset["field"],"-time-step","{0}","-M","REL",str(rel_eb),"-dim",str(dataset["dim"]),"-adjust-coord-matrix",*[f"{value:.17g}" for value in matrix_parameter],"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path,"-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.61","-d-only-cache-refill-threshold-experimental","8"]
     if config["global_order"]:
         arguments.append("-global-order-before-round-split-experimental")
     return arguments

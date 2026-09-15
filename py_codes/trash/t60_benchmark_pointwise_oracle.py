@@ -15,7 +15,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="unsz_pointwise_oracle_",dir=temporary_root) as test_dir:
         os.symlink(os.path.join(data_dir,"coords.dat"),os.path.join(test_dir,"coords.dat"))
         os.symlink(os.path.join(data_dir,f"{field}.dat.0"),os.path.join(test_dir,f"{field}.dat.0"))
-        arguments=["-data-dir",test_dir,"-variable",field,"-time-step","{0}","-M","REL","0.001","-reverse-mean-distance-only-order-experimental","-prediction-structure",os.path.join(test_dir,"prediction_structure.bin"),"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num","4","-partition-adaptive-predictor-experimental","-partition-adaptive-sample-num-experimental","256","-partition-fitting-candidates-experimental","mixed","-pointwise-oracle-statistics-experimental"]
+        arguments=["-data-dir",test_dir,"-variable",field,"-time-step","{0}","-M","REL","0.001","-reverse-mean-distance-only-order-experimental","-dag-cache",os.path.join(test_dir,"prediction_structure.bin"),"-predictor","inverse_proportion","-max-ref-num","10","-actual-ref-num","10","-inverse-distance-power","3.5","-d-only-cache-refill-threshold-experimental","8","-partition-num","4","-partition-adaptive-predictor-experimental","-partition-adaptive-sample-num-experimental","256","-partition-fitting-candidates-experimental","mixed","-pointwise-oracle-statistics-experimental"]
         result=subprocess.run([os.path.join(project_root,"build/s1_compress"),*arguments],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         print(result.stdout,flush=True)
         if result.returncode!=0:

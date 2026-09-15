@@ -1,0 +1,2 @@
+config,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
+idw_d_only,0.001,0.955052,70.59802,9.708281,0.831069,0.606117

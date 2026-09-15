@@ -13,7 +13,7 @@ repeat_num=5
 total_mb=point_num*time_step_num*4/1e6
 compressor=os.path.join(project_root,"install/bin/s1_compress")
 decompressor=os.path.join(project_root,"install/bin/s1_decompress")
-configs=[("base",[]),("layout",["-prediction-order-layout-experimental"]),("normalized",["-normalized-weight-experimental"]),("both",["-prediction-order-layout-experimental","-normalized-weight-experimental"])]
+configs=[("base",[]),("reorder_data",["-reorder-data-by-prediction-order-experimental"]),("normalized",["-normalized-weight-experimental"]),("both",["-reorder-data-by-prediction-order-experimental","-normalized-weight-experimental"])]
 
 def run_command(command):
     result=subprocess.run(command,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)

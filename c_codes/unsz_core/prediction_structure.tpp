@@ -21,7 +21,7 @@ namespace unsz
     void param_c<T_coord,T_data>::load_or_generate_pred_refs_structure()
     {
         if(cache_subpartition_num_experimental>0)
-            use_prediction_order_layout_experimental=true;
+            reorder_data_by_prediction_order_experimental=true;
         if (prediction_structure_path.empty())
         {
             generate_pred_refs_structure();
@@ -31,7 +31,7 @@ namespace unsz
         if (file)
         {
             if (fclose(file)!=0)
-                throw runtime_error("关闭预测结构文件失败："+prediction_structure_path);
+                throw runtime_error("关闭DAG缓存文件失败："+prediction_structure_path);
             if (partition_size_experimental>0 || partition_num_experimental>0)
                 build_partitions();
             load_pred_refs_structure();
@@ -132,17 +132,20 @@ namespace unsz
             }
         if (prediction_id!=point_num)
             throw runtime_error("保存的预测目标数量与点数不一致");
+        filesystem::path cache_path(prediction_structure_path);
+        if(cache_path.has_parent_path())
+            filesystem::create_directories(cache_path.parent_path());
         FILE *file=fopen(prediction_structure_path.c_str(),"wb");
         if (!file)
-            throw runtime_error("无法创建预测结构文件："+prediction_structure_path);
+            throw runtime_error("无法创建DAG缓存文件："+prediction_structure_path);
         if (fwrite(bytes.data(),1,bytes.size(),file)!=bytes.size())
         {
             fclose(file);
-            throw runtime_error("写入预测结构文件失败："+prediction_structure_path);
+            throw runtime_error("写入DAG缓存文件失败："+prediction_structure_path);
         }
         if (fclose(file)!=0)
-            throw runtime_error("关闭预测结构文件失败："+prediction_structure_path);
-        printf("Saved prediction structure: %s, bytes=%llu\n",prediction_structure_path.c_str(),(unsigned long long)bytes.size());
+            throw runtime_error("关闭DAG缓存文件失败："+prediction_structure_path);
+        printf("Saved DAG cache: %s, bytes=%llu\n",prediction_structure_path.c_str(),(unsigned long long)bytes.size());
     }
 
     template<typename T_coord,typename T_data>
@@ -153,26 +156,26 @@ namespace unsz
         auto start_time=chrono::steady_clock::now();
         FILE *file=fopen(prediction_structure_path.c_str(),"rb");
         if (!file)
-            throw runtime_error("找不到预测结构文件："+prediction_structure_path);
+            throw runtime_error("找不到DAG缓存文件："+prediction_structure_path);
         if (fseek(file,0,SEEK_END)!=0)
         {
             fclose(file);
-            throw runtime_error("无法定位预测结构文件末尾："+prediction_structure_path);
+            throw runtime_error("无法定位DAG缓存文件末尾："+prediction_structure_path);
         }
         long byte_num_signed=ftell(file);
         if (byte_num_signed<0 || fseek(file,0,SEEK_SET)!=0)
         {
             fclose(file);
-            throw runtime_error("无法读取预测结构文件大小："+prediction_structure_path);
+            throw runtime_error("无法读取DAG缓存文件大小："+prediction_structure_path);
         }
         vector<unsigned char> bytes((uint64_t)byte_num_signed);
         if (fread(bytes.data(),1,bytes.size(),file)!=bytes.size())
         {
             fclose(file);
-            throw runtime_error("读取预测结构文件失败："+prediction_structure_path);
+            throw runtime_error("读取DAG缓存文件失败："+prediction_structure_path);
         }
         if (fclose(file)!=0)
-            throw runtime_error("关闭预测结构文件失败："+prediction_structure_path);
+            throw runtime_error("关闭DAG缓存文件失败："+prediction_structure_path);
         const unsigned char *cursor=bytes.data(),*end=bytes.data()+bytes.size();
         uint64_t magic=read_binary<uint64_t>(cursor,end);
         uint32_t version=read_binary<uint32_t>(cursor,end);
@@ -180,9 +183,9 @@ namespace unsz
         uint32_t file_dim=read_binary<uint32_t>(cursor,end);
         uint32_t file_round_num=read_binary<uint32_t>(cursor,end);
         if (magic!=expected_magic || version!=expected_version)
-            throw runtime_error("预测结构文件格式或版本不正确："+prediction_structure_path);
+            throw runtime_error("DAG缓存文件格式或版本不正确："+prediction_structure_path);
         if (file_point_num!=point_num || file_dim!=dim || file_round_num!=predict_round_num)
-            throw runtime_error("预测结构文件的点数、维数或轮数与当前参数不一致");
+            throw runtime_error("DAG缓存文件的点数、维数或轮数与当前参数不一致");
         vector<uint32_t> round_target_num_vec(predict_round_num);
         uint64_t target_num_sum=0;
         for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
@@ -191,7 +194,7 @@ namespace unsz
             target_num_sum+=round_target_num_vec[round_id];
         }
         if (target_num_sum!=point_num)
-            throw runtime_error("预测结构文件中的目标数量与点数不一致");
+            throw runtime_error("DAG缓存文件中的目标数量与点数不一致");
         round_target_ids.clear();
         round_target_ids.resize(predict_round_num);
         pred_target_ids.clear();
@@ -210,14 +213,14 @@ namespace unsz
                 uint32_t target_id=read_binary<uint32_t>(cursor,end);
                 uint32_t ref_num=read_binary<uint32_t>(cursor,end);
                 if (target_id>=point_num || available[target_id])
-                    throw runtime_error("预测结构文件包含越界或重复的目标编号");
+                    throw runtime_error("DAG缓存文件包含越界或重复的目标编号");
                 round_target_ids[round_id].push_back(target_id);
                 pred_target_ids.push_back((int)target_id);
                 for (uint32_t ref_index=0;ref_index<ref_num;ref_index++)
                 {
                     uint32_t ref_id=read_binary<uint32_t>(cursor,end);
                     if (ref_id>=point_num || !available[ref_id])
-                        throw runtime_error("预测结构文件包含越界或尚不可用的参考点编号");
+                        throw runtime_error("DAG缓存文件包含越界或尚不可用的参考点编号");
                     pred_ref_ids.push_back(ref_id);
                     double dist=(double)get_dist_to_coord(coord_array[target_id],coord_array[ref_id],dim);
                     pred_ref_weights.push_back(dist==0?numeric_limits<double>::infinity():pow(dist,-inverse_distance_power/2));
@@ -227,10 +230,10 @@ namespace unsz
             }
         }
         if (cursor!=end)
-            throw runtime_error("预测结构文件末尾存在未解析数据");
+            throw runtime_error("DAG缓存文件末尾存在未解析数据");
         print_prediction_geometry_statistics_result();
         prepare_pred_refs_structure();
-        printf("Loaded prediction structure: %s, bytes=%llu, time=%f s\n",prediction_structure_path.c_str(),(unsigned long long)bytes.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
+        printf("Loaded DAG cache: %s, bytes=%llu, time=%f s\n",prediction_structure_path.c_str(),(unsigned long long)bytes.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
     }
 
     template<typename T_coord,typename T_data>
@@ -242,10 +245,11 @@ namespace unsz
             for (uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
                 for (int ref_id:get_pred_ref_ids(pred_ref_id))
                     if (point_partition_id_vec[pred_target_ids[pred_ref_id]]!=point_partition_id_vec[ref_id])
-                        throw runtime_error("partition预测结构包含跨partition参考点");
+                        throw runtime_error("partition预测DAG包含跨partition参考点");
         pred_ref_label_normalized_weights.clear();
         pred_ref_value_normalized_weights.clear();
         pred_ref_rbf_weights.clear();
+        single_point_set_rbf10_fast_begin=0;
         if (use_normalized_weight_experimental)
         {
             bool normalize_label_weights=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
@@ -281,7 +285,7 @@ namespace unsz
         }
         prediction_id_to_original_id.clear();
         original_id_to_prediction_id.clear();
-        if (use_prediction_order_layout_experimental)
+        if (reorder_data_by_prediction_order_experimental)
         {
             prediction_id_to_original_id.resize(point_num);
             original_id_to_prediction_id.assign(point_num,numeric_limits<uint32_t>::max());
@@ -325,7 +329,7 @@ namespace unsz
             for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
             {
                 uint32_t pred_id=(uint32_t)pred_target_ids[pred_ref_id];
-                uint32_t original_id=use_prediction_order_layout_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                uint32_t original_id=reorder_data_by_prediction_order_experimental?prediction_id_to_original_id[pred_id]:pred_id;
                 uint32_t partition_id=point_partition_id_vec[original_id];
                 if(partition_id>=partition_pred_ref_ids_vec.size())
                     throw runtime_error("预测目标的partition编号越界");
@@ -358,6 +362,16 @@ namespace unsz
                 pred_ref_rbf_weights[begin+ref_index]=weights[ref_index];
             prepared_target_num++;
         }
+        single_point_set_rbf10_fast_begin=point_num;
+        if(actual_ref_num==10)
+            for(uint32_t reverse_pred_ref_id=point_num;reverse_pred_ref_id>0;reverse_pred_ref_id--)
+            {
+                uint32_t pred_ref_id=reverse_pred_ref_id-1;
+                uint64_t begin=pred_ref_begin[pred_ref_id];
+                if(pred_ref_begin[pred_ref_id+1]-begin!=10||!isfinite(pred_ref_rbf_weights[begin]))
+                    break;
+                single_point_set_rbf10_fast_begin=pred_ref_id;
+            }
         printf("Precomputed RBF weights: targets=%llu,time=%f s\n",(unsigned long long)prepared_target_num,chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
     }
 }

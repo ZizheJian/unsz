@@ -63,12 +63,12 @@ def main():
         for time_step in range(time_step_num):
             (test_dir/f"attr0.dat.{time_step}").symlink_to(data_dir/f"attr0.dat.{time_step}")
         for cache_subpartition_num in cache_subpartition_num_vec:
-            prediction_structure_path=temporary_dir/f"cache_subpartition_{cache_subpartition_num}.pred"
+            prediction_structure_path=temporary_dir/f"cache_subpartition_{cache_subpartition_num}.dag"
             cache_extra=[] if cache_subpartition_num==0 else ["-cache-subpartition-num-experimental",cache_subpartition_num]
             for rel_eb in rel_eb_vec:
                 config_path=temporary_dir/f"point_sets_{rel_eb:g}.json"
                 write_point_set_config(config_path,rel_eb)
-                common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step","[0,161]","-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",4,"-actual-ref-num",4,"-inverse-distance-power",2,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",3,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-cross-time-label-predictor-experimental","previous","-fused-two-point-set-prediction-experimental",*cache_extra]
+                common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step","[0,161]","-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-dag-cache",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",4,"-actual-ref-num",4,"-inverse-distance-power",2,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",3,"-eb-schedule-experimental","round_point_ratio",0.8,"-reverse-mean-distance-only-order-experimental","-cross-time-label-predictor-experimental","previous","-fused-two-point-set-prediction-experimental",*cache_extra]
                 compression_output=run_command([compressor,*common_arguments,"-normalized-weight-experimental"])
                 decompression_output=run_command([decompressor,*common_arguments,"-linear-previous-label-experimental"])
                 psnr=read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"压缩PSNR")

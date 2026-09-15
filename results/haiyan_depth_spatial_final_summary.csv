@@ -1,0 +1,2 @@
+variable,coordinate,predictor,round_formation,ordering_score,ref_num,idw_power,rbf_shape,bd_rate_vs_default,bd_rate_vs_umc,compression_ratio_vs_umc
+depth,original,rbf,split_rounds_then_sort,mean_reference_distance,8,,0.01,-10.107041853760057,-10.551792687677498,1.1179653903049644

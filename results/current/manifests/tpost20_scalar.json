@@ -1,0 +1,328 @@
+{
+  "field": {
+    "key": "tpost20_scalar",
+    "folder": "Tpost20",
+    "variable": "scalar",
+    "steps": 20,
+    "dim": 3,
+    "runner": "temporal",
+    "config": "interpolation_spatial_residual",
+    "predictor": "rbf_fitting",
+    "ref_num": 10,
+    "shape": 0.03,
+    "umc": {
+      "umc_from_edge": 0
+    }
+  },
+  "hostname": "a242.anvil.rcac.purdue.edu",
+  "slurm_job_id": "20622878",
+  "slurm_array_task_id": "20",
+  "allocated_cpus": "1",
+  "OMP_NUM_THREADS": "1",
+  "OPENBLAS_NUM_THREADS": "1",
+  "MKL_NUM_THREADS": "1",
+  "git_head": "88242455540430c1e9b7c82a568a4bf26098d684",
+  "tracked_diff_sha256": "57ea5f0871ee22ae9793e98670ff8d44adc639954c1f822b692ae8b361c06996",
+  "umc_git_head": "91da7b70724eed29273b1549e4547cac8b0b67e1",
+  "umc_tracked_diff_sha256": "17e0dcbd8f9ebff235b00d1cf7815602fa7fecb2f19f4060a7bacadb212990da",
+  "sources": {
+    "/home/x-zjian1/unsz/py_codes/refresh_selected_results.py": "f5338845f7f997422217331faaed4f237e36937c85bb621a1c569005b532d176",
+    "/home/x-zjian1/unsz/py_codes/benchmark_field_reference_order.py": "1f2dd5cea50a2691373bb649ac83b20b1fd426796b7f2c83fc23b13f16a926d2",
+    "/home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py": "d105ad10030f4d9ac158744eabaeffa4b6e186d080d2c22e6565f4c7fad13094",
+    "/home/x-zjian1/unsz/py_codes/screen_field_geometric_order.py": "9c24311960173e9b7498c20d0e89af6449cecfb6dfdc723f907ad4c58cbed320",
+    "/home/x-zjian1/unsz/t1_start_c_code.py": "0e6943ddf487e9f5cc9694311865e071513dad89875de3d3aff69ad8b6f7c905",
+    "/home/x-zjian1/umc/include/compress.hpp": "883b4773d65e09bb85b430dfabcb4832e844a2c9cbd9f4dfb757162d1111b87e",
+    "/home/x-zjian1/umc/include/decompress.hpp": "2c96475ca38fdb699013c00b0786211149b2cc7a70eff6a79cd542ff337a3bdd",
+    "/home/x-zjian1/umc/test/test_compress.cpp": "d3deba89f3e1fbd45772d00ecfa2a5fd62a00e41ca5019cfe496feda85aefecf",
+    "/home/x-zjian1/umc/test/test_decompress.cpp": "39cbf55c8ec23555673f892014d6068cc361849e261afa0b74420082187601b8"
+  },
+  "binaries": {
+    "/home/x-zjian1/unsz/install/bin/s1_compress": "5da49cf8584402f6da6485d114fd662e5b506871b7dd2eceb24f356d14c4d4d6",
+    "/home/x-zjian1/unsz/install/bin/s1_decompress": "6bb771ba71f25c2d8711c60eb73543f22ebac510b8936396d1250f8eab0bcbe6",
+    "/home/x-zjian1/umc/build/test/test_compress": "252d9cf527d9a8812599191af1dbad4ab0f7d8c4bd5979cba4f6e7d90907f77d",
+    "/home/x-zjian1/umc/build/test/test_decompress": "f2f31125a1d93d129d6a1e4fcb7ae7916555506dc13dd669277cb535fe0216c6"
+  },
+  "inputs": {
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/coords.dat": {
+      "bytes": 1572864,
+      "sha256": "e64094599e9e4f097df22d184f60f8d0e326a164633192339219a57a8b26f630"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.0": {
+      "bytes": 524288,
+      "sha256": "d4e5314245604810d976257d5a5f38e4563f1eaa0f55cb261313bbc31a7a63d7"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.1": {
+      "bytes": 524288,
+      "sha256": "6d47a795dc7144aa0fe17f1b919dcacca9b46412043ca06c2a008cf02d3a8f91"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.2": {
+      "bytes": 524288,
+      "sha256": "57f043336a72d9966777d6ff031c82bb26b9b4a826a771ef144f4b888bd23516"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.3": {
+      "bytes": 524288,
+      "sha256": "bc5b06c45dcb3edf75cefcb2b7569705a8a816d1b0dce062f11f03c2a7e0888b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.4": {
+      "bytes": 524288,
+      "sha256": "a5f2eeeae3bcf809f6a5aaeaeda42f783acb6ca028aca9ab5a3b13e383e39e7b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.5": {
+      "bytes": 524288,
+      "sha256": "5785cab6acdd48829a39702c8be7aa6e7fc9ad3154ab0adb1301f285f8246e07"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.6": {
+      "bytes": 524288,
+      "sha256": "6015c4c4018a7fdb9f2d052b0009b6d12ca4763c478da2bad2941a72e48f504f"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.7": {
+      "bytes": 524288,
+      "sha256": "471347274bd942180308b59cf60551f79c9311d00fbd2019934a22f55d7622f0"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.8": {
+      "bytes": 524288,
+      "sha256": "fa8a5028cb9975d5fa1a6447a53277ee0fd24fcd8e328355578d5307185374c0"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.9": {
+      "bytes": 524288,
+      "sha256": "fa8a5028cb9975d5fa1a6447a53277ee0fd24fcd8e328355578d5307185374c0"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.10": {
+      "bytes": 524288,
+      "sha256": "713261b1e9126883324b66acc9fc39ad747572def2edebf3e5f63ae73a4d89f3"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.11": {
+      "bytes": 524288,
+      "sha256": "d972ffa8efbe98277cdde7f972daf52a431176f9657eae67cc2dd44bebf0904d"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.12": {
+      "bytes": 524288,
+      "sha256": "161564c7a1d1d7b984f68cc22abd571f2de8460919c668758a03ba577640cd2a"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.13": {
+      "bytes": 524288,
+      "sha256": "4869762e2d78367feb593dc1e73018479e25c7a439f6946d5d44f8e3cd77523b"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.14": {
+      "bytes": 524288,
+      "sha256": "fd910f1bf7f6493815550a706e39d0ee6d2e21e2d8c59016622653d542067b87"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.15": {
+      "bytes": 524288,
+      "sha256": "b9da2e032e043bfd3a3a6abb994dd6b4a1049e5396dbdf3127413d1d7fdd1eac"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.16": {
+      "bytes": 524288,
+      "sha256": "cf9bf119263529dbfc4e7c97914df30dd8af6c7ff1df1212e154d8e2709df246"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.17": {
+      "bytes": 524288,
+      "sha256": "477e4eeb56e0c992e7a2ab4c95257470b327eccfabaa2ecaecfe0b048746cea9"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.18": {
+      "bytes": 524288,
+      "sha256": "dfe3f6b44da170d93fdaddc82eb7f78913d996eb4fa6095b101c43d0890f7df9"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/scalar.dat.19": {
+      "bytes": 524288,
+      "sha256": "38887072d3ac87b59c9847c51e2cad5a16f07052e4838568edea582b8b23fe2e"
+    },
+    "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20/conn.dat": {
+      "bytes": 9843120,
+      "sha256": "033d445b66a1e056b40439dd3dc1ab3af50155cd68049f23d6be85967049e344"
+    }
+  },
+  "prediction_structure": null,
+  "rows": [
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.1,
+      "br": 0.056647,
+      "psnr": 34.868708,
+      "preprocessing_time": 3.155625,
+      "compression_time": 0.30246,
+      "decompression_time": 0.229001,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20 -variable scalar -time-step-num 20 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.1 -result /home/x-zjian1/unsz/results/current/partial/tpost20_scalar_unsz_0.1.csv -rbf-shape 0.03",
+      "field": "tpost20_scalar",
+      "dataset": "Tpost20",
+      "variable": "scalar",
+      "time_step_num": 20,
+      "input_bytes": 10485760,
+      "compression_decompression_time": 0.531461,
+      "preprocessing_MB_s": 3.322878985937809,
+      "compression_MB_s": 34.66825365337566,
+      "decompression_MB_s": 45.78914502556757
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.1,
+      "br": 0.159832763671875,
+      "psnr": 25.17657124073894,
+      "preprocessing_time": 0.67627,
+      "compression_time": 0.08312600000000002,
+      "decompression_time": 0.023301000000000002,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "tpost20_scalar",
+      "dataset": "Tpost20",
+      "variable": "scalar",
+      "time_step_num": 20,
+      "input_bytes": 10485760,
+      "compression_decompression_time": 0.10642700000000002,
+      "preprocessing_MB_s": 15.505286350126429,
+      "compression_MB_s": 126.14296369366983,
+      "decompression_MB_s": 450.01330415003645
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.01,
+      "br": 1.002276611328125,
+      "psnr": 46.01238400426955,
+      "preprocessing_time": 0.633275,
+      "compression_time": 0.0953,
+      "decompression_time": 0.03205800000000001,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "tpost20_scalar",
+      "dataset": "Tpost20",
+      "variable": "scalar",
+      "time_step_num": 20,
+      "input_bytes": 10485760,
+      "compression_decompression_time": 0.127358,
+      "preprocessing_MB_s": 16.557988235758557,
+      "compression_MB_s": 110.0289611752361,
+      "decompression_MB_s": 327.0871545324099
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.01,
+      "br": 0.318109,
+      "psnr": 50.920855,
+      "preprocessing_time": 3.101222,
+      "compression_time": 0.296241,
+      "decompression_time": 0.227044,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20 -variable scalar -time-step-num 20 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.01 -result /home/x-zjian1/unsz/results/current/partial/tpost20_scalar_unsz_0.01.csv -rbf-shape 0.03",
+      "field": "tpost20_scalar",
+      "dataset": "Tpost20",
+      "variable": "scalar",
+      "time_step_num": 20,
+      "input_bytes": 10485760,
+      "compression_decompression_time": 0.523285,
+      "preprocessing_MB_s": 3.381170390252617,
+      "compression_MB_s": 35.39604578704501,
+      "decompression_MB_s": 46.18382339986963
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.001,
+      "br": 0.951245,
+      "psnr": 68.322293,
+      "preprocessing_time": 3.111965,
+      "compression_time": 0.29448,
+      "decompression_time": 0.24132,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20 -variable scalar -time-step-num 20 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.001 -result /home/x-zjian1/unsz/results/current/partial/tpost20_scalar_unsz_0.001.csv -rbf-shape 0.03",
+      "field": "tpost20_scalar",
+      "dataset": "Tpost20",
+      "variable": "scalar",
+      "time_step_num": 20,
+      "input_bytes": 10485760,
+      "compression_decompression_time": 0.5358,
+      "preprocessing_MB_s": 3.369498050267275,
+      "compression_MB_s": 35.60771529475686,
+      "decompression_MB_s": 43.45168241339301
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.001,
+      "br": 3.43226318359375,
+      "psnr": 65.52528320825101,
+      "preprocessing_time": 0.634214,
+      "compression_time": 0.10877500000000001,
+      "decompression_time": 0.061493000000000006,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "tpost20_scalar",
+      "dataset": "Tpost20",
+      "variable": "scalar",
+      "time_step_num": 20,
+      "input_bytes": 10485760,
+      "compression_decompression_time": 0.17026800000000003,
+      "preprocessing_MB_s": 16.533472928695993,
+      "compression_MB_s": 96.39862100666512,
+      "decompression_MB_s": 170.51957133332246
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 0.0001,
+      "br": 7.37314453125,
+      "psnr": 84.96856721374763,
+      "preprocessing_time": 0.634192,
+      "compression_time": 0.12382700000000002,
+      "decompression_time": 0.080465,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "tpost20_scalar",
+      "dataset": "Tpost20",
+      "variable": "scalar",
+      "time_step_num": 20,
+      "input_bytes": 10485760,
+      "compression_decompression_time": 0.20429200000000003,
+      "preprocessing_MB_s": 16.53404647173096,
+      "compression_MB_s": 84.68072391320146,
+      "decompression_MB_s": 130.31454669732184
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 0.0001,
+      "br": 2.34288,
+      "psnr": 86.515214,
+      "preprocessing_time": 3.131606,
+      "compression_time": 0.320943,
+      "decompression_time": 0.234247,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20 -variable scalar -time-step-num 20 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 0.0001 -result /home/x-zjian1/unsz/results/current/partial/tpost20_scalar_unsz_0.0001.csv -rbf-shape 0.03",
+      "field": "tpost20_scalar",
+      "dataset": "Tpost20",
+      "variable": "scalar",
+      "time_step_num": 20,
+      "input_bytes": 10485760,
+      "compression_decompression_time": 0.55519,
+      "preprocessing_MB_s": 3.348365024208026,
+      "compression_MB_s": 32.671720523582074,
+      "decompression_MB_s": 44.7636896096855
+    },
+    {
+      "compressor": "unsz",
+      "rel_eb": 1e-05,
+      "br": 4.935062,
+      "psnr": 105.882675,
+      "preprocessing_time": 3.122308,
+      "compression_time": 0.352425,
+      "decompression_time": 0.243836,
+      "command": "/home/x-zjian1/unsz/unsz_env/bin/python /home/x-zjian1/unsz/py_codes/benchmark_field_temporal.py -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20 -variable scalar -time-step-num 20 -dim 3 -configuration interpolation_spatial_residual -predictor rbf_fitting -ref-num 10 -rel-eb 1e-05 -result /home/x-zjian1/unsz/results/current/partial/tpost20_scalar_unsz_1e-05.csv -rbf-shape 0.03",
+      "field": "tpost20_scalar",
+      "dataset": "Tpost20",
+      "variable": "scalar",
+      "time_step_num": 20,
+      "input_bytes": 10485760,
+      "compression_decompression_time": 0.5962609999999999,
+      "preprocessing_MB_s": 3.358336205140556,
+      "compression_MB_s": 29.753167340568915,
+      "decompression_MB_s": 43.00333010712118
+    },
+    {
+      "compressor": "umc",
+      "rel_eb": 1e-05,
+      "br": 13.081756591796875,
+      "psnr": 104.88862330614971,
+      "preprocessing_time": 0.637209,
+      "compression_time": 0.17851700000000004,
+      "decompression_time": 0.11276800000000001,
+      "command": "t1_start_c_code.test(umc)",
+      "field": "tpost20_scalar",
+      "dataset": "Tpost20",
+      "variable": "scalar",
+      "time_step_num": 20,
+      "input_bytes": 10485760,
+      "compression_decompression_time": 0.291285,
+      "preprocessing_MB_s": 16.45576255200413,
+      "compression_MB_s": 58.73815939098236,
+      "decompression_MB_s": 92.98524404086265
+    }
+  ]
+}

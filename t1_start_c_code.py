@@ -1,54 +1,65 @@
-import json,math,os,re,shlex,tempfile
-from third_party.csv_tools.py_codes.write_csv_item import write_csv_item
+import argparse,array,csv,json,math,os,re,shlex,subprocess,sys,tempfile
+from pathlib import Path
+import numpy as np
 from third_party.get_max_cpus.py_codes.get_max_cpus import get_max_cpus
-from third_party.run_command.run_command import run_command
+from third_party.run_command.run_command import run_command as run_shell_command
 
 project_root=os.path.dirname(os.path.abspath(__file__))
 data_root="/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data"
 umc_root="/home/x-zjian1/umc"
-# unsz：每个点完成后立即加入可用参考点集合
-# umc：UMC的NBP-IDW或NBP-IDW-INP预测器
-compressor_list=["unsz","umc"]
-dataset_list=[
-    # {"name":"Katrina-attr0","folder":"Katrina","variable":"attr0","time_step_num":162,"adjust_coord_matrix":"Katrina_attr0_spatial.txt","umc_from_edge":0,"dim":3,"umc_method":"NBP-IDW-INP","umc_neighbor_num":4,"umc_batch":10,"unsz_extra_arguments":"-max-ref-num 4 -actual-ref-num 4 -inverse-distance-power 2 -d-only-cache-refill-threshold-experimental 3 -cross-time-label-predictor-experimental previous -fused-two-point-set-prediction-experimental","unsz_compress_extra_arguments":"-normalized-weight-experimental","unsz_decompress_extra_arguments":"-linear-previous-label-experimental","point_set_config":{"rule_type":"ordered","labels":[{"method":"inverse_proportion","eb_mode":"REL","condition":{"operator":">=","value":-1000}},{"method":"constant"}]}},
-    {"name":"Ocean-layerThickness","folder":"Ocean","variable":"layerThickness","time_step_num":31,"umc_from_edge":1,"dim":3},
-    {"name":"Ocean-salinity","folder":"Ocean","variable":"salinity","time_step_num":31,"umc_from_edge":1,"dim":3},
-    {"name":"Ocean-temperature","folder":"Ocean","variable":"temperature","time_step_num":31,"adjust_coord_matrix":"Ocean_temperature_spatial.txt","umc_from_edge":1,"dim":3},
-    {"name":"Ocean-velocityMeridional","folder":"Ocean","variable":"velocityMeridional","time_step_num":31,"umc_from_edge":1,"dim":3},
-    {"name":"Ocean-velocityX","folder":"Ocean","variable":"velocityX","time_step_num":31,"umc_from_edge":1,"dim":3},
-    {"name":"Ocean-velocityY","folder":"Ocean","variable":"velocityY","time_step_num":31,"adjust_coord_matrix":"Ocean_velocityY_spatial.txt","umc_from_edge":1,"dim":3},
-    {"name":"Ocean-velocityZ","folder":"Ocean","variable":"velocityZ","time_step_num":31,"umc_from_edge":1,"dim":3},
-    {"name":"Ocean-velocityZonal","folder":"Ocean","variable":"velocityZonal","time_step_num":31,"adjust_coord_matrix":"Ocean_velocityZonal_spatial.txt","umc_from_edge":1,"dim":3},
-    {"name":"Ocean-zTop","folder":"Ocean","variable":"zTop","time_step_num":31,"adjust_coord_matrix":"Ocean_zTop_spatial.txt","umc_from_edge":1,"dim":3},
-    {"name":"LES-velocity_x","folder":"LES","variable":"velocity_x","time_step_num":1,"adjust_coord_matrix":"LES_velocity_x_spatial.txt","umc_from_edge":0,"dim":3},
-    {"name":"LES-velocity_y","folder":"LES","variable":"velocity_y","time_step_num":1,"adjust_coord_matrix":"LES_velocity_y_spatial.txt","umc_from_edge":0,"dim":3},
-    {"name":"LES-velocity_z","folder":"LES","variable":"velocity_z","time_step_num":1,"adjust_coord_matrix":"LES_velocity_z_spatial.txt","umc_from_edge":0,"dim":3},
-    {"name":"Tsunami-momentum_x","folder":"Tsunami","variable":"momentum_x","time_step_num":1,"adjust_coord_matrix":"Tsunami_momentum_x_spatial.txt","umc_from_edge":1,"dim":2},
-    {"name":"Tsunami-momentum_y","folder":"Tsunami","variable":"momentum_y","time_step_num":1,"adjust_coord_matrix":"Tsunami_momentum_y_spatial.txt","umc_from_edge":1,"dim":2},
-    {"name":"Tsunami-velocity_x","folder":"Tsunami","variable":"velocity_x","time_step_num":1,"adjust_coord_matrix":"Tsunami_velocity_x_spatial.txt","umc_from_edge":1,"dim":2},
-    {"name":"Tsunami-velocity_y","folder":"Tsunami","variable":"velocity_y","time_step_num":1,"adjust_coord_matrix":"Tsunami_velocity_y_spatial.txt","umc_from_edge":1,"dim":2},
+# 每个field的冻结配置；t1命令行只通过dataset和field选择这里的一项
+tsunami_momentum_x_spatial_configuration={"config":"rbf_sort_all_then_split_rounds_mean_reference_distance","prediction_ref_num":10,"ordering_candidate_num":16,"ordering_score_max_ref_num":10,"ordering_score_min_ref_num":10,"shape":0.03,"disable_eb_schedule":True,"common_extra":["-eb-schedule-experimental","point_log2_ratio","0.85","-eb-schedule-log2-shift-experimental","0.5"]}
+field_config_vec=[
+    {"key":"katrina_attr0","dataset":"Katrina","folder":"Katrina","variable":"attr0","steps":162,"dim":3,**tsunami_momentum_x_spatial_configuration,"ref_num":10,"matrix":"Katrina_attr0_spatial.txt","condition":[">=",-1000],"adjust_coord_rel_eb":1e-3,"adjust_coord_iteration_num":2,"adjust_coord_second_sample_num":100000,"adjust_coord_new_matrix_weight":0.75,"common_extra":[*tsunami_momentum_x_spatial_configuration["common_extra"],"-cross-time-label-predictor-experimental","previous","-cross-time-predictor-experimental","constant_extrapolation_spatial_residual","-fused-two-point-set-prediction-experimental","-rbf-filtered-fallback-nearest-experimental"],"persist_dag":True,"umc":{"umc_from_edge":0,"umc_method":"NBP-IDW-INP","umc_neighbor_num":4,"umc_batch":10}},
+    {"key":"ocean_layerThickness","dataset":"Ocean","folder":"Ocean","variable":"layerThickness","steps":31,"dim":3,"config":"constant_extrapolation","predictor":"inverse_proportion","ref_num":4,"umc":{"umc_from_edge":1}},
+    {"key":"ocean_salinity","dataset":"Ocean","folder":"Ocean","variable":"salinity","steps":31,"dim":3,"config":"linear_interpolation","predictor":"inverse_proportion","ref_num":4,"umc":{"umc_from_edge":1}},
+    {"key":"ocean_temperature","dataset":"Ocean","folder":"Ocean","variable":"temperature","steps":31,"dim":3,"config":"linear_interpolation","predictor":"inverse_proportion","ref_num":4,"matrix":"Ocean_temperature_spatial.txt","umc":{"umc_from_edge":1}},
+    {"key":"ocean_velocityMeridional","dataset":"Ocean","folder":"Ocean","variable":"velocityMeridional","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
+    {"key":"ocean_velocityX","dataset":"Ocean","folder":"Ocean","variable":"velocityX","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
+    {"key":"ocean_velocityY","dataset":"Ocean","folder":"Ocean","variable":"velocityY","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
+    {"key":"ocean_velocityZ","dataset":"Ocean","folder":"Ocean","variable":"velocityZ","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
+    {"key":"ocean_velocityZonal","dataset":"Ocean","folder":"Ocean","variable":"velocityZonal","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
+    {"key":"ocean_zTop","dataset":"Ocean","folder":"Ocean","variable":"zTop","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
+    {"key":"ocean_large_initial_temperatureSurfaceValue","dataset":"Ocean-large","folder":"Ocean-large/data","variable":"temperatureSurfaceValue","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.03,"reorder_by_prediction_order":True,"persist_dag":True,"umc":{"umc_from_edge":1}},
+    {"key":"ocean_large_initial_temperature_vertical","dataset":"Ocean-large","folder":"Ocean-large/data","variable":"temperature","steps":80,"dim":3,"config":"linear_interpolation","predictor":"inverse_proportion","ref_num":4,"condition":[">",-1e30],"time_step_coordinate_file":"refBottomDepth.dat"},
+    {"key":"les_velocity_x","dataset":"LES","folder":"LES","variable":"velocity_x","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"LES_velocity_x_spatial.txt","umc":{"umc_from_edge":0}},
+    {"key":"les_velocity_y","dataset":"LES","folder":"LES","variable":"velocity_y","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"LES_velocity_y_spatial.txt","umc":{"umc_from_edge":0}},
+    {"key":"les_velocity_z","dataset":"LES","folder":"LES","variable":"velocity_z","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"umc":{"umc_from_edge":0}},
+    {"key":"tsunami_bathy","dataset":"Tsunami","folder":"Tsunami","variable":"bathy","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
+    {"key":"tsunami_height","dataset":"Tsunami","folder":"Tsunami","variable":"height","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
+    {"key":"tsunami_momentum_x","dataset":"Tsunami","folder":"Tsunami","variable":"momentum_x","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
+    {"key":"tsunami_momentum_y","dataset":"Tsunami","folder":"Tsunami","variable":"momentum_y","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
+    {"key":"tsunami_velocity_x","dataset":"Tsunami","folder":"Tsunami","variable":"velocity_x","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
+    {"key":"tsunami_velocity_y","dataset":"Tsunami","folder":"Tsunami","variable":"velocity_y","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
+    {"key":"tpost20_scalar","dataset":"Tpost20","folder":"Tpost20","variable":"scalar","steps":20,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":0}},
+    {"key":"e3sm_h4_AODDUST","dataset":"E3SM-h4","folder":"E3SM-h4","variable":"AODDUST","steps":720,"dim":3,"config":"constant_extrapolation","predictor":"inverse_proportion","ref_num":4,"label_pattern":"AODDUST.label.{time_step}","umc":{"umc_from_edge":1,"umc_method":"NBP-IDW-INP","umc_neighbor_num":4,"umc_batch":10}},
+    {"key":"e3sm_h4_Mass_dst_srf","dataset":"E3SM-h4","folder":"E3SM-h4","variable":"Mass_dst_srf","steps":720,"dim":3,"config":"linear_interpolation","predictor":"inverse_proportion","ref_num":4,"umc":{"umc_from_edge":1}},
+    {"key":"haiyan_depth","dataset":"ADCIRC-Haiyan-1.5km","folder":"ADCIRC-Haiyan-1.5km","variable":"depth","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":8,"shape":0.01,"umc":{"umc_from_edge":1,"umc_reorder":0}},
+    {"key":"haiyan_zeta","dataset":"ADCIRC-Haiyan-1.5km","folder":"ADCIRC-Haiyan-1.5km","variable":"zeta","steps":24,"dim":3,"config":"rbf_split_rounds_then_sort_reference_data_prediction_error","ref_num":10,"shape":0.01,"training":[0,12,23],"condition":["!=",-99999],"persist_dag":True,"umc":{"umc_from_edge":1,"umc_reorder":0,"umc_method":"NBP-IDW-INP","umc_neighbor_num":4,"umc_batch":10}},
+    {"key":"taps_TEMPERATURE","dataset":"TAPS","folder":"TAPS","variable":"TEMPERATURE","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01},
+    {"key":"taps_PRESSURE","dataset":"TAPS","folder":"TAPS","variable":"PRESSURE","steps":1,"dim":3,"config":"idw_sort_all_then_split_rounds_mean_reference_distance","ref_num":5,"power":2.5,"matrix":"TAPS_PRESSURE_spatial.txt"},
+    {"key":"taps_TKE","dataset":"TAPS","folder":"TAPS","variable":"TKE","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"TAPS_TKE_spatial.txt"},
+    {"key":"taps_VELOCITY_X","dataset":"TAPS","folder":"TAPS","variable":"VELOCITY_X","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"TAPS_VELOCITY_X_spatial.txt"},
+    {"key":"taps_RMS_T","dataset":"TAPS","folder":"TAPS","variable":"RMS_T","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"TAPS_RMS_T_spatial.txt"},
+    {"key":"taps_CO2","dataset":"TAPS","folder":"TAPS","variable":"CO2","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"TAPS_CO2_spatial.txt"},
+    {"key":"taps_C11H22","dataset":"TAPS","folder":"TAPS","variable":"C11H22","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"TAPS_C11H22_spatial.txt"},
 ]
-rel_eb_list=[1e-1,1e-2,1e-3,1e-4,1e-5]
 build_max_cpus=get_max_cpus(8)
 silent_build=False
-build_before_test=True
-write_to_csv=True
-cleanup_after_each_test=True
-continue_after_error=True
 verify_unsz_decompression=True
 unsz_extra_arguments="-reverse-mean-distance-only-order-experimental"
 
-def build_unsz():
-    unsz_path=os.path.join(project_root,"install/bin/s1_compress")
-    use_unsz=any(compressor.startswith("unsz") for compressor in compressor_list)
-    if build_before_test and use_unsz:
+def build_programs(use_umc):
+    unsz_executable_paths=[os.path.join(project_root,"install/bin",name) for name in ["s1_compress","s1_decompress"]]
+    if not all(os.path.isfile(path) for path in unsz_executable_paths):
         os.makedirs(os.path.join(project_root,"build"),exist_ok=True)
-        run_command(f"cmake -S {project_root}/c_codes -B {project_root}/build -DCMAKE_INSTALL_PREFIX={project_root}/install -DCODE_NAME=s1_compress",silent=silent_build)
-        run_command(f"cmake --build {project_root}/build --parallel {build_max_cpus}",silent=silent_build)
-        run_command(f"cmake --install {project_root}/build",silent=silent_build)
-    if use_unsz and not os.path.isfile(unsz_path):
-        raise FileNotFoundError(f"没有找到UNSZ可执行文件：{unsz_path}")
-    if "umc" in compressor_list:
+        run_shell_command(f"cmake -S {project_root}/c_codes -B {project_root}/build -DCMAKE_INSTALL_PREFIX={project_root}/install -DCODE_NAME=s1_compress",silent=silent_build)
+        run_shell_command(f"cmake --build {project_root}/build --parallel {build_max_cpus}",silent=silent_build)
+        run_shell_command(f"cmake --install {project_root}/build",silent=silent_build)
+    for executable_path in unsz_executable_paths:
+        if not os.path.isfile(executable_path):
+            raise FileNotFoundError(f"没有找到UNSZ可执行文件：{executable_path}")
+    if use_umc:
         for executable_name in ["test_compress","test_decompress"]:
             executable_path=os.path.join(umc_root,"build/test",executable_name)
             if not os.path.isfile(executable_path):
@@ -58,6 +69,50 @@ def calculate_throughput(data_paths,seconds,name):
     if not seconds>0:
         raise RuntimeError(f"{name}必须大于0：{seconds}")
     return sum(os.path.getsize(path) for path in data_paths)/seconds/1e6
+
+def calculate_data_range(data_paths):
+    minimum=math.inf
+    maximum=-math.inf
+    for path in data_paths:
+        values=array.array("f")
+        with open(path,"rb") as file:
+            values.fromfile(file,os.path.getsize(path)//values.itemsize)
+        valid_values=(value for value in values if value!=-99999.0)
+        try:
+            first=next(valid_values)
+        except StopIteration:
+            continue
+        local_minimum=first
+        local_maximum=first
+        for value in valid_values:
+            local_minimum=min(local_minimum,value)
+            local_maximum=max(local_maximum,value)
+        minimum=min(minimum,local_minimum)
+        maximum=max(maximum,local_maximum)
+    if not minimum<=maximum:
+        raise RuntimeError("无法从输入float32文件计算数据范围")
+    return minimum,maximum
+
+def calculate_umc_disk_error(data_paths):
+    total_squared_error=0
+    total_point_num=0
+    max_error=0
+    for path in data_paths:
+        original=array.array("f")
+        recovered=array.array("f")
+        with open(path,"rb") as file:
+            original.fromfile(file,os.path.getsize(path)//original.itemsize)
+        output_path=path+".umc.out"
+        with open(output_path,"rb") as file:
+            recovered.fromfile(file,os.path.getsize(output_path)//recovered.itemsize)
+        if len(original)!=len(recovered):
+            raise RuntimeError(f"UMC解压输出大小错误：{output_path}有{len(recovered)}点，原文件有{len(original)}点")
+        for original_value,recovered_value in zip(original,recovered):
+            error=original_value-recovered_value
+            total_squared_error+=error*error
+            max_error=max(max_error,abs(error))
+        total_point_num+=len(original)
+    return total_squared_error/total_point_num,max_error
 
 def parse_unsz_result(output,data_paths):
     match=re.search(r"total cr=\s*([^,]+),\s*total br=\s*([^,]+),\s*total psnr=\s*([^\s]+)",output)
@@ -80,18 +135,30 @@ def parse_unsz_decompression_result(output):
         raise RuntimeError("没有在UNSZ解压输出中找到total decompressed psnr或总解压时间")
     return float(match.group(1)),float(time_match.group(1))
 
-def parse_umc_decompression_result(output,data_paths,umc_method):
+def parse_umc_decompression_result(output,data_paths,umc_method,data_range=None):
     if umc_method=="NBP-IDW-INP":
         decompression_times=[float(value) for value in re.findall(r"^decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
         if len(decompression_times)!=len(data_paths):
             raise RuntimeError(f"UMC动态异常点核心解压时间数量不一致：文件{len(data_paths)}，解压时间{len(decompression_times)}")
-        return sum(decompression_times)
-    decompression_times=[float(value) for value in re.findall(r"^core decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
-    if len(decompression_times)!=len(data_paths):
-        raise RuntimeError(f"UMC核心解压时间数量不一致：文件{len(data_paths)}，核心解压时间{len(decompression_times)}")
-    return sum(decompression_times)
+        decompression_time=sum(decompression_times)
+    else:
+        decompression_times=[float(value) for value in re.findall(r"^core decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
+        if len(decompression_times)!=len(data_paths):
+            raise RuntimeError(f"UMC核心解压时间数量不一致：文件{len(data_paths)}，核心解压时间{len(decompression_times)}")
+        decompression_time=sum(decompression_times)
+    mse_list=[float(value) for value in re.findall(r"^MSE\s*=\s*([^,\s]+)",output,re.MULTILINE)]
+    range_matches=re.findall(r"^Max value\s*=\s*([^,]+),\s*min value\s*=\s*([^,\s]+)",output,re.MULTILINE)
+    max_error_list=[float(value) for value in re.findall(r"^Max error\s*=\s*([^,\s]+)",output,re.MULTILINE)]
+    if len(mse_list)!=len(data_paths) or len(range_matches)!=len(data_paths) or len(max_error_list)!=len(data_paths):
+        raise RuntimeError(f"UMC解压误差统计数量不一致：文件{len(data_paths)}，MSE {len(mse_list)}，范围{len(range_matches)}，最大误差{len(max_error_list)}")
+    total_point_num=sum(os.path.getsize(path)//4 for path in data_paths)
+    total_squared_error=sum(mse*(os.path.getsize(path)//4) for mse,path in zip(mse_list,data_paths))
+    total_mse=total_squared_error/total_point_num
+    total_min_data,total_max_data=data_range or calculate_data_range(data_paths)
+    total_psnr=math.inf if total_mse==0 else 10*math.log10((total_max_data-total_min_data)**2/total_mse)
+    return decompression_time,total_psnr,max(max_error_list)
 
-def parse_umc_result(output,data_paths):
+def parse_umc_result(output,data_paths,data_range=None):
     compressed_sizes=[int(value) for value in re.findall(r"compressed_size\s*=\s*(\d+)",output)]
     mse_list=[float(value) for value in re.findall(r"^MSE\s*=\s*([^\s]+)",output,re.MULTILINE)]
     range_matches=re.findall(r"Max value\s*=\s*([^,]+),\s*min value\s*=\s*([^,]+),",output)
@@ -101,8 +168,7 @@ def parse_umc_result(output,data_paths):
     total_compressed_bytes=sum(compressed_sizes)
     total_point_num=sum(os.path.getsize(path)//4 for path in data_paths)
     total_squared_error=sum(mse*(os.path.getsize(path)//4) for mse,path in zip(mse_list,data_paths))
-    total_min_data=min(float(minimum) for _,minimum in range_matches)
-    total_max_data=max(float(maximum) for maximum,_ in range_matches)
+    total_min_data,total_max_data=data_range or calculate_data_range(data_paths)
     total_mse=total_squared_error/total_point_num
     total_cr=total_original_bytes/total_compressed_bytes
     total_br=32/total_cr
@@ -120,25 +186,8 @@ def parse_umc_result(output,data_paths):
     compression_throughput=calculate_throughput(data_paths,core_compression_time,"UMC核心压缩时间")
     return total_br,total_psnr,preprocessing_time,core_compression_time,preprocessing_throughput,compression_throughput
 
-def cleanup(data_paths):
-    for data_path in data_paths:
-        for suffix in [".unsz",".unsz.bin",".umc",".umc.out"]:
-            output_path=data_path+suffix
-            if os.path.isfile(output_path):
-                os.remove(output_path)
-
-def write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput,method_name=None):
-    csv_path=os.path.join(data_root,dataset["folder"],f"{dataset['variable']}.csv")
-    row_info={"REL_EB":rel_eb,"TIME_STEP_NUM":dataset["time_step_num"]}
-    method_name=(method_name or compressor).upper()
-    write_csv_item(csv_path,row_info,f"{method_name}_BR",br)
-    write_csv_item(csv_path,row_info,f"{method_name}_PSNR",psnr)
-    write_csv_item(csv_path,row_info,f"{method_name}_PREPROCESSING_MB_S",preprocessing_throughput)
-    write_csv_item(csv_path,row_info,f"{method_name}_COMPRESSION_MB_S",compression_throughput)
-    write_csv_item(csv_path,row_info,f"{method_name}_DECOMPRESSION_MB_S",decompression_throughput)
-
-def test(compressor,dataset,rel_eb,prediction_structure_path=None,point_set_config_path=None):
-    data_dir=os.path.join(data_root,dataset["folder"])
+def test(compressor,dataset,rel_eb,dag_cache_path=None,point_set_config_path=None):
+    data_dir=dataset.get("data_dir",os.path.join(data_root,dataset["folder"]))
     variable=dataset["variable"]
     time_step_num=dataset["time_step_num"]
     data_paths=[os.path.join(data_dir,f"{variable}.dat.{time_step}") for time_step in range(time_step_num)]
@@ -157,19 +206,24 @@ def test(compressor,dataset,rel_eb,prediction_structure_path=None,point_set_conf
         if "adjust_coord_matrix" in dataset:
             matrix_path=os.path.join(project_root,"adjust_coord_matrices",dataset["adjust_coord_matrix"])
             common_arguments+=f" -adjust-coord-matrix-file {shlex.quote(matrix_path)}"
+        if "time_step_coordinate_file" in dataset:
+            time_step_coordinate_path=dataset["time_step_coordinate_file"]
+            if not os.path.isabs(time_step_coordinate_path):
+                time_step_coordinate_path=os.path.join(data_dir,time_step_coordinate_path)
+            common_arguments+=f" -time-step-coordinate-file {shlex.quote(time_step_coordinate_path)}"
         if unsz_extra_arguments:
             common_arguments+=" "+unsz_extra_arguments
         if dataset.get("unsz_extra_arguments",""):
             common_arguments+=" "+dataset["unsz_extra_arguments"]
-        if prediction_structure_path:
-            common_arguments+=f" -prediction-structure {shlex.quote(prediction_structure_path)}"
+        if dag_cache_path:
+            common_arguments+=f" -dag-cache {shlex.quote(dag_cache_path)}"
         compress_extra_arguments=dataset.get("unsz_compress_extra_arguments","")
         compress_command=f"{shlex.quote(project_root+'/install/bin/s1_compress')} {common_arguments} {compress_extra_arguments}"
-        compress_output=run_command(compress_command)
+        compress_output=run_shell_command(compress_command)
         br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_unsz_result(compress_output,data_paths)
         decompress_extra_arguments=dataset.get("unsz_decompress_extra_arguments","")
         decompress_command=f"{shlex.quote(project_root+'/install/bin/s1_decompress')} {common_arguments} {decompress_extra_arguments}"
-        decompress_output=run_command(decompress_command)
+        decompress_output=run_shell_command(decompress_command)
         decompressed_psnr,decompression_time=parse_unsz_decompression_result(decompress_output)
         if verify_unsz_decompression:
             if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-6):
@@ -190,54 +244,236 @@ def test(compressor,dataset,rel_eb,prediction_structure_path=None,point_set_conf
             decompress_command=f"{umc_root}/build/test/test_decompress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 4 {umc_reorder} {time_step_num} {umc_batch}"
         else:
             raise ValueError(f"未知UMC压缩方法：{umc_method}")
-        output=run_command(command)
-        br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_umc_result(output,data_paths)
-        decompress_output=run_command(decompress_command)
-        decompression_time=parse_umc_decompression_result(decompress_output,data_paths,umc_method)
+        data_range=calculate_data_range(data_paths)
+        output=run_shell_command(command)
+        br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_umc_result(output,data_paths,data_range)
+        decompress_output=run_shell_command(decompress_command)
+        decompression_time,decompressed_psnr,decompressed_max_error=parse_umc_decompression_result(decompress_output,data_paths,umc_method,data_range)
+        disk_mse,disk_max_error=calculate_umc_disk_error(data_paths)
+        disk_psnr=math.inf if disk_mse==0 else 10*math.log10((data_range[1]-data_range[0])**2/disk_mse)
+        if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-5) or not math.isclose(psnr,disk_psnr,rel_tol=1e-6,abs_tol=1e-5):
+            raise RuntimeError(f"UMC压缩端、核心解压和磁盘输出总PSNR不一致：{psnr} != {decompressed_psnr} != {disk_psnr}")
+        if not math.isclose(decompressed_max_error,disk_max_error,rel_tol=1e-5,abs_tol=1e-5):
+            raise RuntimeError(f"UMC核心解压和磁盘输出最大误差不一致：{decompressed_max_error} != {disk_max_error}")
+        print(f"UMC磁盘压缩—解压检查通过：total psnr={disk_psnr},max error={disk_max_error}")
     else:
         raise ValueError(f"未知压缩器：{compressor}")
     print(f"总结果：compressor={compressor}, dataset={dataset['name']}, variable={variable}, rel_eb={rel_eb}, br={br}, psnr={psnr}")
     decompression_throughput=calculate_throughput(data_paths,decompression_time,f"{compressor}解压时间")
-    print(f"计时：preprocessing={preprocessing_time} s, compression={compression_time} s, decompression={decompression_time} s")
+    print(f"计时：preprocessing={preprocessing_time} s, compression={compression_time} s, decompression={decompression_time} s, compression+decompression={compression_time+decompression_time} s")
     print(f"吞吐率：preprocessing={preprocessing_throughput} MB/s, compression={compression_throughput} MB/s, decompression={decompression_throughput} MB/s")
     return br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput
 
-def main():
-    build_unsz()
-    for dataset in dataset_list:
-        with tempfile.TemporaryDirectory(prefix=f"unsz_prediction_{dataset['name']}_") as temporary_dir:
-            prediction_structure_path=os.path.join(temporary_dir,"prediction_structure.bin")
-            for rel_eb in rel_eb_list:
-                point_set_config_path=None
-                if "point_set_config" in dataset:
-                    config=json.loads(json.dumps(dataset["point_set_config"]))
-                    config["version"]=1
-                    for label in config["labels"]:
-                        if label["method"]!="constant" and "eb_value" not in label:
-                            if label["eb_mode"]!="REL":
-                                raise ValueError("t1自动填充的逐点集EB必须使用REL模式")
-                            label["eb_value"]=rel_eb
-                    point_set_config_path=os.path.join(temporary_dir,f"point_sets_{rel_eb}.json")
-                    with open(point_set_config_path,"w",encoding="utf-8") as file:
-                        json.dump(config,file,ensure_ascii=False,indent=2)
-                for compressor in compressor_list:
-                    print(f"\n开始测试：compressor={compressor}, dataset={dataset['name']}, variable={dataset['variable']}, rel_eb={rel_eb}")
-                    data_dir=os.path.join(data_root,dataset["folder"])
-                    data_paths=[os.path.join(data_dir,f"{dataset['variable']}.dat.{time_step}") for time_step in range(dataset["time_step_num"])]
-                    try:
-                        br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput=test(compressor,dataset,rel_eb,prediction_structure_path if compressor=="unsz" else None,point_set_config_path)
-                        if write_to_csv:
-                            method_name=dataset.get("result_name_map",{}).get(compressor,compressor)
-                            write_result(dataset,rel_eb,compressor,br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput,method_name)
-                    except Exception as error:
-                        print(f"failed: {error}")
-                        if compressor=="unsz" and os.path.isfile(prediction_structure_path):
-                            os.remove(prediction_structure_path)
-                        if not continue_after_error:
-                            raise
-                    finally:
-                        if cleanup_after_each_test:
-                            cleanup(data_paths)
+reference_canonical_configuration_vec=("idw_split_rounds_then_sort_mean_reference_distance","idw_sort_all_then_split_rounds_mean_reference_distance","idw_split_rounds_then_sort_reference_data_prediction_error","rbf_split_rounds_then_sort_mean_reference_distance","rbf_sort_all_then_split_rounds_mean_reference_distance","rbf_split_rounds_then_sort_reference_data_prediction_error")
+
+def parse_reference_order_arguments(arguments):
+    parser=argparse.ArgumentParser(description="比较一个field的IDW、RBF及不同空间预测顺序")
+    parser.add_argument("-data-dir",type=Path,required=True)
+    parser.add_argument("-variable",required=True)
+    parser.add_argument("-time-step-num",type=int,required=True)
+    parser.add_argument("-dim",type=int,required=True)
+    parser.add_argument("-training-time-step",type=int,action="append")
+    parser.add_argument("-test-time-step",type=int,action="append")
+    parser.add_argument("-matrix-file",type=Path)
+    parser.add_argument("-condition-operator",choices=("<","<=",">",">=","==","!="))
+    parser.add_argument("-condition-value",type=float)
+    parser.add_argument("-label-file-pattern")
+    parser.add_argument("-label-file-dtype",default="uint8")
+    parser.add_argument("-result",type=Path,required=True)
+    parser.add_argument("-idw-ref-num",type=int,default=4)
+    parser.add_argument("-idw-power",type=float,default=2)
+    parser.add_argument("-rbf-ref-num",type=int,default=10)
+    parser.add_argument("-ordering-score-max-ref-num",type=int)
+    parser.add_argument("-ordering-score-min-ref-num",type=int)
+    parser.add_argument("-rbf-kernel",default="matern32")
+    parser.add_argument("-rbf-shape",type=float,default=0.01)
+    parser.add_argument("-rbf-nugget",type=float,default=1e-6)
+    parser.add_argument("-order-candidate-num",type=int,default=48)
+    parser.add_argument("-disable-eb-schedule",action="store_true")
+    parser.add_argument("-dag-cache-result",type=Path)
+    parser.add_argument("-reorder-data-by-prediction-order",action="store_true")
+    parser.add_argument("-decompression-stage-time",action="store_true")
+    parser.add_argument("-common-extra",action="append",default=[])
+    parser.add_argument("-compression-extra",action="append",default=[])
+    parser.add_argument("-decompression-extra",action="append",default=[])
+    parser.add_argument("-rel-eb",type=float,action="append")
+    parser.add_argument("-configuration",choices=reference_canonical_configuration_vec,action="append")
+    return parser.parse_args(arguments)
+
+def run_argument_command(command):
+    result=subprocess.run([str(value) for value in command],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+    if result.returncode!=0:
+        print(result.stdout,flush=True)
+        raise RuntimeError("命令执行失败："+" ".join(str(value) for value in command))
+    return result.stdout
+
+def read_output_float(pattern,text,name):
+    match=re.search(pattern,text,re.MULTILINE)
+    if match is None:
+        raise RuntimeError(f"输出中缺少{name}")
+    return float(match.group(1))
+
+def read_output_float_sum(pattern,text):
+    return sum(float(value) for value in re.findall(pattern,text,re.MULTILINE))
+
+def calculate_average_br_change(reference,test_rows):
+    reference_points=sorted((float(row["psnr"]),float(row["br"])) for row in reference)
+    test_points=sorted((float(row["psnr"]),float(row["br"])) for row in test_rows)
+    reference_psnr=np.asarray([point[0] for point in reference_points])
+    reference_br=np.asarray([point[1] for point in reference_points])
+    test_psnr=np.asarray([point[0] for point in test_points])
+    test_br=np.asarray([point[1] for point in test_points])
+    lower=max(reference_psnr.min(),test_psnr.min())
+    upper=min(reference_psnr.max(),test_psnr.max())
+    if lower>=upper:
+        raise ValueError("两条BR-PSNR曲线没有共同PSNR范围")
+    knots=np.unique(np.concatenate(([lower,upper],reference_psnr[(reference_psnr>lower)&(reference_psnr<upper)],test_psnr[(test_psnr>lower)&(test_psnr<upper)])))
+    reference_area=np.trapezoid(np.interp(knots,reference_psnr,reference_br),knots)
+    test_area=np.trapezoid(np.interp(knots,test_psnr,test_br),knots)
+    return (test_area/reference_area-1)*100
+
+def geometric_mean(values):
+    return math.exp(sum(math.log(value) for value in values)/len(values))
+
+def cleanup_reference_order(test_dir,variable,test_time_step_vec):
+    for time_step in test_time_step_vec:
+        for suffix in (".unsz",".unsz.bin"):
+            path=test_dir/f"{variable}.dat.{time_step}{suffix}"
+            if path.exists():
+                path.unlink()
+
+def write_reference_order_results(result_path,result_vec):
+    result_path.parent.mkdir(parents=True,exist_ok=True)
+    with result_path.open("w",newline="") as file:
+        writer=csv.DictWriter(file,fieldnames=result_vec[0].keys(),lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(result_vec)
+
+def write_reference_point_set_config(path,arguments,predictor,rel_eb):
+    labels=[{"method":predictor,"eb_mode":"REL","eb_value":rel_eb},{"method":"constant"}]
+    if arguments.label_file_pattern is not None:
+        config={"version":1,"rule_type":"label_file","label_file":{"path":arguments.label_file_pattern,"dtype":arguments.label_file_dtype},"labels":labels}
+    else:
+        labels[0]["condition"]={"operator":arguments.condition_operator,"value":arguments.condition_value}
+        config={"version":1,"rule_type":"ordered","labels":labels}
+    with path.open("w",encoding="utf-8") as file:
+        json.dump(config,file,ensure_ascii=False)
+
+def reference_order_main(command_line_arguments):
+    arguments=parse_reference_order_arguments(command_line_arguments)
+    if(arguments.condition_operator is None)!=(arguments.condition_value is None):
+        raise ValueError("condition-operator和condition-value必须同时指定")
+    if arguments.label_file_pattern is not None and arguments.condition_operator is not None:
+        raise ValueError("label-file-pattern不能和condition-operator同时指定")
+    if arguments.idw_ref_num<=0 or arguments.rbf_ref_num<=0:
+        raise ValueError("参考点数必须为正数")
+    training_time_step_vec=tuple(dict.fromkeys(arguments.training_time_step or ()))
+    test_time_step_vec=tuple(dict.fromkeys(arguments.test_time_step)) if arguments.test_time_step else tuple(range(arguments.time_step_num))
+    rel_eb_vec=tuple(arguments.rel_eb) if arguments.rel_eb else (1e-1,1e-2,1e-3,1e-4,1e-5)
+    for time_step in (*training_time_step_vec,*test_time_step_vec):
+        if time_step<0 or time_step>=arguments.time_step_num:
+            raise ValueError(f"time step超出范围：{time_step}")
+    if not test_time_step_vec:
+        raise ValueError("测试time step不能为空")
+    common_optional=["-adjust-coord-matrix-file",arguments.matrix_file] if arguments.matrix_file is not None else []
+    training_expression="{"+",".join(str(value) for value in training_time_step_vec)+"}"
+    test_expression="{"+",".join(str(value) for value in test_time_step_vec)+"}"
+    all_config_vec=(
+        {"name":"idw_split_rounds_then_sort_mean_reference_distance","predictor":"inverse_proportion","round_formation":"split_rounds_then_sort","ordering_score":"mean_reference_distance","prediction_ref_num":arguments.idw_ref_num,"power":arguments.idw_power,"compress_extra":["-reverse-mean-distance-only-order-experimental"],"decompress_extra":[]},
+        {"name":"idw_sort_all_then_split_rounds_mean_reference_distance","predictor":"inverse_proportion","round_formation":"sort_all_then_split_rounds","ordering_score":"mean_reference_distance","prediction_ref_num":arguments.idw_ref_num,"power":arguments.idw_power,"compress_extra":["-reverse-mean-distance-only-order-experimental","-global-order-before-round-split-experimental"],"decompress_extra":[]},
+        {"name":"idw_split_rounds_then_sort_reference_data_prediction_error","predictor":"inverse_proportion","round_formation":"split_rounds_then_sort","ordering_score":"reference_data_prediction_error","prediction_ref_num":arguments.idw_ref_num,"power":arguments.idw_power,"compress_extra":["-reference-data-order-experimental",training_expression],"decompress_extra":[]},
+        {"name":"rbf_split_rounds_then_sort_mean_reference_distance","predictor":"rbf_fitting","round_formation":"split_rounds_then_sort","ordering_score":"mean_reference_distance","prediction_ref_num":arguments.rbf_ref_num,"power":3.6,"compress_extra":["-reverse-mean-distance-only-order-experimental"],"decompress_extra":[]},
+        {"name":"rbf_sort_all_then_split_rounds_mean_reference_distance","predictor":"rbf_fitting","round_formation":"sort_all_then_split_rounds","ordering_score":"mean_reference_distance","prediction_ref_num":arguments.rbf_ref_num,"power":3.6,"compress_extra":["-reverse-mean-distance-only-order-experimental","-global-order-before-round-split-experimental"],"decompress_extra":[]},
+        {"name":"rbf_split_rounds_then_sort_reference_data_prediction_error","predictor":"rbf_fitting","round_formation":"split_rounds_then_sort","ordering_score":"reference_data_prediction_error","prediction_ref_num":arguments.rbf_ref_num,"power":3.6,"compress_extra":["-reference-data-order-experimental",training_expression,"-reference-data-rbf-score-experimental"],"decompress_extra":[]},
+    )
+    selected_configuration_set=set(arguments.configuration) if arguments.configuration else None
+    config_vec=tuple(config for config in all_config_vec if selected_configuration_set is None or config["name"] in selected_configuration_set)
+    for config in config_vec:
+        config["ordering_score_max_ref_num"]=arguments.ordering_score_max_ref_num or config["prediction_ref_num"]
+        config["ordering_score_min_ref_num"]=arguments.ordering_score_min_ref_num if arguments.ordering_score_min_ref_num is not None else (max(1,config["prediction_ref_num"]-1) if config["predictor"]=="inverse_proportion" else config["ordering_score_max_ref_num"])
+        if config["prediction_ref_num"]>config["ordering_score_max_ref_num"]:
+            raise ValueError("prediction ref num不能大于ordering score max ref num")
+        if config["ordering_score_min_ref_num"]<=0 or config["ordering_score_min_ref_num"]>config["ordering_score_max_ref_num"]:
+            raise ValueError("ordering score min ref num必须在1和ordering score max ref num之间")
+    if arguments.dag_cache_result is not None and len(config_vec)!=1:
+        raise ValueError("持久保存DAG缓存时必须只选择一个configuration")
+    if any(config["ordering_score"]=="reference_data_prediction_error" for config in config_vec) and not training_time_step_vec:
+        raise ValueError("参考数据辅助顺序至少需要一个training-time-step")
+    if any(config["ordering_score"]=="reference_data_prediction_error" for config in config_vec) and arguments.label_file_pattern is not None:
+        raise ValueError("label_file分类暂时不能用于参考数据辅助顺序")
+    result_vec=[]
+    temporary_root=os.environ.get("SLURM_TMPDIR","/tmp")
+    with tempfile.TemporaryDirectory(prefix=f"unsz_{arguments.variable}_rbf_",dir=temporary_root) as temporary_dir_string:
+        temporary_dir=Path(temporary_dir_string)
+        test_dir=temporary_dir/"data"
+        test_dir.mkdir()
+        (test_dir/"coords.dat").symlink_to(arguments.data_dir/"coords.dat")
+        for time_step in set(training_time_step_vec)|set(test_time_step_vec):
+            (test_dir/f"{arguments.variable}.dat.{time_step}").symlink_to(arguments.data_dir/f"{arguments.variable}.dat.{time_step}")
+        for config in config_vec:
+            dag_cache_path=arguments.dag_cache_result if arguments.dag_cache_result is not None else temporary_dir/f"{config['name']}.dag"
+            dag_cache_path.parent.mkdir(parents=True,exist_ok=True)
+            for rel_eb in rel_eb_vec:
+                compression_error_arguments=["-M","REL",rel_eb,"-predictor",config["predictor"]]
+                decompression_error_arguments=["-M","REL",rel_eb]
+                if arguments.condition_operator is not None or arguments.label_file_pattern is not None:
+                    point_set_config_path=temporary_dir/f"{config['name']}_{rel_eb:g}.json"
+                    write_reference_point_set_config(point_set_config_path,arguments,config["predictor"],rel_eb)
+                    compression_error_arguments=["-point-set-config",point_set_config_path]
+                    decompression_error_arguments=compression_error_arguments
+                reorder_arguments=["-reorder-data-by-prediction-order-experimental"] if arguments.reorder_data_by_prediction_order else []
+                schedule_arguments=[] if arguments.disable_eb_schedule else ["-eb-schedule-experimental","round_point_ratio",0.8]
+                common_arguments=["-data-dir",test_dir,"-variable",arguments.variable,"-time-step",test_expression,"-dim",arguments.dim,"-dag-cache",dag_cache_path,"-predict-round-num",8,"-max-ref-num",config["ordering_score_max_ref_num"],"-actual-ref-num",config["prediction_ref_num"],"-inverse-distance-power",config["power"],"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",config["ordering_score_min_ref_num"],"-order-candidate-num-experimental",arguments.order_candidate_num,*schedule_arguments,"-rbf-kernel",arguments.rbf_kernel,"-rbf-shape",arguments.rbf_shape,"-rbf-nugget",arguments.rbf_nugget,*common_optional,*reorder_arguments,*arguments.common_extra]
+                compression_output=run_argument_command([Path(project_root)/"install/bin/s1_compress",*compression_error_arguments,*common_arguments,*config["compress_extra"],*arguments.compression_extra])
+                decompression_output=run_argument_command([Path(project_root)/"install/bin/s1_decompress",*decompression_error_arguments,*common_arguments,*config["decompress_extra"],*arguments.decompression_extra,*(["-decompression-stage-time"] if arguments.decompression_stage_time else [])])
+                psnr=read_output_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"压缩PSNR")
+                decompressed_psnr=read_output_float(r"^total decompressed psnr= ([^ ]+)$",decompression_output,"解压PSNR")
+                if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-6):
+                    raise RuntimeError(f"压缩和解压PSNR不一致：{psnr}!={decompressed_psnr}")
+                compression_time=read_output_float(r"^total compression time= ([^ ]+) s$",compression_output,"压缩时间")
+                decompression_time=read_output_float(r"^total decompression time= ([^ ]+) s$",decompression_output,"解压时间")
+                result={"config":config["name"],"round_formation":config["round_formation"],"ordering_score":config["ordering_score"],"ref_num":config["prediction_ref_num"],"ordering_score_max_ref_num":config["ordering_score_max_ref_num"],"ordering_score_min_ref_num":config["ordering_score_min_ref_num"],"reorder_data_by_prediction_order":arguments.reorder_data_by_prediction_order,"rel_eb":rel_eb,"br":read_output_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR"),"psnr":psnr,"preprocessing_time":read_output_float(r"^preprocessing time excluding adjust coord= ([^ ]+) s$",compression_output,"预处理时间"),"compression_time":compression_time,"decompression_time":decompression_time,"compression_decompression_time":compression_time+decompression_time,"compression_input_reorder_time":read_output_float_sum(r"^compression input reorder-by-prediction-order time excluded from compression= ([^ ]+) s$",compression_output),"decompression_output_restore_time":read_output_float_sum(r"^decompression output restore-original-order time excluded from decompression= ([^ ]+) s$",decompression_output),"decompression_stream_decode_time":read_output_float_sum(r"^decompression stage time: stream_decode=([^ ]+) s,",decompression_output),"decompression_label_decode_time":read_output_float_sum(r"^decompression stage time: stream_decode=[^ ]+ s, label_decode=([^ ]+) s,",decompression_output),"decompression_value_decode_time":read_output_float_sum(r"^decompression stage time: stream_decode=[^ ]+ s, label_decode=[^ ]+ s, value_decode=([^ ]+) s,",decompression_output)}
+                result_vec.append(result)
+                write_reference_order_results(arguments.result,result_vec)
+                print(f"{config['name']} REL={rel_eb:g}:BR={result['br']:.6f},PSNR={psnr:.6f},preprocessing={result['preprocessing_time']:.6f}s,compression={result['compression_time']:.6f}s,decompression={result['decompression_time']:.6f}s,compression+decompression={result['compression_decompression_time']:.6f}s",flush=True)
+                cleanup_reference_order(test_dir,arguments.variable,test_time_step_vec)
+    result_map={name:[row for row in result_vec if row["config"]==name] for name in (config["name"] for config in config_vec)}
+    baseline_name="idw_split_rounds_then_sort_mean_reference_distance"
+    if baseline_name in result_map:
+        baseline=result_map[baseline_name]
+        for name in reference_canonical_configuration_vec:
+            if name==baseline_name or name not in result_map:
+                continue
+            rows=result_map[name]
+            print(f"{name}相对{baseline_name}：同PSNR平均BR变化={calculate_average_br_change(baseline,rows):+.6f}%，压缩时间倍率={geometric_mean([row['compression_time'] for row in rows])/geometric_mean([row['compression_time'] for row in baseline]):.6f}，解压时间倍率={geometric_mean([row['decompression_time'] for row in rows])/geometric_mean([row['decompression_time'] for row in baseline]):.6f}，压缩+解压时间倍率={geometric_mean([row['compression_decompression_time'] for row in rows])/geometric_mean([row['compression_decompression_time'] for row in baseline]):.6f}",flush=True)
+    print(f"结果已写入{arguments.result}",flush=True)
+
+def find_field_config(dataset,field):
+    matches=[config for config in field_config_vec if config["dataset"].lower()==dataset.lower() and config["variable"]==field]
+    if matches:
+        return matches[0]
+    available_fields=[config["variable"] for config in field_config_vec if config["dataset"].lower()==dataset.lower()]
+    if available_fields:
+        raise ValueError(f"dataset {dataset}中没有field {field}；可选field：{','.join(available_fields)}")
+    raise ValueError(f"未知dataset：{dataset}")
+
+def build_selected_programs(field):
+    build_programs("umc" in field)
+
+def cli(command_line_arguments=None):
+    dataset_names=tuple(dict.fromkeys(config["dataset"].lower() for config in field_config_vec))
+    parser=argparse.ArgumentParser(description="使用t1内冻结的field配置运行UNSZ和UMC正式测试")
+    parser.add_argument("-data",required=True,choices=dataset_names)
+    parser.add_argument("-field",required=True)
+    arguments=parser.parse_args(command_line_arguments)
+    try:
+        field=find_field_config(arguments.data,arguments.field)
+    except ValueError as error:
+        parser.error(str(error))
+    build_selected_programs(field)
+    sys.modules.setdefault("t1_start_c_code",sys.modules[__name__])
+    from py_codes.refresh_selected_results import run_field
+    run_field(field)
 
 if __name__=="__main__":
-    main()
+    cli()

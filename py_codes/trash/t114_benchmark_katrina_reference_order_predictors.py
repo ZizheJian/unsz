@@ -87,11 +87,11 @@ def main():
             for order_name,order_extra in order_vec:
                 if sum(row["predictor"]==predictor["name"] and row["order"]==order_name for row in result_vec)==len(rel_eb_vec):
                     continue
-                prediction_structure_path=temporary_dir/f"{predictor['name']}_{order_name}.pred"
+                prediction_structure_path=temporary_dir/f"{predictor['name']}_{order_name}.dag"
                 for rel_eb in rel_eb_vec:
                     config_path=temporary_dir/f"point_sets_{predictor['name']}_{rel_eb:g}.json"
                     write_point_set_config(config_path,predictor["method"],rel_eb)
-                    common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step",time_step_expression,"-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-prediction-structure",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",predictor["ref_num"],"-actual-ref-num",predictor["ref_num"],"-inverse-distance-power",predictor["power"],"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",predictor["cache_threshold"],"-eb-schedule-experimental","round_point_ratio",0.8,"-cross-time-label-predictor-experimental","previous","-rbf-kernel","matern32","-rbf-shape",0.01,"-rbf-nugget",1e-6]
+                    common_arguments=["-data-dir",test_dir,"-variable","attr0","-time-step",time_step_expression,"-dim",3,"-point-set-config",config_path,"-adjust-coord-matrix-file",matrix_path,"-dag-cache",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",predictor["ref_num"],"-actual-ref-num",predictor["ref_num"],"-inverse-distance-power",predictor["power"],"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",predictor["cache_threshold"],"-eb-schedule-experimental","round_point_ratio",0.8,"-cross-time-label-predictor-experimental","previous","-rbf-kernel","matern32","-rbf-shape",0.01,"-rbf-nugget",1e-6]
                     compression_output=run_command([compressor,*common_arguments,*order_extra,*predictor["compress_extra"]])
                     decompression_output=run_command([decompressor,*common_arguments,*predictor["decompress_extra"]])
                     psnr=read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"压缩PSNR")

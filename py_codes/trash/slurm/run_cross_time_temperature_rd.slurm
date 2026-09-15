@@ -19,6 +19,6 @@ zonal_history="/home/x-zjian1/unsz/adjust_coord_history/ocean_velocityZonal_join
 for rel_eb in 0.01 0.003 0.0003 0.0001
 do
     eb_name="${rel_eb//./_}"
-    ./unsz_env/bin/python t5_cross_time.py -variable temperature -time-step-num 0 -rel-eb "$rel_eb" -cross-time-first-sample-mode random_hyperrectangle_regions -cross-time-first-sample-num 117580 -cross-time-first-sample-region-num 4 -work-dir "$task_tmp_dir/own_${eb_name}" -joint-matrix-history-input "$own_history" -spatial-matrix 1 0 1 0 0 1
-    ./unsz_env/bin/python t5_cross_time.py -variable temperature -time-step-num 0 -rel-eb "$rel_eb" -cross-time-first-sample-mode random_hyperrectangle_regions -cross-time-first-sample-num 117580 -cross-time-first-sample-region-num 4 -work-dir "$task_tmp_dir/zonal_${eb_name}" -joint-matrix-history-input "$zonal_history" -joint-only
+    ./unsz_env/bin/python py_codes/trash/t5_cross_time.py -variable temperature -time-step-num 0 -rel-eb "$rel_eb" -cross-time-first-sample-mode random_hyperrectangle_regions -cross-time-first-sample-num 117580 -cross-time-first-sample-region-num 4 -work-dir "$task_tmp_dir/own_${eb_name}" -joint-matrix-history-input "$own_history" -spatial-matrix 1 0 1 0 0 1
+    ./unsz_env/bin/python py_codes/trash/t5_cross_time.py -variable temperature -time-step-num 0 -rel-eb "$rel_eb" -cross-time-first-sample-mode random_hyperrectangle_regions -cross-time-first-sample-num 117580 -cross-time-first-sample-region-num 4 -work-dir "$task_tmp_dir/zonal_${eb_name}" -joint-matrix-history-input "$zonal_history" -joint-only
 done

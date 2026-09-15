@@ -1,0 +1,6 @@
+config,round_formation,ordering_score,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
+rbf_split_rounds_then_sort_reference_data_prediction_error,split_rounds_then_sort,reference_data_prediction_error,0.1,0.111692,34.237261,34.12951,0.012604,0.009883
+rbf_split_rounds_then_sort_reference_data_prediction_error,split_rounds_then_sort,reference_data_prediction_error,0.01,0.610792,49.82448,3.18765,0.016437,0.013031
+rbf_split_rounds_then_sort_reference_data_prediction_error,split_rounds_then_sort,reference_data_prediction_error,0.001,2.252658,67.69426,3.209473,0.013152,0.010365
+rbf_split_rounds_then_sort_reference_data_prediction_error,split_rounds_then_sort,reference_data_prediction_error,0.0001,4.961145,87.483492,3.187822,0.013589,0.010554
+rbf_split_rounds_then_sort_reference_data_prediction_error,split_rounds_then_sort,reference_data_prediction_error,1e-05,7.808579,107.390331,3.201342,0.019562,0.012491

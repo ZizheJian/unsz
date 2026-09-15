@@ -97,19 +97,45 @@ string read_option_value(int argc,char **argv,int &arg_id,string option)
 template<typename T_coord>
 void run_decompression(unsz::param_c<T_coord,float> &param)
 {
+    bool joint_spatiotemporal=param.cross_time_spatial_point_num_experimental>0;
+    if(joint_spatiotemporal)
+    {
+        if(param.point_set_config_vec.size()!=1)
+            throw runtime_error("联合时空解压目前只支持一个点集");
+        param.prepare_joint_spatiotemporal_coordinates();
+    }
     if (param.if_adjust_coord)
         param.adjust_coord();
     param.load_or_generate_pred_refs_structure();
     if(param.rbf_parameter_specified || any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf_fitting;}))
         param.prepare_rbf_fitting_weights();
+    bool data_dependent_eb_schedule=param.eb_schedule_experimental=="round_point_ratio_dag" || param.eb_schedule_experimental=="round_point_ratio_dag_direct" || param.eb_schedule_experimental=="round_point_ratio_dag_variance_direct";
+    if(!data_dependent_eb_schedule && param.cached_pred_eb_multiplier_vec.size()!=param.point_num)
+        param.cached_pred_eb_multiplier_vec=param.generate_pred_eb_multiplier_vec();
     if (param.print_prediction_dag_statistics)
         param.print_prediction_dag_statistics_result();
+    if(joint_spatiotemporal)
+    {
+        using param_type=unsz::param_c<T_coord,float>;
+        auto codec=param.point_set_config_vec[0].codec;
+        if(codec==unsz::point_set_codec_e::inverse_proportion)
+            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_point_sets<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::inverse_proportion>);
+        else if(codec==unsz::point_set_codec_e::rbf_fitting)
+            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_point_sets<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::rbf_fitting>);
+        else
+            throw runtime_error("单点集联合时空解压只支持IDW或RBF预测器");
+        return;
+    }
     uint64_t total_point_num=0;
     uint32_t validated_file_num=0;
     double total_squared_error=0,total_decompression_time=0,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
     uint32_t max_error_point_id=0,max_error_point_set_id=0;
     string max_error_data_path;
     float total_min_data=numeric_limits<float>::infinity(),total_max_data=-numeric_limits<float>::infinity();
+    using param_type=unsz::param_c<T_coord,float>;
+    if(param.point_set_config_vec.size()!=1&&param.point_set_config_vec.size()!=2)
+        throw runtime_error("解压只支持一个或两个点集");
+    void(param_type::*decompress_field)()=param.point_set_config_vec.size()==1?&param_type::decompress_single_point_set:&param_type::decompress_two_point_sets;
     for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
         param.current_time_step=param.time_step_vec[file_id];
@@ -118,11 +144,13 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
         param.current_zstd_bs_vec=read_byte_file(compressed_path);
 
         auto decompression_start_time=chrono::steady_clock::now();
-        param.decompress();
+        (param.*decompress_field)();
         param.save_time_reconstruction();
-        double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
+        double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count()-param.last_reorder_data_by_prediction_order_time;
         total_decompression_time+=decompression_time;
         printf("file decompression time= %f s\n",decompression_time);
+        if(param.last_reorder_data_by_prediction_order_time>0)
+            printf("decompression output restore-original-order time excluded from decompression= %f s\n",param.last_reorder_data_by_prediction_order_time);
         FILE *f_decompressed=fopen(decompressed_path.c_str(),"wb");
         if (!f_decompressed)
             throw runtime_error("无法创建解压文件："+decompressed_path);
@@ -239,6 +267,8 @@ int decompress_main(int argc,char **argv)
             time_step_vec=parse_time_step_vec(read_option_value(argc,argv,arg_id,option));
             param.got_time_step=true;
         }
+        else if(option=="-time-step-coordinate-file")
+            param.time_step_coordinate_path=read_option_value(argc,argv,arg_id,option);
         else if (option=="-M")
         {
             param.error_mode=read_option_value(argc,argv,arg_id,option);
@@ -251,6 +281,8 @@ int decompress_main(int argc,char **argv)
             param.max_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-actual-ref-num")
             param.actual_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if(option=="-ordering-msd-ref-num-experimental")
+            param.ordering_msd_ref_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-predict-round-num")
         {
             param.predict_round_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
@@ -293,10 +325,22 @@ int decompress_main(int argc,char **argv)
             param.d_only_cache_refill_threshold_experimental=parse_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-cross-time-spatial-point-num-experimental")
             param.cross_time_spatial_point_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if(option=="-time-anchor-stride-experimental")
+            param.time_anchor_stride_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-order-candidate-num-experimental")
             param.order_candidate_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-prediction-structure")
+        else if (option=="-dag-cache")
+        {
+            if(param.no_prediction_dag_cache)
+                throw runtime_error("-dag-cache不能和-no-dag-cache同时使用");
             param.prediction_structure_path=read_option_value(argc,argv,arg_id,option);
+        }
+        else if(option=="-no-dag-cache")
+        {
+            if(!param.prediction_structure_path.empty())
+                throw runtime_error("-no-dag-cache不能和-dag-cache同时使用");
+            param.no_prediction_dag_cache=true;
+        }
         else if (option=="-kd-leaf-size")
             param.kd_tree_leaf_size=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-partition-size")
@@ -321,57 +365,47 @@ int decompress_main(int argc,char **argv)
             if (param.partition_fitting_candidates_experimental!="original" && param.partition_fitting_candidates_experimental!="weighted" && param.partition_fitting_candidates_experimental!="ridge" && param.partition_fitting_candidates_experimental!="mixed" && param.partition_fitting_candidates_experimental!="residual" && param.partition_fitting_candidates_experimental!="extended" && param.partition_fitting_candidates_experimental!="all")
                 throw runtime_error("-partition-fitting-candidates-experimental必须是original、weighted、ridge、mixed、residual、extended或all");
         }
-        else if (option=="-multi-huffman-experimental")
-        {
-            param.multi_huffman_mode_experimental=read_option_value(argc,argv,arg_id,option);
-            if (param.multi_huffman_mode_experimental!="none" && param.multi_huffman_mode_experimental!="round" && param.multi_huffman_mode_experimental!="partition" && param.multi_huffman_mode_experimental!="partition_round")
-                throw runtime_error("-multi-huffman-experimental必须是none、round、partition或partition_round");
-        }
         else if (option=="-point-set-predictor")
             param.point_set_predictor=read_option_value(argc,argv,arg_id,option);
+        else if(option=="-predictor")
+        {
+            param.predictor=read_option_value(argc,argv,arg_id,option);
+            if(param.predictor!="inverse_proportion"&&param.predictor!="rbf_fitting")
+                throw runtime_error("-predictor必须是inverse_proportion或rbf_fitting");
+            param.got_predictor=true;
+        }
         else if(option=="-point-set-config")
             param.point_set_config_path=read_option_value(argc,argv,arg_id,option);
         else if (option=="-cross-time-predictor-experimental")
         {
             param.cross_time_predictor_experimental=read_option_value(argc,argv,arg_id,option);
-            if (param.cross_time_predictor_experimental!="previous" && param.cross_time_predictor_experimental!="interpolation")
-                throw runtime_error("-cross-time-predictor-experimental目前只支持previous或interpolation");
+            if (param.cross_time_predictor_experimental!="constant_extrapolation" && param.cross_time_predictor_experimental!="linear_interpolation" && param.cross_time_predictor_experimental!="constant_extrapolation_spatial_residual" && param.cross_time_predictor_experimental!="linear_interpolation_spatial_residual")
+                throw runtime_error("-cross-time-predictor-experimental目前只支持constant_extrapolation、linear_interpolation、constant_extrapolation_spatial_residual或linear_interpolation_spatial_residual");
         }
         else if (option=="-cross-time-label-predictor-experimental")
         {
             param.cross_time_label_predictor_experimental=read_option_value(argc,argv,arg_id,option);
-            if (param.cross_time_label_predictor_experimental!="previous" && param.cross_time_label_predictor_experimental!="lorenzo3" && param.cross_time_label_predictor_experimental!="lorenzo4" && param.cross_time_label_predictor_experimental!="endpoint_agreement")
-                throw runtime_error("-cross-time-label-predictor-experimental必须是previous、lorenzo3、lorenzo4或endpoint_agreement");
+            if(param.cross_time_label_predictor_experimental!="previous"&&param.cross_time_label_predictor_experimental!="endpoint_agreement")
+                throw runtime_error("-cross-time-label-predictor-experimental必须是previous或endpoint_agreement");
         }
-        else if (option=="-adjust-coord")
-            param.if_adjust_coord=true;
         else if (option=="-adjust-coord-matrix-file")
             param.adjust_coord_matrix_path=read_option_value(argc,argv,arg_id,option);
-        else if (option=="-adjust-coord-matrix")
-        {
-            uint32_t parameter_num=param.dim*(param.dim+1)/2;
-            if ((uint64_t)arg_id+parameter_num>=(uint64_t)argc)
-                throw runtime_error("-adjust-coord-matrix后面需要"+to_string(parameter_num)+"个下三角矩阵元素；请先设置-dim");
-            param.adjust_coord_matrix_parameter_vec.clear();
-            for (uint32_t parameter_id=0;parameter_id<parameter_num;parameter_id++)
-            {
-                double value=stod(argv[++arg_id]);
-                if (!isfinite(value))
-                    throw runtime_error("坐标变换矩阵元素必须是有限数");
-                param.adjust_coord_matrix_parameter_vec.push_back(value);
-            }
-            param.if_adjust_coord=true;
-        }
         else if (option=="-parallelism-stats")
             param.print_prediction_dag_statistics=true;
         else if (option=="-prediction-geometry-stats")
             param.print_prediction_geometry_statistics=true;
-        else if (option=="-prediction-order-layout-experimental")
-            param.use_prediction_order_layout_experimental=true;
+        else if(option=="-decompression-stage-time")
+            param.print_compression_stage_time=true;
+        else if(option=="-reorder-data-by-prediction-order-experimental")
+            param.reorder_data_by_prediction_order_experimental=true;
+        else if(option=="-qb-storage-order")
+        {
+            param.qb_storage_order=read_option_value(argc,argv,arg_id,option);
+            if(param.qb_storage_order!="prediction"&&param.qb_storage_order!="original")
+                throw runtime_error("-qb-storage-order必须是prediction或original");
+        }
         else if (option=="-normalized-weight-experimental")
             param.use_normalized_weight_experimental=true;
-        else if (option=="-prediction-order-label-experimental")
-            param.use_prediction_order_label_experimental=true;
         else if (option=="-fused-two-point-set-prediction-experimental")
             param.use_fused_two_point_set_prediction_experimental=true;
         else if (option=="-linear-previous-label-experimental")
@@ -382,8 +416,6 @@ int decompress_main(int argc,char **argv)
             param.use_predictability_order_experimental=true;
         else if (option=="-forward-mean-distance-only-order-experimental")
             param.use_forward_mean_distance_only_order_experimental=true;
-        else if (option=="-forward-s2-only-order-experimental")
-            param.use_forward_s2_only_order_experimental=true;
         else if (option=="-forward-direction-only-order-experimental")
             param.use_forward_direction_only_order_experimental=true;
         else if (option=="-forward-mean-distance-s2-order-experimental")
@@ -396,10 +428,6 @@ int decompress_main(int argc,char **argv)
             param.use_reverse_distribution_order_experimental=true;
         else if (option=="-reverse-mean-distance-only-order-experimental")
             param.use_reverse_mean_distance_only_order_experimental=true;
-        else if (option=="-reverse-reference-reuse-order-experimental")
-            param.use_reverse_reference_reuse_order_experimental=true;
-        else if (option=="-reverse-s2-only-order-experimental")
-            param.use_reverse_s2_only_order_experimental=true;
         else if (option=="-reverse-direction-only-order-experimental")
             param.use_reverse_direction_only_order_experimental=true;
         else if (option=="-reverse-direction-order-experimental")
@@ -408,28 +436,30 @@ int decompress_main(int argc,char **argv)
             param.use_reverse_direction_distribution_order_experimental=true;
         else if (option=="-global-order-before-round-split-experimental")
             param.use_global_order_before_round_split_experimental=true;
-        else if(option=="-cache-subpartition-num-experimental")
-            param.cache_subpartition_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-eb-schedule-experimental")
         {
             param.eb_schedule_experimental=read_option_value(argc,argv,arg_id,option);
             param.eb_schedule_start_ratio=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
-            if(param.eb_schedule_experimental!="none" && param.eb_schedule_experimental!="round" && param.eb_schedule_experimental!="point" && param.eb_schedule_experimental!="round_point" && param.eb_schedule_experimental!="round_ratio" && param.eb_schedule_experimental!="round_point_ratio" && param.eb_schedule_experimental!="round_point_ratio_dag" && param.eb_schedule_experimental!="round_point_ratio_dag_direct" && param.eb_schedule_experimental!="round_point_ratio_dag_variance_direct")
+            if(param.eb_schedule_experimental!="none" && param.eb_schedule_experimental!="round" && param.eb_schedule_experimental!="point" && param.eb_schedule_experimental!="point_log2_ratio" && param.eb_schedule_experimental!="round_point" && param.eb_schedule_experimental!="round_ratio" && param.eb_schedule_experimental!="round_point_ratio" && param.eb_schedule_experimental!="round_point_ratio_dag" && param.eb_schedule_experimental!="round_point_ratio_dag_direct" && param.eb_schedule_experimental!="round_point_ratio_dag_variance_direct")
                 throw runtime_error("未知的实验性EB序列模式："+param.eb_schedule_experimental);
             if (param.eb_schedule_start_ratio>1)
                 throw runtime_error("-eb-schedule-experimental的起始倍率不能大于1");
         }
+        else if(option=="-eb-schedule-log2-shift-experimental")
+            param.eb_schedule_log2_shift_experimental=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
         else
             throw runtime_error("未知参数："+option);
     }
     if(!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && param.point_set_config_path.empty()))
-        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-dim <维数>] [-adjust-coord] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental <previous|interpolation>] [-cross-time-label-predictor-experimental <previous|lorenzo3|lorenzo4|endpoint_agreement>] [-rbf-kernel <gaussian|exponential|matern32|matern52|inverse_multiquadric>] [-rbf-shape <正数>] [-rbf-nugget <正数>] [-rbf-polynomial-degree <0|1|2>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-prediction-structure <路径>] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-partition-adaptive-min-improvement-experimental <比例>] [-multi-huffman-experimental <none|round|partition|partition_round>] [-parallelism-stats] [-prediction-geometry-stats] [-prediction-order-layout-experimental] [-normalized-weight-experimental] [-prediction-order-label-experimental] [-fused-two-point-set-prediction-experimental] [-linear-previous-label-experimental] [-rbf-filtered-fallback-nearest-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-s2-only-order-experimental] [-forward-direction-only-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-reference-reuse-order-experimental] [-reverse-s2-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-global-order-before-round-split-experimental] [-cache-subpartition-num-experimental <2的幂>] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>]");
+        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-dim <维数>] [-time-anchor-stride-experimental <步长>] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental <constant_extrapolation|linear_interpolation|constant_extrapolation_spatial_residual|linear_interpolation_spatial_residual>] [-cross-time-label-predictor-experimental <previous|endpoint_agreement>] [-predictor <inverse_proportion|rbf_fitting>] [-rbf-kernel <gaussian|exponential|matern32|matern52|inverse_multiquadric>] [-rbf-shape <正数>] [-rbf-nugget <正数>] [-rbf-polynomial-degree <0|1|2>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-dag-cache <路径> | -no-dag-cache] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-partition-adaptive-min-improvement-experimental <比例>] [-parallelism-stats] [-prediction-geometry-stats] [-decompression-stage-time] [-reorder-data-by-prediction-order-experimental] [-qb-storage-order <prediction|original>] [-normalized-weight-experimental] [-fused-two-point-set-prediction-experimental] [-linear-previous-label-experimental] [-rbf-filtered-fallback-nearest-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-global-order-before-round-split-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>] [-eb-schedule-log2-shift-experimental <正数>]");
     if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
         throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
     if(param.thread_num>1 && param.partition_size_experimental==0 && param.partition_num_experimental==0)
         throw runtime_error("多线程模式需要指定partition数量或大小");
     if (!param.data_dir.empty() && param.data_dir.back()!='/')
         param.data_dir+="/";
+    if(!param.no_prediction_dag_cache && param.prediction_structure_path.empty())
+        param.prediction_structure_path=param.data_dir+".unsz_cache/"+param.variable_name+(param.cross_time_spatial_point_num_experimental>0?".joint.dag":".dag");
     param.coord_path=param.data_dir+"coords.dat";
     for (uint32_t time_step:time_step_vec)
         param.original_data_path_vec.push_back(param.data_dir+param.variable_name+".dat."+to_string(time_step));
@@ -445,6 +475,8 @@ int decompress_main(int argc,char **argv)
         param.got_abs_eb=true;
     }
     param.configure_point_sets();
+    if(param.point_set_config_vec.size()==1)
+        param.resolve_single_point_set_time_mode();
     param.cross_time_compress=false;
     param.check_original_data_files=false;
     param.load_adjust_coord_matrix_file();

@@ -70,8 +70,8 @@ def calculate_bd_rate(base_result_vec,test_result_vec):
 def benchmark(test_dir,config_name,matrix,rel_eb):
     variable=f"attr0_{config_name}"
     parameter=matrix[np.tril_indices(3)]
-    prediction_structure_path=test_dir/f"{config_name}.pred"
-    arguments=[compressor,"-data-dir",test_dir,"-variable",variable,"-time-step",f"[0,{time_step_num-1}]","-M","REL",rel_eb,"-adjust-coord-matrix",*[f"{value:.17g}" for value in parameter],"-reverse-mean-distance-only-order-experimental","-prediction-structure",prediction_structure_path]
+    prediction_structure_path=test_dir/f"{config_name}.dag"
+    arguments=[compressor,"-data-dir",test_dir,"-variable",variable,"-time-step",f"[0,{time_step_num-1}]","-M","REL",rel_eb,"-adjust-coord-matrix",*[f"{value:.17g}" for value in parameter],"-reverse-mean-distance-only-order-experimental","-dag-cache",prediction_structure_path]
     output=run_command(arguments)
     result={"config":config_name,"rel_eb":rel_eb,"br":read_float(r"^total cr= [^,]+, total br= ([^,]+),",output,"总BR"),"psnr":read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",output,"总PSNR")}
     print(f"{config_name}:rel_eb={rel_eb},br={result['br']},psnr={result['psnr']}",flush=True)

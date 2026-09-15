@@ -1,0 +1,8 @@
+field,local_round_eb_br_change_percent,local_continuous_eb_br_change_percent,local_round_eb_total_time_global,local_continuous_eb_total_time_global,local_continuous_eb_first_dag_time_global,selected_sorting_scale
+bathy,1.895314,0.948956,0.986936,0.969326,0.697248,global
+height,1.485650,0.779739,0.962461,0.975217,0.701610,global
+momentum_x,2.997746,2.841354,0.993188,0.978707,0.728678,global
+momentum_y,3.633292,2.978943,0.954943,0.950811,0.689387,global
+velocity_x,1.315270,0.902502,1.018460,1.015452,0.694319,global
+velocity_y,1.084715,0.777841,0.969678,0.978065,0.709332,global
+field_equal_summary,2.068664,1.538222,0.980713,0.977742,0.703313,global

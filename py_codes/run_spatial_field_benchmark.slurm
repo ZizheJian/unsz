@@ -13,4 +13,4 @@ export OPENBLAS_NUM_THREADS=1
 
 IFS=':' read -r -a field_array <<< "$FIELD_LIST"
 field="${field_array[$SLURM_ARRAY_TASK_ID]}"
-./unsz_env/bin/python py_codes/run_spatial_field_benchmark.py -dataset "$DATASET" -field "$field"
+./unsz_env/bin/python t1_start_c_code.py -data "${DATASET,,}" -field "$field"

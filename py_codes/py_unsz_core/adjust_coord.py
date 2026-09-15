@@ -9,258 +9,6 @@ def select_file_ids(file_num,sample_file_num):
     file_position_float=(np.arange(sample_file_num)+0.5)*(file_num-1)/sample_file_num
     return np.round(file_position_float).astype(np.int64)
 
-def select_local_spatial_ids(spatial_coord,sample_num,region_num,rng):
-    point_num=spatial_coord.shape[0]
-    if sample_num>=point_num:
-        return np.arange(point_num,dtype=np.int64)
-    region_num=min(region_num,sample_num)
-    center_ids=np.empty(region_num,dtype=np.int64)
-    center_ids[0]=rng.integers(point_num)
-    min_squared_distance=np.sum((spatial_coord-spatial_coord[center_ids[0]])**2,axis=1)
-    for region_id in range(1,region_num):
-        center_ids[region_id]=np.argmax(min_squared_distance)
-        squared_distance=np.sum((spatial_coord-spatial_coord[center_ids[region_id]])**2,axis=1)
-        min_squared_distance=np.minimum(min_squared_distance,squared_distance)
-    tree=scipy.spatial.cKDTree(spatial_coord)
-    query_num=int(np.ceil(sample_num/region_num))
-    while True:
-        _,candidate_ids=tree.query(spatial_coord[center_ids],k=query_num)
-        candidate_ids=np.unique(np.asarray(candidate_ids).ravel())
-        if candidate_ids.size>=sample_num:
-            break
-        if query_num==point_num:
-            raise RuntimeError("局部区域采样无法找到足够的空间点")
-        query_num=min(point_num,max(query_num+1,int(np.ceil(query_num*1.5))))
-    if candidate_ids.size>sample_num:
-        center_tree=scipy.spatial.cKDTree(spatial_coord[center_ids])
-        distance,_=center_tree.query(spatial_coord[candidate_ids],k=1)
-        candidate_ids=candidate_ids[np.lexsort((candidate_ids,distance))[:sample_num]]
-    return np.sort(candidate_ids)
-
-def select_random_hyperrectangle_regions(coord,spatial_point_num,expected_sample_num,region_num,rng):
-    point_num=coord.shape[0]
-    if point_num%spatial_point_num!=0:
-        raise ValueError("时空点数必须是空间点数的整数倍")
-    if expected_sample_num<=0 or region_num<=0:
-        raise ValueError("期望采样点数和区域数必须为正数")
-    side_ratio=(expected_sample_num/(region_num*point_num))**(1/coord.shape[1])
-    if side_ratio>1:
-        raise ValueError(f"期望采样点数过多，推导出的区域边长比例为{side_ratio}")
-    time_step_num=point_num//spatial_point_num
-    coord_min=coord.min(axis=0).astype(np.float64)
-    coord_max=coord.max(axis=0).astype(np.float64)
-    side_length=(coord_max-coord_min)*side_ratio
-    spatial_coord=coord[:spatial_point_num,:-1]
-    time_coord=coord[np.arange(time_step_num)*spatial_point_num,-1]
-    region_ids=[]
-    region_bounds=[]
-    region_anchor_ids=[]
-    for _ in range(region_num):
-        anchor_id=int(rng.integers(point_num))
-        anchor_coord=coord[anchor_id].astype(np.float64)
-        lower=np.minimum(np.maximum(anchor_coord-side_length/2,coord_min),coord_max-side_length)
-        upper=lower+side_length
-        spatial_ids=np.flatnonzero(np.all((spatial_coord>=lower[:-1])&(spatial_coord<=upper[:-1]),axis=1))
-        time_ids=np.flatnonzero((time_coord>=lower[-1])&(time_coord<=upper[-1]))
-        ids=np.concatenate([time_id*spatial_point_num+spatial_ids for time_id in time_ids]) if spatial_ids.size and time_ids.size else np.empty(0,dtype=np.int64)
-        region_ids.append(ids)
-        region_bounds.append(np.column_stack((lower,upper)))
-        region_anchor_ids.append(anchor_id)
-    return region_ids,np.asarray(region_bounds),np.asarray(region_anchor_ids,dtype=np.int64),side_ratio
-
-def select_random_spatial_hyperrectangle_regions(coord,expected_sample_num,region_num,rng):
-    point_num=coord.shape[0]
-    if expected_sample_num<=0 or region_num<=0:
-        raise ValueError("期望采样点数和区域数必须为正数")
-    side_ratio=(expected_sample_num/(region_num*point_num))**(1/coord.shape[1])
-    if side_ratio>1:
-        raise ValueError(f"期望采样点数过多，推导出的区域边长比例为{side_ratio}")
-    coord_min=coord.min(axis=0).astype(np.float64)
-    coord_max=coord.max(axis=0).astype(np.float64)
-    side_length=(coord_max-coord_min)*side_ratio
-    region_ids=[]
-    region_bounds=[]
-    region_anchor_ids=[]
-    for _ in range(region_num):
-        anchor_id=int(rng.integers(point_num))
-        anchor_coord=coord[anchor_id].astype(np.float64)
-        lower=np.minimum(np.maximum(anchor_coord-side_length/2,coord_min),coord_max-side_length)
-        upper=lower+side_length
-        selected=np.ones(point_num,dtype=bool)
-        for dim_id in range(coord.shape[1]):
-            selected&=(coord[:,dim_id]>=lower[dim_id])&(coord[:,dim_id]<=upper[dim_id])
-        region_ids.append(np.flatnonzero(selected))
-        region_bounds.append(np.column_stack((lower,upper)))
-        region_anchor_ids.append(anchor_id)
-    return region_ids,np.asarray(region_bounds),np.asarray(region_anchor_ids,dtype=np.int64),side_ratio
-
-def select_random_spatial_fixed_point_regions(coord,sample_num,region_num,rng):
-    point_num=coord.shape[0]
-    if sample_num<=0 or region_num<=0:
-        raise ValueError("采样点数和区域数必须为正数")
-    if sample_num>point_num:
-        raise ValueError(f"固定区域采样点数{sample_num}不能超过总点数{point_num}")
-    region_num=min(region_num,sample_num)
-    region_sample_num=np.full(region_num,sample_num//region_num,dtype=np.int64)
-    region_sample_num[:sample_num%region_num]+=1
-    anchor_ids=rng.choice(point_num,size=region_num,replace=False)
-    coord_range=coord.max(axis=0).astype(np.float64)-coord.min(axis=0).astype(np.float64)
-    nonzero_range=coord_range.copy()
-    nonzero_range[nonzero_range==0]=1
-    region_ids=[]
-    region_bounds=[]
-    side_ratio=[]
-    all_ids=np.arange(point_num,dtype=np.int64)
-    for anchor_id,current_sample_num in zip(anchor_ids,region_sample_num):
-        anchor_coord=coord[anchor_id].astype(np.float64)
-        distance=np.zeros(point_num,dtype=np.float64)
-        for dim_id in range(coord.shape[1]):
-            np.maximum(distance,np.abs(coord[:,dim_id]-anchor_coord[dim_id])/nonzero_range[dim_id],out=distance)
-        cutoff=np.partition(distance,current_sample_num-1)[current_sample_num-1]
-        inner_ids=all_ids[distance<cutoff]
-        boundary_ids=all_ids[distance==cutoff]
-        selected_ids=np.concatenate((inner_ids,boundary_ids[:current_sample_num-inner_ids.size]))
-        region_ids.append(np.sort(selected_ids))
-        lower=np.nextafter(anchor_coord-cutoff*coord_range,-np.inf)
-        upper=np.nextafter(anchor_coord+cutoff*coord_range,np.inf)
-        region_bounds.append(np.column_stack((lower,upper)))
-        side_ratio.append(2*cutoff)
-    return region_ids,np.asarray(region_bounds),np.asarray(anchor_ids,dtype=np.int64),np.asarray(side_ratio)
-
-def select_random_spatial_regions_then_points(coord,sample_num,region_num,inner_sample_ratio,rng):
-    point_num=coord.shape[0]
-    if sample_num<=0 or region_num<=0:
-        raise ValueError("采样点数和区域数必须为正数")
-    if sample_num>point_num:
-        raise ValueError(f"区域内二次采样点数{sample_num}不能超过总点数{point_num}")
-    if not 0<inner_sample_ratio<=1:
-        raise ValueError("区域内部采样率必须大于0且不大于1")
-    region_num=min(region_num,sample_num)
-    region_sample_num=np.full(region_num,sample_num//region_num,dtype=np.int64)
-    region_sample_num[:sample_num%region_num]+=1
-    region_candidate_num=np.minimum(point_num,np.ceil(region_sample_num/inner_sample_ratio).astype(np.int64))
-    anchor_ids=rng.choice(point_num,size=region_num,replace=False)
-    coord_range=coord.max(axis=0).astype(np.float64)-coord.min(axis=0).astype(np.float64)
-    nonzero_range=coord_range.copy()
-    nonzero_range[nonzero_range==0]=1
-    region_ids=[]
-    region_bounds=[]
-    side_ratio=[]
-    all_ids=np.arange(point_num,dtype=np.int64)
-    for anchor_id,current_candidate_num,current_sample_num in zip(anchor_ids,region_candidate_num,region_sample_num):
-        anchor_coord=coord[anchor_id].astype(np.float64)
-        distance=np.zeros(point_num,dtype=np.float64)
-        for dim_id in range(coord.shape[1]):
-            np.maximum(distance,np.abs(coord[:,dim_id]-anchor_coord[dim_id])/nonzero_range[dim_id],out=distance)
-        cutoff=np.partition(distance,current_candidate_num-1)[current_candidate_num-1]
-        inner_ids=all_ids[distance<cutoff]
-        boundary_ids=all_ids[distance==cutoff]
-        candidate_ids=np.concatenate((inner_ids,boundary_ids[:current_candidate_num-inner_ids.size]))
-        selected_ids=rng.choice(candidate_ids,size=current_sample_num,replace=False)
-        region_ids.append(np.sort(selected_ids))
-        lower=np.nextafter(anchor_coord-cutoff*coord_range,-np.inf)
-        upper=np.nextafter(anchor_coord+cutoff*coord_range,np.inf)
-        region_bounds.append(np.column_stack((lower,upper)))
-        side_ratio.append(2*cutoff)
-    return region_ids,np.asarray(region_bounds),np.asarray(anchor_ids,dtype=np.int64),np.asarray(side_ratio),region_candidate_num
-
-def select_random_sampled_kd_blocks(coord,sample_num,region_num,pool_sample_ratio,rng):
-    point_num=coord.shape[0]
-    if sample_num<=0 or region_num<=0:
-        raise ValueError("采样点数和区域数必须为正数")
-    if sample_num>point_num:
-        raise ValueError(f"kd-tree block采样点数{sample_num}不能超过总点数{point_num}")
-    if not 0<pool_sample_ratio<=1:
-        raise ValueError("全局预采样率必须大于0且不大于1")
-    region_num=min(region_num,sample_num)
-    region_sample_num=np.full(region_num,sample_num//region_num,dtype=np.int64)
-    region_sample_num[:sample_num%region_num]+=1
-    global_sample_num=max(sample_num,int(np.ceil(point_num*pool_sample_ratio)))
-    global_sample_ids=np.sort(rng.choice(point_num,size=global_sample_num,replace=False))
-    coord_min=coord.min(axis=0).astype(np.float64)
-    coord_range=coord.max(axis=0).astype(np.float64)-coord_min
-    nonzero_range=coord_range.copy()
-    nonzero_range[nonzero_range==0]=1
-    normalized_coord=(coord[global_sample_ids].astype(np.float64)-coord_min)/nonzero_range
-    tree=scipy.spatial.cKDTree(normalized_coord,leafsize=max(1,int(region_sample_num.min())),compact_nodes=True,balanced_tree=True)
-    region_ids=[]
-    region_bounds=[]
-    region_node_num=[]
-    for expected_num in region_sample_num:
-        node=tree.tree
-        while node.children>expected_num and node.split_dim>=0:
-            node=node.lesser if rng.integers(2)==0 else node.greater
-        tree_ids=tree.indices[node.start_idx:node.end_idx]
-        ids=np.sort(global_sample_ids[tree_ids])
-        lower=np.nextafter(coord[ids].min(axis=0).astype(np.float64),-np.inf)
-        upper=np.nextafter(coord[ids].max(axis=0).astype(np.float64),np.inf)
-        region_ids.append(ids)
-        region_bounds.append(np.column_stack((lower,upper)))
-        region_node_num.append(node.children)
-    side_ratio=np.asarray([np.max((bounds[:,1]-bounds[:,0])/nonzero_range) for bounds in region_bounds])
-    region_representative_ids=np.asarray([ids[0] for ids in region_ids],dtype=np.int64)
-    return region_ids,np.asarray(region_bounds),region_representative_ids,side_ratio,np.asarray(region_node_num,dtype=np.int64),global_sample_num
-
-def select_random_sampled_kd_neighborhoods(coord,sample_num,region_num,pool_sample_ratio,rng,coord_min=None,coord_max=None):
-    point_num=coord.shape[0]
-    if sample_num<=0 or region_num<=0:
-        raise ValueError("采样点数和区域数必须为正数")
-    if sample_num>point_num:
-        raise ValueError(f"kd-tree近邻区域采样点数{sample_num}不能超过总点数{point_num}")
-    if not 0<pool_sample_ratio<=1:
-        raise ValueError("全局预采样率必须大于0且不大于1")
-    region_num=min(region_num,sample_num)
-    region_sample_num=np.full(region_num,sample_num//region_num,dtype=np.int64)
-    region_sample_num[:sample_num%region_num]+=1
-    global_sample_num=max(sample_num,int(np.ceil(point_num*pool_sample_ratio)))
-    global_sample_ids=np.sort(rng.choice(point_num,size=global_sample_num,replace=False))
-    sampled_coord=coord[global_sample_ids]
-    tree=scipy.spatial.cKDTree(sampled_coord,leafsize=32,compact_nodes=True,balanced_tree=True)
-    center_tree_ids=rng.integers(global_sample_num,size=region_num)
-    region_ids=[]
-    region_bounds=[]
-    if coord_min is None:
-        coord_min=coord.min(axis=0)
-    if coord_max is None:
-        coord_max=coord.max(axis=0)
-    coord_range=np.asarray(coord_max,dtype=np.float64)-np.asarray(coord_min,dtype=np.float64)
-    nonzero_range=coord_range.copy()
-    nonzero_range[nonzero_range==0]=1
-    for center_tree_id,current_sample_num in zip(center_tree_ids,region_sample_num):
-        _,neighbor_tree_ids=tree.query(sampled_coord[center_tree_id],k=int(current_sample_num),p=np.inf)
-        ids=np.sort(global_sample_ids[np.asarray(neighbor_tree_ids).reshape(-1)])
-        lower=np.nextafter(coord[ids].min(axis=0).astype(np.float64),-np.inf)
-        upper=np.nextafter(coord[ids].max(axis=0).astype(np.float64),np.inf)
-        region_ids.append(ids)
-        region_bounds.append(np.column_stack((lower,upper)))
-    side_ratio=np.asarray([np.max((bounds[:,1]-bounds[:,0])/nonzero_range) for bounds in region_bounds])
-    region_center_ids=global_sample_ids[center_tree_ids]
-    return region_ids,np.asarray(region_bounds),region_center_ids,side_ratio,region_sample_num,global_sample_num
-
-def initial_affine_parameter(dim):
-    coefficient=np.zeros((dim*(dim+1)//2,dim+1),dtype=np.float64)
-    for d in range(dim):
-        coefficient[d*(d+3)//2,0]=1
-    return coefficient.ravel()
-
-def affine_lower_triangular_matrix(coord,parameter): # 根据坐标生成下三角变换矩阵，每个非零元素都是坐标的一次函数
-    dim=coord.shape[-1]
-    coefficient=parameter.reshape(dim*(dim+1)//2,dim+1)
-    value=coefficient[:,0]+np.einsum("nd,kd->nk",coord,coefficient[:,1:])
-    matrix=np.zeros((coord.shape[0],dim,dim),dtype=np.float64)
-    for row in range(dim):
-        for col in range(row+1):
-            matrix[:,row,col]=value[:,row*(row+1)//2+col]
-    return matrix
-
-def transform_coord(coord,parameter,matrix_function=affine_lower_triangular_matrix):
-    matrix=matrix_function(coord,parameter)
-    return np.einsum("ni,nij->nj",coord,matrix)
-
-def log_loss(value_diff,predicted_distance,epsilon=0): 
-    # 返回对数距离拟合所使用的残差
-    return np.log(np.abs(value_diff)+epsilon)-np.log(predicted_distance+epsilon)
-
 def initial_constant_parameter(dim):
     parameter=np.zeros(dim*(dim+1)//2,dtype=np.float64)
     for d in range(dim):
@@ -425,6 +173,252 @@ def inverse_distance_prediction_error(target_value,ref_value,coord_diff,paramete
         predicted_value[row_id]=ref_value[row_id,np.argmax(zero_distance[row_id],axis=1)]
     return target_value-predicted_value
 
+def inverse_distance_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power):
+    transform_matrix=constant_lower_triangular_matrix(parameter,dim)
+    transformed_coord_diff=np.einsum("nkd,df->nkf",coord_diff,transform_matrix)
+    squared_distance=np.einsum("nkd,nkd->nk",transformed_coord_diff,transformed_coord_diff)
+    zero_distance=squared_distance==0
+    safe_squared_distance=np.where(zero_distance,1,squared_distance)
+    weight=safe_squared_distance**(-inverse_distance_power/2)
+    normalized_weight=weight/np.sum(weight,axis=1,keepdims=True)
+    predicted_value=np.sum(normalized_weight*ref_value,axis=1)
+    has_zero_distance=np.any(zero_distance,axis=1)
+    if np.any(has_zero_distance):
+        row_ids=np.flatnonzero(has_zero_distance)
+        predicted_value[row_ids]=ref_value[row_ids,np.argmax(zero_distance[row_ids],axis=1)]
+    jacobian=np.zeros((target_value.size,parameter.size),dtype=np.float64)
+    parameter_id=0
+    for row in range(dim):
+        for col in range(row+1):
+            squared_distance_derivative=2*coord_diff[:,:,row]*transformed_coord_diff[:,:,col]
+            log_weight_derivative=(-inverse_distance_power/2)*squared_distance_derivative/safe_squared_distance
+            prediction_derivative=np.sum(normalized_weight*(ref_value-predicted_value[:,None])*log_weight_derivative,axis=1)
+            prediction_derivative[has_zero_distance]=0
+            jacobian[:,parameter_id]=-prediction_derivative
+            parameter_id+=1
+    return target_value-predicted_value,jacobian
+
+def rbf_kernel_value(normalized_squared_distance,kernel,shape):
+    scaled_squared_distance=shape*shape*normalized_squared_distance
+    if kernel=="gaussian":
+        return np.exp(-scaled_squared_distance)
+    if kernel=="inverse_multiquadric":
+        return 1/np.sqrt(1+scaled_squared_distance)
+    scaled_distance=np.sqrt(scaled_squared_distance)
+    if kernel=="exponential":
+        return np.exp(-scaled_distance)
+    if kernel=="matern32":
+        value=np.sqrt(3)*scaled_distance
+        return (1+value)*np.exp(-value)
+    if kernel=="matern52":
+        value=np.sqrt(5)*scaled_distance
+        return (1+value+value*value/3)*np.exp(-value)
+    raise ValueError(f"未知的RBF核函数：{kernel}")
+
+def rbf_kernel_derivative(normalized_squared_distance,kernel,shape):
+    scaled_squared_distance=shape*shape*normalized_squared_distance
+    if kernel=="gaussian":
+        return -shape*shape*np.exp(-scaled_squared_distance)
+    if kernel=="inverse_multiquadric":
+        return (-shape*shape/2)*(1+scaled_squared_distance)**(-1.5)
+    scaled_distance=np.sqrt(scaled_squared_distance)
+    if kernel=="exponential":
+        derivative=np.zeros_like(normalized_squared_distance)
+        positive=normalized_squared_distance>0
+        derivative[positive]=-shape*np.exp(-scaled_distance[positive])/(2*np.sqrt(normalized_squared_distance[positive]))
+        return derivative
+    if kernel=="matern32":
+        return (-3*shape*shape/2)*np.exp(-np.sqrt(3)*scaled_distance)
+    if kernel=="matern52":
+        value=np.sqrt(5)*scaled_distance
+        return (-5*shape*shape/6)*(1+value)*np.exp(-value)
+    raise ValueError(f"未知的RBF核函数：{kernel}")
+
+def rbf_prediction_error(target_value,ref_value,coord_diff,parameter,dim,kernel,shape,nugget,polynomial_degree,inverse_distance_power):
+    if polynomial_degree not in (0,1,2):
+        raise ValueError("RBF多项式次数必须是0、1或2")
+    if not shape>0 or not nugget>0:
+        raise ValueError("RBF shape和nugget必须为正数")
+    fallback_error=inverse_distance_prediction_error(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power)
+    transform_matrix=constant_lower_triangular_matrix(parameter,dim)
+    transformed_coord_diff=np.einsum("nkd,df->nkf",coord_diff,transform_matrix)
+    target_squared_distance=np.einsum("nkd,nkd->nk",transformed_coord_diff,transformed_coord_diff)
+    zero_distance=target_squared_distance==0
+    predicted_value=target_value-fallback_error
+    has_zero_distance=np.any(zero_distance,axis=1)
+    if np.any(has_zero_distance):
+        row_ids=np.flatnonzero(has_zero_distance)
+        predicted_value[row_ids]=ref_value[row_ids,np.argmax(zero_distance[row_ids],axis=1)]
+    active_ids=np.flatnonzero(~has_zero_distance)
+    trend_size=1+(dim if polynomial_degree>=1 else 0)+(dim*(dim+1)//2 if polynomial_degree>=2 else 0)
+    ref_num=ref_value.shape[1]
+    if ref_num<trend_size:
+        return target_value-predicted_value
+    for batch_begin in range(0,active_ids.size,512):
+        batch_ids=active_ids[batch_begin:batch_begin+512]
+        batch_coord_diff=transformed_coord_diff[batch_ids]
+        batch_target_squared_distance=target_squared_distance[batch_ids]
+        mean_squared_distance=np.mean(batch_target_squared_distance,axis=1)
+        valid_mean=np.isfinite(mean_squared_distance)&(mean_squared_distance>0)
+        if not np.any(valid_mean):
+            continue
+        solve_ids=batch_ids[valid_mean]
+        batch_coord_diff=batch_coord_diff[valid_mean]
+        batch_target_squared_distance=batch_target_squared_distance[valid_mean]
+        mean_squared_distance=mean_squared_distance[valid_mean]
+        ref_relative_coord=-batch_coord_diff
+        pair_difference=ref_relative_coord[:,:,None,:]-ref_relative_coord[:,None,:,:]
+        pair_squared_distance=np.einsum("nijd,nijd->nij",pair_difference,pair_difference)
+        kernel_matrix=rbf_kernel_value(pair_squared_distance/mean_squared_distance[:,None,None],kernel,shape)
+        diagonal=np.arange(ref_num)
+        kernel_matrix[:,diagonal,diagonal]+=nugget
+        distance_scale=np.sqrt(mean_squared_distance)
+        trend_vec=[np.ones((solve_ids.size,ref_num,1),dtype=np.float64)]
+        if polynomial_degree>=1:
+            linear_feature=ref_relative_coord/distance_scale[:,None,None]
+            trend_vec.append(linear_feature)
+        if polynomial_degree>=2:
+            quadratic_feature=[linear_feature[:,:,first_dim]*linear_feature[:,:,second_dim] for first_dim in range(dim) for second_dim in range(first_dim,dim)]
+            trend_vec.append(np.stack(quadratic_feature,axis=2))
+        trend=np.concatenate(trend_vec,axis=2)
+        system_size=ref_num+trend_size
+        system=np.zeros((solve_ids.size,system_size,system_size),dtype=np.float64)
+        system[:,:ref_num,:ref_num]=kernel_matrix
+        system[:,:ref_num,ref_num:]=trend
+        system[:,ref_num:,:ref_num]=np.swapaxes(trend,1,2)
+        target_feature=np.zeros((solve_ids.size,system_size),dtype=np.float64)
+        target_feature[:,:ref_num]=rbf_kernel_value(batch_target_squared_distance/mean_squared_distance[:,None],kernel,shape)
+        target_feature[:,ref_num]=1
+        try:
+            solution=np.linalg.solve(system,target_feature[...,None])[...,0]
+        except np.linalg.LinAlgError:
+            solution=np.full_like(target_feature,np.nan)
+            for row_id in range(solve_ids.size):
+                try:
+                    solution[row_id]=np.linalg.solve(system[row_id],target_feature[row_id])
+                except np.linalg.LinAlgError:
+                    pass
+        batch_prediction=np.einsum("nk,nk->n",solution[:,:ref_num],ref_value[solve_ids])
+        valid_prediction=np.isfinite(batch_prediction)
+        predicted_value[solve_ids[valid_prediction]]=batch_prediction[valid_prediction]
+    return target_value-predicted_value
+
+def rbf_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,kernel,shape,nugget,polynomial_degree,inverse_distance_power):
+    if polynomial_degree!=0:
+        raise ValueError("微分熵loss的RBF解析梯度目前只支持0次多项式")
+    fallback_error,fallback_jacobian=inverse_distance_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power)
+    transform_matrix=constant_lower_triangular_matrix(parameter,dim)
+    transformed_coord_diff=np.einsum("nkd,df->nkf",coord_diff,transform_matrix)
+    target_squared_distance=np.einsum("nkd,nkd->nk",transformed_coord_diff,transformed_coord_diff)
+    zero_distance=target_squared_distance==0
+    predicted_value=target_value-fallback_error
+    jacobian=fallback_jacobian.copy()
+    has_zero_distance=np.any(zero_distance,axis=1)
+    if np.any(has_zero_distance):
+        row_ids=np.flatnonzero(has_zero_distance)
+        predicted_value[row_ids]=ref_value[row_ids,np.argmax(zero_distance[row_ids],axis=1)]
+        jacobian[row_ids]=0
+    active_ids=np.flatnonzero(~has_zero_distance)
+    ref_num=ref_value.shape[1]
+    parameter_num=parameter.size
+    for batch_begin in range(0,active_ids.size,256):
+        batch_ids=active_ids[batch_begin:batch_begin+256]
+        batch_original_coord_diff=coord_diff[batch_ids]
+        batch_coord_diff=transformed_coord_diff[batch_ids]
+        batch_target_squared_distance=target_squared_distance[batch_ids]
+        mean_squared_distance=np.mean(batch_target_squared_distance,axis=1)
+        valid_mean=np.isfinite(mean_squared_distance)&(mean_squared_distance>0)
+        if not np.any(valid_mean):
+            continue
+        solve_ids=batch_ids[valid_mean]
+        batch_original_coord_diff=batch_original_coord_diff[valid_mean]
+        batch_coord_diff=batch_coord_diff[valid_mean]
+        batch_target_squared_distance=batch_target_squared_distance[valid_mean]
+        mean_squared_distance=mean_squared_distance[valid_mean]
+        ref_relative_coord=-batch_coord_diff
+        pair_difference=ref_relative_coord[:,:,None,:]-ref_relative_coord[:,None,:,:]
+        pair_squared_distance=np.einsum("nijd,nijd->nij",pair_difference,pair_difference)
+        normalized_pair_squared_distance=pair_squared_distance/mean_squared_distance[:,None,None]
+        normalized_target_squared_distance=batch_target_squared_distance/mean_squared_distance[:,None]
+        kernel_matrix=rbf_kernel_value(normalized_pair_squared_distance,kernel,shape)
+        diagonal=np.arange(ref_num)
+        kernel_matrix[:,diagonal,diagonal]+=nugget
+        system=np.zeros((solve_ids.size,ref_num+1,ref_num+1),dtype=np.float64)
+        system[:,:ref_num,:ref_num]=kernel_matrix
+        system[:,:ref_num,ref_num]=1
+        system[:,ref_num,:ref_num]=1
+        target_feature=np.zeros((solve_ids.size,ref_num+1),dtype=np.float64)
+        target_feature[:,:ref_num]=rbf_kernel_value(normalized_target_squared_distance,kernel,shape)
+        target_feature[:,ref_num]=1
+        try:
+            solution=np.linalg.solve(system,target_feature[...,None])[...,0]
+        except np.linalg.LinAlgError:
+            solution=np.full_like(target_feature,np.nan)
+            for local_id in range(solve_ids.size):
+                try:
+                    solution[local_id]=np.linalg.solve(system[local_id],target_feature[local_id])
+                except np.linalg.LinAlgError:
+                    pass
+        valid_solution=np.all(np.isfinite(solution),axis=1)
+        if not np.any(valid_solution):
+            continue
+        solved_ids=solve_ids[valid_solution]
+        local_system=system[valid_solution]
+        local_solution=solution[valid_solution]
+        local_original_coord_diff=batch_original_coord_diff[valid_solution]
+        local_coord_diff=batch_coord_diff[valid_solution]
+        local_target_squared_distance=batch_target_squared_distance[valid_solution]
+        local_mean_squared_distance=mean_squared_distance[valid_solution]
+        local_pair_difference=pair_difference[valid_solution]
+        local_pair_squared_distance=pair_squared_distance[valid_solution]
+        local_normalized_pair_squared_distance=normalized_pair_squared_distance[valid_solution]
+        local_normalized_target_squared_distance=normalized_target_squared_distance[valid_solution]
+        right_hand_side=np.zeros((solved_ids.size,ref_num+1,parameter_num),dtype=np.float64)
+        parameter_id=0
+        for row in range(dim):
+            for col in range(row+1):
+                target_squared_distance_derivative=2*local_original_coord_diff[:,:,row]*local_coord_diff[:,:,col]
+                mean_squared_distance_derivative=np.mean(target_squared_distance_derivative,axis=1)
+                pair_original_difference=local_original_coord_diff[:,None,:,row]-local_original_coord_diff[:,:,None,row]
+                pair_squared_distance_derivative=2*pair_original_difference*local_pair_difference[:,:,:,col]
+                normalized_pair_derivative=(pair_squared_distance_derivative-local_normalized_pair_squared_distance*mean_squared_distance_derivative[:,None,None])/local_mean_squared_distance[:,None,None]
+                normalized_target_derivative=(target_squared_distance_derivative-local_normalized_target_squared_distance*mean_squared_distance_derivative[:,None])/local_mean_squared_distance[:,None]
+                system_derivative=np.zeros_like(local_system)
+                system_derivative[:,:ref_num,:ref_num]=rbf_kernel_derivative(local_normalized_pair_squared_distance,kernel,shape)*normalized_pair_derivative
+                target_derivative=np.zeros((solved_ids.size,ref_num+1),dtype=np.float64)
+                target_derivative[:,:ref_num]=rbf_kernel_derivative(local_normalized_target_squared_distance,kernel,shape)*normalized_target_derivative
+                right_hand_side[:,:,parameter_id]=target_derivative-np.einsum("nij,nj->ni",system_derivative,local_solution)
+                parameter_id+=1
+        try:
+            solution_derivative=np.linalg.solve(local_system,right_hand_side)
+        except np.linalg.LinAlgError:
+            solution_derivative=np.full_like(right_hand_side,np.nan)
+            for local_id in range(solved_ids.size):
+                try:
+                    solution_derivative[local_id]=np.linalg.solve(local_system[local_id],right_hand_side[local_id])
+                except np.linalg.LinAlgError:
+                    pass
+        batch_prediction=np.einsum("nk,nk->n",local_solution[:,:ref_num],ref_value[solved_ids])
+        batch_prediction_derivative=np.einsum("nkp,nk->np",solution_derivative[:,:ref_num,:],ref_value[solved_ids])
+        valid_prediction=np.isfinite(batch_prediction)&np.all(np.isfinite(batch_prediction_derivative),axis=1)
+        predicted_value[solved_ids[valid_prediction]]=batch_prediction[valid_prediction]
+        jacobian[solved_ids[valid_prediction]]=-batch_prediction_derivative[valid_prediction]
+    return target_value-predicted_value,jacobian
+
+def value_prediction_error(target_value,ref_value,coord_diff,parameter,dim,predictor_name,inverse_distance_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree):
+    if predictor_name=="inverse_proportion":
+        return inverse_distance_prediction_error(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power)
+    if predictor_name=="rbf_fitting":
+        return rbf_prediction_error(target_value,ref_value,coord_diff,parameter,dim,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree,inverse_distance_power)
+    raise ValueError(f"未知的数值预测器：{predictor_name}")
+
+def value_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,predictor_name,inverse_distance_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree):
+    if predictor_name=="inverse_proportion":
+        return inverse_distance_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power)
+    if predictor_name=="rbf_fitting":
+        return rbf_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree,inverse_distance_power)
+    raise ValueError(f"未知的数值预测器：{predictor_name}")
+
 def generalized_gaussian_bit_residual(normalized_error,file_group,shape):
     if not shape>0:
         raise ValueError("广义高斯分布的形状参数必须大于0")
@@ -438,6 +432,30 @@ def generalized_gaussian_bit_residual(normalized_error,file_group,shape):
         estimated_bit=-np.log2(np.clip(probability,np.finfo(np.float64).tiny,1))
         residual[group_mask]=np.sqrt(estimated_bit)
     return residual
+
+def generalized_gaussian_differential_entropy_value_gradient(prediction_error,prediction_error_jacobian,file_group,shape):
+    if not shape>0:
+        raise ValueError("广义高斯分布的形状参数必须大于0")
+    total_value=0
+    total_gradient=np.zeros(prediction_error_jacobian.shape[1],dtype=np.float64)
+    for group_id in np.unique(file_group):
+        group_mask=file_group==group_id
+        group_error=prediction_error[group_mask]
+        absolute_error=np.abs(group_error)
+        powered_error=absolute_error**shape
+        powered_error_sum=np.sum(powered_error)
+        group_num=group_error.size
+        if not powered_error_sum>np.finfo(np.float64).tiny:
+            scale=np.finfo(np.float64).eps
+            error_gradient=np.zeros(group_num,dtype=np.float64)
+        else:
+            scale=(shape*powered_error_sum/group_num)**(1/shape)
+            error_gradient=np.divide(np.sign(group_error)*absolute_error**(shape-1),np.log(2)*powered_error_sum,out=np.zeros(group_num,dtype=np.float64),where=absolute_error>0)
+        entropy=(1/shape+np.log(2*scale*scipy.special.gamma(1/shape)/shape))/np.log(2)
+        group_weight=group_num/prediction_error.size
+        total_value+=group_weight*entropy
+        total_gradient+=group_weight*(error_gradient@prediction_error_jacobian[group_mask])
+    return total_value,total_gradient
 
 def normalize_constant_matrix(transform_matrix):
     squared_frobenius_norm=np.sum(transform_matrix**2)
@@ -459,324 +477,18 @@ def positive_diagonal_factor(transform_matrix):
             transform_matrix[:,dim_id]*=-1
     return transform_matrix
 
-def positive_cholesky(transform_matrix,min_eigenvalue_ratio):
-    metric_matrix=transform_matrix@transform_matrix.T
-    eigenvalue,eigenvector=np.linalg.eigh(metric_matrix)
-    if eigenvalue[-1]<=0:
-        raise RuntimeError("坐标度量矩阵必须具有正特征值")
-    eigenvalue=np.maximum(eigenvalue,eigenvalue[-1]*min_eigenvalue_ratio)
-    metric_matrix=eigenvector@np.diag(eigenvalue)@eigenvector.T
-    metric_matrix=(metric_matrix+metric_matrix.T)/2
-    return np.linalg.cholesky(metric_matrix)
-
-def separate_transform_scale(transform_matrix,min_eigenvalue_ratio,correct_small_eigenvalues):
-    transform_matrix=positive_cholesky(transform_matrix,min_eigenvalue_ratio) if correct_small_eigenvalues else positive_diagonal_factor(transform_matrix)
+def separate_transform_scale(transform_matrix):
+    transform_matrix=positive_diagonal_factor(transform_matrix)
     scale=np.sqrt(np.sum(transform_matrix**2)/transform_matrix.shape[0])
     if not np.isfinite(scale) or scale<=0:
         raise RuntimeError("坐标变换矩阵倍率必须是有限正数")
     return transform_matrix/scale,scale
 
-def positive_normalized_cholesky(transform_matrix,min_eigenvalue_ratio):
-    metric_matrix=transform_matrix@transform_matrix.T
-    return positive_normalized_metric_cholesky(metric_matrix,min_eigenvalue_ratio)
-
-def positive_normalized_metric_cholesky(metric_matrix,min_eigenvalue_ratio):
-    eigenvalue,eigenvector=np.linalg.eigh(metric_matrix)
-    if eigenvalue[-1]<=0:
-        raise RuntimeError("坐标度量矩阵必须具有正特征值")
-    eigenvalue=np.maximum(eigenvalue,eigenvalue[-1]*min_eigenvalue_ratio)
-    metric_matrix=eigenvector@np.diag(eigenvalue)@eigenvector.T
-    return normalized_metric_cholesky(metric_matrix)
-
-def normalized_metric_cholesky(metric_matrix):
-    metric_matrix=metric_matrix.copy()
-    metric_matrix*=metric_matrix.shape[0]/np.trace(metric_matrix)
-    metric_matrix=(metric_matrix+metric_matrix.T)/2
-    return np.linalg.cholesky(metric_matrix)
-
-def collect_sample_training_data(param,full_sampled_data,file_ids,first_sample_ids,transform_matrix,second_sample_ratio,rng,time_dict,second_sample_num=0):
-    stage_start_time=time.perf_counter()
-    original_sampled_coord=param.coord_array[first_sample_ids]
-    sampled_coord=original_sampled_coord@transform_matrix
-    sampled_data=full_sampled_data[:,first_sample_ids]
-    time_dict["第一次采样、应用已知变换"]+=time.perf_counter()-stage_start_time
-
-    prediction_coord_diff=[]
-    prediction_target_value=[]
-    prediction_ref_value=[]
-    prediction_abs_eb=[]
-    prediction_file_group=[]
-    remaining_sample_num=min(sampled_data.size,second_sample_num) if second_sample_num>0 else int(np.ceil(sampled_data.size*second_sample_ratio))
-    for sampled_file_id,data in enumerate(sampled_data):
-        stage_start_time=time.perf_counter()
-        valid_ids=np.flatnonzero(~is_abnormal(data))
-        if valid_ids.size<=param.actual_ref_num:
-            raise ValueError(f"第{file_ids[sampled_file_id]}个数据文件在第一次采样后只有{valid_ids.size}个有效点，无法寻找{param.actual_ref_num}个参考点")
-        current_sample_num=min(valid_ids.size,int(np.ceil(remaining_sample_num/(len(sampled_data)-sampled_file_id))))
-        target_ids=np.sort(rng.choice(valid_ids,size=current_sample_num,replace=False))
-        remaining_sample_num-=current_sample_num
-        time_dict["有效点检查和第二次采样"]+=time.perf_counter()-stage_start_time
-
-        stage_start_time=time.perf_counter()
-        tree=scipy.spatial.cKDTree(sampled_coord[valid_ids])
-        time_dict["建树"]+=time.perf_counter()-stage_start_time
-
-        stage_start_time=time.perf_counter()
-        query_num=param.actual_ref_num+1
-        _,neighbor_tree_ids=tree.query(sampled_coord[target_ids],k=query_num)
-        neighbor_tree_ids=np.asarray(neighbor_tree_ids).reshape(-1,query_num)
-        time_dict["最近邻查询"]+=time.perf_counter()-stage_start_time
-
-        stage_start_time=time.perf_counter()
-        neighbor_ids=valid_ids[neighbor_tree_ids]
-        nonself_mask=neighbor_ids!=target_ids[:,None]
-        selected_mask=nonself_mask&(np.cumsum(nonself_mask,axis=1)<=param.actual_ref_num)
-        selected_num=np.sum(selected_mask,axis=1)
-        if np.any(selected_num!=param.actual_ref_num):
-            failed_row=np.flatnonzero(selected_num!=param.actual_ref_num)[0]
-            raise RuntimeError(f"第{file_ids[sampled_file_id]}个数据文件的目标点{target_ids[failed_row]}只找到了{selected_num[failed_row]}个非自身参考点")
-        selected_neighbor_ids=neighbor_ids[selected_mask].reshape(-1,param.actual_ref_num)
-        prediction_coord_diff.append(original_sampled_coord[target_ids,None,:]-original_sampled_coord[selected_neighbor_ids])
-        prediction_target_value.append(data[target_ids])
-        prediction_ref_value.append(data[selected_neighbor_ids])
-        prediction_abs_eb.append(np.full(target_ids.size,param.abs_eb[file_ids[sampled_file_id]]))
-        prediction_file_group.append(np.full(target_ids.size,sampled_file_id))
-        time_dict["整理点对"]+=time.perf_counter()-stage_start_time
-
-    stage_start_time=time.perf_counter()
-    prediction_coord_diff=np.concatenate(prediction_coord_diff).astype(np.float64,copy=False)
-    prediction_target_value=np.concatenate(prediction_target_value).astype(np.float64,copy=False)
-    prediction_ref_value=np.concatenate(prediction_ref_value).astype(np.float64,copy=False)
-    prediction_abs_eb=np.concatenate(prediction_abs_eb).astype(np.float64,copy=False)
-    prediction_file_group=np.concatenate(prediction_file_group).astype(np.int64,copy=False)
-    time_dict["合并点对数组"]+=time.perf_counter()-stage_start_time
-    return prediction_coord_diff,prediction_target_value,prediction_ref_value,prediction_abs_eb,prediction_file_group
-
-def combine_sample_training_data(training_data_vec,time_dict):
-    stage_start_time=time.perf_counter()
-    combined=tuple(np.concatenate([training_data[array_id] for training_data in training_data_vec],axis=0) for array_id in range(5))
-    time_dict["合并点对数组"]+=time.perf_counter()-stage_start_time
-    return combined
-
-def fit_transform_matrix_from_sample_training_data(param,training_data,transform_matrix,loss_function_name,adjust_max_nfev,optimizer_name,time_dict,generalized_gaussian_shape,inverse_distance_power,min_eigenvalue_ratio):
-    prediction_coord_diff,prediction_target_value,prediction_ref_value,prediction_abs_eb,prediction_file_group=training_data
-    pair_coord_diff=prediction_coord_diff.reshape(-1,param.dim)
-    pair_value_diff=(prediction_target_value[:,None]-prediction_ref_value).ravel()
-    pair_abs_eb=np.repeat(prediction_abs_eb,param.actual_ref_num)
-
-    def residual(parameter):
-        if loss_function_name=="fourth_power":
-            return fourth_power_loss(pair_value_diff,pair_coord_diff,parameter,param.dim)
-        if loss_function_name=="second_power":
-            return second_power_loss(pair_value_diff,pair_coord_diff,parameter,param.dim)
-        if loss_function_name=="log_distance":
-            return log_distance_loss(pair_value_diff,pair_coord_diff,pair_abs_eb,parameter,param.dim)
-        if loss_function_name=="prediction_ggd_bit":
-            prediction_error=inverse_distance_prediction_error(prediction_target_value,prediction_ref_value,prediction_coord_diff,parameter,param.dim,inverse_distance_power)
-            return generalized_gaussian_bit_residual(prediction_error/prediction_abs_eb,prediction_file_group,generalized_gaussian_shape)
-        raise ValueError(f"未知的坐标调整损失函数：{loss_function_name}")
-
-    stage_start_time=time.perf_counter()
-    initial_parameter=transform_matrix[np.tril_indices(param.dim)]
-    if optimizer_name=="gauss_newton":
-        if loss_function_name!="second_power":
-            raise ValueError("gauss_newton优化器目前只支持second_power损失")
-        result=optimize_second_power_gauss_newton(pair_value_diff,pair_coord_diff,initial_parameter,param.dim,adjust_max_nfev)
-    elif optimizer_name=="lbfgs":
-        if loss_function_name!="second_power":
-            raise ValueError("lbfgs优化器目前只支持second_power损失")
-        result=optimize_second_power_lbfgs(pair_value_diff,pair_coord_diff,initial_parameter,param.dim,adjust_max_nfev)
-    else:
-        if optimizer_name!="least_squares":
-            raise ValueError(f"未知的坐标调整优化器：{optimizer_name}")
-        if loss_function_name=="fourth_power":
-            jacobian=lambda parameter:fourth_power_loss_jacobian(pair_coord_diff,parameter,param.dim)
-        elif loss_function_name=="second_power":
-            jacobian=lambda parameter:second_power_loss_jacobian(pair_coord_diff,parameter,param.dim)
-        elif loss_function_name=="log_distance":
-            jacobian=lambda parameter:log_distance_loss_jacobian(pair_coord_diff,pair_abs_eb,parameter,param.dim)
-        else:
-            jacobian="2-point"
-        result=scipy.optimize.least_squares(residual,initial_parameter,jac=jacobian,max_nfev=adjust_max_nfev,verbose=0)
-    time_dict["优化变换矩阵"]+=time.perf_counter()-stage_start_time
-    if not np.isfinite(result.x).all() or not np.isfinite(result.fun).all():
-        raise RuntimeError("坐标变换优化失败：参数或残差中出现了非有限值")
-    fitted_transform_matrix=constant_lower_triangular_matrix(result.x,param.dim)
-    fitted_transform_matrix=positive_normalized_cholesky(fitted_transform_matrix,min_eigenvalue_ratio)
-    fitted_loss=np.mean(residual(fitted_transform_matrix[np.tril_indices(param.dim)])**2)
-    return fitted_transform_matrix,result,fitted_loss,pair_coord_diff.shape[0]
-
-def fit_sample_transform_matrix(param,full_sampled_data,file_ids,first_sample_ids,transform_matrix,loss_function_name,second_sample_ratio,adjust_max_nfev,optimizer_name,rng,time_dict,generalized_gaussian_shape,inverse_distance_power,min_eigenvalue_ratio,second_sample_num=0):
-    training_data=collect_sample_training_data(param,full_sampled_data,file_ids,first_sample_ids,transform_matrix,second_sample_ratio,rng,time_dict,second_sample_num)
-    return fit_transform_matrix_from_sample_training_data(param,training_data,transform_matrix,loss_function_name,adjust_max_nfev,optimizer_name,time_dict,generalized_gaussian_shape,inverse_distance_power,min_eigenvalue_ratio)
-
-def adjust_coord_random_hyperrectangle_regions(param,loss_function_name,iteration_num,matrix_history_path,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,first_sample_num,first_sample_region_num,spatial_only=False,fixed_point_regions=False,unified_fit=False,sample_points_within_region=False,region_inner_sample_ratio=1,sample_kd_blocks=False,pool_sample_ratio=0.25,sample_kd_neighborhoods=False,second_sample_num=0):
+def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",iteration_num=4,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.1,new_matrix_weight=0.5,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=1,optimizer_name="least_squares",matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=10000,predictor_name="inverse_proportion",inverse_distance_power=2,rbf_kernel="matern32",rbf_shape=0.01,rbf_nugget=1e-6,rbf_polynomial_degree=0): # 访问多个文件来决定公共变换矩阵，但这个矩阵只会应用到每个文件的坐标上，而不会跨时间步使用
     generalized_gaussian_shape=0.5
-    inverse_distance_power=3.6
-    min_eigenvalue_ratio=1e-16
-    rng=np.random.default_rng(0)
-    time_dict={"adjust_coord总耗时":time.perf_counter(),"读取sampled files":time.perf_counter()}
-    file_ids=select_file_ids(len(param.original_data_path_vec),sample_file_num)
-    full_sampled_data=np.asarray([np.fromfile(param.original_data_path_vec[file_id],dtype=param.data_dtype) for file_id in file_ids])
-    time_dict["读取sampled files"]=time.perf_counter()-time_dict["读取sampled files"]
-    for name in ["选择第一次采样区域","第一次采样、应用已知变换","有效点检查和第二次采样","建树","最近邻查询","整理点对","合并点对数组","优化变换矩阵","区域矩阵合并","最终变换全部坐标"]:
-        time_dict[name]=0
-    transform_matrix=np.eye(param.dim,dtype=np.float64)
-    matrix_history=[]
-    iteration_history=[]
-    loss_history=[]
-    nfev_history=[]
-    njev_history=[]
-    optimality_history=[]
-    elapsed_time_history=[]
-    pair_num_history=[]
-    first_sample_num_history=[]
-    side_ratio_history=[]
-    region_matrix_history=[]
-    region_sample_num_history=[]
-    region_bound_history=[]
-    region_anchor_id_history=[]
-    region_candidate_num_history=[]
-    global_sample_num_history=[]
-    for iteration in range(iteration_num):
-        print(f"Iteration {iteration+1}/{iteration_num}",flush=True)
-        stage_start_time=time.perf_counter()
-        if spatial_only:
-            if sample_kd_neighborhoods:
-                region_ids,region_bounds,region_anchor_ids,side_ratio,region_candidate_num,global_sample_num=select_random_sampled_kd_neighborhoods(param.coord_array,first_sample_num,first_sample_region_num,pool_sample_ratio,rng,param.min_coord,param.max_coord)
-            elif sample_kd_blocks:
-                region_ids,region_bounds,region_anchor_ids,side_ratio,region_candidate_num,global_sample_num=select_random_sampled_kd_blocks(param.coord_array,first_sample_num,first_sample_region_num,pool_sample_ratio,rng)
-            elif sample_points_within_region:
-                region_ids,region_bounds,region_anchor_ids,side_ratio,region_candidate_num=select_random_spatial_regions_then_points(param.coord_array,first_sample_num,first_sample_region_num,region_inner_sample_ratio,rng)
-                global_sample_num=sum(region_candidate_num)
-            elif fixed_point_regions:
-                region_ids,region_bounds,region_anchor_ids,side_ratio=select_random_spatial_fixed_point_regions(param.coord_array,first_sample_num,first_sample_region_num,rng)
-                region_candidate_num=np.asarray([ids.size for ids in region_ids],dtype=np.int64)
-                global_sample_num=sum(region_candidate_num)
-            else:
-                region_ids,region_bounds,region_anchor_ids,side_ratio=select_random_spatial_hyperrectangle_regions(param.coord_array,first_sample_num,first_sample_region_num,rng)
-                region_candidate_num=np.asarray([ids.size for ids in region_ids],dtype=np.int64)
-                global_sample_num=sum(region_candidate_num)
-        else:
-            region_ids,region_bounds,region_anchor_ids,side_ratio=select_random_hyperrectangle_regions(param.coord_array,param.spatial_point_num,first_sample_num,first_sample_region_num,rng)
-            region_candidate_num=np.asarray([ids.size for ids in region_ids],dtype=np.int64)
-            global_sample_num=sum(region_candidate_num)
-        time_dict["选择第一次采样区域"]+=time.perf_counter()-stage_start_time
-        local_matrix=[]
-        local_loss=[]
-        local_result=[]
-        local_pair_num=[]
-        region_training_data=[]
-        remaining_second_sample_num=second_sample_num
-        for region_id,first_sample_ids in enumerate(region_ids):
-            if first_sample_ids.size<=param.actual_ref_num:
-                raise RuntimeError(f"第{region_id}个随机区域只有{first_sample_ids.size}个点，无法寻找{param.actual_ref_num}个参考点")
-            print(f"  Region {region_id+1}/{first_sample_region_num}:block点数={region_candidate_num[region_id]},实际采样点数={first_sample_ids.size},代表点ID={region_anchor_ids[region_id]}",flush=True)
-            current_second_sample_num=0
-            if second_sample_num>0:
-                current_second_sample_num=int(np.ceil(remaining_second_sample_num/(len(region_ids)-region_id)))
-                remaining_second_sample_num-=current_second_sample_num
-            if unified_fit:
-                region_training_data.append(collect_sample_training_data(param,full_sampled_data,file_ids,first_sample_ids,transform_matrix,second_sample_ratio,rng,time_dict,current_second_sample_num))
-            else:
-                fitted_matrix,result,fitted_loss,pair_num=fit_sample_transform_matrix(param,full_sampled_data,file_ids,first_sample_ids,transform_matrix,loss_function_name,second_sample_ratio,adjust_max_nfev,optimizer_name,rng,time_dict,generalized_gaussian_shape,inverse_distance_power,min_eigenvalue_ratio,current_second_sample_num)
-                local_matrix.append(fitted_matrix)
-                local_loss.append(fitted_loss)
-                local_result.append(result)
-                local_pair_num.append(pair_num)
-                print(f"  Region {region_id+1}:loss={fitted_loss},nfev={result.nfev},matrix=\n{fitted_matrix}")
-        if unified_fit:
-            training_data=combine_sample_training_data(region_training_data,time_dict)
-            fitted_matrix,result,fitted_loss,pair_num=fit_transform_matrix_from_sample_training_data(param,training_data,transform_matrix,loss_function_name,adjust_max_nfev,optimizer_name,time_dict,generalized_gaussian_shape,inverse_distance_power,min_eigenvalue_ratio)
-            local_matrix.append(fitted_matrix)
-            local_loss.append(fitted_loss)
-            local_result.append(result)
-            local_pair_num.append(pair_num)
-            print(f"  Unified fit:loss={fitted_loss},nfev={result.nfev},matrix=\n{fitted_matrix}")
-        stage_start_time=time.perf_counter()
-        local_matrix=np.asarray(local_matrix)
-        if unified_fit:
-            if iteration==0:
-                transform_matrix=local_matrix[0]
-            else:
-                transform_matrix=(1-new_matrix_weight)*transform_matrix+new_matrix_weight*local_matrix[0]
-                transform_matrix=normalize_constant_matrix(transform_matrix)
-        else:
-            mean_metric=np.mean(local_matrix@np.swapaxes(local_matrix,-1,-2),axis=0)
-            if iteration==0:
-                transform_matrix=positive_normalized_metric_cholesky(mean_metric,min_eigenvalue_ratio)
-            else:
-                history_metric=transform_matrix@transform_matrix.T
-                transform_matrix=positive_normalized_metric_cholesky((1-new_matrix_weight)*history_metric+new_matrix_weight*mean_metric,min_eigenvalue_ratio)
-        time_dict["区域矩阵合并"]+=time.perf_counter()-stage_start_time
-        normalized_loss=float(np.mean(local_loss))
-        total_nfev=sum(result.nfev for result in local_result)
-        total_njev=sum(0 if result.njev is None else result.njev for result in local_result)
-        optimality=max(result.optimality for result in local_result)
-        total_pair_num=sum(local_pair_num)
-        total_sample_num=sum(ids.size for ids in region_ids)
-        print(f"Iteration {iteration+1}:全局预采样点数={global_sample_num},边长比例={side_ratio},实际总采样点数={total_sample_num},区域平均loss={normalized_loss},合并矩阵=\n{transform_matrix}")
-        if (iteration+1)%matrix_save_interval==0 or iteration+1==iteration_num:
-            matrix_history.append(transform_matrix.copy())
-            iteration_history.append(iteration+1)
-            loss_history.append(normalized_loss)
-            nfev_history.append(total_nfev)
-            njev_history.append(total_njev)
-            optimality_history.append(optimality)
-            elapsed_time_history.append(time.perf_counter()-time_dict["adjust_coord总耗时"])
-            pair_num_history.append(total_pair_num)
-            first_sample_num_history.append(total_sample_num)
-            side_ratio_history.append(side_ratio)
-            region_matrix_history.append(local_matrix)
-            region_sample_num_history.append([ids.size for ids in region_ids])
-            region_bound_history.append(region_bounds)
-            region_anchor_id_history.append(region_anchor_ids)
-            region_candidate_num_history.append(region_candidate_num)
-            global_sample_num_history.append(global_sample_num)
-        if matrix_history_path and ((iteration+1)%matrix_save_interval==0 or iteration+1==iteration_num):
-            history_path=Path(matrix_history_path)
-            history_path.parent.mkdir(parents=True,exist_ok=True)
-            first_sample_mode="random_sampled_kd_neighborhoods" if sample_kd_neighborhoods else "random_sampled_kd_blocks" if sample_kd_blocks else "random_spatial_regions_then_points" if sample_points_within_region else "random_spatial_fixed_point_regions" if fixed_point_regions else "random_spatial_hyperrectangle_regions" if spatial_only else "random_spatiotemporal_hyperrectangle_regions"
-            np.savez(history_path,loss_function_name=loss_function_name,optimizer_name=optimizer_name,iteration=np.asarray(iteration_history),matrix=np.asarray(matrix_history),loss=np.asarray(loss_history),nfev=np.asarray(nfev_history),njev=np.asarray(njev_history),optimality=np.asarray(optimality_history),elapsed_time=np.asarray(elapsed_time_history),pair_num=np.asarray(pair_num_history),first_sample_num=np.asarray(first_sample_num_history),side_ratio=np.asarray(side_ratio_history),region_matrix=np.asarray(region_matrix_history),region_sample_num=np.asarray(region_sample_num_history),region_candidate_num=np.asarray(region_candidate_num_history),global_sample_num=np.asarray(global_sample_num_history),region_bound=np.asarray(region_bound_history),region_anchor_id=np.asarray(region_anchor_id_history),second_sample_ratio=second_sample_ratio,second_sample_num=second_sample_num,new_matrix_weight=new_matrix_weight,adjust_max_nfev=adjust_max_nfev,sample_file_num=sample_file_num,actual_ref_num=param.actual_ref_num,inverse_distance_power=inverse_distance_power,generalized_gaussian_shape=generalized_gaussian_shape,matrix_save_interval=matrix_save_interval,first_sample_mode=first_sample_mode,first_sample_expected_num=first_sample_num,first_sample_region_num=first_sample_region_num,region_inner_sample_ratio=region_inner_sample_ratio,pool_sample_ratio=pool_sample_ratio,unified_fit=unified_fit)
-    stage_start_time=time.perf_counter()
-    param.coord_transform_parameter=transform_matrix[np.tril_indices(param.dim)]
-    param.coord_transform_matrix=transform_matrix
-    transformed_coord=param.coord_array@transform_matrix
-    time_dict["最终变换全部坐标"]=time.perf_counter()-stage_start_time
-    time_dict["adjust_coord总耗时"]=time.perf_counter()-time_dict["adjust_coord总耗时"]
-    print(f"original coord range: [{', '.join(f'[{minimum},{maximum}]' for minimum,maximum in zip(param.coord_array.min(axis=0),param.coord_array.max(axis=0)))}]")
-    print(f"transformed coord range: [{', '.join(f'[{minimum},{maximum}]' for minimum,maximum in zip(transformed_coord.min(axis=0),transformed_coord.max(axis=0)))}]")
-    print(f"transform matrix at original coord center {(param.min_coord+param.max_coord)/2}:\n{transform_matrix}")
-    print(f"metric matrix eigenvalues: {np.linalg.eigvalsh(transform_matrix@transform_matrix.T)}")
-    print("累计分段耗时：")
-    for name,value in time_dict.items():
-        if name!="adjust_coord总耗时":
-            print(f"  {name}：{value:.6f} s")
-    print(f"  adjust_coord总耗时：{time_dict['adjust_coord总耗时']:.6f} s")
-
-def adjust_coord_cross_time(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares",cross_time_first_sample_mode="grouped_ratio",cross_time_first_sample_num=0,cross_time_first_sample_region_num=8,second_sample_num=0):
-    if param.spatial_point_num<=0 or param.point_num%param.spatial_point_num!=0:
-        raise ValueError("跨时间步坐标调整要求spatial_point_num为point_num的正因数")
-    if cross_time_first_sample_mode not in ["grouped_ratio","local_fixed","local_fixed_regions","random_hyperrectangle_regions"]:
-        raise ValueError(f"未知的跨时间第一次采样模式：{cross_time_first_sample_mode}")
-    if cross_time_first_sample_mode!="grouped_ratio" and (cross_time_first_sample_num<=0 or cross_time_first_sample_region_num<=0):
-        raise ValueError("局部采样要求总采样点数和区域数为正数")
-    if cross_time_first_sample_mode=="random_hyperrectangle_regions":
-        adjust_coord_random_hyperrectangle_regions(param,loss_function_name,iteration_num,matrix_history_path,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,cross_time_first_sample_num,cross_time_first_sample_region_num,second_sample_num=second_sample_num)
-    else:
-        adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,cross_time_first_sample_mode,cross_time_first_sample_num,cross_time_first_sample_region_num,second_sample_num=second_sample_num)
-
-def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares",cross_time_first_sample_mode="grouped_ratio",cross_time_first_sample_num=0,cross_time_first_sample_region_num=8,matrix_mix_space="factor",correct_small_eigenvalues=False,matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=0): # 访问多个文件来决定公共变换矩阵，但这个矩阵只会应用到每个文件的坐标上，而不会跨时间步使用
-    generalized_gaussian_shape=0.5
-    inverse_distance_power=3.6
     random_seed=0
-    min_eigenvalue_ratio=1e-16
-    if matrix_mix_space not in ["factor","metric"]:
-        raise ValueError(f"未知的新旧矩阵混合空间：{matrix_mix_space}")
     if matrix_scale_mode not in ["discard","separate"]:
         raise ValueError(f"未知的矩阵倍率处理方式：{matrix_scale_mode}")
-    if matrix_scale_mode=="separate" and matrix_mix_space!="factor":
-        raise ValueError("分离矩阵倍率目前只支持直接混合C")
     if not 0<new_matrix_scale_weight<=1:
         raise ValueError("新矩阵倍率采纳率必须大于0且不大于1")
     time_dict={"adjust_coord总耗时":time.perf_counter()}
@@ -793,7 +505,7 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
     time_dict["整理点对"]=0
     time_dict["合并点对数组"]=0
     time_dict["优化变换矩阵"]=0
-    time_dict["正定、归一化和缓冲"]=0
+    time_dict["归一化和缓冲"]=0
     time_dict["定期变换全部坐标"]=0
     matrix_history=[]
     iteration_history=[]
@@ -811,36 +523,11 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
     transform_matrix=np.eye(param.dim,dtype=np.float64)
     transform_scale=1.0
     first_sample_num=int(np.ceil(param.point_num*first_sample_ratio))
-    if param.cross_time_compress:
-        time_step_num=param.point_num//param.spatial_point_num
-        if cross_time_first_sample_mode!="grouped_ratio":
-            first_spatial_sample_num=min(param.spatial_point_num,max(param.actual_ref_num+1,int(np.ceil(cross_time_first_sample_num/time_step_num))))
-        else:
-            first_spatial_sample_num=int(np.ceil(param.spatial_point_num*first_sample_ratio))
-        if cross_time_first_sample_mode=="local_fixed_regions":
-            fixed_local_spatial_sample_ids=select_local_spatial_ids(param.coord_array[:param.spatial_point_num,:-1].astype(np.float64,copy=False),first_spatial_sample_num,cross_time_first_sample_region_num,rng)
-    
     for iteration in range(iteration_num):
         print(f"Iteration {iteration+1}/{iteration_num}",flush=True)
         stage_start_time=time.perf_counter()
-        if param.cross_time_compress:
-            if cross_time_first_sample_mode=="local_fixed_regions":
-                first_spatial_sample_ids=fixed_local_spatial_sample_ids
-            elif cross_time_first_sample_mode=="local_fixed":
-                first_spatial_sample_ids=select_local_spatial_ids(param.coord_array[:param.spatial_point_num,:-1].astype(np.float64,copy=False),first_spatial_sample_num,cross_time_first_sample_region_num,rng)
-            else:
-                first_spatial_sample_ids=np.sort(rng.choice(param.spatial_point_num,size=first_spatial_sample_num,replace=False))
-            param.first_sample_ids=np.concatenate([time_step_id*param.spatial_point_num+first_spatial_sample_ids for time_step_id in range(time_step_num)])
-            first_sample_num=param.first_sample_ids.size
-            if first_spatial_sample_ids.size>1:
-                first_sample_spatial_tree=scipy.spatial.cKDTree(param.coord_array[first_spatial_sample_ids,:-1].astype(np.float64,copy=False))
-                first_sample_spatial_nearest_distance=float(np.median(first_sample_spatial_tree.query(param.coord_array[first_spatial_sample_ids,:-1],k=2)[0][:,1]))
-            else:
-                first_sample_spatial_nearest_distance=np.nan
-            print(f"第一次采样模式={cross_time_first_sample_mode},总点数={first_sample_num},空间点数={first_spatial_sample_ids.size},空间最近邻距离中位数={first_sample_spatial_nearest_distance}")
-        else:
-            param.first_sample_ids=np.sort(rng.choice(param.point_num,size=first_sample_num,replace=False))
-            first_sample_spatial_nearest_distance=np.nan
+        param.first_sample_ids=np.sort(rng.choice(param.point_num,size=first_sample_num,replace=False))
+        first_sample_spatial_nearest_distance=np.nan
         original_sampled_coord=param.coord_array[param.first_sample_ids]
         sampled_coord=original_sampled_coord@transform_matrix
         sampled_data=full_sampled_data[:,param.first_sample_ids]
@@ -908,14 +595,23 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
             if loss_function_name=="log_distance":
                 return log_distance_loss(pair_value_diff,pair_coord_diff,pair_abs_eb,parameter,param.dim)
             if loss_function_name=="prediction_ggd_bit":
-                prediction_error=inverse_distance_prediction_error(prediction_target_value,prediction_ref_value,prediction_coord_diff,parameter,param.dim,inverse_distance_power)
+                prediction_error=value_prediction_error(prediction_target_value,prediction_ref_value,prediction_coord_diff,parameter,param.dim,predictor_name,inverse_distance_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree)
                 return generalized_gaussian_bit_residual(prediction_error/prediction_abs_eb,prediction_file_group,generalized_gaussian_shape)
             raise ValueError(f"未知的坐标调整损失函数：{loss_function_name}")
+
+        def differential_entropy_value_gradient(parameter):
+            prediction_error,prediction_error_jacobian=value_prediction_error_jacobian(prediction_target_value,prediction_ref_value,prediction_coord_diff,parameter,param.dim,predictor_name,inverse_distance_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree)
+            return generalized_gaussian_differential_entropy_value_gradient(prediction_error,prediction_error_jacobian,prediction_file_group,generalized_gaussian_shape)
     
         stage_start_time=time.perf_counter()
         optimization_initial_matrix=transform_scale*transform_matrix if matrix_scale_mode=="separate" else transform_matrix
         initial_parameter=optimization_initial_matrix[np.tril_indices(param.dim)]
-        if optimizer_name=="gauss_newton":
+        if loss_function_name=="prediction_ggd_differential_entropy":
+            if optimizer_name!="lbfgs":
+                raise ValueError("prediction_ggd_differential_entropy损失需要使用lbfgs优化器")
+            scalar_result=scipy.optimize.minimize(differential_entropy_value_gradient,initial_parameter,jac=True,method="L-BFGS-B",options={"maxiter":adjust_max_nfev,"ftol":1e-12,"gtol":1e-8,"maxls":20})
+            result=scipy.optimize.OptimizeResult(x=scalar_result.x,fun=scalar_result.fun,nfev=scalar_result.nfev,njev=scalar_result.njev,optimality=np.max(np.abs(scalar_result.jac)))
+        elif optimizer_name=="gauss_newton":
             if loss_function_name!="second_power":
                 raise ValueError("gauss_newton优化器目前只支持second_power损失")
             result=optimize_second_power_gauss_newton(pair_value_diff,pair_coord_diff,initial_parameter,param.dim,adjust_max_nfev)
@@ -942,7 +638,7 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
         stage_start_time=time.perf_counter()
         fitted_transform_matrix=constant_lower_triangular_matrix(result.x,param.dim)
         if matrix_scale_mode=="separate":
-            fitted_transform_matrix,fitted_scale=separate_transform_scale(fitted_transform_matrix,min_eigenvalue_ratio,correct_small_eigenvalues)
+            fitted_transform_matrix,fitted_scale=separate_transform_scale(fitted_transform_matrix)
             if iteration==0:
                 transform_matrix=fitted_transform_matrix
                 transform_scale=fitted_scale
@@ -951,23 +647,22 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
                 transform_matrix=normalize_constant_matrix(transform_matrix)
                 transform_scale=np.exp((1-new_matrix_scale_weight)*np.log(transform_scale)+new_matrix_scale_weight*np.log(fitted_scale))
         else:
-            fitted_transform_matrix=positive_normalized_cholesky(fitted_transform_matrix,min_eigenvalue_ratio) if correct_small_eigenvalues else positive_diagonal_normalized_factor(fitted_transform_matrix)
+            fitted_transform_matrix=positive_diagonal_normalized_factor(fitted_transform_matrix)
             fitted_scale=1.0
             if iteration==0:
                 transform_matrix=fitted_transform_matrix
-            elif matrix_mix_space=="metric":
-                history_metric=transform_matrix@transform_matrix.T
-                fitted_metric=fitted_transform_matrix@fitted_transform_matrix.T
-                mixed_metric=(1-new_matrix_weight)*history_metric+new_matrix_weight*fitted_metric
-                transform_matrix=positive_normalized_metric_cholesky(mixed_metric,min_eigenvalue_ratio) if correct_small_eigenvalues else normalized_metric_cholesky(mixed_metric)
             else:
                 transform_matrix=(1-new_matrix_weight)*transform_matrix+new_matrix_weight*fitted_transform_matrix
                 transform_matrix=normalize_constant_matrix(transform_matrix)
-        time_dict["正定、归一化和缓冲"]+=time.perf_counter()-stage_start_time
+        time_dict["归一化和缓冲"]+=time.perf_counter()-stage_start_time
 
         loss_matrix=transform_scale*transform_matrix if matrix_scale_mode=="separate" else transform_matrix
-        normalized_loss=np.mean(residual(transform_matrix[np.tril_indices(param.dim)])**2)
-        scaled_loss=np.mean(residual(loss_matrix[np.tril_indices(param.dim)])**2)
+        if loss_function_name=="prediction_ggd_differential_entropy":
+            normalized_loss=differential_entropy_value_gradient(transform_matrix[np.tril_indices(param.dim)])[0]
+            scaled_loss=differential_entropy_value_gradient(loss_matrix[np.tril_indices(param.dim)])[0]
+        else:
+            normalized_loss=np.mean(residual(transform_matrix[np.tril_indices(param.dim)])**2)
+            scaled_loss=np.mean(residual(loss_matrix[np.tril_indices(param.dim)])**2)
         if (iteration+1)%matrix_save_interval==0 or iteration+1==iteration_num:
             matrix_history.append(transform_matrix.copy())
             iteration_history.append(iteration+1)
@@ -985,7 +680,7 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
         if matrix_history_path and ((iteration+1)%matrix_save_interval==0 or iteration+1==iteration_num):
             history_path=Path(matrix_history_path)
             history_path.parent.mkdir(parents=True,exist_ok=True)
-            np.savez(history_path,loss_function_name=loss_function_name,optimizer_name=optimizer_name,iteration=np.asarray(iteration_history),matrix=np.asarray(matrix_history),loss=np.asarray(loss_history),scaled_loss=np.asarray(scaled_loss_history),nfev=np.asarray(nfev_history),njev=np.asarray(njev_history),optimality=np.asarray(optimality_history),elapsed_time=np.asarray(elapsed_time_history),pair_num=np.asarray(pair_num_history),first_sample_num=np.asarray(first_sample_num_history),first_sample_spatial_nearest_distance=np.asarray(first_sample_spatial_nearest_distance_history),transform_scale=np.asarray(transform_scale_history),fitted_scale=np.asarray(fitted_scale_history),first_sample_ratio=first_sample_ratio,second_sample_ratio=second_sample_ratio,second_sample_num=second_sample_num,new_matrix_weight=new_matrix_weight,new_matrix_scale_weight=new_matrix_scale_weight,matrix_scale_mode=matrix_scale_mode,adjust_max_nfev=adjust_max_nfev,sample_file_num=sample_file_num,actual_ref_num=param.actual_ref_num,inverse_distance_power=inverse_distance_power,generalized_gaussian_shape=generalized_gaussian_shape,matrix_save_interval=matrix_save_interval,cross_time_first_sample_mode=cross_time_first_sample_mode,cross_time_first_sample_num=cross_time_first_sample_num,cross_time_first_sample_region_num=cross_time_first_sample_region_num,matrix_mix_space=matrix_mix_space,correct_small_eigenvalues=correct_small_eigenvalues)
+            np.savez(history_path,loss_function_name=loss_function_name,optimizer_name=optimizer_name,predictor_name=predictor_name,rbf_kernel=rbf_kernel,rbf_shape=rbf_shape,rbf_nugget=rbf_nugget,rbf_polynomial_degree=rbf_polynomial_degree,iteration=np.asarray(iteration_history),matrix=np.asarray(matrix_history),loss=np.asarray(loss_history),scaled_loss=np.asarray(scaled_loss_history),nfev=np.asarray(nfev_history),njev=np.asarray(njev_history),optimality=np.asarray(optimality_history),elapsed_time=np.asarray(elapsed_time_history),pair_num=np.asarray(pair_num_history),first_sample_num=np.asarray(first_sample_num_history),first_sample_spatial_nearest_distance=np.asarray(first_sample_spatial_nearest_distance_history),transform_scale=np.asarray(transform_scale_history),fitted_scale=np.asarray(fitted_scale_history),first_sample_ratio=first_sample_ratio,second_sample_ratio=second_sample_ratio,second_sample_num=second_sample_num,new_matrix_weight=new_matrix_weight,new_matrix_scale_weight=new_matrix_scale_weight,matrix_scale_mode=matrix_scale_mode,adjust_max_nfev=adjust_max_nfev,sample_file_num=sample_file_num,actual_ref_num=param.actual_ref_num,inverse_distance_power=inverse_distance_power,generalized_gaussian_shape=generalized_gaussian_shape,matrix_save_interval=matrix_save_interval)
         if (iteration+1)%10==0 and iteration+1<iteration_num:
             stage_start_time=time.perf_counter()
             iteration_transformed_coord=param.coord_array@transform_matrix
@@ -1006,34 +701,15 @@ def adjust_coord_no_cross_time(param,loss_function_name="fourth_power",iteration
     print(f"transformed coord range: [{', '.join(f'[{minimum},{maximum}]' for minimum,maximum in zip(transformed_coord.min(axis=0),transformed_coord.max(axis=0)))}]")
     print(f"transform matrix at original coord center {(param.min_coord+param.max_coord)/2}:\n{transform_matrix}")
     print(f"final training scale: {transform_scale}")
-    print(f"metric matrix eigenvalues: {np.linalg.eigvalsh(transform_matrix@transform_matrix.T)}")
     print("累计分段耗时：")
     for name,value in time_dict.items():
         if name!="adjust_coord总耗时":
             print(f"  {name}：{value:.6f} s")
     print(f"  adjust_coord总耗时：{time_dict['adjust_coord总耗时']:.6f} s")
 
-def adjust_coord(param,loss_function_name="fourth_power",iteration_num=100,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.25,new_matrix_weight=0.3,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=5,optimizer_name="least_squares",cross_time_first_sample_mode="grouped_ratio",cross_time_first_sample_num=0,cross_time_first_sample_region_num=8,spatial_first_sample_mode="random_points",spatial_first_sample_region_num=1,spatial_first_sample_inner_ratio=0.25,spatial_first_sample_num=0,spatial_pool_sample_ratio=0.25,matrix_mix_space="factor",correct_small_eigenvalues=False,matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=0)->None:
+def adjust_coord(param,loss_function_name="prediction_ggd_bit",iteration_num=4,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.1,new_matrix_weight=0.5,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=1,optimizer_name="least_squares",matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=10000,predictor_name="inverse_proportion",inverse_distance_power=2,rbf_kernel="matern32",rbf_shape=0.01,rbf_nugget=1e-6,rbf_polynomial_degree=0)->None:
     if param.cross_time_compress:
-        adjust_coord_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,cross_time_first_sample_mode,cross_time_first_sample_num,cross_time_first_sample_region_num,second_sample_num)
-    elif spatial_first_sample_mode=="random_hyperrectangle_regions":
-        first_sample_num=int(np.ceil(param.point_num*first_sample_ratio))
-        adjust_coord_random_hyperrectangle_regions(param,loss_function_name,iteration_num,matrix_history_path,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,first_sample_num,spatial_first_sample_region_num,True,second_sample_num=second_sample_num)
-    elif spatial_first_sample_mode=="random_fixed_point_regions":
-        first_sample_num=int(np.ceil(param.point_num*first_sample_ratio))
-        adjust_coord_random_hyperrectangle_regions(param,loss_function_name,iteration_num,matrix_history_path,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,first_sample_num,spatial_first_sample_region_num,True,True,True,second_sample_num=second_sample_num)
-    elif spatial_first_sample_mode=="random_regions_then_points":
-        first_sample_num=int(np.ceil(param.point_num*first_sample_ratio))
-        adjust_coord_random_hyperrectangle_regions(param,loss_function_name,iteration_num,matrix_history_path,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,first_sample_num,spatial_first_sample_region_num,True,True,True,True,spatial_first_sample_inner_ratio,second_sample_num=second_sample_num)
-    elif spatial_first_sample_mode=="random_sampled_kd_blocks":
-        first_sample_num=spatial_first_sample_num if spatial_first_sample_num>0 else int(np.ceil(param.point_num*first_sample_ratio))
-        adjust_coord_random_hyperrectangle_regions(param,loss_function_name,iteration_num,matrix_history_path,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,first_sample_num,spatial_first_sample_region_num,True,True,True,False,spatial_first_sample_inner_ratio,True,spatial_pool_sample_ratio,second_sample_num=second_sample_num)
-    elif spatial_first_sample_mode=="random_sampled_kd_neighborhoods":
-        first_sample_num=spatial_first_sample_num if spatial_first_sample_num>0 else int(np.ceil(param.point_num*first_sample_ratio))
-        adjust_coord_random_hyperrectangle_regions(param,loss_function_name,iteration_num,matrix_history_path,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,first_sample_num,spatial_first_sample_region_num,True,True,True,False,spatial_first_sample_inner_ratio,False,spatial_pool_sample_ratio,True,second_sample_num)
-    elif spatial_first_sample_mode=="random_points":
-        adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,matrix_mix_space=matrix_mix_space,correct_small_eigenvalues=correct_small_eigenvalues,matrix_scale_mode=matrix_scale_mode,new_matrix_scale_weight=new_matrix_scale_weight,second_sample_num=second_sample_num)
-    else:
-        raise ValueError(f"未知的空间第一次采样模式：{spatial_first_sample_mode}")
+        raise ValueError("联合时空adjust coord已弃用")
+    adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,matrix_scale_mode=matrix_scale_mode,new_matrix_scale_weight=new_matrix_scale_weight,second_sample_num=second_sample_num,predictor_name=predictor_name,inverse_distance_power=inverse_distance_power,rbf_kernel=rbf_kernel,rbf_shape=rbf_shape,rbf_nugget=rbf_nugget,rbf_polynomial_degree=rbf_polynomial_degree)
 
     

@@ -1,0 +1,6 @@
+config,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
+interpolation_spatial_residual,0.1,0.056647,34.868708,2.627233,0.218622,0.143899
+interpolation_spatial_residual,0.01,0.318109,50.920855,0.748238,0.211002,0.147295
+interpolation_spatial_residual,0.001,0.951245,68.322293,0.74426,0.21832,0.149059
+interpolation_spatial_residual,0.0001,2.34288,86.515214,0.725232,0.233842,0.158556
+interpolation_spatial_residual,1e-05,4.935062,105.882675,0.725596,0.265706,0.17947
