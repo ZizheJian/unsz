@@ -74,6 +74,15 @@ namespace unsz
         d_only_cache_refill_threshold_experimental=other.d_only_cache_refill_threshold_experimental;
         order_candidate_num_experimental=other.order_candidate_num_experimental;
         ordering_msd_ref_num_experimental=other.ordering_msd_ref_num_experimental;
+        ordering_msd_neighbor_prefetch_num_experimental=other.ordering_msd_neighbor_prefetch_num_experimental;
+        use_msd_candidate_score_geometry_reuse_experimental=other.use_msd_candidate_score_geometry_reuse_experimental;
+        use_kd_query_diagnostics_experimental=other.use_kd_query_diagnostics_experimental;
+        use_kd_leaf_valid_mask_experimental=other.use_kd_leaf_valid_mask_experimental;
+        use_kd_iterative_query_experimental=other.use_kd_iterative_query_experimental;
+        use_kd_scalar_one_reference_query_experimental=other.use_kd_scalar_one_reference_query_experimental;
+        use_rbf_ldlt_experimental=other.use_rbf_ldlt_experimental;
+        precomputed_neighbor_num_experimental=other.precomputed_neighbor_num_experimental;
+        multihead_execution_head_num_experimental=other.multihead_execution_head_num_experimental;
         time_anchor_stride_experimental=other.time_anchor_stride_experimental;
         time_anchor_first_step=other.time_anchor_first_step;
         time_anchor_last_step=other.time_anchor_last_step;
@@ -115,6 +124,8 @@ namespace unsz
         round_target_ids=other.round_target_ids;
         pred_target_ids=other.pred_target_ids;
         pred_ref_ids=other.pred_ref_ids;
+        multihead_execution_pred_ref_ids=other.multihead_execution_pred_ref_ids;
+        multihead_qb_index_by_pred_ref_id=other.multihead_qb_index_by_pred_ref_id;
         pred_ref_begin=other.pred_ref_begin;
         pred_ref_weights=other.pred_ref_weights;
         pred_ref_label_normalized_weights=other.pred_ref_label_normalized_weights;

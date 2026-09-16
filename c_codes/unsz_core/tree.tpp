@@ -131,10 +131,33 @@ namespace unsz
     }
 
     template<typename T_coord>
+    void block_tree_c<T_coord>::enable_leaf_valid_mask()
+    {
+        if(structure->leaf_point_num>64)
+            throw runtime_error("叶节点有效位图只支持不超过64个点的叶节点");
+        leaf_valid_mask.assign(structure->block_vec.size(),0);
+        for(uint32_t block_id=0;block_id<structure->block_vec.size();block_id++)
+        {
+            const auto &block=structure->block_vec[block_id];
+            if(block.left_child_id!=-1||block.right_child_id!=-1)
+                continue;
+            uint32_t point_num=block.index_end-block.index_begin;
+            uint64_t mask=0;
+            for(uint32_t point_offset=0;point_offset<point_num;point_offset++)
+                if(point_valid[block.index_begin+point_offset])
+                    mask|=(uint64_t)1<<point_offset;
+            leaf_valid_mask[block_id]=mask;
+        }
+        use_leaf_valid_mask=true;
+    }
+
+    template<typename T_coord>
     void block_tree_c<T_coord>::clear_all_valid_num()
     {
         fill(valid_num.begin(),valid_num.end(),0);
         fill(point_valid.begin(),point_valid.end(),0);
+        if(use_leaf_valid_mask)
+            fill(leaf_valid_mask.begin(),leaf_valid_mask.end(),0);
     }
 
     template<typename T_coord>
@@ -142,6 +165,16 @@ namespace unsz
     {
         int tree_id=structure->original_id_to_tree_id[original_id];
         point_valid[tree_id]=value;
+        if(use_leaf_valid_mask)
+        {
+            int block_id=structure->tree_id_to_block_vec_id[tree_id];
+            uint32_t point_offset=tree_id-structure->block_vec[block_id].index_begin;
+            uint64_t bit=(uint64_t)1<<point_offset;
+            if(value)
+                leaf_valid_mask[block_id]|=bit;
+            else
+                leaf_valid_mask[block_id]&=~bit;
+        }
     }
 
     template<typename T_coord>
@@ -150,8 +183,15 @@ namespace unsz
         if (structure->block_vec[block_id].left_child_id==-1 && structure->block_vec[block_id].right_child_id==-1)//是叶block
         {
             valid_num[block_id]=0;
+            uint64_t mask=0;
             for (uint32_t tree_id=structure->block_vec[block_id].index_begin;tree_id<structure->block_vec[block_id].index_end;tree_id++)
+            {
                 valid_num[block_id]+=point_valid[tree_id];
+                if(point_valid[tree_id])
+                    mask|=(uint64_t)1<<(tree_id-structure->block_vec[block_id].index_begin);
+            }
+            if(use_leaf_valid_mask)
+                leaf_valid_mask[block_id]=mask;
             return;
         }
         valid_num[block_id]=0;
@@ -182,6 +222,15 @@ namespace unsz
             throw runtime_error("kd-tree逐点有效状态更新越界");
         point_valid[tree_id]=new_value;
         int block_id=structure->tree_id_to_block_vec_id[tree_id];
+        if(use_leaf_valid_mask)
+        {
+            uint32_t point_offset=tree_id-structure->block_vec[block_id].index_begin;
+            uint64_t bit=(uint64_t)1<<point_offset;
+            if(new_value)
+                leaf_valid_mask[block_id]|=bit;
+            else
+                leaf_valid_mask[block_id]&=~bit;
+        }
         while (true)
         {
             valid_num[block_id]+=change_value;
@@ -193,64 +242,87 @@ namespace unsz
         }
     }
 
-    // template<typename T_coord>
-    // void block_tree_c<T_coord>::find_nearest(priority_queue<pair<T_coord,int>> &nearest_queue,int nearest_num,int block_id,
-    //     T_coord *query_coord,bool valid_only)
-    // {
-    //     if ((valid_only) && (block_vec[block_id].valid_num==0))
-    //         return;
-    //     if (block_vec[block_id].index_end==block_vec[block_id].index_begin+1)//block内有一个点，并且这个点有效，计算距离并和已有的nearest_vec比较
-    //     {
-    //         T_coord dist=get_dist_to_node(query_coord,coord_array[block_vec[block_id].index_begin]);
-    //         if (nearest_queue.size()<nearest_num)
-    //             nearest_queue.push({dist,block_vec[block_id].index_begin});
-    //         else if (dist<nearest_queue.top().first)
-    //         {
-    //             nearest_queue.pop();
-    //             nearest_queue.push({dist,block_vec[block_id].index_begin});
-    //         }
-    //     }
-    //     else//block内有多个点，比较到两个子块的距离，先访问近的子块，再访问远的子块
-    //     {
-    //         int first_child_id=block_vec[block_id].left_child_id;
-    //         int second_child_id=block_vec[block_id].right_child_id;
-    //         T_coord dist_first=numeric_limits<T_coord>::infinity(),dist_second=numeric_limits<T_coord>::infinity();
-    //         if (first_child_id!=-1)
-    //             dist_first=get_dist_to_block(query_coord,block_vec[first_child_id].min_coord.data(),block_vec[first_child_id].max_coord.data());
-    //         if (second_child_id!=-1)
-    //             dist_second=get_dist_to_block(query_coord,block_vec[second_child_id].min_coord.data(),block_vec[second_child_id].max_coord.data());
-    //         if (dist_first>dist_second)
-    //         {
-    //             swap(first_child_id,second_child_id);
-    //             swap(dist_first,dist_second);
-    //         }
-    //         if (first_child_id!=-1)
-    //             find_nearest(nearest_queue,nearest_num,first_child_id,query_coord,valid_only);
-    //         if ((second_child_id!=-1) && ((nearest_queue.size()<nearest_num) || (dist_second<nearest_queue.top().first)))
-    //             find_nearest(nearest_queue,nearest_num,second_child_id,query_coord,valid_only);
-    //     }
-    // }
-
     template<typename T_coord>
     void block_tree_c<T_coord>::find_original_nearest(nearest_queue_c<T_coord> &nearest_queue,Array2D<T_coord> &coord_array,
-        uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only)
+        uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only,nearest_query_stats_c *stats)
     {
-        if ((valid_only) && (valid_num[block_id]==0))
+        if(use_iterative_query&&block_id==0)
+        {
+            find_original_nearest_iterative(nearest_queue,coord_array,nearest_num,block_id,query_coord,valid_only,stats);
             return;
+        }
+        if(stats)
+            stats->block_visit_num++;
+        if ((valid_only) && (valid_num[block_id]==0))
+        {
+            if(stats)
+                stats->empty_block_prune_num++;
+            return;
+        }
         if (structure->block_vec[block_id].left_child_id==-1 && structure->block_vec[block_id].right_child_id==-1)
         {
-            for (uint32_t tree_id=structure->block_vec[block_id].index_begin;tree_id<structure->block_vec[block_id].index_end;tree_id++)
+            if(stats)
+                stats->leaf_visit_num++;
+            if(valid_only&&use_leaf_valid_mask)
             {
-                if (valid_only && !point_valid[tree_id])
-                    continue;
-                int original_id=structure->tree_id_to_original_id[tree_id];
-                T_coord dist=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
-                if (nearest_queue.size()<nearest_num)
-                    nearest_queue.push({dist,original_id});
-                else if (dist<nearest_queue.top().first)
+                uint32_t index_begin=structure->block_vec[block_id].index_begin;
+                uint64_t mask=leaf_valid_mask[block_id];
+                while(mask)
                 {
-                    nearest_queue.pop();
-                    nearest_queue.push({dist,original_id});
+                    uint32_t point_offset=(uint32_t)__builtin_ctzll(mask);
+                    uint32_t tree_id=index_begin+point_offset;
+                    mask&=mask-1;
+                    if(stats)
+                    {
+                        stats->point_check_num++;
+                        stats->point_distance_num++;
+                    }
+                    int original_id=structure->tree_id_to_original_id[tree_id];
+                    T_coord dist=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
+                    if(nearest_queue.size()<nearest_num)
+                    {
+                        nearest_queue.push({dist,original_id});
+                        if(stats)
+                            stats->queue_push_num++;
+                    }
+                    else if(dist<nearest_queue.top().first)
+                    {
+                        nearest_queue.pop();
+                        nearest_queue.push({dist,original_id});
+                        if(stats)
+                            stats->queue_replace_num++;
+                    }
+                }
+            }
+            else
+            {
+                for (uint32_t tree_id=structure->block_vec[block_id].index_begin;tree_id<structure->block_vec[block_id].index_end;tree_id++)
+                {
+                    if(stats)
+                        stats->point_check_num++;
+                    if (valid_only && !point_valid[tree_id])
+                    {
+                        if(stats)
+                            stats->invalid_point_skip_num++;
+                        continue;
+                    }
+                    int original_id=structure->tree_id_to_original_id[tree_id];
+                    T_coord dist=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
+                    if(stats)
+                        stats->point_distance_num++;
+                    if (nearest_queue.size()<nearest_num)
+                    {
+                        nearest_queue.push({dist,original_id});
+                        if(stats)
+                            stats->queue_push_num++;
+                    }
+                    else if (dist<nearest_queue.top().first)
+                    {
+                        nearest_queue.pop();
+                        nearest_queue.push({dist,original_id});
+                        if(stats)
+                            stats->queue_replace_num++;
+                    }
                 }
             }
         }
@@ -260,18 +332,299 @@ namespace unsz
             int second_child_id=structure->block_vec[block_id].right_child_id;
             T_coord dist_first=numeric_limits<T_coord>::infinity(),dist_second=numeric_limits<T_coord>::infinity();
             if (first_child_id!=-1)
+            {
                 dist_first=get_dist_to_block(query_coord,get_block_min_coord(first_child_id),get_block_max_coord(first_child_id),dim);
+                if(stats)
+                    stats->block_distance_num++;
+            }
             if (second_child_id!=-1)
+            {
                 dist_second=get_dist_to_block(query_coord,get_block_min_coord(second_child_id),get_block_max_coord(second_child_id),dim);
+                if(stats)
+                    stats->block_distance_num++;
+            }
             if (dist_first>dist_second)
             {
                 swap(first_child_id,second_child_id);
                 swap(dist_first,dist_second);
             }
             if (first_child_id!=-1)
-                find_original_nearest(nearest_queue,coord_array,nearest_num,first_child_id,query_coord,valid_only);
+                find_original_nearest(nearest_queue,coord_array,nearest_num,first_child_id,query_coord,valid_only,stats);
             if ((second_child_id!=-1) && ((nearest_queue.size()<nearest_num) || (dist_second<nearest_queue.top().first)))
-                find_original_nearest(nearest_queue,coord_array,nearest_num,second_child_id,query_coord,valid_only);
+                find_original_nearest(nearest_queue,coord_array,nearest_num,second_child_id,query_coord,valid_only,stats);
+            else if(second_child_id!=-1&&stats)
+                stats->far_child_prune_num++;
         }
+    }
+
+    template<typename T_coord>
+    void block_tree_c<T_coord>::find_original_nearest_iterative(nearest_queue_c<T_coord> &nearest_queue,Array2D<T_coord> &coord_array,
+        uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only,nearest_query_stats_c *stats)
+    {
+        struct stack_entry_c
+        {
+            int block_id;
+            T_coord lower_bound;
+            bool check_bound;
+        };
+        array<stack_entry_c,64> stack;
+        uint32_t stack_size=1;
+        stack[0]={block_id,0,false};
+        while(stack_size>0)
+        {
+            stack_entry_c entry=stack[--stack_size];
+            if(entry.check_bound&&nearest_queue.size()>=nearest_num&&!(entry.lower_bound<nearest_queue.top().first))
+            {
+                if(stats)
+                    stats->far_child_prune_num++;
+                continue;
+            }
+            int current_block_id=entry.block_id;
+            if(stats)
+                stats->block_visit_num++;
+            if(valid_only&&valid_num[current_block_id]==0)
+            {
+                if(stats)
+                    stats->empty_block_prune_num++;
+                continue;
+            }
+            const auto &block=structure->block_vec[current_block_id];
+            if(block.left_child_id==-1&&block.right_child_id==-1)
+            {
+                if(stats)
+                    stats->leaf_visit_num++;
+                if(valid_only&&use_leaf_valid_mask)
+                {
+                    uint64_t mask=leaf_valid_mask[current_block_id];
+                    while(mask)
+                    {
+                        uint32_t point_offset=(uint32_t)__builtin_ctzll(mask);
+                        uint32_t tree_id=block.index_begin+point_offset;
+                        mask&=mask-1;
+                        if(stats)
+                        {
+                            stats->point_check_num++;
+                            stats->point_distance_num++;
+                        }
+                        int original_id=structure->tree_id_to_original_id[tree_id];
+                        T_coord dist=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
+                        if(nearest_queue.size()<nearest_num)
+                        {
+                            nearest_queue.push({dist,original_id});
+                            if(stats)
+                                stats->queue_push_num++;
+                        }
+                        else if(dist<nearest_queue.top().first)
+                        {
+                            nearest_queue.pop();
+                            nearest_queue.push({dist,original_id});
+                            if(stats)
+                                stats->queue_replace_num++;
+                        }
+                    }
+                }
+                else
+                {
+                    for(uint32_t tree_id=block.index_begin;tree_id<block.index_end;tree_id++)
+                    {
+                        if(stats)
+                            stats->point_check_num++;
+                        if(valid_only&&!point_valid[tree_id])
+                        {
+                            if(stats)
+                                stats->invalid_point_skip_num++;
+                            continue;
+                        }
+                        int original_id=structure->tree_id_to_original_id[tree_id];
+                        T_coord dist=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
+                        if(stats)
+                            stats->point_distance_num++;
+                        if(nearest_queue.size()<nearest_num)
+                        {
+                            nearest_queue.push({dist,original_id});
+                            if(stats)
+                                stats->queue_push_num++;
+                        }
+                        else if(dist<nearest_queue.top().first)
+                        {
+                            nearest_queue.pop();
+                            nearest_queue.push({dist,original_id});
+                            if(stats)
+                                stats->queue_replace_num++;
+                        }
+                    }
+                }
+                continue;
+            }
+            int first_child_id=block.left_child_id,second_child_id=block.right_child_id;
+            T_coord dist_first=numeric_limits<T_coord>::infinity(),dist_second=numeric_limits<T_coord>::infinity();
+            if(first_child_id!=-1)
+            {
+                dist_first=get_dist_to_block(query_coord,get_block_min_coord(first_child_id),get_block_max_coord(first_child_id),dim);
+                if(stats)
+                    stats->block_distance_num++;
+            }
+            if(second_child_id!=-1)
+            {
+                dist_second=get_dist_to_block(query_coord,get_block_min_coord(second_child_id),get_block_max_coord(second_child_id),dim);
+                if(stats)
+                    stats->block_distance_num++;
+            }
+            if(dist_first>dist_second)
+            {
+                swap(first_child_id,second_child_id);
+                swap(dist_first,dist_second);
+            }
+            if(second_child_id!=-1)
+            {
+                if(stack_size>=stack.size())
+                    throw runtime_error("kd-tree迭代查询栈深度超过64");
+                stack[stack_size++]={second_child_id,dist_second,true};
+            }
+            if(first_child_id!=-1)
+            {
+                if(stack_size>=stack.size())
+                    throw runtime_error("kd-tree迭代查询栈深度超过64");
+                stack[stack_size++]={first_child_id,dist_first,false};
+            }
+        }
+    }
+
+    template<typename T_coord>
+    bool block_tree_c<T_coord>::find_original_nearest_other_iterative(T_coord *query_coord,int excluded_original_id,int block_id,T_coord &nearest_distance,int &nearest_original_id,bool valid_only,nearest_query_stats_c *stats)
+    {
+        struct stack_entry_c
+        {
+            int block_id;
+            T_coord lower_bound;
+            bool check_bound;
+        };
+        array<stack_entry_c,64> stack;
+        uint32_t stack_size=1;
+        stack[0]={block_id,0,false};
+        nearest_distance=numeric_limits<T_coord>::infinity();
+        nearest_original_id=-1;
+        while(stack_size>0)
+        {
+            stack_entry_c entry=stack[--stack_size];
+            if(entry.check_bound&&nearest_original_id>=0&&!(entry.lower_bound<nearest_distance))
+            {
+                if(stats)
+                    stats->far_child_prune_num++;
+                continue;
+            }
+            int current_block_id=entry.block_id;
+            if(stats)
+                stats->block_visit_num++;
+            if(valid_only&&valid_num[current_block_id]==0)
+            {
+                if(stats)
+                    stats->empty_block_prune_num++;
+                continue;
+            }
+            const auto&block=structure->block_vec[current_block_id];
+            if(block.left_child_id==-1&&block.right_child_id==-1)
+            {
+                if(stats)
+                    stats->leaf_visit_num++;
+                if(valid_only&&use_leaf_valid_mask)
+                {
+                    uint64_t mask=leaf_valid_mask[current_block_id];
+                    while(mask)
+                    {
+                        uint32_t point_offset=(uint32_t)__builtin_ctzll(mask);
+                        uint32_t tree_id=block.index_begin+point_offset;
+                        mask&=mask-1;
+                        if(stats)
+                            stats->point_check_num++;
+                        int original_id=structure->tree_id_to_original_id[tree_id];
+                        if(original_id==excluded_original_id)
+                            continue;
+                        T_coord distance=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
+                        if(stats)
+                            stats->point_distance_num++;
+                        if(nearest_original_id<0||distance<nearest_distance)
+                        {
+                            bool had_nearest=nearest_original_id>=0;
+                            nearest_distance=distance;
+                            nearest_original_id=original_id;
+                            if(stats)
+                            {
+                                if(had_nearest)
+                                    stats->queue_replace_num++;
+                                else
+                                    stats->queue_push_num++;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    for(uint32_t tree_id=block.index_begin;tree_id<block.index_end;tree_id++)
+                    {
+                        if(stats)
+                            stats->point_check_num++;
+                        if(valid_only&&!point_valid[tree_id])
+                        {
+                            if(stats)
+                                stats->invalid_point_skip_num++;
+                            continue;
+                        }
+                        int original_id=structure->tree_id_to_original_id[tree_id];
+                        if(original_id==excluded_original_id)
+                            continue;
+                        T_coord distance=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
+                        if(stats)
+                            stats->point_distance_num++;
+                        if(nearest_original_id<0||distance<nearest_distance)
+                        {
+                            bool had_nearest=nearest_original_id>=0;
+                            nearest_distance=distance;
+                            nearest_original_id=original_id;
+                            if(stats)
+                            {
+                                if(had_nearest)
+                                    stats->queue_replace_num++;
+                                else
+                                    stats->queue_push_num++;
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+            int first_child_id=block.left_child_id,second_child_id=block.right_child_id;
+            T_coord dist_first=numeric_limits<T_coord>::infinity(),dist_second=numeric_limits<T_coord>::infinity();
+            if(first_child_id!=-1)
+            {
+                dist_first=get_dist_to_block(query_coord,get_block_min_coord(first_child_id),get_block_max_coord(first_child_id),dim);
+                if(stats)
+                    stats->block_distance_num++;
+            }
+            if(second_child_id!=-1)
+            {
+                dist_second=get_dist_to_block(query_coord,get_block_min_coord(second_child_id),get_block_max_coord(second_child_id),dim);
+                if(stats)
+                    stats->block_distance_num++;
+            }
+            if(dist_first>dist_second)
+            {
+                swap(first_child_id,second_child_id);
+                swap(dist_first,dist_second);
+            }
+            if(second_child_id!=-1)
+            {
+                if(stack_size>=stack.size())
+                    throw runtime_error("kd-tree标量查询栈深度超过64");
+                stack[stack_size++]={second_child_id,dist_second,true};
+            }
+            if(first_child_id!=-1)
+            {
+                if(stack_size>=stack.size())
+                    throw runtime_error("kd-tree标量查询栈深度超过64");
+                stack[stack_size++]={first_child_id,dist_first,false};
+            }
+        }
+        return nearest_original_id>=0;
     }
 }

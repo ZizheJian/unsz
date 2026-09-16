@@ -41,7 +41,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    bool param_c<T_coord,T_data>::solve_linear_system(vector<vector<double>> A,vector<double> b,vector<double> &x)
+    bool param_c<T_coord,T_data>::solve_linear_system(vector<vector<double>> &A,vector<double> &b,vector<double> &x)
     {
         uint32_t n=A.size();
         if (n==0 || b.size()!=n)
@@ -76,7 +76,7 @@ namespace unsz
                 b[row]-=factor*b[col];
             }
         }
-        x=move(b);
+        x.assign(b.begin(),b.end());
         return true;
     }
 
@@ -769,6 +769,9 @@ namespace unsz
         double prediction_residual_squared_error=0,prediction_residual_absolute_error=0;
         uint64_t prediction_residual_num=0;
         bool use_single_point_set_rbf_fast_path=!two_point_sets&&point_set_codec_vec[0]==point_set_codec_e::rbf_fitting&&value_mode==time_dimension_mode_e::spatial&&!use_partition_stream_format&&!use_partition_adaptive_predictor_experimental&&!print_pointwise_oracle_statistics_experimental&&!print_round_statistics&&!print_prediction_residual_statistics&&single_huffman_group&&pred_ref_rbf_weights.size()==pred_ref_ids.size();
+        bool use_multihead_execution=!multihead_execution_pred_ref_ids.empty();
+        if(use_multihead_execution&&!use_single_point_set_rbf_fast_path)
+            throw runtime_error("多头执行要求单点集纯空间RBF快速路径");
         bool store_qb_in_original_order=qb_storage_order=="original";
         if(store_qb_in_original_order&&!use_single_point_set_rbf_fast_path)
             throw runtime_error("原始顺序qb存储目前只支持单点集纯空间RBF路径");
@@ -777,7 +780,7 @@ namespace unsz
         else if(use_single_point_set_rbf_fast_path)
         {
             vector<int32_t> &qb_vec=point_set_group_qb_vec[0][0];
-            if(store_qb_in_original_order)
+            if(store_qb_in_original_order||use_multihead_execution)
                 qb_vec.resize(point_num);
             else
                 qb_vec.reserve(point_num);
@@ -790,7 +793,9 @@ namespace unsz
                 if(!isfinite(qb_double)||qb_double<numeric_limits<int32_t>::min()||qb_double>numeric_limits<int32_t>::max())
                     throw runtime_error("量化索引超出int32_t范围，请增大误差上限");
                 int32_t qb=(int32_t)qb_double;
-                if(store_qb_in_original_order)
+                if(use_multihead_execution)
+                    qb_vec[multihead_qb_index_by_pred_ref_id[pred_ref_id]]=qb;
+                else if(store_qb_in_original_order)
                 {
                     uint32_t original_id=reorder_data_by_prediction_order_experimental?prediction_id_to_original_id[pred_id]:pred_id;
                     qb_vec[original_id]=qb;
@@ -801,12 +806,23 @@ namespace unsz
                 point_set_qb_max_vec[0]=max(point_set_qb_max_vec[0],qb);
                 current_decompressed_data[pred_id]=pred+qb*2*point_abs_eb;
             };
-            for(uint32_t pred_ref_id=0;pred_ref_id<single_point_set_rbf10_fast_begin;pred_ref_id++)
-                encode_prediction(pred_ref_id,predict_single_point_set_rbf_value(pred_ref_id,current_decompressed_data));
-            uint64_t ref_begin=pred_ref_begin[single_point_set_rbf10_fast_begin];
-            for(uint32_t pred_ref_id=single_point_set_rbf10_fast_begin;pred_ref_id<point_num;pred_ref_id++,ref_begin+=10)
+            if(use_multihead_execution)
             {
-                encode_prediction(pred_ref_id,predict_single_point_set_rbf10_value(pred_ref_id,ref_begin,current_decompressed_data));
+                for(uint32_t pred_ref_id:multihead_execution_pred_ref_ids)
+                {
+                    if(pred_ref_id<single_point_set_rbf10_fast_begin)
+                        encode_prediction(pred_ref_id,predict_single_point_set_rbf_value(pred_ref_id,current_decompressed_data));
+                    else
+                        encode_prediction(pred_ref_id,predict_single_point_set_rbf10_value(pred_ref_id,pred_ref_begin[pred_ref_id],current_decompressed_data));
+                }
+            }
+            else
+            {
+                for(uint32_t pred_ref_id=0;pred_ref_id<single_point_set_rbf10_fast_begin;pred_ref_id++)
+                    encode_prediction(pred_ref_id,predict_single_point_set_rbf_value(pred_ref_id,current_decompressed_data));
+                uint64_t ref_begin=pred_ref_begin[single_point_set_rbf10_fast_begin];
+                for(uint32_t pred_ref_id=single_point_set_rbf10_fast_begin;pred_ref_id<point_num;pred_ref_id++,ref_begin+=10)
+                    encode_prediction(pred_ref_id,predict_single_point_set_rbf10_value(pred_ref_id,ref_begin,current_decompressed_data));
             }
             point_set_qb_num_vec[0]=point_num;
             pred_ref_index=point_num;

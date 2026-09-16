@@ -400,7 +400,7 @@ namespace unsz
             A[dim][dim]+=weight;
             b[dim]+=weight*residual_vec[ref_index];
         }
-        if (!solve_linear_system(move(A),move(b),x) || !isfinite(x[dim]))
+        if (!solve_linear_system(A,b,x) || !isfinite(x[dim]))
             return false;
         prediction=(T_data)((double)idw_prediction+x[dim]);
         return isfinite(prediction);
@@ -467,7 +467,7 @@ namespace unsz
         }
         for (uint32_t d=0;d<dim;d++)
             A[d][d]+=ridge*weight_sum;
-        if (!solve_linear_system(move(A),move(b),x) || !isfinite(x[dim]))
+        if (!solve_linear_system(A,b,x) || !isfinite(x[dim]))
             return false;
         prediction=(T_data)x[dim];
         return isfinite(prediction);
@@ -480,7 +480,8 @@ namespace unsz
         if(ref_num<2)
             return false;
         weights.assign(ref_num,0);
-        vector<double> target_squared_distance(ref_num,0);
+        thread_local vector<double> target_squared_distance;
+        target_squared_distance.assign(ref_num,0);
         double mean_squared_distance=0;
         for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
         {
@@ -530,13 +531,20 @@ namespace unsz
         if(ref_num<trend_size)
             return false;
         uint32_t system_size=ref_num+trend_size;
-        vector<vector<double>> A(system_size,vector<double>(system_size,0));
-        vector<double> target_feature(system_size,0),x,trend_feature(trend_size);
+        thread_local vector<vector<double>> A;
+        if(A.size()!=system_size)
+            A.assign(system_size,vector<double>(system_size,0));
+        else
+            for(auto&row:A)
+                fill(row.begin(),row.end(),0);
+        thread_local vector<double> target_feature,x,trend_feature;
+        target_feature.assign(system_size,0);
+        trend_feature.resize(trend_size);
         double distance_scale=sqrt(mean_squared_distance);
         for(uint32_t row=0;row<ref_num;row++)
         {
             int row_ref_id=ref_ids[row];
-            for(uint32_t col=0;col<ref_num;col++)
+            for(uint32_t col=row;col<ref_num;col++)
             {
                 int col_ref_id=ref_ids[col];
                 double squared_distance=0;
@@ -545,7 +553,9 @@ namespace unsz
                     double dc=(double)coord_array[row_ref_id][d]-coord_array[col_ref_id][d];
                     squared_distance+=dc*dc;
                 }
-                A[row][col]=kernel(squared_distance/mean_squared_distance);
+                double kernel_value=kernel(squared_distance/mean_squared_distance);
+                A[row][col]=kernel_value;
+                A[col][row]=kernel_value;
             }
             A[row][row]+=rbf_nugget;
             uint32_t trend_id=0;
@@ -567,7 +577,78 @@ namespace unsz
             target_feature[row]=kernel(target_squared_distance[row]/mean_squared_distance);
         }
         target_feature[ref_num]=1;
-        if(!solve_linear_system(move(A),move(target_feature),x))
+        bool solved=false;
+        if(use_rbf_ldlt_experimental&&trend_size==1)
+        {
+            for(uint32_t row=0;row<ref_num;row++)
+            {
+                double diagonal=A[row][row];
+                for(uint32_t col=0;col<row;col++)
+                    diagonal-=A[row][col]*A[row][col]*A[col][col];
+                if(!(diagonal>1e-12)||!isfinite(diagonal))
+                    break;
+                A[row][row]=diagonal;
+                for(uint32_t next_row=row+1;next_row<ref_num;next_row++)
+                {
+                    double value=A[next_row][row];
+                    for(uint32_t col=0;col<row;col++)
+                        value-=A[next_row][col]*A[row][col]*A[col][col];
+                    A[next_row][row]=value/diagonal;
+                }
+                if(row+1==ref_num)
+                {
+                    thread_local vector<double> kernel_solution,constant_solution;
+                    kernel_solution.assign(ref_num,0);
+                    constant_solution.assign(ref_num,0);
+                    for(uint32_t current_row=0;current_row<ref_num;current_row++)
+                    {
+                        double kernel_value=target_feature[current_row],constant_value=1;
+                        for(uint32_t col=0;col<current_row;col++)
+                        {
+                            kernel_value-=A[current_row][col]*kernel_solution[col];
+                            constant_value-=A[current_row][col]*constant_solution[col];
+                        }
+                        kernel_solution[current_row]=kernel_value;
+                        constant_solution[current_row]=constant_value;
+                    }
+                    for(uint32_t current_row=0;current_row<ref_num;current_row++)
+                    {
+                        kernel_solution[current_row]/=A[current_row][current_row];
+                        constant_solution[current_row]/=A[current_row][current_row];
+                    }
+                    for(uint32_t reverse_row=ref_num;reverse_row>0;reverse_row--)
+                    {
+                        uint32_t current_row=reverse_row-1;
+                        double kernel_value=kernel_solution[current_row],constant_value=constant_solution[current_row];
+                        for(uint32_t next_row=current_row+1;next_row<ref_num;next_row++)
+                        {
+                            kernel_value-=A[next_row][current_row]*kernel_solution[next_row];
+                            constant_value-=A[next_row][current_row]*constant_solution[next_row];
+                        }
+                        kernel_solution[current_row]=kernel_value;
+                        constant_solution[current_row]=constant_value;
+                    }
+                    double kernel_sum=0,constant_sum=0;
+                    for(uint32_t col=0;col<ref_num;col++)
+                    {
+                        kernel_sum+=kernel_solution[col];
+                        constant_sum+=constant_solution[col];
+                    }
+                    if(abs(constant_sum)>=1e-12&&isfinite(constant_sum))
+                    {
+                        double lagrange_multiplier=(kernel_sum-1)/constant_sum;
+                        x.assign(system_size,0);
+                        for(uint32_t col=0;col<ref_num;col++)
+                            x[col]=kernel_solution[col]-constant_solution[col]*lagrange_multiplier;
+                        x[ref_num]=lagrange_multiplier;
+                        solved=true;
+                    }
+                }
+            }
+        }
+        if(!solved&&!(use_rbf_ldlt_experimental&&trend_size==1))
+            solved=solve_linear_system(A,target_feature,x);
+        if(!solved)
             return false;
         for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
         {

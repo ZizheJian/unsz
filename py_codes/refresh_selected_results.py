@@ -9,7 +9,10 @@ rel_eb_vec=(1e-1,1e-2,1e-3,1e-4,1e-5)
 temporal_configuration_set={"constant_extrapolation","linear_interpolation","constant_extrapolation_spatial_residual","linear_interpolation_spatial_residual"}
 
 def field_dag_cache_path(field):
-    return data_root/field["folder"]/".unsz_cache"/"benchmarks"/f"{field['key']}.dag"
+    prediction_ref_num=field.get("prediction_ref_num",field.get("ref_num"))
+    score_ref_num=field.get("ordering_score_max_ref_num",prediction_ref_num)
+    score_suffix=f".msd{score_ref_num}" if score_ref_num!=prediction_ref_num else ""
+    return data_root/field["folder"]/".unsz_cache"/"benchmarks"/f"{field['key']}{score_suffix}.dag"
 
 def select_benchmark_driver(field):
     configuration=field["config"]

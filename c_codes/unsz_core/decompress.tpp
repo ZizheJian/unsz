@@ -793,6 +793,9 @@ namespace unsz
         decompression_stage_start_time=chrono::steady_clock::now();
 
         bool use_single_point_set_rbf_fast_path=!two_point_sets&&point_set_codec_vec[0]==point_set_codec_e::rbf_fitting&&value_mode==time_dimension_mode_e::spatial&&!use_partition_stream_format&&thread_num==1&&!use_partition_adaptive_predictor_experimental&&!use_linear_previous_label&&single_huffman_group&&pred_ref_rbf_weights.size()==pred_ref_ids.size();
+        bool use_multihead_execution=!multihead_execution_pred_ref_ids.empty();
+        if(use_multihead_execution&&!use_single_point_set_rbf_fast_path)
+            throw runtime_error("多头执行要求单点集纯空间RBF快速路径");
         bool load_qb_in_original_order=qb_storage_order=="original";
         if(load_qb_in_original_order&&!use_single_point_set_rbf_fast_path)
             throw runtime_error("原始顺序qb存储目前只支持单点集纯空间RBF路径");
@@ -818,16 +821,27 @@ namespace unsz
             auto decode_prediction=[&](uint32_t pred_ref_id,T_data pred)
             {
                 uint32_t pred_id=(uint32_t)pred_target_ids[pred_ref_id];
-                uint32_t qb_id=load_qb_in_original_order?(reorder_data_by_prediction_order_experimental?prediction_id_to_original_id[pred_id]:pred_id):pred_ref_id;
+                uint32_t qb_id=use_multihead_execution?multihead_qb_index_by_pred_ref_id[pred_ref_id]:(load_qb_in_original_order?(reorder_data_by_prediction_order_experimental?prediction_id_to_original_id[pred_id]:pred_id):pred_ref_id);
                 double point_abs_eb=base_abs_eb*pred_eb_multiplier_vec[pred_ref_id];
                 current_decompressed_data[pred_id]=pred+qb_vec[qb_id]*2*point_abs_eb;
             };
-            for(uint32_t pred_ref_id=0;pred_ref_id<single_point_set_rbf10_fast_begin;pred_ref_id++)
-                decode_prediction(pred_ref_id,predict_single_point_set_rbf_value(pred_ref_id,current_decompressed_data));
-            uint64_t ref_begin=pred_ref_begin[single_point_set_rbf10_fast_begin];
-            for(uint32_t pred_ref_id=single_point_set_rbf10_fast_begin;pred_ref_id<point_num;pred_ref_id++,ref_begin+=10)
+            if(use_multihead_execution)
             {
-                decode_prediction(pred_ref_id,predict_single_point_set_rbf10_value(pred_ref_id,ref_begin,current_decompressed_data));
+                for(uint32_t pred_ref_id:multihead_execution_pred_ref_ids)
+                {
+                    if(pred_ref_id<single_point_set_rbf10_fast_begin)
+                        decode_prediction(pred_ref_id,predict_single_point_set_rbf_value(pred_ref_id,current_decompressed_data));
+                    else
+                        decode_prediction(pred_ref_id,predict_single_point_set_rbf10_value(pred_ref_id,pred_ref_begin[pred_ref_id],current_decompressed_data));
+                }
+            }
+            else
+            {
+                for(uint32_t pred_ref_id=0;pred_ref_id<single_point_set_rbf10_fast_begin;pred_ref_id++)
+                    decode_prediction(pred_ref_id,predict_single_point_set_rbf_value(pred_ref_id,current_decompressed_data));
+                uint64_t ref_begin=pred_ref_begin[single_point_set_rbf10_fast_begin];
+                for(uint32_t pred_ref_id=single_point_set_rbf10_fast_begin;pred_ref_id<point_num;pred_ref_id++,ref_begin+=10)
+                    decode_prediction(pred_ref_id,predict_single_point_set_rbf10_value(pred_ref_id,ref_begin,current_decompressed_data));
             }
             qb_index[0][0]=point_num;
             pred_ref_index=point_num;

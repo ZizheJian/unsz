@@ -1025,7 +1025,7 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
 
 单个field的总大小是该field全部`<field>.dat.<time_step>`文件的大小之和，不包含坐标、connectivity、标签以及各种格式的metadata。完整版ocean large应该有91个field和12个time step，但没有找到。ADCIRC-Haiyan-1.5km的depth和zeta因time step数不同而分成两行。
 
-下表逐field记录`t1_start_c_code.py`中的当前方案，并按照上一表中的单个field总大小递增排列；同一数据集内的field按名称字母序排列。`多点集`表示压缩时是否需要先区分多个点集；`排序规模`记录使用`global`还是`local`排序，`排序标准`记录生成顺序时实际采用的评分。通常取UMC在REL `1e-3`处的PSNR作为代表点，在现有UNSZ与UMC曲线上按PSNR直接线性插值；`CR/UMC`大于1表示UNSZ压缩率更高，`总时间/UMC`是五个REL EB上压缩与解压时间之和倍率的几何平均。Tsunami六个field使用同一组参数，16候选UNSZ曲线来自`results/tsunami_candidate_dependency_sweep`，UMC曲线来自`results/current`。Katrina与Tsunami共用空间预测和排序参数；Katrina的时间是最新REL `1e-3`完整162步运行与现有UMC REL `1e-3`结果之比，而不是五点几何平均。其余数值来自`results/current`或特别注明的定向核验，没有统一重测。TAPS没有UMC可用的connectivity，Ocean-large垂直temperature尚未tune，对应结果留空。
+下表逐field记录`t1_start_c_code.py`中的当前方案，并按照上一表中的单个field总大小递增排列；同一数据集内的field按名称字母序排列。`多点集`表示压缩时是否需要先区分多个点集；`排序规模`记录使用`global`还是`local`排序，`排序标准`记录生成顺序时实际采用的评分。通常取UMC在REL `1e-3`处的PSNR作为代表点，在现有UNSZ与UMC曲线上按PSNR直接线性插值；`CR/UMC`大于1表示UNSZ压缩率更高，`总时间/UMC`是五个REL EB上压缩与解压时间之和倍率的几何平均。Tsunami六个field使用同一组参数，16候选UNSZ曲线来自`results/tsunami_candidate_dependency_sweep`，UMC曲线来自`results/current`。Katrina只把排序MSD评分改为1点，最终DAG和RBF数值预测仍用最多10点；该行的压缩比来自`results/msd_ref_one_retest`在UMC REL `1e-3`对应PSNR的插值，UMC没有在该轮重跑。Katrina同节点相对UMC总时间尚未按新配置复测，因此留空。其余数值来自`results/current`或特别注明的定向核验，没有统一重测。TAPS没有UMC可用的connectivity，Ocean-large垂直temperature尚未tune，对应结果留空。
 
 <style>
 #field-configuration-table{display:block;width:100%;overflow:auto}
@@ -1081,7 +1081,7 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
     <tr><td>TAPS TKE</td><td>否</td><td>纯空间</td><td>是</td><td>local</td><td>MSD</td><td>—</td><td>—</td><td>—</td><td>RBF10，shape <code>0.01</code></td></tr>
     <tr><td>TAPS VELOCITY_X</td><td>否</td><td>纯空间</td><td>是</td><td>local</td><td>MSD</td><td>—</td><td>—</td><td>—</td><td>RBF10，shape <code>0.01</code></td></tr>
     <tr><td>ADCIRC-Haiyan zeta</td><td>是</td><td>纯空间</td><td>否</td><td>local</td><td>参考数据预测误差</td><td><code>68.28</code></td><td><code>2.597×</code></td><td><code>2.957×</code></td><td>RBF10，shape <code>0.01</code>；排序参考time step为<code>0/12/23</code></td></tr>
-    <tr><td>Katrina attr0</td><td>是</td><td>标签零阶外插＋数值零阶外插＋空间修正</td><td>是</td><td>global</td><td>MSD</td><td><code>78.72</code></td><td><code>2.324×</code></td><td><code>1.060×</code></td><td>RBF10，Matérn-3/2核，shape <code>0.03</code>，nugget <code>1e-6</code>，无趋势项；反向剔除；排序候选16个；排序评分最多使用10个参考点，少于10个时重新查询；连续EB底数<code>0.85</code>、shift <code>0.5</code>；RBF参考点中混有fill value时，改用最近的有效参考点；坐标矩阵使用码长loss、100000个目标、训练REL EB <code>1e-3</code>、2轮和吸收率<code>0.75</code>；不重排输入；qb按DAG顺序存储</td></tr>
+    <tr><td>Katrina attr0</td><td>是</td><td>标签零阶外插＋数值零阶外插＋空间修正</td><td>是</td><td>global</td><td>MSD</td><td><code>81.47</code></td><td><code>2.534×</code></td><td>—</td><td>RBF10，Matérn-3/2核，shape <code>0.03</code>，nugget <code>1e-6</code>，无趋势项；反向剔除；排序候选16个；排序MSD评分只用最近1个有效参考点，最终DAG与实际RBF预测仍用最多10个参考点；连续EB底数<code>0.85</code>、shift <code>0.5</code>；RBF参考点中混有fill value时，改用最近的有效参考点；坐标矩阵使用码长loss、100000个目标、训练REL EB <code>1e-3</code>、2轮和吸收率<code>0.75</code>；不重排输入；qb按DAG顺序存储</td></tr>
     <tr><td>Ocean-large temperature垂直层</td><td>是</td><td>一阶内插起始候选</td><td>否</td><td>local</td><td>MSD</td><td>—</td><td>—</td><td>—</td><td>IDW4；从<code>refBottomDepth.dat</code>读取非等距层坐标；尚未tune</td></tr>
   </tbody>
 </table>
@@ -1241,7 +1241,43 @@ Katrina几何诊断使用当前`Katrina_attr0_spatial.txt`矩阵、原始`coords
 
 全局反向排序现已复用排序候选查询生成最终参考点。Katrina当前矩阵、16排序候选和10预测参考点的一次登录节点单核诊断中，排序候选查询`417642`次，评分参考点缓存失效重查`4758744`次；最终参考点直接复用`417641`个目标的候选查询，首个正向预测目标没有参考点，额外kd-tree查询为零。排序耗时`10.548 s`，最终参考点生成耗时`0.104 s`。按原方法逐点重新查询核对全部`417642`个目标，只有4个目标的参考编号因距离并列而与旧查询不同；所有实际参考点都已在该目标之前恢复。这里接受这4处变化以简化代码，不再保留并列距离回退。这只验证了DAG几何结果和首次生成速度，不是完整162步压缩、解压或同节点UMC测速；评分参考点重查仍是主要待优化查询。
 
-该路线与UMC都利用mesh邻接，不能作为“完全不依赖connectivity”的通用方案；不同之处是这里测试两跳候选、adjust后的距离、MSD顺序和RBF10，并允许标签与数值使用既定的时间流程。可先尝试在共享已处理集合中交替推进4个空间起点，记录DAG关键路径和引用上一目标的比例，再考虑partition。多个起点不自动消除串行依赖；若partition禁止跨区引用，还可能降低BR。正式选择前需在Katrina完整time step上比较同PSNR BR、首次预处理、缓存后预处理、核心压缩与解压，并核对预测DAG是否由当前矩阵生成。旧实验DAG缓存已经从工作区和数据目录正常路径清理到数据目录trash；缓存格式目前只核对点数、维数和轮数，生成逻辑改动后不能复用旧DAG。
+该路线与UMC都利用mesh邻接，不能作为“完全不依赖connectivity”的通用方案；不同之处是这里测试两跳候选、adjust后的距离、MSD顺序和RBF10，并允许标签与数值使用既定的时间流程。两跳/三跳邻接代替kd-tree仍未实现；下文的多头实验只改变已有DAG的执行顺序，不使用connectivity，也不改变参考关系。正式选择邻接方案前仍需在Katrina完整time step上比较同PSNR BR、首次预处理、缓存后预处理、核心压缩与解压，并核对预测DAG是否由当前矩阵生成。旧实验DAG缓存已经从工作区和数据目录正常路径清理到数据目录trash；缓存格式目前只核对点数、维数和轮数，生成逻辑改动后不能复用旧DAG。
+
+### 3.6.5. 实验：预存原始近邻，排序阶段不再查询kd-tree
+
+旧DAG生成路径保持不变。设置`-precomputed-neighbor-num-experimental K`后，在开始排序前用kd-tree为每个点一次性找出距离最近的`K`个其他点，按距离保存编号、平方距离和原始近邻名次；之后释放kd-tree。排序候选与候选的MSD评分参考点都只从这份名单中挑选尚未反向剔除的点，并在访问名单时惰性删除已经剔除的点。反向剔除时，尚未剔除的点正是正向预测时已经重建的点，所以两种查询使用同一有效性标记。选中目标后，该目标本轮查到的近邻还用于生成最终预测参考点；实验路径不做动态kd-tree回退。名单内找不到候选时从剩余点重新起步；候选或参考点不足会改变DAG，必须与BR一起评估。
+
+目前只支持单线程、global反向MSD排序，不支持参考数据辅助排序、partition或cache子partition。`K`至多256，且不小于排序候选数、MSD评分参考点数和最终参考点上限。程序内部分别计时预存近邻、排序和完整首次预处理，另打印候选查询、MSD评分、重新起步与参考点不足次数。`Original-neighbor rank coverage`对实际扫描、排序候选、MSD评分和最终参考点分别统计：有多少点只需访问原始最近8/16/32/64/128个近邻；`unmet_after_K`表示保存的`K`个近邻全部用完仍未凑足本次所需有效点，不能算作“前K个已覆盖”。这些统计使用预存时的原始名次，不是过滤后的有效近邻名次。旧DAG缓存不能用于实验路径；默认缓存名带`.precomputedK.dag`，切换其他排序参数时仍应使用新缓存路径或`-no-dag-cache`。
+
+Tsunami momentum_x单帧、RBF10、16候选、1点MSD的6档REL小实验中，首次预处理3次中位数为旧动态kd-tree `1.052 s`，预存32/64/128近邻分别`0.933/1.467/2.297 s`。在`67 dB`按各自BR–PSNR曲线直接线性插值，预存32/64/128相对旧路径的BR分别变化`+7.26%/+1.80%/-0.31%`；REL `1e-3`的压缩＋解压核心时间5次中位数分别为旧路径`8.661 ms`，预存方案`9.020/8.904/8.844 ms`。因此32近邻首次DAG生成略快但压缩效果明显变差；128近邻压缩效果接近旧路径，却让首次预处理超过两倍。完整测点、各阶段计时、独立解压核对与输入/二进制hash见[`results/precomputed_neighbor_sweep`](results/precomputed_neighbor_sweep/README.md)。这只是Tsunami单帧实验，不能直接外推至Katrina。
+
+### 3.6.6. 实验：1点MSD评分近邻预取并复用候选查询
+
+Katrina的global排序在评分缓存失效时，实验路径可以一次预取16或32个仍未剔除的近邻，但仍只用最近的有效点计算1点MSD。该点以后被剔除时，若缓存里的有效近邻足够生成16个排序候选，就直接复用，否则继续查询kd-tree。相对默认路径，16和32点预取将KD查询总数从`1,501,989`次降到`827,592/615,409`次；32点方案还复用了`235,419`次候选查询。三组单文件压缩码流SHA相同，预取方案均独立解压正确，但排序耗时两次中位数由`2.698 s`增为`3.103/3.565 s`。因此查询复用可行，当前实现不加速，不设为默认；完整参数、计数及输入/二进制hash见[`results/msd_neighbor_prefetch`](results/msd_neighbor_prefetch/README.md)。
+
+### 3.6.7. 实验：从排序候选点直接确定MSD参考点
+
+另一条实验路径不扩大缓存，而是复用排序候选查询得到的点及距离。对1点MSD，若这组候选的几何关系足以确定某候选的最近有效参考点，就直接计算评分；无法确定时仍用kd-tree查询。Katrina和Tsunami momentum_x单文件的评分KD查询分别从`1,084,347/294,981`次降至`330,802/98,967`次，排序耗时两次测量约从`2.66～2.69/0.45～0.46 s`降至`2.08～2.12/0.37 s`。两组码流与旧路径逐字节相同，独立解压正确。开关为`-msd-candidate-score-geometry-reuse-experimental`，默认关闭；几何判据、适用范围和计时见[`results/msd_neighbor_prefetch`](results/msd_neighbor_prefetch/README.md)。
+
+global反向1点MSD中，目标查询和评分查询使用相同的有效点集合，因而现在共用一份kd-tree有效性状态，不再为每个被剔除点更新两份状态。Katrina和Tsunami momentum_x的排序耗时只再降低约`0.7%～1.3%`，码流不变；这说明状态维护不是当前主要热点。其他排序方式的两份状态可能不同，继续分别维护。
+
+`-kd-query-diagnostics-experimental`可以分别统计排序候选和MSD评分查询的树节点、包围盒、叶内点、失效点及队列工作量。Katrina的16候选查询平均检查约`332`个叶内点并跳过其中约`211`个失效点；Tsunami momentum_x分别约为`201/132`个。leaf size从32改为8、16、64或128都使Katrina排序变慢，因此当前继续使用32。详细计数和扫描见[`results/msd_neighbor_prefetch`](results/msd_neighbor_prefetch/README.md)。
+
+`-kd-leaf-valid-mask-experimental`进一步为每个叶节点维护有效位图，按原tree id顺序直接枚举有效点。Katrina和Tsunami momentum_x的排序耗时三次中位数分别降低约`10.8%/10.9%`，完整首次预处理降低约`6.7%/4.7%`；码流SHA与原路径完全相同，独立解压正确。当前global反向1点MSD只使用一套有效状态，因此只维护一份位图。该开关默认关闭，其他排序方式尚未验证。
+
+`-kd-iterative-query-experimental`使用64项固定数组栈迭代遍历根kd-tree，保持原来的近子树优先顺序和动态剪枝条件。在上述叶节点位图基础上，Katrina和Tsunami momentum_x的排序耗时三次中位数继续降低约`2.7%/2.1%`，但完整首次预处理只降低约`0.6%/0.7%`。两组查询工作量计数、BR、PSNR和码流SHA均与递归版相同，独立解压正确；开关默认关闭。
+
+`-kd-scalar-one-reference-query-experimental`把1点MSD缓存未命中时的通用两点查询改成标量最近邻查询：查询时直接排除目标自身，只维护一个最近参考点，不再维护近邻队列。正反运行顺序各三轮时，Katrina和Tsunami momentum_x的评分查询抽样耗时中位数分别降低约`5.1%/9.3%`，但Katrina完整排序仅从`1.9958 s`变为`1.9953 s`，Tsunami从`0.3495 s`降至`0.3441 s`。两组码流SHA不变并独立解压正确。该开关默认关闭，也不写入`t1`冻结配置；Katrina的主要排序开销显然不在这段队列操作中。
+
+`-rbf-ldlt-experimental`针对当前没有线性或二次趋势项的RBF预测器，不再直接消元求解带常数约束的增广系统，而是对正定核矩阵做LDLT分解，再用Schur补满足“权重和为1”的约束。正反运行顺序各三轮的测试中，Katrina和Tsunami momentum_x的RBF权重生成时间中位数分别由`1.3145/0.3458 s`降至`1.2266/0.3275 s`，缩短约`6.7%/5.3%`；完整首次预处理中位数分别缩短约`2.0%/3.1%`。两组BR、PSNR和压缩文件SHA均不变，并通过不加载DAG缓存的独立解压。该开关默认关闭；带一阶或二阶趋势项时仍使用通用求解器。Tsunami六个field和Katrina的`t1`配置已启用该开关。
+
+### 3.6.8. 实验：串行多头执行已有DAG
+
+`-multihead-execution-head-num-experimental N`不重新生成DAG，也不启用多线程。它把已有DAG的目标按空间位置等量分给`N`个头，在满足全部参考依赖的前提下轮流执行各头，并让每个头产生的qb连续存放。该方案允许跨头引用；目的只是拉开直接相邻的读后写依赖，同时尽量保留每条空间路径的qb连续性。
+
+Tsunami当前1点MSD DAG中，原顺序有`84.064%`的目标使用紧邻的上一个目标作为参考点。momentum_x扫描显示，2头把该比例降至`28.971%`，核心压缩＋解压缩短`16.746%`，BR增加`0.175%`；4/8/16头虽然继续减少相邻依赖，总时间却分别变化`-3.759%/+14.150%/+40.528%`。六个field使用2头时核心总时间均缩短`16.962%～19.958%`，同一DAG下PSNR不变，BR增加`0～0.943%`。因此2头确实消除了1点MSD原先约20%的核心减速，但当前每个进程重新生成多头执行顺序会增加约`12.6 ms`缓存后预处理，对单帧Tsunami还不划算。该开关保持实验状态，不写入`t1`；先缓存并跨field复用执行顺序，再测完整BR–PSNR和端到端时间。完整数据见[`results/multihead_path`](results/multihead_path/README.md)。
+
+在两头基础上把排序候选从16减少到4或8没有效果：两种DAG都是覆盖全部点的完整依赖链，两头后相邻依赖仍为`100%`，momentum_x核心总时间分别比16候选增加约`15.9%/9.6%`。12候选是当前可用下界，两头后相邻依赖为`32.964%`，核心总时间只比16候选增加约`0.3%`；首次完整预处理中位数则从`0.748 s`降到`0.683 s`。六个field在代表PSNR处的同PSNR BR平均增加约`0.147%`，但两个velocity在低PSNR端明显变差。因此效果优先配置继续使用16候选，12候选仅保留为首次预处理速度优先方案。
 
 ## 3.7. 参考数据辅助排序
 
@@ -1251,7 +1287,7 @@ Katrina几何诊断使用当前`Katrina_attr0_spatial.txt`矩阵、原始`coords
 
 | Field | 参考文件 | 当前用途 |
 |---|---|---|
-| Katrina attr0 | time step `40/80/120` | 为10点RBF数值预测生成公共顺序；标签使用上一时刻预测 |
+| Katrina attr0（历史实验） | time step `40/80/120` | 曾用于生成RBF参考数据辅助顺序；当前选定方案改用1点MSD评分排序，实际数值预测仍使用RBF10 |
 | ADCIRC-Haiyan zeta | time step `0/12/23` | 为10点RBF空间预测生成公共顺序 |
 | Ocean部分历史空间实验 | 3个等间隔time step | 验证该排序能显著改善部分field；当前最终方案多已改用时间预测 |
 
@@ -1272,7 +1308,7 @@ Katrina几何诊断使用当前`Katrina_attr0_spatial.txt`矩阵、原始`coords
 | E3SM-h4 Mass_dst_srf | 一阶内插 | 空间残差补偿没有收益 |
 | E3SM-h4 AODDUST | 数值零阶外插＋标签空间预测 | 上一时刻标签预测会增加BR |
 | ADCIRC-Haiyan zeta | 纯空间 | 两种纯时间方案同时增加BR并降低PSNR |
-| Katrina attr0 | 数值纯空间＋标签上一时刻预测 | 收益主要来自标签时间相关性，不称为联合时空压缩 |
+| Katrina attr0 | 标签零阶外插＋数值零阶外插＋空间修正 | 标签与数值使用相同的time step顺序；数值在时间预测后再进行空间残差预测，不称为联合时空压缩 |
 
 联合时空压缩仍保留实现，但现有Tpost20、Ocean velocityZonal和Katrina实验均未超过当前时间方案或空间数值＋时间标签组合。后续仍需测试两个尚未完成的方向：一阶内插中让最后一个文件由第一个文件作零阶外插预测，以及“空间预测＋时间补偿”。非等距time step坐标已经接入，Ocean-large垂直temperature将作为首个使用该接口的调优对象。
 

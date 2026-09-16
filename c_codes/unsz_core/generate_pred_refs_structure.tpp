@@ -6,6 +6,11 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::generate_pred_refs_structure()
     {
+        if(precomputed_neighbor_num_experimental>0)
+        {
+            generate_precomputed_neighbor_pred_refs_structure();
+            return;
+        }
         if (use_global_order_before_round_split_experimental && (partition_size_experimental>0 || partition_num_experimental>0))
             throw runtime_error("全局排序后分轮实验目前不能和partition同时使用");
         if(cache_subpartition_num_experimental>0 && (partition_size_experimental>0 || partition_num_experimental>0))
@@ -29,6 +34,15 @@ namespace unsz
             throw runtime_error("实验性预测顺序不能同时启用多个");
         bool use_reverse_d_only=use_reverse_mean_distance_only_order_experimental || use_reverse_reference_reuse_order_experimental || use_reference_data_order;
         uint32_t ordering_msd_ref_num=ordering_msd_ref_num_experimental>0?ordering_msd_ref_num_experimental:max_ref_num;
+        bool use_msd_neighbor_prefetch=ordering_msd_neighbor_prefetch_num_experimental>0;
+        bool use_candidate_score_geometry_reuse=use_msd_candidate_score_geometry_reuse_experimental;
+        uint32_t candidate_limit=order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num;
+        if(use_candidate_score_geometry_reuse&&(!use_global_order_before_round_split_experimental||!use_reverse_mean_distance_only_order_experimental||ordering_msd_ref_num!=1||d_only_cache_refill_threshold_experimental!=1||candidate_limit<max_ref_num||candidate_limit<2||precomputed_neighbor_num_experimental>0))
+            throw runtime_error("MSD候选几何评分复用只支持global反向1点MSD、缓存阈值1和至少2个排序候选");
+        if(use_msd_neighbor_prefetch&&(!use_global_order_before_round_split_experimental||!use_reverse_mean_distance_only_order_experimental||ordering_msd_ref_num!=1||d_only_cache_refill_threshold_experimental!=1||precomputed_neighbor_num_experimental>0||ordering_msd_neighbor_prefetch_num_experimental<candidate_limit||ordering_msd_neighbor_prefetch_num_experimental>64))
+            throw runtime_error("MSD近邻预取实验只支持global反向1点MSD与缓存阈值1，预取数量须覆盖排序候选且不超过64");
+        if(use_kd_scalar_one_reference_query_experimental&&(!use_global_order_before_round_split_experimental||!use_reverse_mean_distance_only_order_experimental||ordering_msd_ref_num!=1||d_only_cache_refill_threshold_experimental!=1||use_msd_neighbor_prefetch||!use_kd_iterative_query_experimental))
+            throw runtime_error("标量1点参考查询只支持使用迭代kd-tree的global反向1点MSD，且不能同时预取评分近邻");
         if (order_candidate_num_experimental>0 && !use_reverse_d_only)
             throw runtime_error("D-only排序候选数实验只能和反向D-only顺序一起使用");
         if(use_reverse_d_only&&d_only_cache_refill_threshold_experimental>ordering_msd_ref_num)
@@ -77,6 +91,9 @@ namespace unsz
         printf("Building kd-tree\n");
         auto start_time=chrono::steady_clock::now();
         block_tree_c<T_coord> tree(coord_array,min_coord,max_coord,kd_tree_leaf_size);
+        if(use_kd_leaf_valid_mask_experimental)
+            tree.enable_leaf_valid_mask();
+        tree.use_iterative_query=use_kd_iterative_query_experimental;
         auto tree_end_time=chrono::steady_clock::now();
         printf("KD-tree blocks: %llu, time: %f s\n",(unsigned long long)tree.get_block_num(),chrono::duration<double>(tree_end_time-start_time).count());
 
@@ -126,11 +143,22 @@ namespace unsz
 
         auto sorting_start_time=chrono::steady_clock::now();
         printf("Sorting targets in each round\n");
-        unique_ptr<block_tree_c<T_coord>> reference_tree;
+        unique_ptr<block_tree_c<T_coord>> reference_tree_storage;
+        block_tree_c<T_coord>*reference_tree=nullptr;
+        bool share_global_msd_validity_tree=use_global_order_before_round_split_experimental&&use_reverse_mean_distance_only_order_experimental&&ordering_msd_ref_num==1;
         bool use_reverse_geometry_score=use_reverse_distribution_order_experimental || use_reverse_mean_distance_only_order_experimental || use_reverse_s2_only_order_experimental || use_reverse_direction_only_order_experimental || use_reverse_direction_order_experimental || use_reverse_direction_distribution_order_experimental;
         if (use_reverse_predictability_order_experimental || use_reverse_geometry_score || use_reverse_d_only)
         {
-            reference_tree=make_unique<block_tree_c<T_coord>>(tree);
+            if(share_global_msd_validity_tree)
+            {
+                reference_tree=&tree;
+                printf("Global 1-point MSD: target and scoring queries share one kd-tree validity state\n");
+            }
+            else
+            {
+                reference_tree_storage=make_unique<block_tree_c<T_coord>>(tree);
+                reference_tree=reference_tree_storage.get();
+            }
             if (use_reverse_distribution_order_experimental)
                 printf("Using reverse distance-distribution elimination with %u local candidates and references\n",max_ref_num);
             else if (use_reverse_mean_distance_only_order_experimental)
@@ -149,15 +177,20 @@ namespace unsz
                 printf("Using reverse direction-concentration and distribution elimination with %u local candidates and references\n",max_ref_num);
             else
                 printf("Using reverse predictability elimination with %u local candidates\n",max_ref_num);
-            uint32_t reverse_ref_query_num=min<uint64_t>((uint64_t)(use_reverse_d_only?ordering_msd_ref_num:max_ref_num)+1,point_num);
+            uint32_t reverse_ref_query_num=min<uint64_t>((uint64_t)(use_msd_neighbor_prefetch?ordering_msd_neighbor_prefetch_num_experimental:(use_reverse_d_only?ordering_msd_ref_num:max_ref_num))+1,point_num);
             vector<double> d_only_cached_score;
             vector<double> d_only_cached_reference_data_error;
             vector<uint32_t> d_only_cached_ref_num;
+            vector<uint8_t> d_only_cache_first_valid_index;
             vector<uint8_t> d_only_cache_initialized;
             vector<uint8_t> reference_valid;
             vector<int> d_only_cached_ref_ids;
             vector<double> d_only_cached_ref_weight;
             uint64_t d_only_cache_hit_num=0,d_only_cache_reduced_ref_hit_num=0,d_only_cache_miss_num=0;
+            uint64_t candidate_kd_query_num=0,candidate_cache_reuse_num=0;
+            uint64_t score_candidate_geometry_certified_num=0,score_candidate_geometry_checked_num=0;
+            uint64_t candidate_kd_sample_ns=0,candidate_kd_sample_num=0,score_kd_sample_ns=0,score_kd_sample_num=0;
+            nearest_query_stats_c candidate_kd_stats,score_kd_stats;
             vector<int> previous_route_ref_ids;
             uint64_t selected_reference_overlap_sum=0,selected_reference_overlap_num=0;
             uint64_t reference_score_evaluation_num=0;
@@ -169,6 +202,8 @@ namespace unsz
                 if (use_reference_data_order)
                     d_only_cached_reference_data_error.resize(point_num);
                 d_only_cached_ref_num.resize(point_num);
+                if(use_msd_neighbor_prefetch)
+                    d_only_cache_first_valid_index.assign(point_num,0);
                 d_only_cache_initialized.assign(point_num,0);
                 reference_valid.assign(point_num,1);
                 d_only_cached_ref_ids.resize((uint64_t)point_num*reverse_ref_query_num);
@@ -194,23 +229,74 @@ namespace unsz
                 int previous_removed_id=-1;
                 nearest_queue_c<T_coord> nearest_queue;
                 nearest_queue_c<T_coord> d_only_ref_queue;
+                vector<pair<T_coord,int>> fetched_ref_buffer;
+                if(use_msd_neighbor_prefetch)
+                    fetched_ref_buffer.reserve(reverse_ref_query_num);
+                vector<pair<T_coord,int>> candidate_group;
+                if(use_candidate_score_geometry_reuse)
+                    candidate_group.reserve(candidate_limit);
                 while (removed_target_ids.size()<target_ids.size())
                 {
                     uint32_t order_candidate_num=order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num;
                     uint32_t candidate_num=min<uint32_t>(order_candidate_num,target_ids.size()-removed_target_ids.size());
-                    tree.find_original_nearest(nearest_queue,coord_array,candidate_num,0,query_coord,true);
+                    bool reused_candidate_cache=false;
+                    if(use_msd_neighbor_prefetch&&previous_removed_id>=0&&d_only_cache_initialized[previous_removed_id])
+                    {
+                        uint64_t cache_begin=(uint64_t)previous_removed_id*reverse_ref_query_num;
+                        uint32_t cached_num=d_only_cached_ref_num[previous_removed_id],valid_num=0;
+                        uint32_t first_index=d_only_cache_first_valid_index[previous_removed_id];
+                        for(uint32_t ref_index=first_index;ref_index<cached_num&&valid_num<candidate_num;ref_index++)
+                        {
+                            int ref_id=d_only_cached_ref_ids[cache_begin+ref_index];
+                            if(!reference_valid[ref_id])
+                                continue;
+                            T_coord squared_dist=get_dist_to_coord(query_coord,coord_array[ref_id],dim);
+                            nearest_queue.push({squared_dist,ref_id});
+                            valid_num++;
+                        }
+                        reused_candidate_cache=valid_num==candidate_num;
+                        if(!reused_candidate_cache)
+                            while(!nearest_queue.empty())
+                                nearest_queue.pop();
+                    }
+                    if(reused_candidate_cache)
+                        candidate_cache_reuse_num++;
+                    else
+                    {
+                        nearest_query_stats_c *candidate_stats=use_kd_query_diagnostics_experimental?&candidate_kd_stats:nullptr;
+                        if(candidate_stats)
+                            candidate_stats->query_num++;
+                        if((candidate_kd_query_num&255)==0)
+                        {
+                            auto query_start=chrono::steady_clock::now();
+                            tree.find_original_nearest(nearest_queue,coord_array,candidate_num,0,query_coord,true,candidate_stats);
+                            candidate_kd_sample_ns+=chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now()-query_start).count();
+                            candidate_kd_sample_num++;
+                        }
+                        else
+                            tree.find_original_nearest(nearest_queue,coord_array,candidate_num,0,query_coord,true,candidate_stats);
+                        candidate_kd_query_num++;
+                    }
                     if (nearest_queue.empty())
                         throw runtime_error("无法找到尚未剔除的预测目标");
                     if(reuse_global_order_candidate_refs&&previous_removed_id>=0)
                     {
                         nearest_queue_c<T_coord> ref_queue=nearest_queue;
+                        if(use_candidate_score_geometry_reuse)
+                            candidate_group.clear();
                         uint32_t keep_num=min<uint32_t>(max_ref_num,ref_queue.size());
                         uint64_t ref_begin=order_candidate_ref_ids.size();
                         order_candidate_ref_ids.resize(ref_begin+keep_num);
                         while(ref_queue.size()>keep_num)
+                        {
+                            if(use_candidate_score_geometry_reuse)
+                                candidate_group.push_back(ref_queue.top());
                             ref_queue.pop();
+                        }
                         for(uint32_t ref_index=keep_num;ref_index>0;ref_index--)
                         {
+                            if(use_candidate_score_geometry_reuse)
+                                candidate_group.push_back(ref_queue.top());
                             order_candidate_ref_ids[ref_begin+ref_index-1]=ref_queue.top().second;
                             ref_queue.pop();
                         }
@@ -246,65 +332,172 @@ namespace unsz
                             uint64_t cache_begin=(uint64_t)candidate_id*reverse_ref_query_num;
                             uint32_t cached_ref_num=d_only_cached_ref_num[candidate_id],valid_cached_ref_num=0;
                             bool cache_was_initialized=d_only_cache_initialized[candidate_id];
+                            bool reference_list_unchanged=false;
                             if (cache_was_initialized)
-                                for (uint32_t ref_index=0;ref_index<cached_ref_num;ref_index++)
+                            {
+                                if(use_msd_neighbor_prefetch)
                                 {
-                                    int cached_ref_id=d_only_cached_ref_ids[cache_begin+ref_index];
-                                    if (reference_valid[cached_ref_id])
-                                    {
-                                        d_only_cached_ref_ids[cache_begin+valid_cached_ref_num]=cached_ref_id;
-                                        if (use_reference_data_order)
-                                            d_only_cached_ref_weight[cache_begin+valid_cached_ref_num]=d_only_cached_ref_weight[cache_begin+ref_index];
-                                        valid_cached_ref_num++;
-                                    }
+                                    uint32_t previous_first_index=d_only_cache_first_valid_index[candidate_id],first_index=previous_first_index;
+                                    while(first_index<cached_ref_num&&!reference_valid[d_only_cached_ref_ids[cache_begin+first_index]])
+                                        first_index++;
+                                    d_only_cache_first_valid_index[candidate_id]=(uint8_t)first_index;
+                                    valid_cached_ref_num=first_index<cached_ref_num?1:0;
+                                    reference_list_unchanged=first_index==previous_first_index;
                                 }
-                            bool reference_list_unchanged=cache_was_initialized&&valid_cached_ref_num==cached_ref_num;
+                                else
+                                {
+                                    for(uint32_t ref_index=0;ref_index<cached_ref_num;ref_index++)
+                                    {
+                                        int cached_ref_id=d_only_cached_ref_ids[cache_begin+ref_index];
+                                        if (reference_valid[cached_ref_id])
+                                        {
+                                            d_only_cached_ref_ids[cache_begin+valid_cached_ref_num]=cached_ref_id;
+                                            if (use_reference_data_order)
+                                                d_only_cached_ref_weight[cache_begin+valid_cached_ref_num]=d_only_cached_ref_weight[cache_begin+ref_index];
+                                            valid_cached_ref_num++;
+                                        }
+                                    }
+                                    reference_list_unchanged=valid_cached_ref_num==cached_ref_num;
+                                }
+                            }
                             uint32_t required_cached_ref_num=d_only_cache_refill_threshold_experimental>0?min(d_only_cache_refill_threshold_experimental,cached_ref_num):cached_ref_num;
                             bool cache_valid=d_only_cache_initialized[candidate_id] && cached_ref_num>0 && valid_cached_ref_num>=required_cached_ref_num;
                             double mean_target_ref_squared_dist;
                             if (cache_valid)
                             {
-                                if (valid_cached_ref_num==cached_ref_num)
+                                if (reference_list_unchanged)
                                     mean_target_ref_squared_dist=d_only_cached_score[candidate_id];
                                 else
                                 {
                                     double target_ref_squared_dist_sum=0;
-                                    for (uint32_t ref_index=0;ref_index<valid_cached_ref_num;ref_index++)
-                                        target_ref_squared_dist_sum+=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[d_only_cached_ref_ids[cache_begin+ref_index]],dim);
-                                    mean_target_ref_squared_dist=target_ref_squared_dist_sum/valid_cached_ref_num;
+                                    if(use_msd_neighbor_prefetch)
+                                        mean_target_ref_squared_dist=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[d_only_cached_ref_ids[cache_begin+d_only_cache_first_valid_index[candidate_id]]],dim);
+                                    else
+                                    {
+                                        for(uint32_t ref_index=0;ref_index<valid_cached_ref_num;ref_index++)
+                                            target_ref_squared_dist_sum+=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[d_only_cached_ref_ids[cache_begin+ref_index]],dim);
+                                        mean_target_ref_squared_dist=target_ref_squared_dist_sum/valid_cached_ref_num;
+                                    }
                                     d_only_cached_score[candidate_id]=mean_target_ref_squared_dist;
-                                    d_only_cached_ref_num[candidate_id]=valid_cached_ref_num;
+                                    if(!use_msd_neighbor_prefetch)
+                                        d_only_cached_ref_num[candidate_id]=valid_cached_ref_num;
                                     d_only_cache_reduced_ref_hit_num++;
                                 }
                                 d_only_cache_hit_num++;
                             }
                             else
                             {
-                                reference_tree->find_original_nearest(d_only_ref_queue,coord_array,reverse_ref_query_num,0,coord_array[candidate_id],true);
-                                double target_ref_squared_dist_sum=0;
-                                uint32_t ref_num=0;
-                                while (!d_only_ref_queue.empty())
+                                bool certified_nearest=false;
+                                int certified_ref_id=-1;
+                                double certified_squared_dist=numeric_limits<double>::infinity();
+                                if(use_candidate_score_geometry_reuse&&candidate_group.size()>1)
                                 {
-                                    int ref_id=d_only_ref_queue.top().second;
-                                    T_coord squared_dist=d_only_ref_queue.top().first;
-                                    d_only_ref_queue.pop();
-                                    if (ref_id!=candidate_id)
+                                    score_candidate_geometry_checked_num++;
+                                    double radius=sqrt((double)candidate_group.front().first),route_radius=sqrt((double)route_dist);
+                                    double margin=(radius-route_radius)*0.999;
+                                    if(candidate_group.size()==target_ids.size()-removed_target_ids.size())
+                                        margin=numeric_limits<double>::infinity();
+                                    if(margin>0)
                                     {
-                                        target_ref_squared_dist_sum+=(double)squared_dist;
-                                        d_only_cached_ref_ids[cache_begin+ref_num]=ref_id;
-                                        if (use_reference_data_order)
+                                        for(const auto&peer:candidate_group)
                                         {
-                                            d_only_cached_ref_weight[cache_begin+ref_num]=squared_dist==0?numeric_limits<double>::infinity():pow((double)squared_dist,-inverse_distance_power/2);
-                                            reference_weight_calculation_num++;
+                                            if(peer.second==candidate_id)
+                                                continue;
+                                            double squared_dist=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[peer.second],dim);
+                                            if(squared_dist<certified_squared_dist)
+                                            {
+                                                certified_squared_dist=squared_dist;
+                                                certified_ref_id=peer.second;
+                                            }
                                         }
-                                        ref_num++;
+                                        certified_nearest=certified_ref_id>=0&&certified_squared_dist<margin*margin;
                                     }
                                 }
-                                mean_target_ref_squared_dist=ref_num>0?target_ref_squared_dist_sum/ref_num:numeric_limits<double>::infinity();
-                                d_only_cached_score[candidate_id]=mean_target_ref_squared_dist;
-                                d_only_cached_ref_num[candidate_id]=ref_num;
-                                d_only_cache_initialized[candidate_id]=1;
-                                d_only_cache_miss_num++;
+                                if(certified_nearest)
+                                {
+                                    mean_target_ref_squared_dist=certified_squared_dist;
+                                    d_only_cached_score[candidate_id]=certified_squared_dist;
+                                    d_only_cached_ref_ids[cache_begin]=certified_ref_id;
+                                    d_only_cached_ref_num[candidate_id]=1;
+                                    if(use_msd_neighbor_prefetch)
+                                        d_only_cache_first_valid_index[candidate_id]=0;
+                                    d_only_cache_initialized[candidate_id]=1;
+                                    score_candidate_geometry_certified_num++;
+                                }
+                                else
+                                {
+                                    nearest_query_stats_c *score_stats=use_kd_query_diagnostics_experimental?&score_kd_stats:nullptr;
+                                    if(score_stats)
+                                        score_stats->query_num++;
+                                    if((d_only_cache_miss_num&255)==0)
+                                    {
+                                        auto query_start=chrono::steady_clock::now();
+                                        if(use_kd_scalar_one_reference_query_experimental)
+                                        {
+                                            T_coord nearest_distance;
+                                            int nearest_original_id;
+                                            if(reference_tree->find_original_nearest_other_iterative(coord_array[candidate_id],candidate_id,0,nearest_distance,nearest_original_id,true,score_stats))
+                                                d_only_ref_queue.push({nearest_distance,nearest_original_id});
+                                        }
+                                        else
+                                            reference_tree->find_original_nearest(d_only_ref_queue,coord_array,reverse_ref_query_num,0,coord_array[candidate_id],true,score_stats);
+                                        score_kd_sample_ns+=chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now()-query_start).count();
+                                        score_kd_sample_num++;
+                                    }
+                                    else
+                                    {
+                                        if(use_kd_scalar_one_reference_query_experimental)
+                                        {
+                                            T_coord nearest_distance;
+                                            int nearest_original_id;
+                                            if(reference_tree->find_original_nearest_other_iterative(coord_array[candidate_id],candidate_id,0,nearest_distance,nearest_original_id,true,score_stats))
+                                                d_only_ref_queue.push({nearest_distance,nearest_original_id});
+                                        }
+                                        else
+                                            reference_tree->find_original_nearest(d_only_ref_queue,coord_array,reverse_ref_query_num,0,coord_array[candidate_id],true,score_stats);
+                                    }
+                                    double target_ref_squared_dist_sum=0;
+                                    uint32_t ref_num=0;
+                                    if(use_msd_neighbor_prefetch)
+                                        fetched_ref_buffer.clear();
+                                    while (!d_only_ref_queue.empty())
+                                    {
+                                        int ref_id=d_only_ref_queue.top().second;
+                                        T_coord squared_dist=d_only_ref_queue.top().first;
+                                        d_only_ref_queue.pop();
+                                        if (ref_id!=candidate_id)
+                                        {
+                                            if(use_msd_neighbor_prefetch)
+                                                fetched_ref_buffer.push_back({squared_dist,ref_id});
+                                            else
+                                            {
+                                                target_ref_squared_dist_sum+=(double)squared_dist;
+                                                d_only_cached_ref_ids[cache_begin+ref_num]=ref_id;
+                                            }
+                                            if (use_reference_data_order)
+                                            {
+                                                d_only_cached_ref_weight[cache_begin+ref_num]=squared_dist==0?numeric_limits<double>::infinity():pow((double)squared_dist,-inverse_distance_power/2);
+                                                reference_weight_calculation_num++;
+                                            }
+                                            ref_num++;
+                                        }
+                                    }
+                                    if(use_msd_neighbor_prefetch)
+                                    {
+                                        reverse(fetched_ref_buffer.begin(),fetched_ref_buffer.end());
+                                        for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
+                                            d_only_cached_ref_ids[cache_begin+ref_index]=fetched_ref_buffer[ref_index].second;
+                                        mean_target_ref_squared_dist=ref_num>0?(double)fetched_ref_buffer[0].first:numeric_limits<double>::infinity();
+                                    }
+                                    else
+                                        mean_target_ref_squared_dist=ref_num>0?target_ref_squared_dist_sum/ref_num:numeric_limits<double>::infinity();
+                                    d_only_cached_score[candidate_id]=mean_target_ref_squared_dist;
+                                    d_only_cached_ref_num[candidate_id]=ref_num;
+                                    if(use_msd_neighbor_prefetch)
+                                        d_only_cache_first_valid_index[candidate_id]=0;
+                                    d_only_cache_initialized[candidate_id]=1;
+                                    d_only_cache_miss_num++;
+                                }
                             }
                             uint32_t reference_overlap=0;
                             if (use_reverse_reference_reuse_order_experimental)
@@ -574,7 +767,8 @@ namespace unsz
                     }
                     removed_target_ids.push_back(original_id);
                     tree.update_point_valid_num_to_root(original_id,-1);
-                    reference_tree->update_point_valid_num_to_root(original_id,-1);
+                    if(!share_global_msd_validity_tree)
+                        reference_tree->update_point_valid_num_to_root(original_id,-1);
                     if (use_reverse_d_only)
                         reference_valid[original_id]=0;
                     if (use_reverse_reference_reuse_order_experimental)
@@ -606,6 +800,21 @@ namespace unsz
             if (use_reverse_d_only)
             {
                 printf("D-only score cache: %llu hits, %llu misses\n",(unsigned long long)d_only_cache_hit_num,(unsigned long long)d_only_cache_miss_num);
+                printf("D-only KD query sample: candidate=%llu/%llu,mean=%.3f us; score=%llu/%llu,mean=%.3f us\n",(unsigned long long)candidate_kd_sample_num,(unsigned long long)candidate_kd_query_num,candidate_kd_sample_num?0.001*(double)candidate_kd_sample_ns/candidate_kd_sample_num:0,(unsigned long long)score_kd_sample_num,(unsigned long long)d_only_cache_miss_num,score_kd_sample_num?0.001*(double)score_kd_sample_ns/score_kd_sample_num:0);
+                if(use_msd_neighbor_prefetch)
+                    printf("MSD neighbor prefetch: saved_per_query=%u,candidate_kd_queries=%llu,candidate_cache_reuses=%llu,score_kd_queries=%llu,total_kd_queries=%llu\n",ordering_msd_neighbor_prefetch_num_experimental,(unsigned long long)candidate_kd_query_num,(unsigned long long)candidate_cache_reuse_num,(unsigned long long)d_only_cache_miss_num,(unsigned long long)(candidate_kd_query_num+d_only_cache_miss_num));
+                if(use_candidate_score_geometry_reuse)
+                    printf("MSD candidate-geometry score reuse: checked=%llu,certified=%llu,candidate_kd_queries=%llu,score_kd_queries=%llu,total_kd_queries=%llu\n",(unsigned long long)score_candidate_geometry_checked_num,(unsigned long long)score_candidate_geometry_certified_num,(unsigned long long)candidate_kd_query_num,(unsigned long long)d_only_cache_miss_num,(unsigned long long)(candidate_kd_query_num+d_only_cache_miss_num));
+                if(use_kd_query_diagnostics_experimental)
+                {
+                    auto print_stats=[](const char *name,const nearest_query_stats_c &stats)
+                    {
+                        double query_num=stats.query_num?stats.query_num:1;
+                        printf("KD diagnostics %s: queries=%llu,blocks/query=%.3f,empty_prunes/query=%.3f,leaves/query=%.3f,block_distances/query=%.3f,point_checks/query=%.3f,invalid_skips/query=%.3f,point_distances/query=%.3f,queue_pushes/query=%.3f,queue_replacements/query=%.3f,far_prunes/query=%.3f\n",name,(unsigned long long)stats.query_num,stats.block_visit_num/query_num,stats.empty_block_prune_num/query_num,stats.leaf_visit_num/query_num,stats.block_distance_num/query_num,stats.point_check_num/query_num,stats.invalid_point_skip_num/query_num,stats.point_distance_num/query_num,stats.queue_push_num/query_num,stats.queue_replace_num/query_num,stats.far_child_prune_num/query_num);
+                    };
+                    print_stats("candidate",candidate_kd_stats);
+                    print_stats("score",score_kd_stats);
+                }
                 printf("D-only reduced-reference cache hits: %llu\n",(unsigned long long)d_only_cache_reduced_ref_hit_num);
                 if (use_reverse_reference_reuse_order_experimental)
                     printf("Selected adjacent reference overlap: %f / %u\n",selected_reference_overlap_num?(double)selected_reference_overlap_sum/selected_reference_overlap_num:0,max_ref_num);
@@ -625,7 +834,8 @@ namespace unsz
             bool use_forward_predictability_score=use_predictability_order_experimental || use_forward_mean_distance_only_order_experimental || use_forward_new_geometry_score;
             if (use_forward_predictability_score)
             {
-                reference_tree=make_unique<block_tree_c<T_coord>>(tree);
+                reference_tree_storage=make_unique<block_tree_c<T_coord>>(tree);
+                reference_tree=reference_tree_storage.get();
                 reference_tree->clear_all_valid_num();
                 if (use_predictability_order_experimental)
                     printf("Using geometry-based predictability-aware target order with %u local candidates\n",max_ref_num);

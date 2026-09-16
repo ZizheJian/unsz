@@ -154,6 +154,11 @@ namespace unsz
     template<typename T_coord>
     T_coord get_dist_to_block(T_coord *coord,T_coord *min_coord,T_coord *max_coord,uint32_t dim);
 
+    struct nearest_query_stats_c
+    {
+        uint64_t query_num=0,block_visit_num=0,empty_block_prune_num=0,leaf_visit_num=0,point_check_num=0,invalid_point_skip_num=0,point_distance_num=0,block_distance_num=0,queue_push_num=0,queue_replace_num=0,far_child_prune_num=0;
+    };
+
     template<typename T>
     class Array2D{
         public:
@@ -203,6 +208,9 @@ namespace unsz
             shared_ptr<block_tree_structure_c<T_coord>> structure;
             vector<int> valid_num;//当前实际有效的点数，根据情况可能表示已压缩的点或者正在预测的点
             vector<uint8_t> point_valid;//按tree_id保存逐点有效性，多点叶节点查询时使用
+            vector<uint64_t> leaf_valid_mask;//按block保存叶节点中有效点的位图；只在实验路径启用
+            bool use_leaf_valid_mask=false;
+            bool use_iterative_query=false;
 
             inline T_coord*get_block_min_coord(int block_id){return structure->block_coord_bounds.data()+(uint64_t)block_id*dim*2;}
             inline T_coord*get_block_max_coord(int block_id){return get_block_min_coord(block_id)+dim;}
@@ -212,13 +220,17 @@ namespace unsz
             void split_block(Array2D<T_coord> &coord_array,int block_id);
             block_tree_c(Array2D<T_coord> &coord_array,vector<T_coord> &min_coord,vector<T_coord> &max_coord,uint32_t leaf_point_num=1);
             block_tree_c(const block_tree_c<T_coord> &other)=default;
+            void enable_leaf_valid_mask();
             void clear_all_valid_num();
             void set_point_valid(int original_id,bool value);
             void update_all_valid_num(int block_id);
             void update_point_valid_num_to_root(int original_id,int change_value);
             void update_point_valid_num_to_partition_root(int original_id,int change_value,int partition_root_block_id);
             void find_original_nearest(nearest_queue_c<T_coord> &nearest_queue,Array2D<T_coord> &coord_array,
-                uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
+                uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only=false,nearest_query_stats_c *stats=nullptr);
+            void find_original_nearest_iterative(nearest_queue_c<T_coord> &nearest_queue,Array2D<T_coord> &coord_array,
+                uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only=false,nearest_query_stats_c *stats=nullptr);
+            bool find_original_nearest_other_iterative(T_coord *query_coord,int excluded_original_id,int block_id,T_coord &nearest_distance,int &nearest_original_id,bool valid_only=false,nearest_query_stats_c *stats=nullptr);
                 //寻找最近的点。如果query_coord是一个点的坐标，那么会找到自身
     };
 
@@ -282,6 +294,15 @@ namespace unsz
             uint32_t d_only_cache_refill_threshold_experimental=3;//0表示任一参考点失效就重新查询，即精确模式
             uint32_t order_candidate_num_experimental=0;//0表示使用max_ref_num
             uint32_t ordering_msd_ref_num_experimental=0;//0表示使用max_ref_num；只控制反向MSD排序评分的参考点数量
+            uint32_t ordering_msd_neighbor_prefetch_num_experimental=0;//非0时为1点MSD评分预取近邻，并尝试复用为排序候选
+            bool use_msd_candidate_score_geometry_reuse_experimental=false;//用排序候选云的距离界证明最近评分参考点时不查kd-tree
+            bool use_kd_query_diagnostics_experimental=false;//分别统计排序候选和MSD评分查询的kd-tree工作量
+            bool use_kd_leaf_valid_mask_experimental=false;//叶节点用位图枚举有效点，避免逐点检查失效状态
+            bool use_kd_iterative_query_experimental=false;//固定栈迭代遍历kd-tree，避免递归函数调用
+            bool use_kd_scalar_one_reference_query_experimental=false;//1点MSD用标量最近邻查询并排除目标自身
+            bool use_rbf_ldlt_experimental=false;//常数趋势RBF用正定核矩阵的LDLT分解求权重
+            uint32_t precomputed_neighbor_num_experimental=0;//0保持原DAG生成；非0只在初始阶段用kd-tree预存近邻
+            uint32_t multihead_execution_head_num_experimental=0;//非0时按空间头轮转执行DAG，并按头连续存储qb
             uint32_t time_anchor_stride_experimental=0;//非0时使用固定步长锚点和区间内插的两点集时间流程
             uint32_t time_anchor_first_step=0,time_anchor_last_step=0,time_anchor_last_regular_step=0;
             uint32_t cross_time_spatial_point_num_experimental=0;//非0时启用联合时空压缩，并记录每个time step的空间点数
@@ -321,6 +342,7 @@ namespace unsz
             vector<int> id_map_reverse2;//从leaf block在block_vec中的id映射到block_tree上node的专用id（没有被使用）
             vector<vector<int>> round_target_ids;//每一轮的预测目标
             vector<int> pred_target_ids,pred_ref_ids;//预测目标与连续参考点数组；实验性内部重排关闭时为原始id，开启时为预测id
+            vector<uint32_t> multihead_execution_pred_ref_ids,multihead_qb_index_by_pred_ref_id;
             vector<uint64_t> pred_ref_begin;//第i个目标的参考点区间为[pred_ref_begin[i],pred_ref_begin[i+1])
             vector<double> pred_ref_weights,pred_ref_label_normalized_weights,pred_ref_value_normalized_weights,pred_ref_rbf_weights;
             uint32_t single_point_set_rbf10_fast_begin=0;
@@ -394,7 +416,9 @@ namespace unsz
             uint32_t get_multi_huffman_group_num();
             uint32_t get_multi_huffman_group_id(uint32_t round_id,int pred_id);
             void generate_pred_refs_structure();
+            void generate_precomputed_neighbor_pred_refs_structure();
             void prepare_pred_refs_structure();
+            void prepare_multihead_execution_order();
             void prepare_rbf_fitting_weights();
             void print_prediction_geometry_statistics_result();
             void save_pred_refs_structure();
@@ -445,7 +469,7 @@ namespace unsz
             void decompress_point_sets();
             
             bool solve_4x4(double A_in[4][4],double b_in[4],double x[4]);
-            bool solve_linear_system(vector<vector<double>> A,vector<double> b,vector<double> &x);
+            bool solve_linear_system(vector<vector<double>> &A,vector<double> &b,vector<double> &x);
     };
 }
 
@@ -460,6 +484,7 @@ namespace unsz
 #include "partition_adaptive_prediction.tpp"
 #include "eb_schedule.tpp"
 #include "generate_pred_refs_structure.tpp"
+#include "precomputed_neighbor_pred_refs_structure.tpp"
 #include "prediction_dag.tpp"
 #include "point_set_config.tpp"
 #include "point_set.tpp"
@@ -468,6 +493,7 @@ namespace unsz
 #include "format.tpp"
 #include "multi_huffman.tpp"
 #include "prediction_structure.tpp"
+#include "multihead_execution.tpp"
 #include "two_point_sets_compress_entry.tpp"
 #include "compress_entry.tpp"
 #include "compress.tpp"

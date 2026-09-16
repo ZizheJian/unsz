@@ -336,6 +336,7 @@ namespace unsz
                 partition_pred_ref_ids_vec[partition_id].push_back(pred_ref_id);
             }
         }
+        prepare_multihead_execution_order();
         printf("Prepared continuous reference arrays: targets=%u, references=%llu\n",point_num,(unsigned long long)pred_ref_ids.size());
     }
 
@@ -347,6 +348,7 @@ namespace unsz
         auto start_time=chrono::steady_clock::now();
         pred_ref_rbf_weights.assign(pred_ref_ids.size(),numeric_limits<double>::quiet_NaN());
         uint64_t prepared_target_num=0;
+        vector<double> weights;
         for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
         {
             auto ref_ids=get_pred_ref_ids(pred_ref_id);
@@ -354,7 +356,6 @@ namespace unsz
             if(ref_num<2)
                 continue;
             array_view_c<int> selected_ref_ids(ref_ids.begin(),ref_num);
-            vector<double> weights;
             if(!calculate_rbf_fitting_weights(pred_target_ids[pred_ref_id],selected_ref_ids,weights))
                 continue;
             uint64_t begin=pred_ref_begin[pred_ref_id];
