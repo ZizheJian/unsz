@@ -34,7 +34,6 @@ namespace unsz
 {
     enum class point_set_codec_e:uint8_t{inverse_proportion=0,constant=2,rbf_fitting=5};
     enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1};
-    enum class point_set_classification_e:uint8_t{ordered_rules=0,label_file=1};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
     enum class partition_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
     enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,endpoint_agreement=5,linear_interpolation=6,joint_spatiotemporal=7,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
@@ -249,10 +248,8 @@ namespace unsz
             T_data rel_eb=0,abs_eb=0;
             bool got_rel_eb=false,got_abs_eb=false;
             bool got_data_dir=false,got_variable=false,got_time_step=false,got_error_mode=false,got_predictor=false,no_prediction_dag_cache=false;
-            point_set_classification_e point_set_classification=point_set_classification_e::ordered_rules;
             vector<point_set_rule_c> point_set_rule_vec;
             vector<point_set_config_c> point_set_config_vec;
-            string point_set_label_path_pattern;
             bool check_original_data_files=true;
             bool cross_time_compress=false;
             string cross_time_predictor_experimental="none";//none / constant_extrapolation / linear_interpolation / constant_extrapolation_spatial_residual / linear_interpolation_spatial_residual
@@ -382,7 +379,6 @@ namespace unsz
             void prepare_linear_interpolation_order();
             void prepare_time_anchor_order();
             void configure_point_sets();
-            vector<uint8_t> load_point_set_label_ids();
             void prepare_linear_interpolation();
             bool predict_linear_interpolation(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
             template<time_dimension_mode_e value_mode>

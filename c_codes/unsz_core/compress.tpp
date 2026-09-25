@@ -141,7 +141,7 @@ namespace unsz
             throw runtime_error("当前数据点数与坐标点数不一致");
         if(point_set_config_vec.empty())
             throw runtime_error("尚未配置点集");
-        if(point_set_classification==point_set_classification_e::ordered_rules && point_set_config_vec.size()!=point_set_rule_vec.size()+1)
+        if(point_set_config_vec.size()!=point_set_rule_vec.size()+1)
             throw runtime_error("点集配置数量必须等于有序分类规则数量加1");
         if(eb_schedule_experimental!="none" && eb_schedule_experimental!="round" && eb_schedule_experimental!="point" && eb_schedule_experimental!="point_log2_ratio" && eb_schedule_experimental!="round_point" && eb_schedule_experimental!="round_ratio" && eb_schedule_experimental!="round_point_ratio" && eb_schedule_experimental!="round_point_ratio_dag" && eb_schedule_experimental!="round_point_ratio_dag_direct" && eb_schedule_experimental!="round_point_ratio_dag_variance_direct")
             throw runtime_error("未知的实验性EB序列模式："+eb_schedule_experimental);
@@ -158,10 +158,6 @@ namespace unsz
             stage_start_time=chrono::steady_clock::now();
         }
 
-        vector<uint8_t> external_point_set_id_vec;
-        if constexpr(two_point_sets)
-            if(point_set_classification==point_set_classification_e::label_file)
-                external_point_set_id_vec=load_point_set_label_ids();
         point_set_id_vec.resize(point_num);
         uint32_t point_set_num=0,configured_point_set_num=(uint32_t)point_set_config_vec.size();
         point_set_point_num_vec.assign(configured_point_set_num,0);
@@ -178,7 +174,7 @@ namespace unsz
                 point_set_max_data_vec[0]=max(point_set_max_data_vec[0],value);
             }
         }
-        else if(point_set_classification==point_set_classification_e::ordered_rules && point_set_rule_vec.size()==1)
+        else if(point_set_rule_vec.size()==1)
         {
             const point_set_rule_c &rule=point_set_rule_vec[0];
             auto classify_two_point_sets=[&](auto matches)
@@ -220,8 +216,7 @@ namespace unsz
         else
             for (uint32_t i=0;i<point_num;i++)
             {
-                uint32_t original_id=reorder_data_by_prediction_order_experimental?prediction_id_to_original_id[i]:i;
-                uint32_t point_set_id=point_set_classification==point_set_classification_e::label_file?external_point_set_id_vec[original_id]:get_point_set_id(current_data[i]);
+                uint32_t point_set_id=get_point_set_id(current_data[i]);
                 if (point_set_id>=configured_point_set_num)
                     throw runtime_error("分类函数返回的点集编号越界");
                 point_set_id_vec[i]=(uint8_t)point_set_id;

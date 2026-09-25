@@ -8,6 +8,11 @@ result_root=project_root/"results/current"
 rel_eb_vec=(1e-1,1e-2,1e-3,1e-4,1e-5)
 temporal_configuration_set={"constant_extrapolation","linear_interpolation","constant_extrapolation_spatial_residual","linear_interpolation_spatial_residual"}
 
+def condition_arguments(condition):
+    if isinstance(condition,dict):
+        return condition["operator"],condition["value"]
+    return condition[0],condition[1]
+
 def field_dag_cache_path(field):
     prediction_ref_num=field.get("prediction_ref_num",field.get("ref_num"))
     score_ref_num=field.get("ordering_score_max_ref_num",prediction_ref_num)
@@ -58,10 +63,9 @@ def build_unsz_command(field,rel_eb,result_path,result_root_path):
             command.extend(("-rbf-shape",field["shape"]))
         if "matrix" in field:
             command.extend(("-matrix-file",project_root/"adjust_coord_matrices"/field["matrix"]))
-        if "label_pattern" in field:
-            command.extend(("-label-file-pattern",str(data_dir/field["label_pattern"])))
         if "condition" in field:
-            command.extend(("-condition-operator",field["condition"][0],"-condition-value",field["condition"][1]))
+            operator,value=condition_arguments(field["condition"])
+            command.extend(("-condition-operator",operator,"-condition-value",value))
         if "time_step_coordinate_file" in field:
             command.extend(("-time-step-coordinate-file",data_dir/field["time_step_coordinate_file"]))
         return command
@@ -85,7 +89,8 @@ def build_unsz_command(field,rel_eb,result_path,result_root_path):
     for time_step in field.get("training",[]):
         command.extend(("-training-time-step",time_step))
     if "condition" in field:
-        command.extend(("-condition-operator",field["condition"][0],"-condition-value",field["condition"][1]))
+        operator,value=condition_arguments(field["condition"])
+        command.extend(("-condition-operator",operator,"-condition-value",value))
     if field.get("reorder_by_prediction_order"):
         command.append("-reorder-data-by-prediction-order")
     if field.get("disable_eb_schedule"):
@@ -138,20 +143,22 @@ def run_umc(field,rel_eb):
     input_mb=sum((data_dir/f"{field['variable']}.dat.{time_step}").stat().st_size for time_step in range(field["steps"]))/1e6
     return {"compressor":"umc","rel_eb":rel_eb,"br":br,"psnr":psnr,"preprocessing_time":input_mb/preprocessing_throughput,"compression_time":input_mb/compression_throughput,"decompression_time":input_mb/decompression_throughput,"command":"t1_start_c_code.test(umc)"}
 
-def write_manifest(field,result_root_path,rows):
+def write_manifest(field,result_root_path,rows,configuration_path=None):
     data_dir=data_root/field["folder"]
     input_paths=[data_dir/"coords.dat",*[data_dir/f"{field['variable']}.dat.{time_step}" for time_step in range(field["steps"])]]
-    if field.get("umc"):
+    if "umc" in field["method_list"]:
         input_paths.append(data_dir/"conn.dat")
-    if "label_pattern" in field:
-        input_paths.extend(data_dir/field["label_pattern"].format(time_step=time_step) for time_step in range(field["steps"]))
     if "time_step_coordinate_file" in field:
         input_paths.append(data_dir/field["time_step_coordinate_file"])
     if "matrix" in field:
         input_paths.append(project_root/"adjust_coord_matrices"/field["matrix"])
     dag_path=field_dag_cache_path(field)
     umc_root=Path("/home/x-zjian1/umc")
-    source_paths=[project_root/"py_codes/refresh_selected_results.py",project_root/"py_codes/benchmark_field_temporal.py",project_root/"py_codes/screen_field_geometric_order.py",project_root/"t1_start_c_code.py",umc_root/"include/compress.hpp",umc_root/"include/decompress.hpp",umc_root/"test/test_compress.cpp",umc_root/"test/test_decompress.cpp"]
+    if configuration_path is None:
+        from t1_start_c_code import find_dataset_config_path
+        configuration_path=find_dataset_config_path(field["dataset"])
+    configuration_path=Path(configuration_path)
+    source_paths=[project_root/"py_codes/refresh_selected_results.py",project_root/"py_codes/benchmark_field_temporal.py",project_root/"py_codes/screen_field_geometric_order.py",project_root/"t1_start_c_code.py",configuration_path,umc_root/"include/compress.hpp",umc_root/"include/decompress.hpp",umc_root/"test/test_compress.cpp",umc_root/"test/test_decompress.cpp"]
     binary_paths=[project_root/"install/bin/s1_compress",project_root/"install/bin/s1_decompress",Path("/home/x-zjian1/umc/build/test/test_compress"),Path("/home/x-zjian1/umc/build/test/test_decompress")]
     head=subprocess.run(["git","rev-parse","HEAD"],cwd=project_root,text=True,stdout=subprocess.PIPE,check=True).stdout.strip()
     diff=subprocess.run(["git","diff","--binary"],cwd=project_root,stdout=subprocess.PIPE,check=True).stdout
@@ -163,19 +170,25 @@ def write_manifest(field,result_root_path,rows):
     with manifest_path.open("w",encoding="utf-8") as file:
         json.dump(manifest,file,ensure_ascii=False,indent=2)
 
-def run_field(field,result_root_path=result_root,rel_values=rel_eb_vec):
+def run_field(field,result_root_path=result_root,rel_values=None,configuration_path=None):
     result_root_path.mkdir(parents=True,exist_ok=True)
+    rel_values=field["rel_eb_list"] if rel_values is None else rel_values
     rows=[]
     total_bytes=sum((data_root/field["folder"]/f"{field['variable']}.dat.{time_step}").stat().st_size for time_step in range(field["steps"]))
     for index,rel_eb in enumerate(rel_values):
-        method_vec=("unsz","umc") if index%2==0 else ("umc","unsz")
-        if "umc" not in field:
-            method_vec=("unsz",)
+        method_vec=tuple(field["method_list"])
+        if index%2:
+            method_vec=tuple(reversed(method_vec))
         for method in method_vec:
             print(f"开始：field={field['key']},compressor={method},REL={rel_eb:g}",flush=True)
-            row=run_unsz(field,rel_eb,result_root_path) if method=="unsz" else run_umc(field,rel_eb)
+            if method=="unsz":
+                row=run_unsz(field,rel_eb,result_root_path)
+            elif method=="umc":
+                row=run_umc(field,rel_eb)
+            else:
+                raise ValueError(f"尚未实现baseline：{method}")
             row.update({"field":field["key"],"dataset":field["dataset"],"variable":field["variable"],"time_step_num":field["steps"],"input_bytes":total_bytes,"compression_decompression_time":row["compression_time"]+row["decompression_time"],"preprocessing_MB_s":total_bytes/row["preprocessing_time"]/1e6,"compression_MB_s":total_bytes/row["compression_time"]/1e6,"decompression_MB_s":total_bytes/row["decompression_time"]/1e6})
             rows.append(row)
             write_rows(result_root_path/"fields"/f"{field['key']}.csv",rows)
-    write_manifest(field,result_root_path,rows)
+    write_manifest(field,result_root_path,rows,configuration_path)
     print(f"完成：{field['key']}，结果{result_root_path/'fields'/f'{field['key']}.csv'}",flush=True)

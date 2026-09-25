@@ -4,11 +4,11 @@ from py_codes.py_unsz_core.param import Param
 from py_codes.py_unsz_core.init import init
 from py_codes.py_unsz_core.adjust_coord import adjust_coord as optimize_adjust_coord
 from py_codes.py_unsz_core.adjust_coord_matrix_file import write_adjust_coord_matrix
-from t1_start_c_code import data_root,field_config_vec,find_field_config
+from t1_start_c_code import data_root,find_field_config,list_dataset_names
 
 def parse_arguments(command_line_arguments=None):
-    parser=argparse.ArgumentParser(description="按照t1中的field配置训练UNSZ坐标变换矩阵")
-    dataset_names=tuple(dict.fromkeys(config["dataset"].lower() for config in field_config_vec))
+    parser=argparse.ArgumentParser(description="按照JSON中的field配置训练UNSZ坐标变换矩阵")
+    dataset_names=tuple(name.lower() for name in list_dataset_names())
     parser.add_argument("-data",required=True,choices=dataset_names)
     parser.add_argument("-field",required=True)
     arguments=parser.parse_args(command_line_arguments)

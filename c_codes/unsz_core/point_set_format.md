@@ -2,9 +2,7 @@
 
 不使用`-point-set-config`时全部数据属于唯一点集，codec和EB分别来自命令行`-predictor`和`-M`。使用`-point-set-config <JSON路径>`时，配置文件定义一个或两个点集，并忽略命令行中可能存在的`-predictor`和`-M`。
 
-`rule_type=ordered`时，`labels`数组按优先级保存点集。除最后一个label外，每项都包含`method`、`eb_mode`、`eb_value`和`condition`；第一条成立的条件决定点集编号，全部不成立时属于最后一个label。最后一个label省略`condition`，`constant`还省略`eb_mode`和`eb_value`。比较符支持`<`、`<=`、`>`、`>=`、`==`和`!=`。只有一个label时也不写`condition`。
-
-`rule_type=label_file`允许用户用任意外部代码为每个time step生成逐点`uint8`点集编号。标签文件信息写在根对象的`label_file`中，各label不写`condition`。路径必须包含`{time_step}`，相对路径以JSON所在目录为准；每个文件必须恰好包含`point_num`个编号。该方式目前不能与训练数据感知的公共预测顺序一起使用。
+`labels`数组按优先级保存点集。除最后一个label外，每项都包含`method`、`eb_mode`、`eb_value`和`condition`；第一条成立的条件决定点集编号，全部不成立时属于最后一个label。最后一个label省略`condition`，`constant`还省略`eb_mode`和`eb_value`。比较符支持`<`、`<=`、`>`、`>=`、`==`和`!=`。只有一个label时也不写`condition`。点集分类只读取当前field的数值，不接受额外标签文件。
 
 同一文件中的每个点集独立统计点数和值域，只在同点集的已重建点之间执行数值预测。每个非常量点集必须独立选择反比例或RBF预测，并显式配置自己的REL或ABS EB。常量点集不配置EB，也不保存量化索引。RBF的核、shape、nugget和多项式趋势次数是公共几何参数，压缩和解压时必须相同；完整候选参考集合的RBF权重会在预处理时计算并跨time step复用，点集筛选改变参考集合时现场重新求解。
 

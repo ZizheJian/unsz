@@ -18,7 +18,7 @@ dim 3
 lower_triangular c00 c10 c11 c20 c21 c22
 ```
 
-`t2_adjust_coord.py`命令行只接受`-data`和`-field`，并从`t1_start_c_code.py`读取该field的输入路径和实际预测器。已有正式矩阵名时覆盖该文件；尚未启用坐标变换时，先按`<dataset>_<field>_spatial.txt`生成候选矩阵，实测后再决定是否写入`t1`。例如：
+`t2_adjust_coord.py`命令行只接受`-data`和`-field`，并通过`t1_start_c_code.py`读取对应数据集JSON中该field的输入路径和实际预测器。已有正式矩阵名时覆盖该文件；尚未启用坐标变换时，先按`<dataset>_<field>_spatial.txt`生成候选矩阵，实测后再决定是否写入JSON配置。例如：
 
 ```bash
 ./unsz_env/bin/python t2_adjust_coord.py -data tsunami -field bathy
@@ -33,7 +33,7 @@ install/bin/s1_compress ... -adjust-coord-matrix-file adjust_coord_matrices/Katr
 install/bin/s1_decompress ... -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
 ```
 
-当前统一训练协议使用实际空间预测器的全部参数和`prediction_ggd_bit`离散量化区间码长loss，不使用GGD微分熵loss。训练目标数、训练EB、迭代数和矩阵吸收率可以由`t1`按field覆盖。Tsunami的六个field已经按RBF10、Matérn-3/2核、shape `0.03`、nugget `1e-6`、无趋势项和10000个训练目标完成重测；改善最多的height也只降低约`0.46%` BR，因此六项全部使用原始坐标，候选矩阵仅保存在结果目录。完整对照结果见`results/tsunami_adjust_coord_rbf10_discrete_entropy/summary.csv`。Katrina最终使用100000个目标、训练REL EB `1e-3`、2轮和吸收率`0.75`；在`78.7245 dB`处的BR为`0.313441`，比可复现的旧二次方loss矩阵低`4.733%`。完整调优记录见`results/katrina_adjust_coord_ggd_tuning/`。
+当前统一训练协议使用实际空间预测器的全部参数和`prediction_ggd_bit`离散量化区间码长loss，不使用GGD微分熵loss。训练目标数、训练EB、迭代数和矩阵吸收率可以由数据集JSON中的field task覆盖。Tsunami的六个field已经按RBF10、Matérn-3/2核、shape `0.03`、nugget `1e-6`、无趋势项和10000个训练目标完成重测；改善最多的height也只降低约`0.46%` BR，因此六项全部使用原始坐标，候选矩阵仅保存在结果目录。完整对照结果见`results/tsunami_adjust_coord_rbf10_discrete_entropy/summary.csv`。Katrina最终使用100000个目标、训练REL EB `1e-3`、2轮和吸收率`0.75`；在`78.7245 dB`处的BR为`0.313441`，比可复现的旧二次方loss矩阵低`4.733%`。完整调优记录见`results/katrina_adjust_coord_ggd_tuning/`。
 
 E3SM-h0的8个field、ADCIRC Haiyan `depth`以及TAPS新增field的文件是按旧二次方loss、4个训练近邻和4轮流程重新生成的首轮筛选矩阵，并不表示它们都已被选为正式压缩配置。
 

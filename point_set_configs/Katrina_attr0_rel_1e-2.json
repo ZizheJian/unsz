@@ -1,6 +1,5 @@
 {
   "version":1,
-  "rule_type":"ordered",
   "labels":[
     {"method":"inverse_proportion","eb_mode":"REL","eb_value":0.01,"condition":{"operator":">=","value":-1000}},
     {"method":"constant"}

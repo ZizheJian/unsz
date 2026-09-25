@@ -26,7 +26,7 @@ def read_float(pattern,text,name):
 
 def write_config(path,rel_eb):
     with path.open("w",encoding="utf-8") as file:
-        json.dump({"version":1,"rule_type":"ordered","labels":[{"method":"inverse_proportion","eb_mode":"REL","eb_value":rel_eb}]},file)
+        json.dump({"version":1,"labels":[{"method":"inverse_proportion","eb_mode":"REL","eb_value":rel_eb}]},file)
 
 def prepare_joint_inputs(work_dir,time_scale):
     work_dir.mkdir(exist_ok=True)

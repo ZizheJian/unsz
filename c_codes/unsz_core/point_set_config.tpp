@@ -74,21 +74,11 @@ namespace unsz
         throw runtime_error(location+"的operator必须是<、<=、>、>=、==或!=："+text);
     }
 
-    inline string resolve_config_relative_path(const string &config_path,const string &path)
-    {
-        if(path.empty() || path.front()=='/')
-            return path;
-        uint64_t slash_position=config_path.find_last_of('/');
-        return slash_position==string::npos?path:config_path.substr(0,slash_position+1)+path;
-    }
-
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::configure_point_sets()
     {
         point_set_rule_vec.clear();
         point_set_config_vec.clear();
-        point_set_label_path_pattern.clear();
-        point_set_classification=point_set_classification_e::ordered_rules;
         if(point_set_config_path.empty())
         {
             if(!got_rel_eb && !got_abs_eb)
@@ -115,11 +105,7 @@ namespace unsz
         double version=require_json_number(root,"version","点集配置根对象");
         if(version!=1 || floor(version)!=version)
             throw runtime_error("点集配置version目前必须是1");
-        string rule_type=require_json_string(root,"rule_type","点集配置根对象");
-        bool use_ordered_rules=rule_type=="ordered";
-        if(!use_ordered_rules && rule_type!="label_file")
-            throw runtime_error("rule_type必须是ordered或label_file："+rule_type);
-        reject_unknown_json_fields(root,use_ordered_rules?vector<string>{"version","rule_type","labels"}:vector<string>{"version","rule_type","label_file","labels"},"点集配置根对象");
+        reject_unknown_json_fields(root,{"version","labels"},"点集配置根对象");
         const json_value_c &labels=require_json_field(root,"labels","点集配置根对象");
         if(labels.type!=json_type_e::array_value || labels.array_value.empty())
             throw runtime_error("labels必须是包含至少一个label的数组");
@@ -129,7 +115,7 @@ namespace unsz
         {
             const json_value_c &label=labels.array_value[label_id];
             string location="labels["+to_string(label_id)+"]";
-            reject_unknown_json_fields(label,use_ordered_rules?vector<string>{"method","eb_mode","eb_value","condition"}:vector<string>{"method","eb_mode","eb_value"},location);
+            reject_unknown_json_fields(label,{"method","eb_mode","eb_value","condition"},location);
             point_set_config_c config;
             config.codec=parse_point_set_codec(require_json_string(label,"method",location),location);
             auto eb_mode_iterator=label.object_value.find("eb_mode"),eb_value_iterator=label.object_value.find("eb_value");
@@ -148,83 +134,23 @@ namespace unsz
                     throw runtime_error(location+"的eb_value必须是有限正数");
             }
             point_set_config_vec.push_back(config);
-            if(use_ordered_rules)
+            bool is_last=label_id+1==labels.array_value.size();
+            if(is_last)
             {
-                bool is_last=label_id+1==labels.array_value.size();
-                if(is_last)
-                {
-                    if(label.object_value.find("condition")!=label.object_value.end())
-                        throw runtime_error("最后一个label是默认兜底类型，不能配置condition");
-                    continue;
-                }
-                const json_value_c &condition=require_json_field(label,"condition",location);
-                if(condition.type!=json_type_e::object_value)
-                    throw runtime_error(location+".condition必须是JSON对象");
-                reject_unknown_json_fields(condition,{"operator","value"},location+".condition");
-                point_set_rule_c parsed_rule;
-                parsed_rule.operator_type=parse_point_set_rule_operator(require_json_string(condition,"operator",location+".condition"),location+".condition");
-                parsed_rule.value=require_json_number(condition,"value",location+".condition");
-                if(!isfinite(parsed_rule.value))
-                    throw runtime_error(location+".condition.value必须是有限数");
-                point_set_rule_vec.push_back(parsed_rule);
+                if(label.object_value.find("condition")!=label.object_value.end())
+                    throw runtime_error("最后一个label是默认兜底类型，不能配置condition");
+                continue;
             }
+            const json_value_c &condition=require_json_field(label,"condition",location);
+            if(condition.type!=json_type_e::object_value)
+                throw runtime_error(location+".condition必须是JSON对象");
+            reject_unknown_json_fields(condition,{"operator","value"},location+".condition");
+            point_set_rule_c parsed_rule;
+            parsed_rule.operator_type=parse_point_set_rule_operator(require_json_string(condition,"operator",location+".condition"),location+".condition");
+            parsed_rule.value=require_json_number(condition,"value",location+".condition");
+            if(!isfinite(parsed_rule.value))
+                throw runtime_error(location+".condition.value必须是有限数");
+            point_set_rule_vec.push_back(parsed_rule);
         }
-        if(!use_ordered_rules)
-        {
-            const json_value_c &label_file=require_json_field(root,"label_file","点集配置根对象");
-            reject_unknown_json_fields(label_file,{"path","dtype"},"label_file");
-            string dtype=require_json_string(label_file,"dtype","label_file");
-            if(dtype!="uint8")
-                throw runtime_error("label_file目前只支持dtype=uint8");
-            point_set_label_path_pattern=resolve_config_relative_path(point_set_config_path,require_json_string(label_file,"path","label_file"));
-            if(point_set_label_path_pattern.find("{time_step}")==string::npos)
-                throw runtime_error("label_file.path必须包含{time_step}，以便每个time step使用独立标签");
-            point_set_classification=point_set_classification_e::label_file;
-        }
-    }
-
-    template<typename T_coord,typename T_data>
-    vector<uint8_t> param_c<T_coord,T_data>::load_point_set_label_ids()
-    {
-        string path=point_set_label_path_pattern;
-        const string placeholder="{time_step}";
-        uint64_t position=0;
-        while((position=path.find(placeholder,position))!=string::npos)
-        {
-            string replacement=to_string(current_time_step);
-            path.replace(position,placeholder.size(),replacement);
-            position+=replacement.size();
-        }
-        FILE *file=fopen(path.c_str(),"rb");
-        if(!file)
-            throw runtime_error("找不到点集标签文件："+path);
-        if(fseek(file,0,SEEK_END)!=0)
-        {
-            fclose(file);
-            throw runtime_error("无法定位到点集标签文件末尾："+path);
-        }
-        long byte_num=ftell(file);
-        if(byte_num<0 || (uint64_t)byte_num!=point_num)
-        {
-            fclose(file);
-            throw runtime_error("点集标签文件大小必须等于点数："+path);
-        }
-        if(fseek(file,0,SEEK_SET)!=0)
-        {
-            fclose(file);
-            throw runtime_error("无法定位到点集标签文件开头："+path);
-        }
-        vector<uint8_t> label_ids(point_num);
-        if(fread(label_ids.data(),1,point_num,file)!=point_num)
-        {
-            fclose(file);
-            throw runtime_error("读取点集标签文件失败："+path);
-        }
-        if(fclose(file)!=0)
-            throw runtime_error("关闭点集标签文件失败："+path);
-        for(uint32_t point_id=0;point_id<point_num;point_id++)
-            if(label_ids[point_id]>=point_set_config_vec.size())
-                throw runtime_error("点集标签文件中的编号越界：文件="+path+"，点="+to_string(point_id)+"，编号="+to_string(label_ids[point_id]));
-        return label_ids;
     }
 }

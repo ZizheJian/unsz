@@ -19,8 +19,6 @@ def parse_arguments():
     parser.add_argument("-test-time-step",type=int,action="append")
     parser.add_argument("-condition-operator",choices=("<","<=",">",">=","==","!="))
     parser.add_argument("-condition-value",type=float)
-    parser.add_argument("-label-file-pattern")
-    parser.add_argument("-label-file-dtype",default="uint8")
     parser.add_argument("-candidate-set",choices=("compact","full"),default="compact")
     parser.add_argument("-rel-eb",type=float,action="append")
     parser.add_argument("-result",type=Path,required=True)
@@ -100,8 +98,6 @@ def main():
                         command.extend(("-matrix-file",matrix_file))
                     if arguments.condition_operator is not None:
                         command.extend(("-condition-operator",arguments.condition_operator,"-condition-value",arguments.condition_value))
-                    if arguments.label_file_pattern is not None:
-                        command.extend(("-label-file-pattern",arguments.label_file_pattern,"-label-file-dtype",arguments.label_file_dtype))
                     if predictor=="idw":
                         command.extend(("-idw-ref-num",ref_num,"-idw-power",power))
                     else:

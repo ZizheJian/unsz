@@ -471,8 +471,6 @@ namespace unsz
             throw runtime_error("-reference-data-rbf-score-experimental必须和-reference-data-order-experimental一起使用");
         if(param.use_reference_data_rbf_score_experimental && none_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf_fitting;}))
             throw runtime_error("RBF参考数据评分要求至少一个点集使用rbf_fitting");
-        if(param.point_set_classification==point_set_classification_e::label_file && !param.order_reference_time_step_vec_experimental.empty())
-            throw runtime_error("label_file分类暂时不能和-reference-data-order-experimental一起使用");
         param.cross_time_compress=false;
         param.load_adjust_coord_matrix_file();
         if (param.actual_ref_num>param.max_ref_num)

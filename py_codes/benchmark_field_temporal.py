@@ -17,8 +17,6 @@ def parse_arguments():
     parser.add_argument("-time-step-coordinate-file",type=Path)
     parser.add_argument("-condition-operator",choices=("<","<=",">",">=","==","!="))
     parser.add_argument("-condition-value",type=float)
-    parser.add_argument("-label-file-pattern")
-    parser.add_argument("-label-file-dtype",default="uint8")
     parser.add_argument("-configuration",choices=("spatial","constant_extrapolation","linear_interpolation","constant_extrapolation_spatial_residual","linear_interpolation_spatial_residual"),action="append")
     parser.add_argument("-predictor",choices=("inverse_proportion","rbf_fitting"),default="inverse_proportion")
     parser.add_argument("-ref-num",type=int,default=4)
@@ -74,11 +72,8 @@ def linear_interpolation_time_order(time_step_coordinates):
 
 def write_point_set_config(path,arguments,rel_eb):
     labels=[{"method":arguments.predictor,"eb_mode":"REL","eb_value":rel_eb},{"method":"constant"}]
-    if arguments.label_file_pattern is not None:
-        config={"version":1,"rule_type":"label_file","label_file":{"path":arguments.label_file_pattern,"dtype":arguments.label_file_dtype},"labels":labels}
-    else:
-        labels[0]["condition"]={"operator":arguments.condition_operator,"value":arguments.condition_value}
-        config={"version":1,"rule_type":"ordered","labels":labels}
+    labels[0]["condition"]={"operator":arguments.condition_operator,"value":arguments.condition_value}
+    config={"version":1,"labels":labels}
     with path.open("w",encoding="utf-8") as file:
         json.dump(config,file,ensure_ascii=False)
 
@@ -102,8 +97,6 @@ def main():
         raise ValueError("纯时间预测至少需要两个time step")
     if(arguments.condition_operator is None)!=(arguments.condition_value is None):
         raise ValueError("condition-operator和condition-value必须同时指定")
-    if arguments.label_file_pattern is not None and arguments.condition_operator is not None:
-        raise ValueError("label-file-pattern不能和condition-operator同时指定")
     rel_eb_vec=tuple(arguments.rel_eb) if arguments.rel_eb else default_rel_eb_vec
     time_step_coordinates=read_time_step_coordinates(arguments.time_step_coordinate_file,arguments.time_step_num)
     matrix_arguments=["-adjust-coord-matrix-file",arguments.matrix_file] if arguments.matrix_file is not None else []
@@ -134,7 +127,7 @@ def main():
             for rel_eb in rel_eb_vec:
                 compression_error_arguments=["-M","REL",rel_eb,"-predictor",arguments.predictor]
                 decompression_error_arguments=["-M","REL",rel_eb]
-                if arguments.condition_operator is not None or arguments.label_file_pattern is not None:
+                if arguments.condition_operator is not None:
                     point_set_config_path=temporary_dir/f"{config_name}_{rel_eb:g}.json"
                     write_point_set_config(point_set_config_path,arguments,rel_eb)
                     compression_error_arguments=["-point-set-config",point_set_config_path]

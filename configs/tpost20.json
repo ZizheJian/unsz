@@ -1,0 +1,30 @@
+[
+  {
+    "name":"scalar",
+    "dataset":"Tpost20",
+    "folder":"Tpost20",
+    "field_list":[
+      "scalar"
+    ],
+    "rel_eb_list":[
+      0.1,
+      0.01,
+      0.001,
+      0.0001,
+      0.00001
+    ],
+    "method_list":[
+      "unsz",
+      "umc"
+    ],
+    "steps":20,
+    "dim":3,
+    "config":"linear_interpolation_spatial_residual",
+    "predictor":"rbf_fitting",
+    "ref_num":10,
+    "shape":0.03,
+    "umc":{
+      "umc_from_edge":0
+    }
+  }
+]

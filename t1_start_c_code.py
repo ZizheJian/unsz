@@ -1,4 +1,4 @@
-import argparse,array,csv,json,math,os,re,shlex,subprocess,sys,tempfile
+import argparse,array,copy,csv,json,math,os,re,shlex,subprocess,sys,tempfile
 from pathlib import Path
 import numpy as np
 from third_party.get_max_cpus.py_codes.get_max_cpus import get_max_cpus
@@ -7,43 +7,127 @@ from third_party.run_command.run_command import run_command as run_shell_command
 project_root=os.path.dirname(os.path.abspath(__file__))
 data_root="/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data"
 umc_root="/home/x-zjian1/umc"
-# 每个field的冻结配置；t1命令行只通过dataset和field选择这里的一项
-tsunami_momentum_x_spatial_configuration={"config":"rbf_sort_all_then_split_rounds_mean_reference_distance","prediction_ref_num":10,"ordering_candidate_num":16,"ordering_score_max_ref_num":10,"ordering_score_min_ref_num":10,"shape":0.03,"disable_eb_schedule":True,"common_extra":["-eb-schedule-experimental","point_log2_ratio","0.85","-eb-schedule-log2-shift-experimental","0.5","-rbf-ldlt-experimental"]}
-field_config_vec=[
-    {"key":"katrina_attr0","dataset":"Katrina","folder":"Katrina","variable":"attr0","steps":162,"dim":3,**tsunami_momentum_x_spatial_configuration,"ordering_score_max_ref_num":1,"ordering_score_min_ref_num":1,"ref_num":10,"matrix":"Katrina_attr0_spatial.txt","condition":[">=",-1000],"adjust_coord_rel_eb":1e-3,"adjust_coord_iteration_num":2,"adjust_coord_second_sample_num":100000,"adjust_coord_new_matrix_weight":0.75,"common_extra":[*tsunami_momentum_x_spatial_configuration["common_extra"],"-cross-time-label-predictor-experimental","previous","-cross-time-predictor-experimental","constant_extrapolation_spatial_residual","-fused-two-point-set-prediction-experimental","-rbf-filtered-fallback-nearest-experimental"],"persist_dag":True,"umc":{"umc_from_edge":0,"umc_method":"NBP-IDW-INP","umc_neighbor_num":4,"umc_batch":10}},
-    {"key":"ocean_layerThickness","dataset":"Ocean","folder":"Ocean","variable":"layerThickness","steps":31,"dim":3,"config":"constant_extrapolation","predictor":"inverse_proportion","ref_num":4,"umc":{"umc_from_edge":1}},
-    {"key":"ocean_salinity","dataset":"Ocean","folder":"Ocean","variable":"salinity","steps":31,"dim":3,"config":"linear_interpolation","predictor":"inverse_proportion","ref_num":4,"umc":{"umc_from_edge":1}},
-    {"key":"ocean_temperature","dataset":"Ocean","folder":"Ocean","variable":"temperature","steps":31,"dim":3,"config":"linear_interpolation","predictor":"inverse_proportion","ref_num":4,"matrix":"Ocean_temperature_spatial.txt","umc":{"umc_from_edge":1}},
-    {"key":"ocean_velocityMeridional","dataset":"Ocean","folder":"Ocean","variable":"velocityMeridional","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
-    {"key":"ocean_velocityX","dataset":"Ocean","folder":"Ocean","variable":"velocityX","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
-    {"key":"ocean_velocityY","dataset":"Ocean","folder":"Ocean","variable":"velocityY","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
-    {"key":"ocean_velocityZ","dataset":"Ocean","folder":"Ocean","variable":"velocityZ","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
-    {"key":"ocean_velocityZonal","dataset":"Ocean","folder":"Ocean","variable":"velocityZonal","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
-    {"key":"ocean_zTop","dataset":"Ocean","folder":"Ocean","variable":"zTop","steps":31,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":1}},
-    {"key":"ocean_large_initial_temperatureSurfaceValue","dataset":"Ocean-large","folder":"Ocean-large/data","variable":"temperatureSurfaceValue","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.03,"reorder_by_prediction_order":True,"persist_dag":True,"umc":{"umc_from_edge":1}},
-    {"key":"ocean_large_initial_temperature_vertical","dataset":"Ocean-large","folder":"Ocean-large/data","variable":"temperature","steps":80,"dim":3,"config":"linear_interpolation","predictor":"inverse_proportion","ref_num":4,"condition":[">",-1e30],"time_step_coordinate_file":"refBottomDepth.dat"},
-    {"key":"les_velocity_x","dataset":"LES","folder":"LES","variable":"velocity_x","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"LES_velocity_x_spatial.txt","umc":{"umc_from_edge":0}},
-    {"key":"les_velocity_y","dataset":"LES","folder":"LES","variable":"velocity_y","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"LES_velocity_y_spatial.txt","umc":{"umc_from_edge":0}},
-    {"key":"les_velocity_z","dataset":"LES","folder":"LES","variable":"velocity_z","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"umc":{"umc_from_edge":0}},
-    {"key":"tsunami_bathy","dataset":"Tsunami","folder":"Tsunami","variable":"bathy","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
-    {"key":"tsunami_height","dataset":"Tsunami","folder":"Tsunami","variable":"height","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
-    {"key":"tsunami_momentum_x","dataset":"Tsunami","folder":"Tsunami","variable":"momentum_x","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
-    {"key":"tsunami_momentum_y","dataset":"Tsunami","folder":"Tsunami","variable":"momentum_y","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
-    {"key":"tsunami_velocity_x","dataset":"Tsunami","folder":"Tsunami","variable":"velocity_x","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
-    {"key":"tsunami_velocity_y","dataset":"Tsunami","folder":"Tsunami","variable":"velocity_y","steps":1,"dim":2,**tsunami_momentum_x_spatial_configuration,"umc":{"umc_from_edge":1}},
-    {"key":"tpost20_scalar","dataset":"Tpost20","folder":"Tpost20","variable":"scalar","steps":20,"dim":3,"config":"linear_interpolation_spatial_residual","predictor":"rbf_fitting","ref_num":10,"shape":0.03,"umc":{"umc_from_edge":0}},
-    {"key":"e3sm_h4_AODDUST","dataset":"E3SM-h4","folder":"E3SM-h4","variable":"AODDUST","steps":720,"dim":3,"config":"constant_extrapolation","predictor":"inverse_proportion","ref_num":4,"label_pattern":"AODDUST.label.{time_step}","umc":{"umc_from_edge":1,"umc_method":"NBP-IDW-INP","umc_neighbor_num":4,"umc_batch":10}},
-    {"key":"e3sm_h4_Mass_dst_srf","dataset":"E3SM-h4","folder":"E3SM-h4","variable":"Mass_dst_srf","steps":720,"dim":3,"config":"linear_interpolation","predictor":"inverse_proportion","ref_num":4,"umc":{"umc_from_edge":1}},
-    {"key":"haiyan_depth","dataset":"ADCIRC-Haiyan-1.5km","folder":"ADCIRC-Haiyan-1.5km","variable":"depth","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":8,"shape":0.01,"umc":{"umc_from_edge":1,"umc_reorder":0}},
-    {"key":"haiyan_zeta","dataset":"ADCIRC-Haiyan-1.5km","folder":"ADCIRC-Haiyan-1.5km","variable":"zeta","steps":24,"dim":3,"config":"rbf_split_rounds_then_sort_reference_data_prediction_error","ref_num":10,"shape":0.01,"training":[0,12,23],"condition":["!=",-99999],"persist_dag":True,"umc":{"umc_from_edge":1,"umc_reorder":0,"umc_method":"NBP-IDW-INP","umc_neighbor_num":4,"umc_batch":10}},
-    {"key":"taps_TEMPERATURE","dataset":"TAPS","folder":"TAPS","variable":"TEMPERATURE","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01},
-    {"key":"taps_PRESSURE","dataset":"TAPS","folder":"TAPS","variable":"PRESSURE","steps":1,"dim":3,"config":"idw_sort_all_then_split_rounds_mean_reference_distance","ref_num":5,"power":2.5,"matrix":"TAPS_PRESSURE_spatial.txt"},
-    {"key":"taps_TKE","dataset":"TAPS","folder":"TAPS","variable":"TKE","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"TAPS_TKE_spatial.txt"},
-    {"key":"taps_VELOCITY_X","dataset":"TAPS","folder":"TAPS","variable":"VELOCITY_X","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"TAPS_VELOCITY_X_spatial.txt"},
-    {"key":"taps_RMS_T","dataset":"TAPS","folder":"TAPS","variable":"RMS_T","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"TAPS_RMS_T_spatial.txt"},
-    {"key":"taps_CO2","dataset":"TAPS","folder":"TAPS","variable":"CO2","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"TAPS_CO2_spatial.txt"},
-    {"key":"taps_C11H22","dataset":"TAPS","folder":"TAPS","variable":"C11H22","steps":1,"dim":3,"config":"rbf_split_rounds_then_sort_mean_reference_distance","ref_num":10,"shape":0.01,"matrix":"TAPS_C11H22_spatial.txt"},
-]
+config_directory=os.path.join(project_root,"configs")
+def resolve_json_path(path_or_name):
+    path_or_name=os.path.expanduser(path_or_name)
+    if os.path.isabs(path_or_name) or os.path.dirname(path_or_name):
+        json_path=os.path.abspath(path_or_name)
+    else:
+        config_filename=path_or_name if path_or_name.endswith(".json") else path_or_name+".json"
+        json_path=os.path.join(config_directory,config_filename)
+    if not os.path.isfile(json_path):
+        raise FileNotFoundError(f"找不到JSON配置：{json_path}")
+    return json_path
+
+def load_json_tasks(json_path):
+    with open(json_path,encoding="utf-8") as config_file:
+        tasks=json.load(config_file)
+    if not isinstance(tasks,list):
+        raise TypeError(f"JSON顶层必须是task list：{json_path}")
+    if not tasks:
+        raise ValueError(f"JSON中没有task：{json_path}")
+    required_keys=("name","dataset","folder","field_list","rel_eb_list","method_list","steps","dim","config")
+    task_names=set()
+    for task_index,task in enumerate(tasks):
+        if not isinstance(task,dict):
+            raise TypeError(f"第{task_index}个task必须是object")
+        missing_keys=[key for key in required_keys if key not in task]
+        if missing_keys:
+            raise ValueError(f"第{task_index}个task缺少参数：{','.join(missing_keys)}")
+        for key in ("name","dataset","folder","config"):
+            if not isinstance(task[key],str) or not task[key]:
+                raise ValueError(f"第{task_index}个task的{key}必须是非空字符串")
+        if task["name"] in task_names:
+            raise ValueError(f"task name重复：{task['name']}")
+        task_names.add(task["name"])
+        for key in ("field_list","rel_eb_list","method_list"):
+            if not isinstance(task[key],list) or not task[key]:
+                raise TypeError(f"第{task_index}个task的{key}必须是非空list")
+        if any(not isinstance(field,str) or not field for field in task["field_list"]):
+            raise TypeError(f"第{task_index}个task的field_list只能包含非空字符串")
+        if len(set(task["field_list"]))!=len(task["field_list"]):
+            raise ValueError(f"第{task_index}个task的field_list包含重复field")
+        if any(not isinstance(rel_eb,(int,float)) or rel_eb<=0 for rel_eb in task["rel_eb_list"]):
+            raise TypeError(f"第{task_index}个task的rel_eb_list只能包含正数")
+        if any(not isinstance(method,str) or not method for method in task["method_list"]):
+            raise TypeError(f"第{task_index}个task的method_list只能包含非空字符串")
+        if len(set(task["method_list"]))!=len(task["method_list"]):
+            raise ValueError(f"第{task_index}个task的method_list包含重复method")
+        if "umc" in task["method_list"] and "umc" not in task:
+            raise ValueError(f"第{task_index}个task启用了umc但没有umc配置")
+        if not isinstance(task["steps"],int) or task["steps"]<=0:
+            raise ValueError(f"第{task_index}个task的steps必须是正整数")
+        if not isinstance(task["dim"],int) or task["dim"]<=0:
+            raise ValueError(f"第{task_index}个task的dim必须是正整数")
+        if "key" in task and len(task["field_list"])!=1:
+            raise ValueError(f"第{task_index}个task只有包含一个field时才能指定key")
+    return tasks
+
+def expand_json_tasks(tasks):
+    field_configs=[]
+    for task in tasks:
+        for field in task["field_list"]:
+            config=copy.deepcopy(task)
+            config["task_name"]=config.pop("name")
+            config.pop("field_list")
+            config["variable"]=field
+            if "key" not in config:
+                dataset_key=re.sub(r"[^0-9A-Za-z]+","_",config["dataset"]).strip("_").lower()
+                config["key"]=f"{dataset_key}_{field}"
+            field_configs.append(config)
+    key_set=set()
+    for config in field_configs:
+        if config["key"] in key_set:
+            raise ValueError(f"展开后出现重复field key：{config['key']}")
+        key_set.add(config["key"])
+    return field_configs
+
+def load_tasks(json_path):
+    return expand_json_tasks(load_json_tasks(json_path))
+
+def config_paths():
+    return sorted(Path(config_directory).glob("*.json"))
+
+def find_dataset_config_path(dataset):
+    matches=[]
+    for path in config_paths():
+        try:
+            tasks=load_json_tasks(path)
+        except (TypeError,ValueError):
+            continue
+        if any(task["dataset"].lower()==dataset.lower() for task in tasks):
+            matches.append(path)
+    if len(matches)!=1:
+        raise ValueError(f"dataset {dataset}应恰好出现在一个JSON中，实际找到{len(matches)}个")
+    return matches[0]
+
+def list_dataset_names():
+    names=[]
+    for path in config_paths():
+        try:
+            tasks=load_json_tasks(path)
+        except (TypeError,ValueError):
+            continue
+        for task in tasks:
+            if task["dataset"] not in names:
+                names.append(task["dataset"])
+    return tuple(names)
+
+def write_selected_dataset_config(dataset,field,output_path):
+    source_path=find_dataset_config_path(dataset)
+    tasks=load_json_tasks(source_path)
+    selected_tasks=[]
+    for task in tasks:
+        if task["dataset"].lower()!=dataset.lower() or field not in task["field_list"]:
+            continue
+        selected_task=copy.deepcopy(task)
+        selected_task["field_list"]=[field]
+        selected_tasks.append(selected_task)
+    if len(selected_tasks)!=1:
+        raise ValueError(f"dataset {dataset}中的field {field}应恰好对应一个task，实际找到{len(selected_tasks)}个")
+    with open(output_path,"w",encoding="utf-8") as output_file:
+        json.dump(selected_tasks,output_file,ensure_ascii=False,indent=2)
+        output_file.write("\n")
 build_max_cpus=get_max_cpus(8)
 silent_build=False
 verify_unsz_decompression=True
@@ -201,8 +285,6 @@ def test(compressor,dataset,rel_eb,dag_cache_path=None,point_set_config_path=Non
         time_step_expression=f"[0,{time_step_num-1}]"
         common_arguments=f"-data-dir {shlex.quote(data_dir)} -variable {shlex.quote(variable)} -time-step {shlex.quote(time_step_expression)} -dim {dataset['dim']}"
         common_arguments+=f" -point-set-config {shlex.quote(point_set_config_path)}" if point_set_config_path else f" -M REL {rel_eb}"
-        if dataset.get("adjust_coord",False):
-            common_arguments+=" -adjust-coord"
         if "adjust_coord_matrix" in dataset:
             matrix_path=os.path.join(project_root,"adjust_coord_matrices",dataset["adjust_coord_matrix"])
             common_arguments+=f" -adjust-coord-matrix-file {shlex.quote(matrix_path)}"
@@ -277,8 +359,6 @@ def parse_reference_order_arguments(arguments):
     parser.add_argument("-matrix-file",type=Path)
     parser.add_argument("-condition-operator",choices=("<","<=",">",">=","==","!="))
     parser.add_argument("-condition-value",type=float)
-    parser.add_argument("-label-file-pattern")
-    parser.add_argument("-label-file-dtype",default="uint8")
     parser.add_argument("-result",type=Path,required=True)
     parser.add_argument("-idw-ref-num",type=int,default=4)
     parser.add_argument("-idw-power",type=float,default=2)
@@ -351,11 +431,8 @@ def write_reference_order_results(result_path,result_vec):
 
 def write_reference_point_set_config(path,arguments,predictor,rel_eb):
     labels=[{"method":predictor,"eb_mode":"REL","eb_value":rel_eb},{"method":"constant"}]
-    if arguments.label_file_pattern is not None:
-        config={"version":1,"rule_type":"label_file","label_file":{"path":arguments.label_file_pattern,"dtype":arguments.label_file_dtype},"labels":labels}
-    else:
-        labels[0]["condition"]={"operator":arguments.condition_operator,"value":arguments.condition_value}
-        config={"version":1,"rule_type":"ordered","labels":labels}
+    labels[0]["condition"]={"operator":arguments.condition_operator,"value":arguments.condition_value}
+    config={"version":1,"labels":labels}
     with path.open("w",encoding="utf-8") as file:
         json.dump(config,file,ensure_ascii=False)
 
@@ -363,8 +440,6 @@ def reference_order_main(command_line_arguments):
     arguments=parse_reference_order_arguments(command_line_arguments)
     if(arguments.condition_operator is None)!=(arguments.condition_value is None):
         raise ValueError("condition-operator和condition-value必须同时指定")
-    if arguments.label_file_pattern is not None and arguments.condition_operator is not None:
-        raise ValueError("label-file-pattern不能和condition-operator同时指定")
     if arguments.idw_ref_num<=0 or arguments.rbf_ref_num<=0:
         raise ValueError("参考点数必须为正数")
     training_time_step_vec=tuple(dict.fromkeys(arguments.training_time_step or ()))
@@ -399,8 +474,6 @@ def reference_order_main(command_line_arguments):
         raise ValueError("持久保存DAG缓存时必须只选择一个configuration")
     if any(config["ordering_score"]=="reference_data_prediction_error" for config in config_vec) and not training_time_step_vec:
         raise ValueError("参考数据辅助顺序至少需要一个training-time-step")
-    if any(config["ordering_score"]=="reference_data_prediction_error" for config in config_vec) and arguments.label_file_pattern is not None:
-        raise ValueError("label_file分类暂时不能用于参考数据辅助顺序")
     result_vec=[]
     temporary_root=os.environ.get("SLURM_TMPDIR","/tmp")
     with tempfile.TemporaryDirectory(prefix=f"unsz_{arguments.variable}_rbf_",dir=temporary_root) as temporary_dir_string:
@@ -416,7 +489,7 @@ def reference_order_main(command_line_arguments):
             for rel_eb in rel_eb_vec:
                 compression_error_arguments=["-M","REL",rel_eb,"-predictor",config["predictor"]]
                 decompression_error_arguments=["-M","REL",rel_eb]
-                if arguments.condition_operator is not None or arguments.label_file_pattern is not None:
+                if arguments.condition_operator is not None:
                     point_set_config_path=temporary_dir/f"{config['name']}_{rel_eb:g}.json"
                     write_reference_point_set_config(point_set_config_path,arguments,config["predictor"],rel_eb)
                     compression_error_arguments=["-point-set-config",point_set_config_path]
@@ -450,31 +523,29 @@ def reference_order_main(command_line_arguments):
     print(f"结果已写入{arguments.result}",flush=True)
 
 def find_field_config(dataset,field):
-    matches=[config for config in field_config_vec if config["dataset"].lower()==dataset.lower() and config["variable"]==field]
-    if matches:
+    tasks=load_tasks(find_dataset_config_path(dataset))
+    matches=[config for config in tasks if config["dataset"].lower()==dataset.lower() and config["variable"]==field]
+    if len(matches)==1:
         return matches[0]
-    available_fields=[config["variable"] for config in field_config_vec if config["dataset"].lower()==dataset.lower()]
-    if available_fields:
-        raise ValueError(f"dataset {dataset}中没有field {field}；可选field：{','.join(available_fields)}")
-    raise ValueError(f"未知dataset：{dataset}")
-
-def build_selected_programs(field):
-    build_programs("umc" in field)
+    if len(matches)>1:
+        raise ValueError(f"dataset {dataset}中的field {field}展开为{len(matches)}个参数组合，无法作为唯一正式配置")
+    available_fields=tuple(dict.fromkeys(config["variable"] for config in tasks))
+    raise ValueError(f"dataset {dataset}中没有field {field}；可选field：{','.join(available_fields)}")
 
 def cli(command_line_arguments=None):
-    dataset_names=tuple(dict.fromkeys(config["dataset"].lower() for config in field_config_vec))
-    parser=argparse.ArgumentParser(description="使用t1内冻结的field配置运行UNSZ和UMC正式测试")
-    parser.add_argument("-data",required=True,choices=dataset_names)
-    parser.add_argument("-field",required=True)
+    parser=argparse.ArgumentParser(description="运行configs目录中的UNSZ实验配置")
+    parser.add_argument("json",help="configs中的JSON配置名称，或JSON文件路径")
     arguments=parser.parse_args(command_line_arguments)
     try:
-        field=find_field_config(arguments.data,arguments.field)
-    except ValueError as error:
+        json_path=resolve_json_path(arguments.json)
+        selected_field_config_vec=load_tasks(json_path)
+    except (FileNotFoundError,TypeError,ValueError) as error:
         parser.error(str(error))
-    build_selected_programs(field)
+    build_programs(any("umc" in field["method_list"] for field in selected_field_config_vec))
     sys.modules.setdefault("t1_start_c_code",sys.modules[__name__])
     from py_codes.refresh_selected_results import run_field
-    run_field(field)
+    for field in selected_field_config_vec:
+        run_field(field,rel_values=field["rel_eb_list"],configuration_path=json_path)
 
 if __name__=="__main__":
     cli()

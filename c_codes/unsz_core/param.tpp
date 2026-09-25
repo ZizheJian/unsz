@@ -30,10 +30,8 @@ namespace unsz
         got_error_mode=other.got_error_mode;
         got_predictor=other.got_predictor;
         no_prediction_dag_cache=other.no_prediction_dag_cache;
-        point_set_classification=other.point_set_classification;
         point_set_rule_vec=other.point_set_rule_vec;
         point_set_config_vec=other.point_set_config_vec;
-        point_set_label_path_pattern=other.point_set_label_path_pattern;
         check_original_data_files=other.check_original_data_files;
         cross_time_compress=other.cross_time_compress;
         cross_time_predictor_experimental=other.cross_time_predictor_experimental;

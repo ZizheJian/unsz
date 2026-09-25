@@ -24,5 +24,5 @@ do
 done
 export UNSZ_SPEED_DATA_DIR="$speed_data_dir"
 common=(./unsz_env/bin/python -c 'import sys,t1_start_c_code as b;b.reference_order_main(sys.argv[1:])' -data-dir "$speed_data_dir" -variable temperatureSurfaceValue -time-step-num 3 -dim 3 -configuration rbf_split_rounds_then_sort_mean_reference_distance -rbf-ref-num 10 -rbf-shape 0.03 -rel-eb 0.001 -decompression-stage-time)
-"${common[@]}" -reorder-data-by-prediction-order -dag-cache-result results/prediction_structures/ocean_large_initial_temperatureSurfaceValue_rbf10_s003.dag -result results/ocean_large_rbf10_speed_reordered_fast.csv
+"${common[@]}" -reorder-data-by-prediction-order -dag-cache-result results/prediction_structures/ocean_large_restart_temperatureSurfaceValue_rbf10_s003.dag -result results/ocean_large_rbf10_speed_reordered_fast.csv
 ./unsz_env/bin/python -c 'import os,t1_start_c_code as b;f=b.find_field_config("Ocean-large","temperatureSurfaceValue");d={"name":f["key"],"data_dir":os.environ["UNSZ_SPEED_DATA_DIR"],"folder":f["folder"],"variable":f["variable"],"time_step_num":3,"dim":f["dim"],**f["umc"]};b.test("umc",d,1e-3)'
