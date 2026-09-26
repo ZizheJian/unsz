@@ -1,2 +1,0 @@
-config,round_formation,ordering_score,ref_num,prediction_order_memory_layout,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time,compression_decompression_time,compression_input_memory_layout_time,decompression_output_memory_layout_time,decompression_stream_decode_time,decompression_label_decode_time,decompression_value_decode_time
-rbf_split_rounds_then_sort_mean_reference_distance,split_rounds_then_sort,mean_reference_distance,8,False,0.1,0.195375,33.085777,30.113016,0.168968,0.109639,0.278607,0,0,0,0,0

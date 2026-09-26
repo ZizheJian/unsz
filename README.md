@@ -124,7 +124,7 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -variable attr0 -time-step 
 | `t1_start_c_code.py` | 正式实验通用入口，只接受一个位置参数：`configs/`中的JSON名称或任意JSON路径，例如`./unsz_env/bin/python t1_start_c_code.py tsunami`或`./unsz_env/bin/python t1_start_c_code.py /path/to/test.json`。入口读取任务后直接构造并执行UNSZ或UMC命令，不再调用第二层Python实验入口，结果直接写入CSV。UNSZ程序缺失时自动编译；不会编译UMC，UMC需要提前手动编译。 |
 | `py_codes/parse_unsz_output.py`、`py_codes/parse_umc_output.py` | 只解析并核对压缩器输出，不负责调度或启动实验。 |
 | `t2_adjust_coord.py` | 训练坐标变换矩阵。命令行与`t1_start_c_code.py`一样只接受一个JSON名称或路径，并依次训练其中展开后的全部field；Python函数`train_adjust_coord()`直接接收展开后的field配置，仍可调整loss、采样、优化器、预测器、训练参考点数和输出路径。 |
-| `t3_visualize.py` | 使用当前矩阵生成Katrina attr0与Ocean temperature坐标变换前后的field图像 |
+| `t3_visualize.py` | 生成Katrina attr0与Ocean temperature坐标变换前后的field图像，以及Tsunami最佳与最差field的原网格图像 |
 | `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h0、E3SM-h4、ADCIRC Haiyan、Tsunami、TAPS和Ocean-large发布数据转换为UNSZ/UMC共用的平坦二进制基准输入；共享工具位于同目录的`prepare_dataset_common.py` |
 | `py_codes/run_spatial_field_benchmark.slurm` | 在Slurm节点上运行环境变量`CONFIG`明确指定的完整task JSON，不在运行时拆分或改写JSON |
 | `py_codes/run_configurations.slurm` | 以Slurm array依次把当前9个正式数据集JSON交给`t1_start_c_code.py`。 |
@@ -154,12 +154,14 @@ JSON最外层是task list；同一个JSON可以包含不同数据集的任务。
 
 UMC任务默认比较压缩端与独立解压端报告的PSNR，但不逐点读取磁盘上的`.umc.out`。需要在更新UMC、修改输入转换或冻结最终结果时检查实际输出文件，可以在task中设置`"verify_umc_disk_output":true`；该检查使用NumPy分块计算，不计入UMC核心压缩或解压时间。
 
-统一可视化程序默认生成Katrina attr0与Ocean temperature的变换前、变换后图像，也可以只选择一个数据集：
+统一可视化程序默认生成Katrina attr0与Ocean temperature的变换前后图像，以及Tsunami velocity_x和height的原网格图像，也可以只选择一个数据集：
 
 ```bash
 ./unsz_env/bin/python t3_visualize.py
 ./unsz_env/bin/python t3_visualize.py -dataset katrina
 ./unsz_env/bin/python t3_visualize.py -dataset ocean-temperature
+./unsz_env/bin/python t3_visualize.py -dataset tsunami-velocity-x
+./unsz_env/bin/python t3_visualize.py -dataset tsunami-height
 ```
 
 # 2. 方案描述
@@ -1224,7 +1226,7 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
 
 RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点，并在共同PSNR范围内直接对BR作分段线性插值。速度统计压缩与解压的程序内部核心时间之和；DAG、RBF权重和坐标变换等预处理单独报告。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
 
-数据转换入口见`py_codes/prepare_datasets/prepare_*.py`。详细消融、失败方案和历史统计保存在`results/`与`TODO_DETAIL.md`，不再展开写入README。
+数据转换入口见`py_codes/prepare_datasets/prepare_*.py`。当前仓库只保留Tsunami和Katrina的详细实验结果；其他数据集保留可重新运行的正式配置和转换程序。
 
 # 4. TODO
 

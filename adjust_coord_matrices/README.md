@@ -35,6 +35,4 @@ install/bin/s1_decompress ... -adjust-coord-matrix-file adjust_coord_matrices/Ka
 
 当前统一训练协议使用实际空间预测器的全部参数和`prediction_ggd_bit`离散量化区间码长loss，不使用GGD微分熵loss。训练目标数、训练EB、迭代数和矩阵吸收率可以由数据集JSON中的field task覆盖。Tsunami的六个field已经按RBF10、Matérn-3/2核、shape `0.03`、nugget `1e-6`、无趋势项和10000个训练目标完成重测；改善最多的height也只降低约`0.46%` BR，因此六项全部使用原始坐标，候选矩阵仅保存在结果目录。完整对照结果见`results/tsunami_adjust_coord_rbf10_discrete_entropy/summary.csv`。Katrina最终使用100000个目标、训练REL EB `1e-3`、2轮和吸收率`0.75`；在`78.7245 dB`处的BR为`0.313441`，比可复现的旧二次方loss矩阵低`4.733%`。完整调优记录见`results/katrina_adjust_coord_ggd_tuning/`。
 
-E3SM-h0的8个field、ADCIRC Haiyan `depth`以及TAPS新增field的文件是按旧二次方loss、4个训练近邻和4轮流程重新生成的首轮筛选矩阵，并不表示它们都已被选为正式压缩配置。
-
 `Katrina_attr0_spatiotemporal_t162_random_hyperrectangle_regions_r4.txt`是全部162步四维联合筛选矩阵。它在REL `1e-3`下同PSNR BR明显差于当前纯空间和上一时刻标签方案，只用于复现否定性实验，不是Katrina正式配置。

@@ -1,6 +1,0 @@
-config,predict_round_num,eb_schedule,eb_ratio,round_size_growth_ratio,round_formation,ordering_construction,ordering_score,ref_num,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
-round_6_eb_ratio_0.925,6,round_point_ratio,0.925,2,sort_all_then_split_rounds,reverse_elimination,mean_reference_distance,12,matern32,0.03,1e-06,0,0.1,0.139259,29.355057,0.699383,0.002085,0.001548
-round_6_eb_ratio_0.925,6,round_point_ratio,0.925,2,sort_all_then_split_rounds,reverse_elimination,mean_reference_distance,12,matern32,0.03,1e-06,0,0.01,0.807778,47.343011,0.161352,0.002281,0.001607
-round_6_eb_ratio_0.925,6,round_point_ratio,0.925,2,sort_all_then_split_rounds,reverse_elimination,mean_reference_distance,12,matern32,0.03,1e-06,0,0.001,2.753704,66.009652,0.161199,0.002474,0.001752
-round_6_eb_ratio_0.925,6,round_point_ratio,0.925,2,sort_all_then_split_rounds,reverse_elimination,mean_reference_distance,12,matern32,0.03,1e-06,0,0.0001,6.177037,85.230831,0.157327,0.003346,0.001984
-round_6_eb_ratio_0.925,6,round_point_ratio,0.925,2,sort_all_then_split_rounds,reverse_elimination,mean_reference_distance,12,matern32,0.03,1e-06,0,1e-05,11.007778,105.21132,0.156771,0.004474,0.002245

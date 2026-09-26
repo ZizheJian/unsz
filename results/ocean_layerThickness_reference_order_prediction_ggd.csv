@@ -1,6 +1,0 @@
-config,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
-idw_reference_data,0.1,0.056459,36.734067,3.600966,0.381186,0.274935
-idw_reference_data,0.01,0.399139,53.902851,0.033984,0.394639,0.274447
-idw_reference_data,0.001,1.190912,71.047533,0.038371,0.400044,0.282484
-idw_reference_data,0.0001,3.101784,87.88234,0.032297,0.639086,0.315504
-idw_reference_data,1e-05,6.734831,106.082353,0.03731,0.742793,0.369828

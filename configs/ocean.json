@@ -76,7 +76,6 @@
     "config":"linear_interpolation",
     "predictor":"inverse_proportion",
     "ref_num":4,
-    "matrix":"Ocean_temperature_spatial.txt",
     "umc":{
       "umc_from_edge":1
     }

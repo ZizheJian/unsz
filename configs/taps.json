@@ -43,8 +43,7 @@
     "dim":3,
     "config":"idw_sort_all_then_split_rounds_mean_reference_distance",
     "ref_num":5,
-    "power":2.5,
-    "matrix":"TAPS_PRESSURE_spatial.txt"
+    "power":2.5
   },
   {
     "name":"TKE",
@@ -67,8 +66,7 @@
     "dim":3,
     "config":"rbf_split_rounds_then_sort_mean_reference_distance",
     "ref_num":10,
-    "shape":0.01,
-    "matrix":"TAPS_TKE_spatial.txt"
+    "shape":0.01
   },
   {
     "name":"VELOCITY_X",
@@ -91,8 +89,7 @@
     "dim":3,
     "config":"rbf_split_rounds_then_sort_mean_reference_distance",
     "ref_num":10,
-    "shape":0.01,
-    "matrix":"TAPS_VELOCITY_X_spatial.txt"
+    "shape":0.01
   },
   {
     "name":"RMS_T",
@@ -115,8 +112,7 @@
     "dim":3,
     "config":"rbf_split_rounds_then_sort_mean_reference_distance",
     "ref_num":10,
-    "shape":0.01,
-    "matrix":"TAPS_RMS_T_spatial.txt"
+    "shape":0.01
   },
   {
     "name":"CO2",
@@ -139,8 +135,7 @@
     "dim":3,
     "config":"rbf_split_rounds_then_sort_mean_reference_distance",
     "ref_num":10,
-    "shape":0.01,
-    "matrix":"TAPS_CO2_spatial.txt"
+    "shape":0.01
   },
   {
     "name":"C11H22",
@@ -163,7 +158,6 @@
     "dim":3,
     "config":"rbf_split_rounds_then_sort_mean_reference_distance",
     "ref_num":10,
-    "shape":0.01,
-    "matrix":"TAPS_C11H22_spatial.txt"
+    "shape":0.01
   }
 ]

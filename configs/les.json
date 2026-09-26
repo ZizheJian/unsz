@@ -22,7 +22,6 @@
     "config":"rbf_split_rounds_then_sort_mean_reference_distance",
     "ref_num":10,
     "shape":0.01,
-    "matrix":"LES_velocity_x_spatial.txt",
     "umc":{
       "umc_from_edge":0
     }
@@ -50,7 +49,6 @@
     "config":"rbf_split_rounds_then_sort_mean_reference_distance",
     "ref_num":10,
     "shape":0.01,
-    "matrix":"LES_velocity_y_spatial.txt",
     "umc":{
       "umc_from_edge":0
     }
