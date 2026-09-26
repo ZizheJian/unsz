@@ -8,7 +8,7 @@
 
 ## 已完成：更多数据与field首轮筛选（2026-09-06）
 
-- [x] 为Tpost20、E3SM-h0、E3SM-h4、ADCIRC Haiyan、Tsunami、TAPS和Ocean-large分别提供独立Python转换程序，共享工具位于`third_party/prepare_dataset_common/prepare_dataset_common.py`。AODVIS中的481个NaN转换为`-99999`；所有转换文件均检查长度和值域。旧Ocean-large C++转换器归档于`c_codes/trash/prepare_ocean_large.cpp`。
+- [x] 在`py_codes/prepare_datasets/`中为Tpost20、E3SM-h0、E3SM-h4、ADCIRC Haiyan、Tsunami、TAPS和Ocean-large分别提供独立Python转换程序，共享工具位于同目录的`prepare_dataset_common.py`。AODVIS中的481个NaN转换为`-99999`；所有转换文件均检查长度和值域。旧Ocean-large C++转换器归档于`c_codes/trash/prepare_ocean_large.cpp`。
 - [x] 每个field使用REL `1e-1～1e-5`五点曲线，分别测试原坐标和按当前二次方loss、4训练近邻、4外层迭代重新训练的空间矩阵；各EB都执行独立磁盘解压和误差检查。旧入口`screen_more_fields.py`及其Slurm array已归档，配置按数据集拆分到`configs/`并由`t1_start_c_code.py`统一加载。
 - [x] E3SM-h0原坐标UNSZ在8个field上相对UMC降低`11.325%～18.479%` BD-rate。矩阵只让TAUX/PRECC/FLNS/CLDTOT/U10改善`0.534%～0.683%`，AODVIS近似不变，并使PS/TREFHT分别退化`5.505%/7.048%`。Tsunami bathy接近持平；height和Haiyan depth的原坐标UNSZ相对UMC分别退化`3.927%/1.665%`，矩阵没有挽回。
 - [x] TAPS六个新增field没有可用于UMC的connectivity，只比较矩阵和原坐标。矩阵在C11H22、VELOCITY_X、CO2、RMS_T和TKE分别降低`13.186%/9.731%/5.300%/3.345%/3.014%` BD-rate，PRESSURE增加`0.354%`，平均/中位变化为`-5.704%/-4.322%`。核心压缩均值为`23.17/23.16 MB/s`，解压为`31.14/31.31 MB/s`，矩阵不增加逐文件成本。

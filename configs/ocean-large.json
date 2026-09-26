@@ -3,7 +3,6 @@
     "name":"temperatureSurfaceValue",
     "dataset":"Ocean-large",
     "folder":"Ocean-large/data",
-    "key":"ocean_large_restart_temperatureSurfaceValue",
     "field_list":[
       "temperatureSurfaceValue"
     ],
@@ -33,7 +32,6 @@
     "name":"temperature_vertical",
     "dataset":"Ocean-large",
     "folder":"Ocean-large/data",
-    "key":"ocean_large_restart_temperature_vertical",
     "field_list":[
       "temperature"
     ],

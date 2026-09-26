@@ -5,7 +5,7 @@ import numpy as np
 
 project_root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(project_root))
-import t1_start_c_code as benchmark
+from py_codes.reference_order import main as run_reference_order
 legacy_order_dimension_map={"d_only":("split_rounds_then_sort","mean_reference_distance"),"global":("sort_all_then_split_rounds","mean_reference_distance"),"reference_data":("split_rounds_then_sort","reference_data_prediction_error")}
 
 def parse_arguments():
@@ -76,7 +76,7 @@ def main():
             if arguments.matrix_file is None:
                 raise RuntimeError("adjusted候选缺少matrix-file")
             command.extend(("-matrix-file",arguments.matrix_file))
-        benchmark.reference_order_main(command)
+        run_reference_order(command)
         full_result_map[key]=read_rows(result_path)
     baseline_full=full_result_map[baseline_key]
     final_ranking=sorted((calculate_average_br_change(baseline_full,full_result_map[key]),key) for key in candidate_key_vec)

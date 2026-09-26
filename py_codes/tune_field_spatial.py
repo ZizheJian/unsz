@@ -4,7 +4,7 @@ import numpy as np
 
 project_root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(project_root))
-import t1_start_c_code as benchmark
+from py_codes.reference_order import main as run_reference_order
 default_rel_eb_vec=(1e-2,1e-3,1e-4)
 legacy_order_dimension_map={"d_only":("split_rounds_then_sort","mean_reference_distance"),"global":("sort_all_then_split_rounds","mean_reference_distance"),"reference_data":("split_rounds_then_sort","reference_data_prediction_error")}
 
@@ -102,7 +102,7 @@ def main():
                         command.extend(("-idw-ref-num",ref_num,"-idw-power",power))
                     else:
                         command.extend(("-rbf-ref-num",ref_num,"-rbf-shape",shape))
-                    benchmark.reference_order_main(command)
+                    run_reference_order(command)
                     result_vec=[row for row in result_vec if configuration_key(row)!=key]
                     with output_path.open(newline="") as file:
                         for row in csv.DictReader(file):

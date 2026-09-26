@@ -1,9 +1,9 @@
 import argparse,sys
 from pathlib import Path
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from third_party.prepare_dataset_common.prepare_dataset_common import data_root_default
-from prepare_e3sm_common import prepare_e3sm
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
+from py_codes.prepare_datasets.prepare_dataset_common import data_root_default
+from py_codes.prepare_datasets.prepare_e3sm_common import prepare_e3sm
 
 
 default_fields=("PS","TREFHT","PRECC","U10","TAUX","FLNS","AODVIS","CLDTOT")

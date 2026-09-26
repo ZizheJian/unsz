@@ -3,7 +3,6 @@
     "name":"depth",
     "dataset":"ADCIRC-Haiyan-1.5km",
     "folder":"ADCIRC-Haiyan-1.5km",
-    "key":"haiyan_depth",
     "field_list":[
       "depth"
     ],
@@ -32,7 +31,6 @@
     "name":"zeta",
     "dataset":"ADCIRC-Haiyan-1.5km",
     "folder":"ADCIRC-Haiyan-1.5km",
-    "key":"haiyan_zeta",
     "field_list":[
       "zeta"
     ],

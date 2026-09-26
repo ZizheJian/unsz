@@ -121,11 +121,13 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -variable attr0 -time-step 
 
 | 脚本 | 功能 |
 |---|---|
-| `t1_start_c_code.py` | 正式实验通用入口，只接受一个位置参数：`configs/`中的JSON名称或任意JSON路径，例如`./unsz_env/bin/python t1_start_c_code.py tsunami`或`./unsz_env/bin/python t1_start_c_code.py /path/to/test.json`。入口展开并依次执行其中的全部参数组合。UNSZ程序缺失时自动编译；不会编译UMC，UMC需要提前手动编译。 |
-| `t2_adjust_coord.py` | 训练坐标变换矩阵。命令行只接受`-data`和`-field`，并通过`t1_start_c_code.py`读取对应task中的路径、维数、time step数、预测器和矩阵文件名；Python函数`train_adjust_coord()`仍可调整loss、采样、优化器、预测器、训练参考点数和输出路径。 |
+| `t1_start_c_code.py` | 正式实验通用入口，只接受一个位置参数：`configs/`中的JSON名称或任意JSON路径，例如`./unsz_env/bin/python t1_start_c_code.py tsunami`或`./unsz_env/bin/python t1_start_c_code.py /path/to/test.json`。入口读取任务后直接构造并执行UNSZ或UMC命令，不再调用第二层Python实验入口，结果直接写入CSV。UNSZ程序缺失时自动编译；不会编译UMC，UMC需要提前手动编译。 |
+| `py_codes/parse_unsz_output.py`、`py_codes/parse_umc_output.py` | 只解析并核对压缩器输出，不负责调度或启动实验。 |
+| `t2_adjust_coord.py` | 训练坐标变换矩阵。命令行与`t1_start_c_code.py`一样只接受一个JSON名称或路径，并依次训练其中展开后的全部field；Python函数`train_adjust_coord()`直接接收展开后的field配置，仍可调整loss、采样、优化器、预测器、训练参考点数和输出路径。 |
 | `t3_visualize.py` | 使用当前矩阵生成Katrina attr0与Ocean temperature坐标变换前后的field图像 |
-| `py_codes/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h0、E3SM-h4、ADCIRC Haiyan、Tsunami、TAPS和Ocean-large发布数据转换为UNSZ/UMC共用的平坦二进制基准输入；共享的Python工具位于`third_party/prepare_dataset_common/prepare_dataset_common.py` |
-| `py_codes/run_spatial_field_benchmark.slurm` | 以Slurm array并发运行同一数据集的不同field |
+| `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h0、E3SM-h4、ADCIRC Haiyan、Tsunami、TAPS和Ocean-large发布数据转换为UNSZ/UMC共用的平坦二进制基准输入；共享工具位于同目录的`prepare_dataset_common.py` |
+| `py_codes/run_spatial_field_benchmark.slurm` | 在Slurm节点上运行环境变量`CONFIG`明确指定的完整task JSON，不在运行时拆分或改写JSON |
+| `py_codes/run_configurations.slurm` | 以Slurm array依次把当前9个正式数据集JSON交给`t1_start_c_code.py`。 |
 | `py_codes/plot_dataset_rd.py` | 为一个数据集的各field分别绘制UNSZ/UMC空间RD与核心吞吐率，并计算同PSNR下的平均BR变化 |
 
 JSON最外层是task list；同一个JSON可以包含不同数据集的任务。每个task都必须自行记录`name`、`dataset`、`folder`和`parameters`，即使相邻task使用同一数据集也不从外层继承。`parameters`中的标量表示固定值，list表示需要枚举的候选值；`t1`对所有list参数取笛卡尔积。例如下面的task会生成`2×2=4`个具体任务：
@@ -149,6 +151,8 @@ JSON最外层是task list；同一个JSON可以包含不同数据集的任务。
 ```
 
 `parameters`之外的list不参与展开，因此`common_extra`、`training`等有顺序或整体含义的数据仍按原样传递。若没有显式给出`rel_eb`，每个展开后的任务固定运行REL`1e-1～1e-5`五点曲线；把`rel_eb`写成`parameters`中的list时，则每个误差上限成为一个独立任务。
+
+UMC任务默认比较压缩端与独立解压端报告的PSNR，但不逐点读取磁盘上的`.umc.out`。需要在更新UMC、修改输入转换或冻结最终结果时检查实际输出文件，可以在task中设置`"verify_umc_disk_output":true`；该检查使用NumPy分块计算，不计入UMC核心压缩或解压时间。
 
 统一可视化程序默认生成Katrina attr0与Ocean temperature的变换前、变换后图像，也可以只选择一个数据集：
 
@@ -233,13 +237,13 @@ UNSZ根据点之间的距离选择参考点，但原始坐标中的距离不一�
 
 待验证的简化方案是只学习或扫描各坐标轴的缩放比例，不使用轴间混合，并在相同预测器、排序和PSNR下比较BR。不能先认定Katrina现有矩阵等价于纯z缩放：当前矩阵中z到x、y的系数约为`-0.00534/-0.00258`，乘上原始z跨度后，对x、y距离的影响可能与这两轴自身跨度同量级。轴向缩放若仍用于生成顺序、选择参考点和计算RBF权重，压缩端与解压端必须使用相同的缩放比例。
 
-正式训练入口只选择dataset和field。例如：
+正式训练入口只指定一份task JSON。例如：
 
 ```bash
-./unsz_env/bin/python t2_adjust_coord.py -data tsunami -field bathy
+./unsz_env/bin/python t2_adjust_coord.py tsunami
 ```
 
-`-data`统一使用小写；`-field`必须使用对应task中记录的变量名及大小写。`t2`通过`t1`的通用配置加载函数读取数据路径、维数、time step数和最终数值预测器；如果该field被list参数展开成多个组合，`t2`会拒绝猜测并要求先确定唯一配置。即使该field尚未启用坐标变换，也可以先训练候选矩阵，以便实测后再决定是否写入JSON配置。已有正式矩阵名时覆盖该文件名，否则默认写入`adjust_coord_matrices/<dataset>_<field>_spatial.txt`。命令行不提供单独的训练参数，避免正式矩阵使用不同协议。需要做消融时，可以在Python中调用`t2_adjust_coord.train_adjust_coord()`，通过关键字参数覆盖统一训练配置；更底层的`adjust_coord()`也保留完整参数接口。
+`t2`通过`t1_start_c_code.load_tasks()`读取明确指定的JSON，不会扫描`configs/`并根据dataset猜测配置文件。它依次使用每个展开后field的数据路径、维数、time step数和最终数值预测器；已有正式矩阵名时覆盖该文件名，否则默认写入`adjust_coord_matrices/<dataset>_<field>_spatial.txt`。命令行不提供单独的训练参数，避免正式矩阵使用不同协议。需要只训练部分field时，应提供只包含这些task或field的JSON；做消融时可以先调用该函数取得配置，再传给`t2_adjust_coord.train_adjust_coord()`并通过关键字参数覆盖统一训练配置。更底层的`adjust_coord()`也保留完整参数接口。
 
 坐标按照`c'=cC`变换，训练希望两个点的数值差与它们在新坐标中的距离接近：
 
@@ -1220,13 +1224,13 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
 
 RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点，并在共同PSNR范围内直接对BR作分段线性插值。速度统计压缩与解压的程序内部核心时间之和；DAG、RBF权重和坐标变换等预处理单独报告。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
 
-数据转换入口见`py_codes/prepare_*.py`。详细消融、失败方案和历史统计保存在`results/`与`TODO_DETAIL.md`，不再展开写入README。
+数据转换入口见`py_codes/prepare_datasets/prepare_*.py`。详细消融、失败方案和历史统计保存在`results/`与`TODO_DETAIL.md`，不再展开写入README。
 
 # 4. TODO
 
 ## 4.1. 投稿前主线
 
-- [ ] 冻结bitstream、配置和实验脚本后，统一生成正式五点BR–PSNR、核心压缩＋解压时间、各阶段码流长度和完整manifest；在此之前不再无目的地重复全数据复测。
+- [ ] 冻结bitstream、配置和实验脚本后，统一生成正式五点BR–PSNR、核心压缩＋解压时间和各阶段码流长度；在此之前不再无目的地重复全数据复测。
 - [ ] 把`results/current`整理为与3.1及`configs/`中的task JSON一致的结果集；Tsunami最终使用16候选。
 - [ ] 优先优化仍未达到目标的field，包括Tsunami height、ADCIRC-Haiyan depth和Ocean-large垂直temperature；方案固定后再迁移到其他field验证泛化。
 - [ ] 测试一阶内插中“最后一个文件由第一个文件作零阶外插预测”，并实现“空间预测＋时间补偿”。

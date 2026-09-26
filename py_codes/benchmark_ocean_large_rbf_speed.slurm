@@ -23,6 +23,6 @@ do
     ln -s "$source_data_dir/temperatureSurfaceValue.dat.0" "$speed_data_dir/temperatureSurfaceValue.dat.$time_step"
 done
 export UNSZ_SPEED_DATA_DIR="$speed_data_dir"
-common=(./unsz_env/bin/python -c 'import sys,t1_start_c_code as b;b.reference_order_main(sys.argv[1:])' -data-dir "$speed_data_dir" -variable temperatureSurfaceValue -time-step-num 3 -dim 3 -configuration rbf_split_rounds_then_sort_mean_reference_distance -rbf-ref-num 10 -rbf-shape 0.03 -rel-eb 0.001 -decompression-stage-time)
+common=(./unsz_env/bin/python -c 'import sys;from py_codes.reference_order import main;main(sys.argv[1:])' -data-dir "$speed_data_dir" -variable temperatureSurfaceValue -time-step-num 3 -dim 3 -configuration rbf_split_rounds_then_sort_mean_reference_distance -rbf-ref-num 10 -rbf-shape 0.03 -rel-eb 0.001 -decompression-stage-time)
 "${common[@]}" -reorder-data-by-prediction-order -dag-cache-result results/prediction_structures/ocean_large_restart_temperatureSurfaceValue_rbf10_s003.dag -result results/ocean_large_rbf10_speed_reordered_fast.csv
-./unsz_env/bin/python -c 'import os,t1_start_c_code as b;f=b.find_field_config("Ocean-large","temperatureSurfaceValue");d={"name":f["key"],"data_dir":os.environ["UNSZ_SPEED_DATA_DIR"],"folder":f["folder"],"variable":f["variable"],"time_step_num":3,"dim":f["dim"],**f["umc"]};b.test("umc",d,1e-3)'
+./unsz_env/bin/python -c 'import os;from t1_start_c_code import find_task,run_umc;f=find_task("ocean-large","Ocean-large","temperatureSurfaceValue");f={**f,"data_dir":os.environ["UNSZ_SPEED_DATA_DIR"],"steps":3};run_umc(f,1e-3)'

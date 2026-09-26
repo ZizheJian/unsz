@@ -1,8 +1,8 @@
 import argparse,sys
 from pathlib import Path
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from third_party.prepare_dataset_common.prepare_dataset_common import data_root_default,extract_hdf5_native_float32
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
+from py_codes.prepare_datasets.prepare_dataset_common import data_root_default,extract_hdf5_native_float32
 
 
 point_num=113885

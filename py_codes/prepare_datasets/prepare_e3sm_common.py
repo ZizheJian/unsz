@@ -1,9 +1,10 @@
-import tempfile
+import sys,tempfile
 from pathlib import Path
 
 import numpy as np
 
-from third_party.prepare_dataset_common.prepare_dataset_common import run_h5dump,write_interleaved_float32
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
+from py_codes.prepare_datasets.prepare_dataset_common import run_h5dump,write_interleaved_float32
 
 
 def prepare_scrip_cell_edges(grid_path,output_path):

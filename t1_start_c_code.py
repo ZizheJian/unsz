@@ -1,529 +1,66 @@
-import argparse,array,copy,csv,json,math,os,re,shlex,subprocess,sys,tempfile
+import argparse,array,copy,json,math,os,re,shlex,tempfile
 from pathlib import Path
-import numpy as np
+from py_codes.parse_umc_output import calculate_data_range,calculate_umc_disk_error,parse_umc_compression_result,parse_umc_decompression_result
+from py_codes.parse_unsz_output import parse_unsz_output
+from third_party.csv_tools.py_codes.write_csv_item import write_csv_item
 from third_party.get_max_cpus.py_codes.get_max_cpus import get_max_cpus
-from third_party.run_command.run_command import run_command as run_shell_command
+from third_party.run_command.run_command import run_command
 
-project_root=os.path.dirname(os.path.abspath(__file__))
-data_root="/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data"
-umc_root="/home/x-zjian1/umc"
-config_directory=os.path.join(project_root,"configs")
+project_root=Path(__file__).resolve().parent
+config_directory=project_root/"configs"
+data_root=Path("/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data")
+result_root=project_root/"results/current"
+umc_root=Path("/home/x-zjian1/umc")
+build_max_cpus=get_max_cpus(8)
+silent_build=False
+temporal_configurations={"spatial","constant_extrapolation","linear_interpolation","constant_extrapolation_spatial_residual","linear_interpolation_spatial_residual"}
+
+# JSON配置
 def resolve_json_path(path_or_name):
     path_or_name=os.path.expanduser(path_or_name)
     if os.path.isabs(path_or_name) or os.path.dirname(path_or_name):
-        json_path=os.path.abspath(path_or_name)
+        json_path=Path(path_or_name).resolve()
     else:
         config_filename=path_or_name if path_or_name.endswith(".json") else path_or_name+".json"
-        json_path=os.path.join(config_directory,config_filename)
-    if not os.path.isfile(json_path):
+        json_path=config_directory/config_filename
+    if not json_path.is_file():
         raise FileNotFoundError(f"找不到JSON配置：{json_path}")
     return json_path
 
 def load_json_tasks(json_path):
-    with open(json_path,encoding="utf-8") as config_file:
+    with Path(json_path).open(encoding="utf-8") as config_file:
         tasks=json.load(config_file)
     if not isinstance(tasks,list):
         raise TypeError(f"JSON顶层必须是task list：{json_path}")
     if not tasks:
         raise ValueError(f"JSON中没有task：{json_path}")
-    required_keys=("name","dataset","folder","field_list","rel_eb_list","method_list","steps","dim","config")
-    task_names=set()
-    for task_index,task in enumerate(tasks):
-        if not isinstance(task,dict):
-            raise TypeError(f"第{task_index}个task必须是object")
-        missing_keys=[key for key in required_keys if key not in task]
-        if missing_keys:
-            raise ValueError(f"第{task_index}个task缺少参数：{','.join(missing_keys)}")
-        for key in ("name","dataset","folder","config"):
-            if not isinstance(task[key],str) or not task[key]:
-                raise ValueError(f"第{task_index}个task的{key}必须是非空字符串")
-        if task["name"] in task_names:
-            raise ValueError(f"task name重复：{task['name']}")
-        task_names.add(task["name"])
-        for key in ("field_list","rel_eb_list","method_list"):
-            if not isinstance(task[key],list) or not task[key]:
-                raise TypeError(f"第{task_index}个task的{key}必须是非空list")
-        if any(not isinstance(field,str) or not field for field in task["field_list"]):
-            raise TypeError(f"第{task_index}个task的field_list只能包含非空字符串")
-        if len(set(task["field_list"]))!=len(task["field_list"]):
-            raise ValueError(f"第{task_index}个task的field_list包含重复field")
-        if any(not isinstance(rel_eb,(int,float)) or rel_eb<=0 for rel_eb in task["rel_eb_list"]):
-            raise TypeError(f"第{task_index}个task的rel_eb_list只能包含正数")
-        if any(not isinstance(method,str) or not method for method in task["method_list"]):
-            raise TypeError(f"第{task_index}个task的method_list只能包含非空字符串")
-        if len(set(task["method_list"]))!=len(task["method_list"]):
-            raise ValueError(f"第{task_index}个task的method_list包含重复method")
-        if "umc" in task["method_list"] and "umc" not in task:
-            raise ValueError(f"第{task_index}个task启用了umc但没有umc配置")
-        if not isinstance(task["steps"],int) or task["steps"]<=0:
-            raise ValueError(f"第{task_index}个task的steps必须是正整数")
-        if not isinstance(task["dim"],int) or task["dim"]<=0:
-            raise ValueError(f"第{task_index}个task的dim必须是正整数")
-        if "key" in task and len(task["field_list"])!=1:
-            raise ValueError(f"第{task_index}个task只有包含一个field时才能指定key")
+    if any(not isinstance(task,dict) for task in tasks):
+        raise TypeError(f"JSON中的每个task必须是object：{json_path}")
     return tasks
 
 def expand_json_tasks(tasks):
-    field_configs=[]
+    prepared_tasks=[]
     for task in tasks:
         for field in task["field_list"]:
             config=copy.deepcopy(task)
             config["task_name"]=config.pop("name")
             config.pop("field_list")
             config["variable"]=field
-            if "key" not in config:
-                dataset_key=re.sub(r"[^0-9A-Za-z]+","_",config["dataset"]).strip("_").lower()
-                config["key"]=f"{dataset_key}_{field}"
-            field_configs.append(config)
+            dataset_key=re.sub(r"[^0-9A-Za-z]+","_",config["dataset"]).strip("_").lower()
+            config["key"]=f"{dataset_key}_{field}"
+            prepared_tasks.append(config)
     key_set=set()
-    for config in field_configs:
+    for config in prepared_tasks:
         if config["key"] in key_set:
             raise ValueError(f"展开后出现重复field key：{config['key']}")
         key_set.add(config["key"])
-    return field_configs
+    return prepared_tasks
 
 def load_tasks(json_path):
     return expand_json_tasks(load_json_tasks(json_path))
 
-def config_paths():
-    return sorted(Path(config_directory).glob("*.json"))
-
-def find_dataset_config_path(dataset):
-    matches=[]
-    for path in config_paths():
-        try:
-            tasks=load_json_tasks(path)
-        except (TypeError,ValueError):
-            continue
-        if any(task["dataset"].lower()==dataset.lower() for task in tasks):
-            matches.append(path)
-    if len(matches)!=1:
-        raise ValueError(f"dataset {dataset}应恰好出现在一个JSON中，实际找到{len(matches)}个")
-    return matches[0]
-
-def list_dataset_names():
-    names=[]
-    for path in config_paths():
-        try:
-            tasks=load_json_tasks(path)
-        except (TypeError,ValueError):
-            continue
-        for task in tasks:
-            if task["dataset"] not in names:
-                names.append(task["dataset"])
-    return tuple(names)
-
-def write_selected_dataset_config(dataset,field,output_path):
-    source_path=find_dataset_config_path(dataset)
-    tasks=load_json_tasks(source_path)
-    selected_tasks=[]
-    for task in tasks:
-        if task["dataset"].lower()!=dataset.lower() or field not in task["field_list"]:
-            continue
-        selected_task=copy.deepcopy(task)
-        selected_task["field_list"]=[field]
-        selected_tasks.append(selected_task)
-    if len(selected_tasks)!=1:
-        raise ValueError(f"dataset {dataset}中的field {field}应恰好对应一个task，实际找到{len(selected_tasks)}个")
-    with open(output_path,"w",encoding="utf-8") as output_file:
-        json.dump(selected_tasks,output_file,ensure_ascii=False,indent=2)
-        output_file.write("\n")
-build_max_cpus=get_max_cpus(8)
-silent_build=False
-verify_unsz_decompression=True
-unsz_extra_arguments="-reverse-mean-distance-only-order-experimental"
-
-def build_programs(use_umc):
-    unsz_executable_paths=[os.path.join(project_root,"install/bin",name) for name in ["s1_compress","s1_decompress"]]
-    if not all(os.path.isfile(path) for path in unsz_executable_paths):
-        os.makedirs(os.path.join(project_root,"build"),exist_ok=True)
-        run_shell_command(f"cmake -S {project_root}/c_codes -B {project_root}/build -DCMAKE_INSTALL_PREFIX={project_root}/install -DCODE_NAME=s1_compress",silent=silent_build)
-        run_shell_command(f"cmake --build {project_root}/build --parallel {build_max_cpus}",silent=silent_build)
-        run_shell_command(f"cmake --install {project_root}/build",silent=silent_build)
-    for executable_path in unsz_executable_paths:
-        if not os.path.isfile(executable_path):
-            raise FileNotFoundError(f"没有找到UNSZ可执行文件：{executable_path}")
-    if use_umc:
-        for executable_name in ["test_compress","test_decompress"]:
-            executable_path=os.path.join(umc_root,"build/test",executable_name)
-            if not os.path.isfile(executable_path):
-                raise FileNotFoundError(f"没有找到UMC可执行文件：{executable_path}")
-
-def calculate_throughput(data_paths,seconds,name):
-    if not seconds>0:
-        raise RuntimeError(f"{name}必须大于0：{seconds}")
-    return sum(os.path.getsize(path) for path in data_paths)/seconds/1e6
-
-def calculate_data_range(data_paths):
-    minimum=math.inf
-    maximum=-math.inf
-    for path in data_paths:
-        values=array.array("f")
-        with open(path,"rb") as file:
-            values.fromfile(file,os.path.getsize(path)//values.itemsize)
-        valid_values=(value for value in values if value!=-99999.0)
-        try:
-            first=next(valid_values)
-        except StopIteration:
-            continue
-        local_minimum=first
-        local_maximum=first
-        for value in valid_values:
-            local_minimum=min(local_minimum,value)
-            local_maximum=max(local_maximum,value)
-        minimum=min(minimum,local_minimum)
-        maximum=max(maximum,local_maximum)
-    if not minimum<=maximum:
-        raise RuntimeError("无法从输入float32文件计算数据范围")
-    return minimum,maximum
-
-def calculate_umc_disk_error(data_paths):
-    total_squared_error=0
-    total_point_num=0
-    max_error=0
-    for path in data_paths:
-        original=array.array("f")
-        recovered=array.array("f")
-        with open(path,"rb") as file:
-            original.fromfile(file,os.path.getsize(path)//original.itemsize)
-        output_path=path+".umc.out"
-        with open(output_path,"rb") as file:
-            recovered.fromfile(file,os.path.getsize(output_path)//recovered.itemsize)
-        if len(original)!=len(recovered):
-            raise RuntimeError(f"UMC解压输出大小错误：{output_path}有{len(recovered)}点，原文件有{len(original)}点")
-        for original_value,recovered_value in zip(original,recovered):
-            error=original_value-recovered_value
-            total_squared_error+=error*error
-            max_error=max(max_error,abs(error))
-        total_point_num+=len(original)
-    return total_squared_error/total_point_num,max_error
-
-def parse_unsz_result(output,data_paths):
-    match=re.search(r"total cr=\s*([^,]+),\s*total br=\s*([^,]+),\s*total psnr=\s*([^\s]+)",output)
-    if match is None:
-        raise RuntimeError("没有在UNSZ输出中找到total br和total psnr")
-    preprocessing_match=re.search(r"preprocessing time excluding adjust coord=\s*([^\s]+)\s*s",output)
-    compression_match=re.search(r"total compression time=\s*([^\s]+)\s*s",output)
-    if preprocessing_match is None or compression_match is None:
-        raise RuntimeError("没有在UNSZ输出中找到预处理时间或总压缩时间")
-    preprocessing_time=float(preprocessing_match.group(1))
-    compression_time=float(compression_match.group(1))
-    preprocessing_throughput=calculate_throughput(data_paths,preprocessing_time,"UNSZ预处理时间")
-    compression_throughput=calculate_throughput(data_paths,compression_time,"UNSZ压缩时间")
-    return float(match.group(2)),float(match.group(3)),preprocessing_time,compression_time,preprocessing_throughput,compression_throughput
-
-def parse_unsz_decompression_result(output):
-    match=re.search(r"total decompressed psnr=\s*([^\s]+)",output)
-    time_match=re.search(r"total decompression time=\s*([^\s]+)\s*s",output)
-    if match is None or time_match is None:
-        raise RuntimeError("没有在UNSZ解压输出中找到total decompressed psnr或总解压时间")
-    return float(match.group(1)),float(time_match.group(1))
-
-def parse_umc_decompression_result(output,data_paths,umc_method,data_range=None):
-    if umc_method=="NBP-IDW-INP":
-        decompression_times=[float(value) for value in re.findall(r"^decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
-        if len(decompression_times)!=len(data_paths):
-            raise RuntimeError(f"UMC动态异常点核心解压时间数量不一致：文件{len(data_paths)}，解压时间{len(decompression_times)}")
-        decompression_time=sum(decompression_times)
-    else:
-        decompression_times=[float(value) for value in re.findall(r"^core decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
-        if len(decompression_times)!=len(data_paths):
-            raise RuntimeError(f"UMC核心解压时间数量不一致：文件{len(data_paths)}，核心解压时间{len(decompression_times)}")
-        decompression_time=sum(decompression_times)
-    mse_list=[float(value) for value in re.findall(r"^MSE\s*=\s*([^,\s]+)",output,re.MULTILINE)]
-    range_matches=re.findall(r"^Max value\s*=\s*([^,]+),\s*min value\s*=\s*([^,\s]+)",output,re.MULTILINE)
-    max_error_list=[float(value) for value in re.findall(r"^Max error\s*=\s*([^,\s]+)",output,re.MULTILINE)]
-    if len(mse_list)!=len(data_paths) or len(range_matches)!=len(data_paths) or len(max_error_list)!=len(data_paths):
-        raise RuntimeError(f"UMC解压误差统计数量不一致：文件{len(data_paths)}，MSE {len(mse_list)}，范围{len(range_matches)}，最大误差{len(max_error_list)}")
-    total_point_num=sum(os.path.getsize(path)//4 for path in data_paths)
-    total_squared_error=sum(mse*(os.path.getsize(path)//4) for mse,path in zip(mse_list,data_paths))
-    total_mse=total_squared_error/total_point_num
-    total_min_data,total_max_data=data_range or calculate_data_range(data_paths)
-    total_psnr=math.inf if total_mse==0 else 10*math.log10((total_max_data-total_min_data)**2/total_mse)
-    return decompression_time,total_psnr,max(max_error_list)
-
-def parse_umc_result(output,data_paths,data_range=None):
-    compressed_sizes=[int(value) for value in re.findall(r"compressed_size\s*=\s*(\d+)",output)]
-    mse_list=[float(value) for value in re.findall(r"^MSE\s*=\s*([^\s]+)",output,re.MULTILINE)]
-    range_matches=re.findall(r"Max value\s*=\s*([^,]+),\s*min value\s*=\s*([^,]+),",output)
-    if len(compressed_sizes)!=len(data_paths) or len(mse_list)!=len(data_paths) or len(range_matches)!=len(data_paths):
-        raise RuntimeError(f"UMC输出数量不一致：文件{len(data_paths)}，压缩大小{len(compressed_sizes)}，MSE {len(mse_list)}，范围{len(range_matches)}")
-    total_original_bytes=sum(os.path.getsize(path) for path in data_paths)
-    total_compressed_bytes=sum(compressed_sizes)
-    total_point_num=sum(os.path.getsize(path)//4 for path in data_paths)
-    total_squared_error=sum(mse*(os.path.getsize(path)//4) for mse,path in zip(mse_list,data_paths))
-    total_min_data,total_max_data=data_range or calculate_data_range(data_paths)
-    total_mse=total_squared_error/total_point_num
-    total_cr=total_original_bytes/total_compressed_bytes
-    total_br=32/total_cr
-    total_psnr=10*math.log10((total_max_data-total_min_data)**2/total_mse)
-    preprocessing_times=[float(value) for value in re.findall(r"^preprocessing time\s*=\s*([^\s]+)",output,re.MULTILINE)]
-    reorder_times=[float(value) for value in re.findall(r"^reorder time\s*=\s*([^\s]+)",output,re.MULTILINE)]
-    compression_times=[float(value) for value in re.findall(r"^compression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
-    if len(preprocessing_times)!=1:
-        raise RuntimeError(f"UMC预处理时间数量应为1，实际为{len(preprocessing_times)}")
-    if len(reorder_times)!=len(data_paths) or len(compression_times)!=len(data_paths):
-        raise RuntimeError(f"UMC逐文件计时数量不一致：文件{len(data_paths)}，reorder {len(reorder_times)}，compression {len(compression_times)}")
-    core_compression_time=sum(compression_time-reorder_time for compression_time,reorder_time in zip(compression_times,reorder_times))
-    preprocessing_time=preprocessing_times[0]
-    preprocessing_throughput=calculate_throughput(data_paths,preprocessing_time,"UMC预处理时间")
-    compression_throughput=calculate_throughput(data_paths,core_compression_time,"UMC核心压缩时间")
-    return total_br,total_psnr,preprocessing_time,core_compression_time,preprocessing_throughput,compression_throughput
-
-def test(compressor,dataset,rel_eb,dag_cache_path=None,point_set_config_path=None):
-    data_dir=dataset.get("data_dir",os.path.join(data_root,dataset["folder"]))
-    variable=dataset["variable"]
-    time_step_num=dataset["time_step_num"]
-    data_paths=[os.path.join(data_dir,f"{variable}.dat.{time_step}") for time_step in range(time_step_num)]
-    required_paths=[os.path.join(data_dir,"coords.dat"),*data_paths]
-    if compressor=="umc":
-        required_paths.append(os.path.join(data_dir,"conn.dat"))
-    missing_paths=[path for path in required_paths if not os.path.isfile(path)]
-    if missing_paths:
-        raise FileNotFoundError("缺少测试文件："+", ".join(missing_paths))
-    if compressor=="unsz":
-        time_step_expression=f"[0,{time_step_num-1}]"
-        common_arguments=f"-data-dir {shlex.quote(data_dir)} -variable {shlex.quote(variable)} -time-step {shlex.quote(time_step_expression)} -dim {dataset['dim']}"
-        common_arguments+=f" -point-set-config {shlex.quote(point_set_config_path)}" if point_set_config_path else f" -M REL {rel_eb}"
-        if "adjust_coord_matrix" in dataset:
-            matrix_path=os.path.join(project_root,"adjust_coord_matrices",dataset["adjust_coord_matrix"])
-            common_arguments+=f" -adjust-coord-matrix-file {shlex.quote(matrix_path)}"
-        if "time_step_coordinate_file" in dataset:
-            time_step_coordinate_path=dataset["time_step_coordinate_file"]
-            if not os.path.isabs(time_step_coordinate_path):
-                time_step_coordinate_path=os.path.join(data_dir,time_step_coordinate_path)
-            common_arguments+=f" -time-step-coordinate-file {shlex.quote(time_step_coordinate_path)}"
-        if unsz_extra_arguments:
-            common_arguments+=" "+unsz_extra_arguments
-        if dataset.get("unsz_extra_arguments",""):
-            common_arguments+=" "+dataset["unsz_extra_arguments"]
-        if dag_cache_path:
-            common_arguments+=f" -dag-cache {shlex.quote(dag_cache_path)}"
-        compress_extra_arguments=dataset.get("unsz_compress_extra_arguments","")
-        compress_command=f"{shlex.quote(project_root+'/install/bin/s1_compress')} {common_arguments} {compress_extra_arguments}"
-        compress_output=run_shell_command(compress_command)
-        br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_unsz_result(compress_output,data_paths)
-        decompress_extra_arguments=dataset.get("unsz_decompress_extra_arguments","")
-        decompress_command=f"{shlex.quote(project_root+'/install/bin/s1_decompress')} {common_arguments} {decompress_extra_arguments}"
-        decompress_output=run_shell_command(decompress_command)
-        decompressed_psnr,decompression_time=parse_unsz_decompression_result(decompress_output)
-        if verify_unsz_decompression:
-            if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-6):
-                raise RuntimeError(f"压缩端和解压端的总PSNR不一致：{psnr} != {decompressed_psnr}")
-            print(f"磁盘压缩—解压检查通过：total psnr={decompressed_psnr}")
-    elif compressor=="umc":
-        umc_from_edge=dataset["umc_from_edge"]
-        umc_dim=dataset["dim"]
-        umc_reorder=dataset.get("umc_reorder",1)
-        umc_method=dataset.get("umc_method","NBP-IDW")
-        umc_neighbor_num=dataset.get("umc_neighbor_num",4)
-        if umc_method=="NBP-IDW":
-            command=f"{umc_root}/build/test/test_compress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 2 {umc_reorder} {time_step_num} 0 {rel_eb} {umc_neighbor_num}"
-            decompress_command=f"{umc_root}/build/test/test_decompress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 2 {umc_reorder} {time_step_num}"
-        elif umc_method=="NBP-IDW-INP":
-            umc_batch=dataset.get("umc_batch",10)
-            command=f"{umc_root}/build/test/test_compress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 4 {umc_reorder} {time_step_num} 0 {rel_eb} {umc_neighbor_num} {umc_batch}"
-            decompress_command=f"{umc_root}/build/test/test_decompress {data_dir}/ {variable} coords.dat conn.dat {umc_from_edge} {umc_dim} 4 {umc_reorder} {time_step_num} {umc_batch}"
-        else:
-            raise ValueError(f"未知UMC压缩方法：{umc_method}")
-        data_range=calculate_data_range(data_paths)
-        output=run_shell_command(command)
-        br,psnr,preprocessing_time,compression_time,preprocessing_throughput,compression_throughput=parse_umc_result(output,data_paths,data_range)
-        decompress_output=run_shell_command(decompress_command)
-        decompression_time,decompressed_psnr,decompressed_max_error=parse_umc_decompression_result(decompress_output,data_paths,umc_method,data_range)
-        disk_mse,disk_max_error=calculate_umc_disk_error(data_paths)
-        disk_psnr=math.inf if disk_mse==0 else 10*math.log10((data_range[1]-data_range[0])**2/disk_mse)
-        if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-5) or not math.isclose(psnr,disk_psnr,rel_tol=1e-6,abs_tol=1e-5):
-            raise RuntimeError(f"UMC压缩端、核心解压和磁盘输出总PSNR不一致：{psnr} != {decompressed_psnr} != {disk_psnr}")
-        if not math.isclose(decompressed_max_error,disk_max_error,rel_tol=1e-5,abs_tol=1e-5):
-            raise RuntimeError(f"UMC核心解压和磁盘输出最大误差不一致：{decompressed_max_error} != {disk_max_error}")
-        print(f"UMC磁盘压缩—解压检查通过：total psnr={disk_psnr},max error={disk_max_error}")
-    else:
-        raise ValueError(f"未知压缩器：{compressor}")
-    print(f"总结果：compressor={compressor}, dataset={dataset['name']}, variable={variable}, rel_eb={rel_eb}, br={br}, psnr={psnr}")
-    decompression_throughput=calculate_throughput(data_paths,decompression_time,f"{compressor}解压时间")
-    print(f"计时：preprocessing={preprocessing_time} s, compression={compression_time} s, decompression={decompression_time} s, compression+decompression={compression_time+decompression_time} s")
-    print(f"吞吐率：preprocessing={preprocessing_throughput} MB/s, compression={compression_throughput} MB/s, decompression={decompression_throughput} MB/s")
-    return br,psnr,preprocessing_throughput,compression_throughput,decompression_throughput
-
-reference_canonical_configuration_vec=("idw_split_rounds_then_sort_mean_reference_distance","idw_sort_all_then_split_rounds_mean_reference_distance","idw_split_rounds_then_sort_reference_data_prediction_error","rbf_split_rounds_then_sort_mean_reference_distance","rbf_sort_all_then_split_rounds_mean_reference_distance","rbf_split_rounds_then_sort_reference_data_prediction_error")
-
-def parse_reference_order_arguments(arguments):
-    parser=argparse.ArgumentParser(description="比较一个field的IDW、RBF及不同空间预测顺序")
-    parser.add_argument("-data-dir",type=Path,required=True)
-    parser.add_argument("-variable",required=True)
-    parser.add_argument("-time-step-num",type=int,required=True)
-    parser.add_argument("-dim",type=int,required=True)
-    parser.add_argument("-training-time-step",type=int,action="append")
-    parser.add_argument("-test-time-step",type=int,action="append")
-    parser.add_argument("-matrix-file",type=Path)
-    parser.add_argument("-condition-operator",choices=("<","<=",">",">=","==","!="))
-    parser.add_argument("-condition-value",type=float)
-    parser.add_argument("-result",type=Path,required=True)
-    parser.add_argument("-idw-ref-num",type=int,default=4)
-    parser.add_argument("-idw-power",type=float,default=2)
-    parser.add_argument("-rbf-ref-num",type=int,default=10)
-    parser.add_argument("-ordering-score-max-ref-num",type=int)
-    parser.add_argument("-ordering-score-min-ref-num",type=int)
-    parser.add_argument("-rbf-kernel",default="matern32")
-    parser.add_argument("-rbf-shape",type=float,default=0.01)
-    parser.add_argument("-rbf-nugget",type=float,default=1e-6)
-    parser.add_argument("-order-candidate-num",type=int,default=48)
-    parser.add_argument("-disable-eb-schedule",action="store_true")
-    parser.add_argument("-dag-cache-result",type=Path)
-    parser.add_argument("-reorder-data-by-prediction-order",action="store_true")
-    parser.add_argument("-decompression-stage-time",action="store_true")
-    parser.add_argument("-common-extra",action="append",default=[])
-    parser.add_argument("-compression-extra",action="append",default=[])
-    parser.add_argument("-decompression-extra",action="append",default=[])
-    parser.add_argument("-rel-eb",type=float,action="append")
-    parser.add_argument("-configuration",choices=reference_canonical_configuration_vec,action="append")
-    return parser.parse_args(arguments)
-
-def run_argument_command(command):
-    result=subprocess.run([str(value) for value in command],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-    if result.returncode!=0:
-        print(result.stdout,flush=True)
-        raise RuntimeError("命令执行失败："+" ".join(str(value) for value in command))
-    return result.stdout
-
-def read_output_float(pattern,text,name):
-    match=re.search(pattern,text,re.MULTILINE)
-    if match is None:
-        raise RuntimeError(f"输出中缺少{name}")
-    return float(match.group(1))
-
-def read_output_float_sum(pattern,text):
-    return sum(float(value) for value in re.findall(pattern,text,re.MULTILINE))
-
-def calculate_average_br_change(reference,test_rows):
-    reference_points=sorted((float(row["psnr"]),float(row["br"])) for row in reference)
-    test_points=sorted((float(row["psnr"]),float(row["br"])) for row in test_rows)
-    reference_psnr=np.asarray([point[0] for point in reference_points])
-    reference_br=np.asarray([point[1] for point in reference_points])
-    test_psnr=np.asarray([point[0] for point in test_points])
-    test_br=np.asarray([point[1] for point in test_points])
-    lower=max(reference_psnr.min(),test_psnr.min())
-    upper=min(reference_psnr.max(),test_psnr.max())
-    if lower>=upper:
-        raise ValueError("两条BR-PSNR曲线没有共同PSNR范围")
-    knots=np.unique(np.concatenate(([lower,upper],reference_psnr[(reference_psnr>lower)&(reference_psnr<upper)],test_psnr[(test_psnr>lower)&(test_psnr<upper)])))
-    reference_area=np.trapezoid(np.interp(knots,reference_psnr,reference_br),knots)
-    test_area=np.trapezoid(np.interp(knots,test_psnr,test_br),knots)
-    return (test_area/reference_area-1)*100
-
-def geometric_mean(values):
-    return math.exp(sum(math.log(value) for value in values)/len(values))
-
-def cleanup_reference_order(test_dir,variable,test_time_step_vec):
-    for time_step in test_time_step_vec:
-        for suffix in (".unsz",".unsz.bin"):
-            path=test_dir/f"{variable}.dat.{time_step}{suffix}"
-            if path.exists():
-                path.unlink()
-
-def write_reference_order_results(result_path,result_vec):
-    result_path.parent.mkdir(parents=True,exist_ok=True)
-    with result_path.open("w",newline="") as file:
-        writer=csv.DictWriter(file,fieldnames=result_vec[0].keys(),lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(result_vec)
-
-def write_reference_point_set_config(path,arguments,predictor,rel_eb):
-    labels=[{"method":predictor,"eb_mode":"REL","eb_value":rel_eb},{"method":"constant"}]
-    labels[0]["condition"]={"operator":arguments.condition_operator,"value":arguments.condition_value}
-    config={"version":1,"labels":labels}
-    with path.open("w",encoding="utf-8") as file:
-        json.dump(config,file,ensure_ascii=False)
-
-def reference_order_main(command_line_arguments):
-    arguments=parse_reference_order_arguments(command_line_arguments)
-    if(arguments.condition_operator is None)!=(arguments.condition_value is None):
-        raise ValueError("condition-operator和condition-value必须同时指定")
-    if arguments.idw_ref_num<=0 or arguments.rbf_ref_num<=0:
-        raise ValueError("参考点数必须为正数")
-    training_time_step_vec=tuple(dict.fromkeys(arguments.training_time_step or ()))
-    test_time_step_vec=tuple(dict.fromkeys(arguments.test_time_step)) if arguments.test_time_step else tuple(range(arguments.time_step_num))
-    rel_eb_vec=tuple(arguments.rel_eb) if arguments.rel_eb else (1e-1,1e-2,1e-3,1e-4,1e-5)
-    for time_step in (*training_time_step_vec,*test_time_step_vec):
-        if time_step<0 or time_step>=arguments.time_step_num:
-            raise ValueError(f"time step超出范围：{time_step}")
-    if not test_time_step_vec:
-        raise ValueError("测试time step不能为空")
-    common_optional=["-adjust-coord-matrix-file",arguments.matrix_file] if arguments.matrix_file is not None else []
-    training_expression="{"+",".join(str(value) for value in training_time_step_vec)+"}"
-    test_expression="{"+",".join(str(value) for value in test_time_step_vec)+"}"
-    all_config_vec=(
-        {"name":"idw_split_rounds_then_sort_mean_reference_distance","predictor":"inverse_proportion","round_formation":"split_rounds_then_sort","ordering_score":"mean_reference_distance","prediction_ref_num":arguments.idw_ref_num,"power":arguments.idw_power,"compress_extra":["-reverse-mean-distance-only-order-experimental"],"decompress_extra":[]},
-        {"name":"idw_sort_all_then_split_rounds_mean_reference_distance","predictor":"inverse_proportion","round_formation":"sort_all_then_split_rounds","ordering_score":"mean_reference_distance","prediction_ref_num":arguments.idw_ref_num,"power":arguments.idw_power,"compress_extra":["-reverse-mean-distance-only-order-experimental","-global-order-before-round-split-experimental"],"decompress_extra":[]},
-        {"name":"idw_split_rounds_then_sort_reference_data_prediction_error","predictor":"inverse_proportion","round_formation":"split_rounds_then_sort","ordering_score":"reference_data_prediction_error","prediction_ref_num":arguments.idw_ref_num,"power":arguments.idw_power,"compress_extra":["-reference-data-order-experimental",training_expression],"decompress_extra":[]},
-        {"name":"rbf_split_rounds_then_sort_mean_reference_distance","predictor":"rbf_fitting","round_formation":"split_rounds_then_sort","ordering_score":"mean_reference_distance","prediction_ref_num":arguments.rbf_ref_num,"power":3.6,"compress_extra":["-reverse-mean-distance-only-order-experimental"],"decompress_extra":[]},
-        {"name":"rbf_sort_all_then_split_rounds_mean_reference_distance","predictor":"rbf_fitting","round_formation":"sort_all_then_split_rounds","ordering_score":"mean_reference_distance","prediction_ref_num":arguments.rbf_ref_num,"power":3.6,"compress_extra":["-reverse-mean-distance-only-order-experimental","-global-order-before-round-split-experimental"],"decompress_extra":[]},
-        {"name":"rbf_split_rounds_then_sort_reference_data_prediction_error","predictor":"rbf_fitting","round_formation":"split_rounds_then_sort","ordering_score":"reference_data_prediction_error","prediction_ref_num":arguments.rbf_ref_num,"power":3.6,"compress_extra":["-reference-data-order-experimental",training_expression,"-reference-data-rbf-score-experimental"],"decompress_extra":[]},
-    )
-    selected_configuration_set=set(arguments.configuration) if arguments.configuration else None
-    config_vec=tuple(config for config in all_config_vec if selected_configuration_set is None or config["name"] in selected_configuration_set)
-    for config in config_vec:
-        config["ordering_score_max_ref_num"]=arguments.ordering_score_max_ref_num or config["prediction_ref_num"]
-        config["ordering_score_min_ref_num"]=arguments.ordering_score_min_ref_num if arguments.ordering_score_min_ref_num is not None else (max(1,config["prediction_ref_num"]-1) if config["predictor"]=="inverse_proportion" else config["ordering_score_max_ref_num"])
-        if config["prediction_ref_num"]>config["ordering_score_max_ref_num"] and config["ordering_score"]!="mean_reference_distance":
-            raise ValueError("参考数据辅助排序的评分点数不能小于实际预测参考点数")
-        if config["ordering_score_min_ref_num"]<=0 or config["ordering_score_min_ref_num"]>config["ordering_score_max_ref_num"]:
-            raise ValueError("ordering score min ref num必须在1和ordering score max ref num之间")
-    if arguments.dag_cache_result is not None and len(config_vec)!=1:
-        raise ValueError("持久保存DAG缓存时必须只选择一个configuration")
-    if any(config["ordering_score"]=="reference_data_prediction_error" for config in config_vec) and not training_time_step_vec:
-        raise ValueError("参考数据辅助顺序至少需要一个training-time-step")
-    result_vec=[]
-    temporary_root=os.environ.get("SLURM_TMPDIR","/tmp")
-    with tempfile.TemporaryDirectory(prefix=f"unsz_{arguments.variable}_rbf_",dir=temporary_root) as temporary_dir_string:
-        temporary_dir=Path(temporary_dir_string)
-        test_dir=temporary_dir/"data"
-        test_dir.mkdir()
-        (test_dir/"coords.dat").symlink_to(arguments.data_dir/"coords.dat")
-        for time_step in set(training_time_step_vec)|set(test_time_step_vec):
-            (test_dir/f"{arguments.variable}.dat.{time_step}").symlink_to(arguments.data_dir/f"{arguments.variable}.dat.{time_step}")
-        for config in config_vec:
-            dag_cache_path=arguments.dag_cache_result if arguments.dag_cache_result is not None else temporary_dir/f"{config['name']}.dag"
-            dag_cache_path.parent.mkdir(parents=True,exist_ok=True)
-            for rel_eb in rel_eb_vec:
-                compression_error_arguments=["-M","REL",rel_eb,"-predictor",config["predictor"]]
-                decompression_error_arguments=["-M","REL",rel_eb]
-                if arguments.condition_operator is not None:
-                    point_set_config_path=temporary_dir/f"{config['name']}_{rel_eb:g}.json"
-                    write_reference_point_set_config(point_set_config_path,arguments,config["predictor"],rel_eb)
-                    compression_error_arguments=["-point-set-config",point_set_config_path]
-                    decompression_error_arguments=compression_error_arguments
-                reorder_arguments=["-reorder-data-by-prediction-order-experimental"] if arguments.reorder_data_by_prediction_order else []
-                schedule_arguments=[] if arguments.disable_eb_schedule else ["-eb-schedule-experimental","round_point_ratio",0.8]
-                msd_arguments=["-ordering-msd-ref-num-experimental",config["ordering_score_max_ref_num"]] if config["ordering_score"]=="mean_reference_distance" else []
-                common_arguments=["-data-dir",test_dir,"-variable",arguments.variable,"-time-step",test_expression,"-dim",arguments.dim,"-dag-cache",dag_cache_path,"-predict-round-num",8,"-max-ref-num",max(config["prediction_ref_num"],config["ordering_score_max_ref_num"]),"-actual-ref-num",config["prediction_ref_num"],"-inverse-distance-power",config["power"],"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",config["ordering_score_min_ref_num"],"-order-candidate-num-experimental",arguments.order_candidate_num,*msd_arguments,*schedule_arguments,"-rbf-kernel",arguments.rbf_kernel,"-rbf-shape",arguments.rbf_shape,"-rbf-nugget",arguments.rbf_nugget,*common_optional,*reorder_arguments,*arguments.common_extra]
-                compression_output=run_argument_command([Path(project_root)/"install/bin/s1_compress",*compression_error_arguments,*common_arguments,*config["compress_extra"],*arguments.compression_extra])
-                decompression_output=run_argument_command([Path(project_root)/"install/bin/s1_decompress",*decompression_error_arguments,*common_arguments,*config["decompress_extra"],*arguments.decompression_extra,*(["-decompression-stage-time"] if arguments.decompression_stage_time else [])])
-                psnr=read_output_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"压缩PSNR")
-                decompressed_psnr=read_output_float(r"^total decompressed psnr= ([^ ]+)$",decompression_output,"解压PSNR")
-                if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-6):
-                    raise RuntimeError(f"压缩和解压PSNR不一致：{psnr}!={decompressed_psnr}")
-                compression_time=read_output_float(r"^total compression time= ([^ ]+) s$",compression_output,"压缩时间")
-                decompression_time=read_output_float(r"^total decompression time= ([^ ]+) s$",decompression_output,"解压时间")
-                result={"config":config["name"],"round_formation":config["round_formation"],"ordering_score":config["ordering_score"],"ref_num":config["prediction_ref_num"],"ordering_score_max_ref_num":config["ordering_score_max_ref_num"],"ordering_score_min_ref_num":config["ordering_score_min_ref_num"],"reorder_data_by_prediction_order":arguments.reorder_data_by_prediction_order,"rel_eb":rel_eb,"br":read_output_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR"),"psnr":psnr,"preprocessing_time":read_output_float(r"^preprocessing time excluding adjust coord= ([^ ]+) s$",compression_output,"预处理时间"),"compression_time":compression_time,"decompression_time":decompression_time,"compression_decompression_time":compression_time+decompression_time,"compression_input_reorder_time":read_output_float_sum(r"^compression input reorder-by-prediction-order time excluded from compression= ([^ ]+) s$",compression_output),"decompression_output_restore_time":read_output_float_sum(r"^decompression output restore-original-order time excluded from decompression= ([^ ]+) s$",decompression_output),"decompression_stream_decode_time":read_output_float_sum(r"^decompression stage time: stream_decode=([^ ]+) s,",decompression_output),"decompression_label_decode_time":read_output_float_sum(r"^decompression stage time: stream_decode=[^ ]+ s, label_decode=([^ ]+) s,",decompression_output),"decompression_value_decode_time":read_output_float_sum(r"^decompression stage time: stream_decode=[^ ]+ s, label_decode=[^ ]+ s, value_decode=([^ ]+) s,",decompression_output)}
-                result_vec.append(result)
-                write_reference_order_results(arguments.result,result_vec)
-                print(f"{config['name']} REL={rel_eb:g}:BR={result['br']:.6f},PSNR={psnr:.6f},preprocessing={result['preprocessing_time']:.6f}s,compression={result['compression_time']:.6f}s,decompression={result['decompression_time']:.6f}s,compression+decompression={result['compression_decompression_time']:.6f}s",flush=True)
-                cleanup_reference_order(test_dir,arguments.variable,test_time_step_vec)
-    result_map={name:[row for row in result_vec if row["config"]==name] for name in (config["name"] for config in config_vec)}
-    baseline_name="idw_split_rounds_then_sort_mean_reference_distance"
-    if baseline_name in result_map:
-        baseline=result_map[baseline_name]
-        for name in reference_canonical_configuration_vec:
-            if name==baseline_name or name not in result_map:
-                continue
-            rows=result_map[name]
-            print(f"{name}相对{baseline_name}：同PSNR平均BR变化={calculate_average_br_change(baseline,rows):+.6f}%，压缩时间倍率={geometric_mean([row['compression_time'] for row in rows])/geometric_mean([row['compression_time'] for row in baseline]):.6f}，解压时间倍率={geometric_mean([row['decompression_time'] for row in rows])/geometric_mean([row['decompression_time'] for row in baseline]):.6f}，压缩+解压时间倍率={geometric_mean([row['compression_decompression_time'] for row in rows])/geometric_mean([row['compression_decompression_time'] for row in baseline]):.6f}",flush=True)
-    print(f"结果已写入{arguments.result}",flush=True)
-
-def find_field_config(dataset,field):
-    tasks=load_tasks(find_dataset_config_path(dataset))
+def find_task(json_path_or_name,dataset,field):
+    tasks=load_tasks(resolve_json_path(json_path_or_name))
     matches=[config for config in tasks if config["dataset"].lower()==dataset.lower() and config["variable"]==field]
     if len(matches)==1:
         return matches[0]
@@ -532,20 +69,273 @@ def find_field_config(dataset,field):
     available_fields=tuple(dict.fromkeys(config["variable"] for config in tasks))
     raise ValueError(f"dataset {dataset}中没有field {field}；可选field：{','.join(available_fields)}")
 
+# 公共路径和程序
+def data_directory(config):
+    return Path(config["data_dir"]) if "data_dir" in config else data_root/config["folder"]
+
+def field_data_paths(config):
+    directory=data_directory(config)
+    return [directory/f"{config['variable']}.dat.{time_step}" for time_step in range(config["steps"])]
+
+def field_dag_cache_path(config):
+    prediction_ref_num=config.get("prediction_ref_num",config.get("ref_num"))
+    score_ref_num=config.get("ordering_score_max_ref_num",prediction_ref_num)
+    score_suffix=f".msd{score_ref_num}" if score_ref_num!=prediction_ref_num else ""
+    return data_directory(config)/".unsz_cache"/"benchmarks"/f"{config['key']}{score_suffix}.dag"
+
+def build_programs(prepared_tasks):
+    method_set={method for config in prepared_tasks for method in config["method_list"]}
+    if "unsz" in method_set:
+        executable_paths=[project_root/"install/bin"/name for name in ("s1_compress","s1_decompress")]
+        if not all(path.is_file() for path in executable_paths):
+            (project_root/"build").mkdir(exist_ok=True)
+            run_command(["cmake","-S",project_root/"c_codes","-B",project_root/"build",f"-DCMAKE_INSTALL_PREFIX={project_root/'install'}","-DCODE_NAME=s1_compress"],silent=silent_build)
+            run_command(["cmake","--build",project_root/"build","--parallel",build_max_cpus],silent=silent_build)
+            run_command(["cmake","--install",project_root/"build"],silent=silent_build)
+        for path in executable_paths:
+            if not path.is_file():
+                raise FileNotFoundError(f"没有找到UNSZ可执行文件：{path}")
+    if "umc" in method_set:
+        for name in ("test_compress","test_decompress"):
+            path=umc_root/"build/test"/name
+            if not path.is_file():
+                raise FileNotFoundError(f"没有找到UMC可执行文件：{path}")
+
+# UNSZ命令
+def read_time_step_coordinates(config):
+    if "time_step_coordinate_file" not in config:
+        return [float(time_step) for time_step in range(config["steps"])]
+    path=data_directory(config)/config["time_step_coordinate_file"]
+    byte_num=path.stat().st_size
+    if byte_num%8:
+        raise ValueError(f"time step坐标文件大小不是float64的整数倍：{path}")
+    coordinates=array.array("d")
+    with path.open("rb") as file:
+        coordinates.fromfile(file,byte_num//8)
+    if len(coordinates)!=config["steps"]:
+        raise ValueError(f"time step坐标数量应为{config['steps']}，实际为{len(coordinates)}")
+    if any(not math.isfinite(value) for value in coordinates):
+        raise ValueError("time step坐标只能包含有限值")
+    differences=[right-left for left,right in zip(coordinates,coordinates[1:])]
+    if differences and not(all(value>0 for value in differences) or all(value<0 for value in differences)):
+        raise ValueError("time step坐标必须严格单调")
+    return list(coordinates)
+
+def linear_interpolation_time_order(coordinates):
+    order=[0,len(coordinates)-1]
+    intervals=[(0,len(coordinates)-1)]
+    for left,right in intervals:
+        if right-left<=1:
+            continue
+        physical_middle=(coordinates[left]+coordinates[right])/2
+        middle=min(range(left+1,right),key=lambda index:abs(coordinates[index]-physical_middle))
+        order.append(middle)
+        intervals.extend(((left,middle),(middle,right)))
+    if len(order)!=len(coordinates) or len(set(order))!=len(coordinates):
+        raise RuntimeError("一阶内插顺序没有覆盖全部time step")
+    return order
+
+def write_point_set_config(path,config,predictor,rel_eb):
+    labels=[{"method":predictor,"eb_mode":"REL","eb_value":rel_eb},{"method":"constant"}]
+    labels[0]["condition"]=config["condition"]
+    with path.open("w",encoding="utf-8") as file:
+        json.dump({"version":1,"labels":labels},file,ensure_ascii=False)
+
+def build_spatial_unsz_arguments(config,test_data_dir,dag_path):
+    configuration=config["config"]
+    if configuration.startswith("idw_"):
+        predictor="inverse_proportion"
+    elif configuration.startswith("rbf_"):
+        predictor="rbf_fitting"
+    else:
+        raise ValueError(f"未知纯空间配置：{configuration}")
+    prediction_ref_num=config.get("prediction_ref_num",config.get("ref_num"))
+    if prediction_ref_num is None:
+        raise ValueError(f"{config['key']}缺少prediction_ref_num")
+    score_ref_num=config.get("ordering_score_max_ref_num",prediction_ref_num)
+    score_min_ref_num=config.get("ordering_score_min_ref_num",max(1,prediction_ref_num-1) if predictor=="inverse_proportion" else score_ref_num)
+    time_expression="{"+",".join(str(value) for value in range(config["steps"]))+"}"
+    common=["-data-dir",test_data_dir,"-variable",config["variable"],"-time-step",time_expression,"-dim",config["dim"],"-dag-cache",dag_path,"-predict-round-num",8,"-max-ref-num",max(prediction_ref_num,score_ref_num),"-actual-ref-num",prediction_ref_num,"-inverse-distance-power",config.get("power",2),"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",score_min_ref_num,"-order-candidate-num-experimental",config.get("ordering_candidate_num",48),"-rbf-kernel",config.get("rbf_kernel","matern32"),"-rbf-shape",config.get("shape",0.01),"-rbf-nugget",config.get("rbf_nugget",1e-6)]
+    compression_only=[]
+    if configuration.endswith("mean_reference_distance"):
+        common.extend(("-ordering-msd-ref-num-experimental",score_ref_num))
+        compression_only.append("-reverse-mean-distance-only-order-experimental")
+    elif configuration.endswith("reference_data_prediction_error"):
+        training_expression="{"+",".join(str(value) for value in config.get("training",[]))+"}"
+        if training_expression=="{}":
+            raise ValueError("参考数据辅助顺序至少需要一个training time step")
+        compression_only.extend(("-reference-data-order-experimental",training_expression))
+        if predictor=="rbf_fitting":
+            compression_only.append("-reference-data-rbf-score-experimental")
+    else:
+        raise ValueError(f"未知空间排序标准：{configuration}")
+    if "sort_all_then_split_rounds" in configuration:
+        compression_only.append("-global-order-before-round-split-experimental")
+    if not config.get("disable_eb_schedule"):
+        common.extend(("-eb-schedule-experimental","round_point_ratio",0.8))
+    if "matrix" in config:
+        common.extend(("-adjust-coord-matrix-file",project_root/"adjust_coord_matrices"/config["matrix"]))
+    if config.get("reorder_by_prediction_order"):
+        common.append("-reorder-data-by-prediction-order-experimental")
+    common.extend(config.get("common_extra",[]))
+    compression_only.extend(config.get("compression_extra",[]))
+    return predictor,common,compression_only,list(config.get("decompression_extra",[]))
+
+def build_temporal_unsz_arguments(config,test_data_dir,dag_path):
+    if config["steps"]<2:
+        raise ValueError("时间预测至少需要两个time step")
+    predictor=config.get("predictor","inverse_proportion")
+    coordinates=read_time_step_coordinates(config)
+    if config["config"] in ("linear_interpolation","linear_interpolation_spatial_residual"):
+        time_order=linear_interpolation_time_order(coordinates)
+        time_expression="{"+",".join(str(value) for value in time_order)+"}"
+    else:
+        time_expression=f"[0,{config['steps']-1}]"
+    ref_num=config["ref_num"]
+    common=["-data-dir",test_data_dir,"-variable",config["variable"],"-time-step",time_expression,"-dim",config["dim"],"-dag-cache",dag_path,"-predict-round-num",8,"-max-ref-num",ref_num,"-actual-ref-num",ref_num,"-inverse-distance-power",config.get("power",2),"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",ref_num if predictor=="rbf_fitting" else 3,"-reverse-mean-distance-only-order-experimental"]
+    if not config.get("disable_eb_schedule"):
+        common.extend(("-eb-schedule-experimental","round_point_ratio",0.8))
+    if predictor=="rbf_fitting":
+        common.extend(("-rbf-kernel",config.get("rbf_kernel","matern32"),"-rbf-shape",config.get("shape",0.03),"-rbf-nugget",config.get("rbf_nugget",1e-6),"-rbf-polynomial-degree",0))
+    if "matrix" in config:
+        common.extend(("-adjust-coord-matrix-file",project_root/"adjust_coord_matrices"/config["matrix"]))
+    if "time_step_coordinate_file" in config:
+        common.extend(("-time-step-coordinate-file",data_directory(config)/config["time_step_coordinate_file"]))
+    if config["config"]!="spatial":
+        common.extend(("-cross-time-predictor-experimental",config["config"]))
+    common.extend(config.get("common_extra",[]))
+    return predictor,common,list(config.get("compression_extra",[])),list(config.get("decompression_extra",[]))
+
+def build_unsz_commands(config,rel_eb,temporary_dir,test_data_dir):
+    dag_path=field_dag_cache_path(config) if config.get("persist_dag") else temporary_dir/"prediction.dag"
+    if config["config"] in temporal_configurations:
+        predictor,common,compression_only,decompression_only=build_temporal_unsz_arguments(config,test_data_dir,dag_path)
+    else:
+        predictor,common,compression_only,decompression_only=build_spatial_unsz_arguments(config,test_data_dir,dag_path)
+    if "condition" in config:
+        point_set_config_path=temporary_dir/"point_sets.json"
+        write_point_set_config(point_set_config_path,config,predictor,rel_eb)
+        compression_error=["-point-set-config",point_set_config_path]
+        decompression_error=compression_error
+    else:
+        compression_error=["-M","REL",rel_eb,"-predictor",predictor]
+        decompression_error=["-M","REL",rel_eb]
+    compression_command=[project_root/"install/bin/s1_compress",*compression_error,*common,*compression_only]
+    decompression_command=[project_root/"install/bin/s1_decompress",*decompression_error,*common,*decompression_only]
+    return compression_command,decompression_command
+
+# 压缩器执行
+def run_unsz(config,rel_eb):
+    source_data_dir=data_directory(config)
+    source_data_paths=field_data_paths(config)
+    required_paths=[source_data_dir/"coords.dat",*source_data_paths]
+    missing_paths=[str(path) for path in required_paths if not path.is_file()]
+    if missing_paths:
+        raise FileNotFoundError("缺少测试文件："+", ".join(missing_paths))
+    if config.get("persist_dag"):
+        field_dag_cache_path(config).parent.mkdir(parents=True,exist_ok=True)
+    temporary_root=os.environ.get("SLURM_TMPDIR","/tmp")
+    with tempfile.TemporaryDirectory(prefix=f"unsz_{config['key']}_",dir=temporary_root) as temporary_dir_string:
+        temporary_dir=Path(temporary_dir_string)
+        test_data_dir=temporary_dir/"data"
+        test_data_dir.mkdir()
+        (test_data_dir/"coords.dat").symlink_to(source_data_dir/"coords.dat")
+        for time_step,source_path in enumerate(source_data_paths):
+            (test_data_dir/f"{config['variable']}.dat.{time_step}").symlink_to(source_path)
+        compression_command,decompression_command=build_unsz_commands(config,rel_eb,temporary_dir,test_data_dir)
+        compression_output=run_command(compression_command,silent=True)
+        decompression_output=run_command(decompression_command,silent=True)
+        result=parse_unsz_output(compression_output,decompression_output)
+    print(f"总结果：compressor=unsz,dataset={config['key']},variable={config['variable']},rel_eb={rel_eb},br={result['br']},psnr={result['psnr']}")
+    print(f"计时：preprocessing={result['preprocessing_time']} s,compression={result['compression_time']} s,decompression={result['decompression_time']} s,compression+decompression={result['compression_time']+result['decompression_time']} s")
+    return {"compressor":"unsz","rel_eb":rel_eb,**result,"command":"compression: "+shlex.join(str(value) for value in compression_command)+"; decompression: "+shlex.join(str(value) for value in decompression_command)}
+
+def run_umc(config,rel_eb):
+    source_data_dir=data_directory(config)
+    variable=config["variable"]
+    time_step_num=config["steps"]
+    source_data_paths=field_data_paths(config)
+    required_paths=[source_data_dir/"coords.dat",source_data_dir/"conn.dat",*source_data_paths]
+    missing_paths=[str(path) for path in required_paths if not path.is_file()]
+    if missing_paths:
+        raise FileNotFoundError("缺少测试文件："+", ".join(missing_paths))
+    temporary_root=os.environ.get("SLURM_TMPDIR","/tmp")
+    with tempfile.TemporaryDirectory(prefix=f"umc_{config['key']}_",dir=temporary_root) as temporary_dir_string:
+        temporary_dir=Path(temporary_dir_string)
+        (temporary_dir/"coords.dat").symlink_to(source_data_dir/"coords.dat")
+        (temporary_dir/"conn.dat").symlink_to(source_data_dir/"conn.dat")
+        for time_step,source_path in enumerate(source_data_paths):
+            (temporary_dir/f"{variable}.dat.{time_step}").symlink_to(source_path)
+        data_paths=[str(temporary_dir/f"{variable}.dat.{time_step}") for time_step in range(time_step_num)]
+        umc_config=config["umc"]
+        umc_from_edge=umc_config["umc_from_edge"]
+        umc_dim=config["dim"]
+        umc_reorder=umc_config.get("umc_reorder",1)
+        umc_method=umc_config.get("umc_method","NBP-IDW")
+        umc_neighbor_num=umc_config.get("umc_neighbor_num",4)
+        data_dir=str(temporary_dir)+"/"
+        if umc_method=="NBP-IDW":
+            compression_command=[umc_root/"build/test/test_compress",data_dir,variable,"coords.dat","conn.dat",umc_from_edge,umc_dim,2,umc_reorder,time_step_num,0,rel_eb,umc_neighbor_num]
+            decompression_command=[umc_root/"build/test/test_decompress",data_dir,variable,"coords.dat","conn.dat",umc_from_edge,umc_dim,2,umc_reorder,time_step_num]
+        elif umc_method=="NBP-IDW-INP":
+            umc_batch=umc_config.get("umc_batch",10)
+            compression_command=[umc_root/"build/test/test_compress",data_dir,variable,"coords.dat","conn.dat",umc_from_edge,umc_dim,4,umc_reorder,time_step_num,0,rel_eb,umc_neighbor_num,umc_batch]
+            decompression_command=[umc_root/"build/test/test_decompress",data_dir,variable,"coords.dat","conn.dat",umc_from_edge,umc_dim,4,umc_reorder,time_step_num,umc_batch]
+        else:
+            raise ValueError(f"未知UMC压缩方法：{umc_method}")
+        data_range=calculate_data_range(data_paths)
+        compression_output=run_command(compression_command)
+        br,psnr,preprocessing_time,compression_time=parse_umc_compression_result(compression_output,data_paths,data_range)
+        decompression_output=run_command(decompression_command)
+        decompression_time,decompressed_psnr,decompressed_max_error=parse_umc_decompression_result(decompression_output,data_paths,umc_method,data_range)
+        if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-5):
+            raise RuntimeError(f"UMC压缩端和独立解压端总PSNR不一致：{psnr} != {decompressed_psnr}")
+        print(f"UMC独立解压检查通过：total psnr={decompressed_psnr},max error={decompressed_max_error}")
+        if config.get("verify_umc_disk_output",False):
+            disk_mse,disk_max_error=calculate_umc_disk_error(data_paths)
+            disk_psnr=math.inf if disk_mse==0 else 10*math.log10((data_range[1]-data_range[0])**2/disk_mse)
+            if not math.isclose(psnr,disk_psnr,rel_tol=1e-6,abs_tol=1e-5):
+                raise RuntimeError(f"UMC压缩端和磁盘输出总PSNR不一致：{psnr} != {disk_psnr}")
+            if not math.isclose(decompressed_max_error,disk_max_error,rel_tol=1e-5,abs_tol=1e-5):
+                raise RuntimeError(f"UMC独立解压和磁盘输出最大误差不一致：{decompressed_max_error} != {disk_max_error}")
+            print(f"UMC磁盘输出检查通过：total psnr={disk_psnr},max error={disk_max_error}")
+    print(f"总结果：compressor=umc,dataset={config['key']},variable={variable},rel_eb={rel_eb},br={br},psnr={psnr}")
+    print(f"计时：preprocessing={preprocessing_time} s,compression={compression_time} s,decompression={decompression_time} s,compression+decompression={compression_time+decompression_time} s")
+    return {"compressor":"umc","rel_eb":rel_eb,"br":br,"psnr":psnr,"preprocessing_time":preprocessing_time,"compression_time":compression_time,"decompression_time":decompression_time,"command":"compression: "+shlex.join(str(value) for value in compression_command)+"; decompression: "+shlex.join(str(value) for value in decompression_command)}
+
+# 任务循环和命令行入口
+def run_task(config):
+    result_root.mkdir(parents=True,exist_ok=True)
+    total_bytes=sum(path.stat().st_size for path in field_data_paths(config))
+    result_path=result_root/"fields"/f"{config['key']}.csv"
+    result_path.parent.mkdir(parents=True,exist_ok=True)
+    for rel_eb in config["rel_eb_list"]:
+        for method in config["method_list"]:
+            print(f"开始：field={config['key']},compressor={method},REL={rel_eb:g}",flush=True)
+            if method=="unsz":
+                result=run_unsz(config,rel_eb)
+            elif method=="umc":
+                result=run_umc(config,rel_eb)
+            else:
+                raise ValueError(f"尚未实现baseline：{method}")
+            item={"compressor":method,"rel_eb":rel_eb}
+            for column_name in ("br","psnr","preprocessing_time","compression_time","decompression_time","command"):
+                write_csv_item(str(result_path),item,column_name,result[column_name])
+            for column_name,value in (("field",config["key"]),("dataset",config["dataset"]),("variable",config["variable"]),("time_step_num",config["steps"]),("input_bytes",total_bytes),("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("preprocessing_MB_s",total_bytes/result["preprocessing_time"]/1e6),("compression_MB_s",total_bytes/result["compression_time"]/1e6),("decompression_MB_s",total_bytes/result["decompression_time"]/1e6)):
+                write_csv_item(str(result_path),item,column_name,value)
+    print(f"完成：{config['key']}，结果{result_path}",flush=True)
+
 def cli(command_line_arguments=None):
     parser=argparse.ArgumentParser(description="运行configs目录中的UNSZ实验配置")
     parser.add_argument("json",help="configs中的JSON配置名称，或JSON文件路径")
     arguments=parser.parse_args(command_line_arguments)
     try:
-        json_path=resolve_json_path(arguments.json)
-        selected_field_config_vec=load_tasks(json_path)
+        prepared_tasks=load_tasks(resolve_json_path(arguments.json))
     except (FileNotFoundError,TypeError,ValueError) as error:
         parser.error(str(error))
-    build_programs(any("umc" in field["method_list"] for field in selected_field_config_vec))
-    sys.modules.setdefault("t1_start_c_code",sys.modules[__name__])
-    from py_codes.refresh_selected_results import run_field
-    for field in selected_field_config_vec:
-        run_field(field,rel_values=field["rel_eb_list"],configuration_path=json_path)
+    build_programs(prepared_tasks)
+    for config in prepared_tasks:
+        run_task(config)
 
 if __name__=="__main__":
     cli()

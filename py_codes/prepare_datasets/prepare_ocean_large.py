@@ -3,8 +3,8 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from third_party.prepare_dataset_common.prepare_dataset_common import data_root_default,write_interleaved_float32
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
+from py_codes.prepare_datasets.prepare_dataset_common import data_root_default,write_interleaved_float32
 
 
 def prepare_ocean_large(source_path,output_dir,field_vec,level):

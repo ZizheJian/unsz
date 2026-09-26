@@ -3,8 +3,8 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from third_party.prepare_dataset_common.prepare_dataset_common import data_root_default
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
+from py_codes.prepare_datasets.prepare_dataset_common import data_root_default
 
 
 def prepare_tpost20(source_path,output_dir):
