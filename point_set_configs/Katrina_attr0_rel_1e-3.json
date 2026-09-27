@@ -1,7 +1,7 @@
 {
-  "version":1,
+  "version":2,
   "labels":[
-    {"method":"inverse_proportion","eb_mode":"REL","eb_value":0.001,"condition":{"operator":">=","value":-1000}},
-    {"method":"constant"}
+    {"predictor":"idw","eb_mode":"REL","eb_value":0.001,"condition":{"operator":">=","value":-1000}},
+    {"predictor":"constant"}
   ]
 }

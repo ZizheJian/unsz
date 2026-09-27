@@ -21,17 +21,17 @@ namespace unsz
     void param_c<T_coord,T_data>::load_or_generate_pred_refs_structure()
     {
         if(cache_subpartition_num_experimental>0)
-            reorder_data_by_prediction_order_experimental=true;
-        if (prediction_structure_path.empty())
+            reorder_by_prediction_order=true;
+        if (dag_cache_path.empty())
         {
             generate_pred_refs_structure();
             return;
         }
-        FILE *file=fopen(prediction_structure_path.c_str(),"rb");
+        FILE *file=fopen(dag_cache_path.c_str(),"rb");
         if (file)
         {
             if (fclose(file)!=0)
-                throw runtime_error("关闭DAG缓存文件失败："+prediction_structure_path);
+                throw runtime_error("关闭DAG缓存文件失败："+dag_cache_path);
             if (partition_size_experimental>0 || partition_num_experimental>0)
                 build_partitions();
             load_pred_refs_structure();
@@ -53,7 +53,7 @@ namespace unsz
         }
         double full_diagonal=sqrt(full_diagonal_squared);
         uint32_t prediction_id=0;
-        for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+        for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
             vector<double> round_min(dim,numeric_limits<double>::infinity()),round_max(dim,-numeric_limits<double>::infinity());
             double reference_distance_sum=0,nearest_reference_distance_sum=0;
@@ -109,12 +109,12 @@ namespace unsz
         static constexpr uint32_t version=1;
         vector<unsigned char> bytes;
         uint64_t ref_num_sum=pred_ref_ids.size();
-        bytes.reserve(32+(uint64_t)predict_round_num*4+(uint64_t)point_num*8+ref_num_sum*4);
+        bytes.reserve(32+(uint64_t)prediction_round_num*4+(uint64_t)point_num*8+ref_num_sum*4);
         append_binary(bytes,magic);
         append_binary(bytes,version);
         append_binary(bytes,point_num);
         append_binary(bytes,dim);
-        append_binary(bytes,predict_round_num);
+        append_binary(bytes,prediction_round_num);
         for (vector<int> &target_ids:round_target_ids)
             append_binary(bytes,(uint32_t)target_ids.size());
         uint32_t prediction_id=0;
@@ -132,20 +132,20 @@ namespace unsz
             }
         if (prediction_id!=point_num)
             throw runtime_error("保存的预测目标数量与点数不一致");
-        filesystem::path cache_path(prediction_structure_path);
+        filesystem::path cache_path(dag_cache_path);
         if(cache_path.has_parent_path())
             filesystem::create_directories(cache_path.parent_path());
-        FILE *file=fopen(prediction_structure_path.c_str(),"wb");
+        FILE *file=fopen(dag_cache_path.c_str(),"wb");
         if (!file)
-            throw runtime_error("无法创建DAG缓存文件："+prediction_structure_path);
+            throw runtime_error("无法创建DAG缓存文件："+dag_cache_path);
         if (fwrite(bytes.data(),1,bytes.size(),file)!=bytes.size())
         {
             fclose(file);
-            throw runtime_error("写入DAG缓存文件失败："+prediction_structure_path);
+            throw runtime_error("写入DAG缓存文件失败："+dag_cache_path);
         }
         if (fclose(file)!=0)
-            throw runtime_error("关闭DAG缓存文件失败："+prediction_structure_path);
-        printf("Saved DAG cache: %s, bytes=%llu\n",prediction_structure_path.c_str(),(unsigned long long)bytes.size());
+            throw runtime_error("关闭DAG缓存文件失败："+dag_cache_path);
+        printf("Saved DAG cache: %s, bytes=%llu\n",dag_cache_path.c_str(),(unsigned long long)bytes.size());
     }
 
     template<typename T_coord,typename T_data>
@@ -154,28 +154,28 @@ namespace unsz
         static constexpr uint64_t expected_magic=0x4452505a534e55;
         static constexpr uint32_t expected_version=1;
         auto start_time=chrono::steady_clock::now();
-        FILE *file=fopen(prediction_structure_path.c_str(),"rb");
+        FILE *file=fopen(dag_cache_path.c_str(),"rb");
         if (!file)
-            throw runtime_error("找不到DAG缓存文件："+prediction_structure_path);
+            throw runtime_error("找不到DAG缓存文件："+dag_cache_path);
         if (fseek(file,0,SEEK_END)!=0)
         {
             fclose(file);
-            throw runtime_error("无法定位DAG缓存文件末尾："+prediction_structure_path);
+            throw runtime_error("无法定位DAG缓存文件末尾："+dag_cache_path);
         }
         long byte_num_signed=ftell(file);
         if (byte_num_signed<0 || fseek(file,0,SEEK_SET)!=0)
         {
             fclose(file);
-            throw runtime_error("无法读取DAG缓存文件大小："+prediction_structure_path);
+            throw runtime_error("无法读取DAG缓存文件大小："+dag_cache_path);
         }
         vector<unsigned char> bytes((uint64_t)byte_num_signed);
         if (fread(bytes.data(),1,bytes.size(),file)!=bytes.size())
         {
             fclose(file);
-            throw runtime_error("读取DAG缓存文件失败："+prediction_structure_path);
+            throw runtime_error("读取DAG缓存文件失败："+dag_cache_path);
         }
         if (fclose(file)!=0)
-            throw runtime_error("关闭DAG缓存文件失败："+prediction_structure_path);
+            throw runtime_error("关闭DAG缓存文件失败："+dag_cache_path);
         const unsigned char *cursor=bytes.data(),*end=bytes.data()+bytes.size();
         uint64_t magic=read_binary<uint64_t>(cursor,end);
         uint32_t version=read_binary<uint32_t>(cursor,end);
@@ -183,12 +183,12 @@ namespace unsz
         uint32_t file_dim=read_binary<uint32_t>(cursor,end);
         uint32_t file_round_num=read_binary<uint32_t>(cursor,end);
         if (magic!=expected_magic || version!=expected_version)
-            throw runtime_error("DAG缓存文件格式或版本不正确："+prediction_structure_path);
-        if (file_point_num!=point_num || file_dim!=dim || file_round_num!=predict_round_num)
+            throw runtime_error("DAG缓存文件格式或版本不正确："+dag_cache_path);
+        if (file_point_num!=point_num || file_dim!=dim || file_round_num!=prediction_round_num)
             throw runtime_error("DAG缓存文件的点数、维数或轮数与当前参数不一致");
-        vector<uint32_t> round_target_num_vec(predict_round_num);
+        vector<uint32_t> round_target_num_vec(prediction_round_num);
         uint64_t target_num_sum=0;
-        for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+        for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
             round_target_num_vec[round_id]=read_binary<uint32_t>(cursor,end);
             target_num_sum+=round_target_num_vec[round_id];
@@ -196,7 +196,7 @@ namespace unsz
         if (target_num_sum!=point_num)
             throw runtime_error("DAG缓存文件中的目标数量与点数不一致");
         round_target_ids.clear();
-        round_target_ids.resize(predict_round_num);
+        round_target_ids.resize(prediction_round_num);
         pred_target_ids.clear();
         pred_target_ids.reserve(point_num);
         pred_ref_ids.clear();
@@ -205,7 +205,7 @@ namespace unsz
         pred_ref_begin.push_back(0);
         pred_ref_weights.clear();
         vector<uint8_t> available(point_num,0);
-        for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+        for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
             round_target_ids[round_id].reserve(round_target_num_vec[round_id]);
             for (uint32_t round_target_id=0;round_target_id<round_target_num_vec[round_id];round_target_id++)
@@ -223,7 +223,7 @@ namespace unsz
                         throw runtime_error("DAG缓存文件包含越界或尚不可用的参考点编号");
                     pred_ref_ids.push_back(ref_id);
                     double dist=(double)get_dist_to_coord(coord_array[target_id],coord_array[ref_id],dim);
-                    pred_ref_weights.push_back(dist==0?numeric_limits<double>::infinity():pow(dist,-inverse_distance_power/2));
+                    pred_ref_weights.push_back(dist==0?numeric_limits<double>::infinity():pow(dist,-idw_power/2));
                 }
                 pred_ref_begin.push_back(pred_ref_ids.size());
                 available[target_id]=1;
@@ -233,7 +233,7 @@ namespace unsz
             throw runtime_error("DAG缓存文件末尾存在未解析数据");
         print_prediction_geometry_statistics_result();
         prepare_pred_refs_structure();
-        printf("Loaded DAG cache: %s, bytes=%llu, time=%f s\n",prediction_structure_path.c_str(),(unsigned long long)bytes.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
+        printf("Loaded DAG cache: %s, bytes=%llu, time=%f s\n",dag_cache_path.c_str(),(unsigned long long)bytes.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
     }
 
     template<typename T_coord,typename T_data>
@@ -279,13 +279,13 @@ namespace unsz
                 }
             };
             if (normalize_label_weights)
-                normalize_weights(pred_ref_label_normalized_weights,actual_ref_num);
-            normalize_weights(pred_ref_value_normalized_weights,actual_ref_num);
+                normalize_weights(pred_ref_label_normalized_weights,prediction_max_ref_num);
+            normalize_weights(pred_ref_value_normalized_weights,prediction_max_ref_num);
             printf(normalize_label_weights?"Pre-normalized label and single-point-set value weights\n":"Pre-normalized single-point-set value weights\n");
         }
         prediction_id_to_original_id.clear();
         original_id_to_prediction_id.clear();
-        if (reorder_data_by_prediction_order_experimental)
+        if (reorder_by_prediction_order)
         {
             prediction_id_to_original_id.resize(point_num);
             original_id_to_prediction_id.assign(point_num,numeric_limits<uint32_t>::max());
@@ -329,7 +329,7 @@ namespace unsz
             for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
             {
                 uint32_t pred_id=(uint32_t)pred_target_ids[pred_ref_id];
-                uint32_t original_id=reorder_data_by_prediction_order_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+                uint32_t original_id=reorder_by_prediction_order?prediction_id_to_original_id[pred_id]:pred_id;
                 uint32_t partition_id=point_partition_id_vec[original_id];
                 if(partition_id>=partition_pred_ref_ids_vec.size())
                     throw runtime_error("预测目标的partition编号越界");
@@ -341,7 +341,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::prepare_rbf_fitting_weights()
+    void param_c<T_coord,T_data>::prepare_rbf_weights()
     {
         if(pred_ref_rbf_weights.size()==pred_ref_ids.size())
             return;
@@ -352,11 +352,11 @@ namespace unsz
         for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
         {
             auto ref_ids=get_pred_ref_ids(pred_ref_id);
-            uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
-            if(ref_num<2)
+            uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
+            if(ref_num<prediction_min_ref_num)
                 continue;
             array_view_c<int> selected_ref_ids(ref_ids.begin(),ref_num);
-            if(!calculate_rbf_fitting_weights(pred_target_ids[pred_ref_id],selected_ref_ids,weights))
+            if(!calculate_rbf_weights(pred_target_ids[pred_ref_id],selected_ref_ids,weights))
                 continue;
             uint64_t begin=pred_ref_begin[pred_ref_id];
             for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
@@ -364,7 +364,7 @@ namespace unsz
             prepared_target_num++;
         }
         single_point_set_rbf10_fast_begin=point_num;
-        if(actual_ref_num==10)
+        if(prediction_max_ref_num==10)
             for(uint32_t reverse_pred_ref_id=point_num;reverse_pred_ref_id>0;reverse_pred_ref_id--)
             {
                 uint32_t pred_ref_id=reverse_pred_ref_id-1;

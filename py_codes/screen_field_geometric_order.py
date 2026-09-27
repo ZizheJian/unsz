@@ -7,34 +7,34 @@ compressor=project_root/"install/bin/s1_compress"
 decompressor=project_root/"install/bin/s1_decompress"
 default_rel_eb_vec=(1e-1,1e-2,1e-3,1e-4,1e-5)
 order_config_vec=(
-    {"config":"reverse_mean_reference_distance","ordering_construction":"reverse_elimination","ordering_score":"mean_reference_distance","flags":["-reverse-mean-distance-only-order-experimental"]},
+    {"config":"reverse_msd","ordering_construction":"reverse_elimination","ordering_score":"msd","flags":["-reverse-msd-order"]},
     {"config":"reverse_predictability","ordering_construction":"reverse_elimination","ordering_score":"predictability","flags":["-reverse-predictability-order-experimental"]},
-    {"config":"reverse_mean_reference_distance_s2","ordering_construction":"reverse_elimination","ordering_score":"mean_reference_distance+s2","flags":["-reverse-distribution-order-experimental"]},
+    {"config":"reverse_msd_s2","ordering_construction":"reverse_elimination","ordering_score":"msd+s2","flags":["-reverse-distribution-order-experimental"]},
     {"config":"reverse_direction_concentration","ordering_construction":"reverse_elimination","ordering_score":"direction_concentration","flags":["-reverse-direction-only-order-experimental"]},
     {"config":"reverse_nearest_reference_distance_direction_concentration","ordering_construction":"reverse_elimination","ordering_score":"nearest_reference_distance+direction_concentration","flags":["-reverse-direction-order-experimental"]},
     {"config":"reverse_direction_concentration_s2","ordering_construction":"reverse_elimination","ordering_score":"direction_concentration+s2","flags":["-reverse-direction-distribution-order-experimental"]},
     {"config":"forward_predictability","ordering_construction":"forward_greedy","ordering_score":"predictability","flags":["-predictability-order-experimental"]},
-    {"config":"forward_mean_reference_distance","ordering_construction":"forward_greedy","ordering_score":"mean_reference_distance","flags":["-forward-mean-distance-only-order-experimental"]},
+    {"config":"forward_msd","ordering_construction":"forward_greedy","ordering_score":"msd","flags":["-forward-msd-order"]},
     {"config":"forward_direction_concentration","ordering_construction":"forward_greedy","ordering_score":"direction_concentration","flags":["-forward-direction-only-order-experimental"]},
-    {"config":"forward_mean_reference_distance_s2","ordering_construction":"forward_greedy","ordering_score":"mean_reference_distance+s2","flags":["-forward-mean-distance-s2-order-experimental"]},
-    {"config":"forward_mean_reference_distance_direction_concentration","ordering_construction":"forward_greedy","ordering_score":"mean_reference_distance+direction_concentration","flags":["-forward-mean-distance-direction-order-experimental"]},
+    {"config":"forward_msd_s2","ordering_construction":"forward_greedy","ordering_score":"msd+s2","flags":["-forward-mean-distance-s2-order-experimental"]},
+    {"config":"forward_msd_direction_concentration","ordering_construction":"forward_greedy","ordering_score":"msd+direction_concentration","flags":["-forward-mean-distance-direction-order-experimental"]},
 )
 
 def parse_arguments():
     parser=argparse.ArgumentParser(description="固定空间预测器并筛选纯几何预测顺序")
     parser.add_argument("-data-dir",type=Path,required=True)
-    parser.add_argument("-variable",required=True)
+    parser.add_argument("-field",required=True)
     parser.add_argument("-time-step",type=int,default=0)
-    parser.add_argument("-dim",type=int,required=True)
-    parser.add_argument("-matrix-file",type=Path)
-    parser.add_argument("-ref-num",type=int,default=10)
+    parser.add_argument("-coordinate-dim",type=int,required=True)
+    parser.add_argument("-adjust-coord-matrix-file",type=Path)
+    parser.add_argument("-prediction-max-ref-num",type=int,default=10)
+    parser.add_argument("-prediction-round-num",type=int,required=True)
     parser.add_argument("-rbf-kernel",default="matern32")
     parser.add_argument("-rbf-shape",type=float,default=0.03)
     parser.add_argument("-rbf-nugget",type=float,default=1e-6)
-    parser.add_argument("-rbf-polynomial-degree",type=int,default=0)
     parser.add_argument("-rel-eb",type=float,action="append")
     parser.add_argument("-configuration",action="append",choices=tuple(config["config"] for config in order_config_vec))
-    parser.add_argument("-round-formation",choices=("split_rounds_then_sort","sort_all_then_split_rounds"),default="split_rounds_then_sort")
+    parser.add_argument("-ordering-scope",choices=("local","global"),default="local")
     parser.add_argument("-result",type=Path,required=True)
     return parser.parse_args()
 
@@ -75,57 +75,54 @@ def write_results(path,row_vec):
         writer.writeheader()
         writer.writerows(row_vec)
 
-def cleanup(data_dir,variable,time_step):
+def cleanup(data_dir,field,time_step):
     for suffix in (".unsz",".unsz.bin"):
-        path=data_dir/f"{variable}.dat.{time_step}{suffix}"
+        path=data_dir/f"{field}.dat.{time_step}{suffix}"
         if path.exists():
             path.unlink()
 
 def main():
     arguments=parse_arguments()
-    if arguments.ref_num<=0:
+    if arguments.prediction_max_ref_num<=0:
         raise ValueError("ref-num必须为正数")
-    if arguments.rbf_polynomial_degree not in (0,1,2):
-        raise ValueError("rbf-polynomial-degree必须是0、1或2")
     selected=set(arguments.configuration) if arguments.configuration else None
     config_vec=tuple(config for config in order_config_vec if selected is None or config["config"] in selected)
-    if arguments.round_formation=="sort_all_then_split_rounds":
-        unsupported=tuple(config["config"] for config in config_vec if config["config"]!="reverse_mean_reference_distance")
+    if arguments.ordering_scope=="global":
+        unsupported=tuple(config["config"] for config in config_vec if config["config"]!="reverse_msd")
         if selected is not None and unsupported:
-            raise ValueError("sort_all_then_split_rounds目前只支持reverse_mean_reference_distance")
-        config_vec=tuple(config for config in config_vec if config["config"]=="reverse_mean_reference_distance")
+            raise ValueError("global目前只支持reverse_msd")
+        config_vec=tuple(config for config in config_vec if config["config"]=="reverse_msd")
     rel_eb_vec=tuple(arguments.rel_eb) if arguments.rel_eb else default_rel_eb_vec
     result_vec=[]
     temporary_root=os.environ.get("SLURM_TMPDIR","/tmp")
-    with tempfile.TemporaryDirectory(prefix=f"unsz_order_{arguments.variable}_",dir=temporary_root) as temporary_dir_string:
+    with tempfile.TemporaryDirectory(prefix=f"unsz_order_{arguments.field}_",dir=temporary_root) as temporary_dir_string:
         temporary_dir=Path(temporary_dir_string)
         data_dir=temporary_dir/"data"
         data_dir.mkdir()
         (data_dir/"coords.dat").symlink_to(arguments.data_dir/"coords.dat")
-        (data_dir/f"{arguments.variable}.dat.{arguments.time_step}").symlink_to(arguments.data_dir/f"{arguments.variable}.dat.{arguments.time_step}")
+        (data_dir/f"{arguments.field}.dat.{arguments.time_step}").symlink_to(arguments.data_dir/f"{arguments.field}.dat.{arguments.time_step}")
         for config in config_vec:
-            prediction_structure_path=temporary_dir/f"{config['config']}.dag"
+            dag_cache_path=temporary_dir/f"{config['config']}.dag"
             for rel_eb in rel_eb_vec:
-                common_arguments=["-data-dir",data_dir,"-variable",arguments.variable,"-time-step",f"{{{arguments.time_step}}}","-dim",arguments.dim,"-dag-cache",prediction_structure_path,"-predict-round-num",8,"-max-ref-num",arguments.ref_num,"-actual-ref-num",arguments.ref_num,"-kd-leaf-size",32,"-d-only-cache-refill-threshold-experimental",arguments.ref_num,"-eb-schedule-experimental","round_point_ratio",0.8,"-rbf-kernel",arguments.rbf_kernel,"-rbf-shape",arguments.rbf_shape,"-rbf-nugget",arguments.rbf_nugget,"-rbf-polynomial-degree",arguments.rbf_polynomial_degree]
-                if arguments.matrix_file is not None:
-                    common_arguments.extend(("-adjust-coord-matrix-file",arguments.matrix_file))
-                round_formation_flags=["-global-order-before-round-split-experimental"] if arguments.round_formation=="sort_all_then_split_rounds" else []
-                compression_output=run_command([compressor,"-M","REL",rel_eb,"-predictor","rbf_fitting",*common_arguments,*config["flags"],*round_formation_flags])
+                common_arguments=["-data-dir",data_dir,"-field",arguments.field,"-time-step",f"{{{arguments.time_step}}}","-coordinate-dim",arguments.coordinate_dim,"-dag-cache",dag_cache_path,"-prediction-round-num",arguments.prediction_round_num,"-prediction-min-ref-num",arguments.prediction_max_ref_num,"-prediction-max-ref-num",arguments.prediction_max_ref_num,"-ordering-scope",arguments.ordering_scope,"-kd-leaf-size",32,"-ordering-candidate-num",arguments.prediction_max_ref_num,"-ordering-score-max-ref-num",arguments.prediction_max_ref_num,"-ordering-score-min-ref-num",arguments.prediction_max_ref_num,"-eb-schedule","round_point_ratio",0.8,"-rbf-kernel",arguments.rbf_kernel,"-rbf-shape",arguments.rbf_shape,"-rbf-nugget",arguments.rbf_nugget]
+                if arguments.adjust_coord_matrix_file is not None:
+                    common_arguments.extend(("-adjust-coord-matrix-file",arguments.adjust_coord_matrix_file))
+                compression_output=run_command([compressor,"-M","REL",rel_eb,"-predictor","rbf",*common_arguments,*config["flags"]])
                 decompression_output=run_command([decompressor,"-M","REL",rel_eb,*common_arguments])
                 psnr=read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"压缩PSNR")
                 decompressed_psnr=read_float(r"^total decompressed psnr= ([^ ]+)$",decompression_output,"解压PSNR")
                 if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-6):
                     raise RuntimeError(f"压缩和解压PSNR不一致：{psnr}!={decompressed_psnr}")
-                result={"config":config["config"],"coordinate":"adjusted" if arguments.matrix_file is not None else "original","predictor":"rbf_fitting","ref_num":arguments.ref_num,"rbf_kernel":arguments.rbf_kernel,"rbf_shape":arguments.rbf_shape,"rbf_nugget":arguments.rbf_nugget,"rbf_polynomial_degree":arguments.rbf_polynomial_degree,"round_formation":arguments.round_formation,"ordering_construction":config["ordering_construction"],"ordering_score":config["ordering_score"],"rel_eb":rel_eb,"br":read_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR"),"psnr":psnr,"preprocessing_time":read_float(r"^preprocessing time excluding adjust coord= ([^ ]+) s$",compression_output,"预处理时间"),"compression_time":read_float(r"^total compression time= ([^ ]+) s$",compression_output,"压缩时间"),"decompression_time":read_float(r"^total decompression time= ([^ ]+) s$",decompression_output,"解压时间")}
+                result={"config":config["config"],"coordinate":"adjusted" if arguments.adjust_coord_matrix_file is not None else "original","predictor":"rbf","prediction_round_num":arguments.prediction_round_num,"prediction_max_ref_num":arguments.prediction_max_ref_num,"rbf_kernel":arguments.rbf_kernel,"rbf_shape":arguments.rbf_shape,"rbf_nugget":arguments.rbf_nugget,"ordering_scope":arguments.ordering_scope,"ordering_construction":config["ordering_construction"],"ordering_score":config["ordering_score"],"rel_eb":rel_eb,"br":read_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR"),"psnr":psnr,"preprocessing_time":read_float(r"^preprocessing time excluding adjust coord= ([^ ]+) s$",compression_output,"预处理时间"),"compression_time":read_float(r"^total compression time= ([^ ]+) s$",compression_output,"压缩时间"),"decompression_time":read_float(r"^total decompression time= ([^ ]+) s$",decompression_output,"解压时间")}
                 result_vec.append(result)
                 write_results(arguments.result,result_vec)
                 print(f"{config['config']} REL={rel_eb:g}:BR={result['br']:.6f},PSNR={psnr:.6f},preprocessing={result['preprocessing_time']:.6f}s,compression={result['compression_time']:.6f}s,decompression={result['decompression_time']:.6f}s",flush=True)
-                cleanup(data_dir,arguments.variable,arguments.time_step)
-    baseline=[row for row in result_vec if row["config"]=="reverse_mean_reference_distance"]
+                cleanup(data_dir,arguments.field,arguments.time_step)
+    baseline=[row for row in result_vec if row["config"]=="reverse_msd"]
     if baseline:
         baseline_compression_time=geometric_mean([row["compression_time"] for row in baseline])
         baseline_decompression_time=geometric_mean([row["decompression_time"] for row in baseline])
-        print("相对reverse_mean_reference_distance的同PSNR平均BR变化排名：")
+        print("相对reverse_msd的同PSNR平均BR变化排名：")
         ranked=[]
         for config in config_vec:
             rows=[row for row in result_vec if row["config"]==config["config"]]

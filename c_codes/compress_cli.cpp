@@ -70,18 +70,18 @@ namespace unsz
                 param.data_dir=argv[++arg_id];
                 param.got_data_dir=true;
             }
-            else if (strcmp(argv[arg_id],"-variable")==0)
+            else if (strcmp(argv[arg_id],"-field")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-variable后面缺少参数值");
-                param.variable_name=argv[++arg_id];
-                param.got_variable=true;
+                    throw runtime_error("-field后面缺少参数值");
+                param.field_name=argv[++arg_id];
+                param.got_field=true;
             }
-            else if (strcmp(argv[arg_id],"-dim")==0)
+            else if (strcmp(argv[arg_id],"-coordinate-dim")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-dim后面缺少参数值");
-                param.dim=parse_positive_uint32(argv[++arg_id],"-dim");
+                    throw runtime_error("-coordinate-dim后面缺少参数值");
+                param.dim=parse_positive_uint32(argv[++arg_id],"-coordinate-dim");
             }
             else if (strcmp(argv[arg_id],"-time-step")==0)
             {
@@ -106,23 +106,23 @@ namespace unsz
                     throw runtime_error("-M的误差模式必须是REL或ABS："+param.error_mode);
                 param.got_error_mode=true;
             }
-            else if (strcmp(argv[arg_id],"-max-ref-num")==0)
+            else if (strcmp(argv[arg_id],"-prediction-min-ref-num")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-max-ref-num后面缺少参数值");
-                param.max_ref_num=parse_positive_uint32(argv[++arg_id],"-max-ref-num");
+                    throw runtime_error("-prediction-min-ref-num后面缺少参数值");
+                param.prediction_min_ref_num=parse_positive_uint32(argv[++arg_id],"-prediction-min-ref-num");
             }
-            else if (strcmp(argv[arg_id],"-actual-ref-num")==0)
+            else if (strcmp(argv[arg_id],"-prediction-max-ref-num")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-actual-ref-num后面缺少参数值");
-                param.actual_ref_num=parse_positive_uint32(argv[++arg_id],"-actual-ref-num");
+                    throw runtime_error("-prediction-max-ref-num后面缺少参数值");
+                param.prediction_max_ref_num=parse_positive_uint32(argv[++arg_id],"-prediction-max-ref-num");
             }
-            else if(strcmp(argv[arg_id],"-ordering-msd-ref-num-experimental")==0)
+            else if(strcmp(argv[arg_id],"-ordering-score-max-ref-num")==0)
             {
                 if(arg_id+1>=argc)
-                    throw runtime_error("-ordering-msd-ref-num-experimental后面缺少参数值");
-                param.ordering_msd_ref_num_experimental=parse_positive_uint32(argv[++arg_id],"-ordering-msd-ref-num-experimental");
+                    throw runtime_error("-ordering-score-max-ref-num后面缺少参数值");
+                param.ordering_score_max_ref_num=parse_positive_uint32(argv[++arg_id],"-ordering-score-max-ref-num");
             }
             else if(strcmp(argv[arg_id],"-ordering-msd-neighbor-prefetch-num-experimental")==0)
             {
@@ -140,8 +140,15 @@ namespace unsz
                 param.use_kd_iterative_query_experimental=true;
             else if(strcmp(argv[arg_id],"-kd-scalar-one-reference-query-experimental")==0)
                 param.use_kd_scalar_one_reference_query_experimental=true;
-            else if(strcmp(argv[arg_id],"-rbf-ldlt-experimental")==0)
-                param.use_rbf_ldlt_experimental=true;
+            else if(strcmp(argv[arg_id],"-rbf-solver")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-rbf-solver后面缺少求解器名称");
+                string solver=argv[++arg_id];
+                if(solver!="general"&&solver!="ldlt")
+                    throw runtime_error("-rbf-solver必须是general或ldlt");
+                param.use_rbf_ldlt=solver=="ldlt";
+            }
             else if(strcmp(argv[arg_id],"-precomputed-neighbor-num-experimental")==0)
             {
                 if(arg_id+1>=argc)
@@ -154,13 +161,13 @@ namespace unsz
                     throw runtime_error("-multihead-execution-head-num-experimental后面缺少参数值");
                 param.multihead_execution_head_num_experimental=parse_positive_uint32(argv[++arg_id],"-multihead-execution-head-num-experimental");
             }
-            else if(strcmp(argv[arg_id],"-predict-round-num")==0)
+            else if(strcmp(argv[arg_id],"-prediction-round-num")==0)
             {
                 if(arg_id+1>=argc)
-                    throw runtime_error("-predict-round-num后面缺少参数值");
-                param.predict_round_num=parse_positive_uint32(argv[++arg_id],"-predict-round-num");
-                if(param.predict_round_num>63)
-                    throw runtime_error("-predict-round-num必须在[1,63]内");
+                    throw runtime_error("-prediction-round-num后面缺少参数值");
+                param.prediction_round_num=parse_positive_uint32(argv[++arg_id],"-prediction-round-num");
+                if(param.prediction_round_num>63)
+                    throw runtime_error("-prediction-round-num必须在[1,63]内");
             }
             else if(strcmp(argv[arg_id],"-round-size-growth-ratio-experimental")==0)
             {
@@ -170,11 +177,11 @@ namespace unsz
                 if(param.round_size_growth_ratio_experimental<1 || param.round_size_growth_ratio_experimental>16)
                     throw runtime_error("-round-size-growth-ratio-experimental必须在[1,16]内");
             }
-            else if (strcmp(argv[arg_id],"-inverse-distance-power")==0)
+            else if (strcmp(argv[arg_id],"-idw-power")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-inverse-distance-power后面缺少参数值");
-                param.inverse_distance_power=parse_positive_float(argv[++arg_id],"-inverse-distance-power");
+                    throw runtime_error("-idw-power后面缺少参数值");
+                param.idw_power=parse_positive_float(argv[++arg_id],"-idw-power");
             }
             else if(strcmp(argv[arg_id],"-zstd-level")==0)
             {
@@ -207,20 +214,11 @@ namespace unsz
                     throw runtime_error("-rbf-nugget后面缺少参数值");
                 param.rbf_nugget=parse_positive_float(argv[++arg_id],"-rbf-nugget");
             }
-            else if(strcmp(argv[arg_id],"-rbf-polynomial-degree")==0)
-            {
-                param.rbf_parameter_specified=true;
-                if(arg_id+1>=argc)
-                    throw runtime_error("-rbf-polynomial-degree后面缺少参数值");
-                param.rbf_polynomial_degree=parse_uint32(argv[++arg_id],"-rbf-polynomial-degree");
-                if(param.rbf_polynomial_degree>2)
-                    throw runtime_error("-rbf-polynomial-degree必须是0、1或2");
-            }
-            else if (strcmp(argv[arg_id],"-d-only-cache-refill-threshold-experimental")==0)
+            else if (strcmp(argv[arg_id],"-ordering-score-min-ref-num")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-d-only-cache-refill-threshold-experimental后面缺少参数值");
-                param.d_only_cache_refill_threshold_experimental=parse_uint32(argv[++arg_id],"-d-only-cache-refill-threshold-experimental");
+                    throw runtime_error("-ordering-score-min-ref-num后面缺少参数值");
+                param.ordering_score_min_ref_num=parse_positive_uint32(argv[++arg_id],"-ordering-score-min-ref-num");
             }
             else if (strcmp(argv[arg_id],"-cross-time-spatial-point-num-experimental")==0)
             {
@@ -234,11 +232,11 @@ namespace unsz
                     throw runtime_error("-time-anchor-stride-experimental后面缺少步长");
                 param.time_anchor_stride_experimental=parse_positive_uint32(argv[++arg_id],"-time-anchor-stride-experimental");
             }
-            else if (strcmp(argv[arg_id],"-order-candidate-num-experimental")==0)
+            else if (strcmp(argv[arg_id],"-ordering-candidate-num")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-order-candidate-num-experimental后面缺少参数值");
-                param.order_candidate_num_experimental=parse_positive_uint32(argv[++arg_id],"-order-candidate-num-experimental");
+                    throw runtime_error("-ordering-candidate-num后面缺少参数值");
+                param.ordering_candidate_num=parse_positive_uint32(argv[++arg_id],"-ordering-candidate-num");
             }
             else if (strcmp(argv[arg_id],"-dag-cache")==0)
             {
@@ -246,11 +244,11 @@ namespace unsz
                     throw runtime_error("-dag-cache不能和-no-dag-cache同时使用");
                 if (arg_id+1>=argc)
                     throw runtime_error("-dag-cache后面缺少参数值");
-                param.prediction_structure_path=argv[++arg_id];
+                param.dag_cache_path=argv[++arg_id];
             }
             else if(strcmp(argv[arg_id],"-no-dag-cache")==0)
             {
-                if(!param.prediction_structure_path.empty())
+                if(!param.dag_cache_path.empty())
                     throw runtime_error("-no-dag-cache不能和-dag-cache同时使用");
                 param.no_prediction_dag_cache=true;
             }
@@ -316,29 +314,29 @@ namespace unsz
                     throw runtime_error("-point-set-config后面缺少文件路径");
                 param.point_set_config_path=argv[++arg_id];
             }
-            else if (strcmp(argv[arg_id],"-cross-time-predictor-experimental")==0)
+            else if (strcmp(argv[arg_id],"-value-flow")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-cross-time-predictor-experimental后面缺少模式");
-                param.cross_time_predictor_experimental=argv[++arg_id];
-                if (param.cross_time_predictor_experimental!="constant_extrapolation" && param.cross_time_predictor_experimental!="linear_interpolation" && param.cross_time_predictor_experimental!="constant_extrapolation_spatial_residual" && param.cross_time_predictor_experimental!="linear_interpolation_spatial_residual")
-                    throw runtime_error("-cross-time-predictor-experimental目前只支持constant_extrapolation、linear_interpolation、constant_extrapolation_spatial_residual或linear_interpolation_spatial_residual");
+                    throw runtime_error("-value-flow后面缺少模式");
+                param.value_flow=argv[++arg_id];
+                if (param.value_flow!="constant_extrapolation" && param.value_flow!="linear_interpolation" && param.value_flow!="constant_extrapolation_spatial_residual" && param.value_flow!="linear_interpolation_spatial_residual")
+                    throw runtime_error("-value-flow目前只支持constant_extrapolation、linear_interpolation、constant_extrapolation_spatial_residual或linear_interpolation_spatial_residual");
             }
-            else if (strcmp(argv[arg_id],"-cross-time-label-predictor-experimental")==0)
+            else if (strcmp(argv[arg_id],"-label-flow")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-cross-time-label-predictor-experimental后面缺少模式");
-                param.cross_time_label_predictor_experimental=argv[++arg_id];
-                if(param.cross_time_label_predictor_experimental!="previous"&&param.cross_time_label_predictor_experimental!="endpoint_agreement")
-                    throw runtime_error("-cross-time-label-predictor-experimental必须是previous或endpoint_agreement");
+                    throw runtime_error("-label-flow后面缺少模式");
+                param.label_flow=argv[++arg_id];
+                if(param.label_flow!="constant_extrapolation"&&param.label_flow!="endpoint_agreement")
+                    throw runtime_error("-label-flow必须是constant_extrapolation或endpoint_agreement");
             }
             else if (strcmp(argv[arg_id],"-predictor")==0)
             {
                 if (arg_id+1>=argc)
                     throw runtime_error("-predictor后面缺少参数值");
                 param.predictor=argv[++arg_id];
-                if(param.predictor!="inverse_proportion" && param.predictor!="rbf_fitting")
-                    throw runtime_error("-predictor必须是inverse_proportion或rbf_fitting");
+                if(param.predictor!="idw" && param.predictor!="rbf")
+                    throw runtime_error("-predictor必须是idw或rbf");
                 param.got_predictor=true;
             }
             else if (strcmp(argv[arg_id],"-round-stats")==0)
@@ -353,14 +351,12 @@ namespace unsz
             {
                 if (arg_id+1>=argc)
                     throw runtime_error("-adjust-coord-matrix-file后面缺少文件路径");
-                param.adjust_coord_matrix_path=argv[++arg_id];
+                param.adjust_coord_matrix_file=argv[++arg_id];
             }
             else if (strcmp(argv[arg_id],"-compression-stage-time")==0)
                 param.print_compression_stage_time=true;
             else if (strcmp(argv[arg_id],"-parallelism-stats")==0)
                 param.print_prediction_dag_statistics=true;
-            else if(strcmp(argv[arg_id],"-reorder-data-by-prediction-order-experimental")==0)
-                param.reorder_data_by_prediction_order_experimental=true;
             else if(strcmp(argv[arg_id],"-qb-storage-order")==0)
             {
                 if(arg_id+1>=argc)
@@ -371,16 +367,29 @@ namespace unsz
             }
             else if (strcmp(argv[arg_id],"-normalized-weight-experimental")==0)
                 param.use_normalized_weight_experimental=true;
-            else if (strcmp(argv[arg_id],"-fused-two-point-set-prediction-experimental")==0)
-                param.use_fused_two_point_set_prediction_experimental=true;
+            else if(strcmp(argv[arg_id],"-label-value-execution")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-label-value-execution后面缺少执行方式");
+                param.label_value_execution=argv[++arg_id];
+                if(param.label_value_execution!="staged"&&param.label_value_execution!="fused")
+                    throw runtime_error("-label-value-execution必须是staged或fused");
+            }
             else if (strcmp(argv[arg_id],"-linear-previous-label-experimental")==0)
                 param.use_linear_previous_label_experimental=true;
-            else if(strcmp(argv[arg_id],"-rbf-filtered-fallback-nearest-experimental")==0)
-                param.use_rbf_filtered_fallback_nearest_experimental=true;
+            else if(strcmp(argv[arg_id],"-rbf-fallback")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-rbf-fallback后面缺少预测器名称");
+                string fallback=argv[++arg_id];
+                if(fallback!="idw"&&fallback!="nearest")
+                    throw runtime_error("-rbf-fallback必须是idw或nearest");
+                param.rbf_fallback_nearest=fallback=="nearest";
+            }
             else if (strcmp(argv[arg_id],"-predictability-order-experimental")==0)
                 param.use_predictability_order_experimental=true;
-            else if (strcmp(argv[arg_id],"-forward-mean-distance-only-order-experimental")==0)
-                param.use_forward_mean_distance_only_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-forward-msd-order")==0)
+                param.use_forward_msd_order=true;
             else if (strcmp(argv[arg_id],"-forward-direction-only-order-experimental")==0)
                 param.use_forward_direction_only_order_experimental=true;
             else if (strcmp(argv[arg_id],"-forward-mean-distance-s2-order-experimental")==0)
@@ -391,47 +400,59 @@ namespace unsz
                 param.use_reverse_predictability_order_experimental=true;
             else if (strcmp(argv[arg_id],"-reverse-distribution-order-experimental")==0)
                 param.use_reverse_distribution_order_experimental=true;
-            else if (strcmp(argv[arg_id],"-reverse-mean-distance-only-order-experimental")==0)
-                param.use_reverse_mean_distance_only_order_experimental=true;
+            else if (strcmp(argv[arg_id],"-reverse-msd-order")==0)
+                param.use_reverse_msd_order=true;
             else if (strcmp(argv[arg_id],"-reverse-direction-only-order-experimental")==0)
                 param.use_reverse_direction_only_order_experimental=true;
             else if (strcmp(argv[arg_id],"-reverse-direction-order-experimental")==0)
                 param.use_reverse_direction_order_experimental=true;
             else if (strcmp(argv[arg_id],"-reverse-direction-distribution-order-experimental")==0)
                 param.use_reverse_direction_distribution_order_experimental=true;
-            else if (strcmp(argv[arg_id],"-reference-data-order-experimental")==0)
+            else if (strcmp(argv[arg_id],"-reference-data-order")==0)
             {
                 if (arg_id+1>=argc)
-                    throw runtime_error("-reference-data-order-experimental后面缺少参考time step列表");
-                param.order_reference_time_step_vec_experimental=parse_time_step_vec(argv[++arg_id]);
+                    throw runtime_error("-reference-data-order后面缺少参考time step列表");
+                param.reference_time_step_vec=parse_time_step_vec(argv[++arg_id]);
             }
-            else if(strcmp(argv[arg_id],"-reference-data-rbf-score-experimental")==0)
-                param.use_reference_data_rbf_score_experimental=true;
-            else if (strcmp(argv[arg_id],"-global-order-before-round-split-experimental")==0)
-                param.use_global_order_before_round_split_experimental=true;
-            else if (strcmp(argv[arg_id],"-eb-schedule-experimental")==0)
-            {
-                if (arg_id+2>=argc)
-                    throw runtime_error("-eb-schedule-experimental后面需要模式和起始倍率");
-                param.eb_schedule_experimental=argv[++arg_id];
-                param.eb_schedule_start_ratio=parse_positive_float(argv[++arg_id],"-eb-schedule-experimental");
-                if(param.eb_schedule_experimental!="none" && param.eb_schedule_experimental!="round" && param.eb_schedule_experimental!="point" && param.eb_schedule_experimental!="point_log2_ratio" && param.eb_schedule_experimental!="round_point" && param.eb_schedule_experimental!="round_ratio" && param.eb_schedule_experimental!="round_point_ratio" && param.eb_schedule_experimental!="round_point_ratio_dag" && param.eb_schedule_experimental!="round_point_ratio_dag_direct" && param.eb_schedule_experimental!="round_point_ratio_dag_variance_direct")
-                    throw runtime_error("未知的实验性EB序列模式："+param.eb_schedule_experimental);
-                if (param.eb_schedule_start_ratio>1)
-                    throw runtime_error("-eb-schedule-experimental的起始倍率不能大于1");
-            }
-            else if(strcmp(argv[arg_id],"-eb-schedule-log2-shift-experimental")==0)
+            else if(strcmp(argv[arg_id],"-reference-data-rbf-score")==0)
+                param.use_reference_data_rbf_score=true;
+            else if(strcmp(argv[arg_id],"-ordering-scope")==0)
             {
                 if(arg_id+1>=argc)
-                    throw runtime_error("-eb-schedule-log2-shift-experimental后面缺少参数值");
-                param.eb_schedule_log2_shift_experimental=parse_positive_float(argv[++arg_id],"-eb-schedule-log2-shift-experimental");
+                    throw runtime_error("-ordering-scope后面缺少排序规模");
+                param.ordering_scope=argv[++arg_id];
+                if(param.ordering_scope!="local"&&param.ordering_scope!="global")
+                    throw runtime_error("-ordering-scope必须是local或global");
+            }
+            else if (strcmp(argv[arg_id],"-eb-schedule")==0)
+            {
+                if (arg_id+2>=argc)
+                    throw runtime_error("-eb-schedule后面需要模式和起始倍率");
+                param.eb_schedule=argv[++arg_id];
+                param.eb_schedule_start_ratio=parse_positive_float(argv[++arg_id],"-eb-schedule");
+                if(param.eb_schedule!="none" && param.eb_schedule!="round" && param.eb_schedule!="point" && param.eb_schedule!="inverse_rank_log2" && param.eb_schedule!="round_point" && param.eb_schedule!="round_ratio" && param.eb_schedule!="round_point_ratio" && param.eb_schedule!="round_point_ratio_dag" && param.eb_schedule!="round_point_ratio_dag_direct" && param.eb_schedule!="round_point_ratio_dag_variance_direct")
+                    throw runtime_error("未知的EB序列模式："+param.eb_schedule);
+                if (param.eb_schedule_start_ratio>1)
+                    throw runtime_error("-eb-schedule的起始倍率不能大于1");
+            }
+            else if(strcmp(argv[arg_id],"-eb-schedule-log2-shift")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-eb-schedule-log2-shift后面缺少参数值");
+                param.eb_schedule_log2_shift=parse_positive_float(argv[++arg_id],"-eb-schedule-log2-shift");
+            }
+            else if(strcmp(argv[arg_id],"-eb-schedule-max-log2-exponent")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-eb-schedule-max-log2-exponent后面缺少参数值");
+                param.eb_schedule_max_log2_exponent=parse_positive_float(argv[++arg_id],"-eb-schedule-max-log2-exponent");
             }
             else
                 throw runtime_error("未知参数："+string(argv[arg_id]));
         }
-        if(!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && param.point_set_config_path.empty()))
-            throw runtime_error("用法：s1_compress -data-dir <目录> -variable <变量名> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-dim <维数>] [-time-anchor-stride-experimental <步长>] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental <constant_extrapolation|linear_interpolation|constant_extrapolation_spatial_residual|linear_interpolation_spatial_residual>] [-cross-time-label-predictor-experimental <previous|endpoint_agreement>] [-predictor <inverse_proportion|rbf_fitting>] [-rbf-kernel <gaussian|exponential|matern32|matern52|inverse_multiquadric>] [-rbf-shape <正数>] [-rbf-nugget <正数>] [-rbf-polynomial-degree <0|1|2>] [-rbf-filtered-fallback-nearest-experimental] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-inverse-distance-power <指数>] [-zstd-level <1到22>] [-point-set-predictor <名称>] [-dag-cache <路径> | -no-dag-cache] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-partition-adaptive-sample-num-experimental <数量>] [-partition-adaptive-min-improvement-experimental <比例>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-round-stats] [-prediction-geometry-stats] [-label-stats] [-prediction-residual-stats] [-compression-stage-time] [-parallelism-stats] [-reorder-data-by-prediction-order-experimental] [-qb-storage-order <prediction|original>] [-normalized-weight-experimental] [-fused-two-point-set-prediction-experimental] [-linear-previous-label-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-reference-data-order-experimental <time step列表>] [-reference-data-rbf-score-experimental] [-global-order-before-round-split-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-ordering-msd-ref-num-experimental <数量>] [-ordering-msd-neighbor-prefetch-num-experimental <数量>] [-msd-candidate-score-geometry-reuse-experimental] [-kd-query-diagnostics-experimental] [-kd-leaf-valid-mask-experimental] [-kd-iterative-query-experimental] [-kd-scalar-one-reference-query-experimental] [-rbf-ldlt-experimental] [-precomputed-neighbor-num-experimental <数量>] [-multihead-execution-head-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>] [-eb-schedule-log2-shift-experimental <正数>]");
-        if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
+        if(!param.got_data_dir || !param.got_field || !param.got_time_step || (!param.got_error_mode && param.point_set_config_path.empty()))
+            throw runtime_error("用法：s1_compress -data-dir <目录> -field <field名称> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-coordinate-dim <维数>] [-time-anchor-stride-experimental <步长>] [-adjust-coord-matrix-file <路径>] [-value-flow <constant_extrapolation|linear_interpolation|constant_extrapolation_spatial_residual|linear_interpolation_spatial_residual>] [-label-flow <constant_extrapolation|endpoint_agreement>] [-predictor <idw|rbf>] [-rbf-kernel <gaussian|exponential|matern32|matern52|inverse_multiquadric>] [-rbf-shape <正数>] [-rbf-nugget <正数>] [-rbf-fallback <idw|nearest>] [-prediction-min-ref-num <数量>] [-prediction-max-ref-num <数量>] [-prediction-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-idw-power <指数>] [-zstd-level <1到22>] [-point-set-predictor <名称>] [-dag-cache <路径> | -no-dag-cache] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-adaptive-predictor-experimental] [-pointwise-oracle-statistics-experimental] [-partition-adaptive-sample-num-experimental <数量>] [-partition-adaptive-min-improvement-experimental <比例>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-round-stats] [-prediction-geometry-stats] [-label-stats] [-prediction-residual-stats] [-compression-stage-time] [-parallelism-stats] [-qb-storage-order <prediction|original>] [-normalized-weight-experimental] [-label-value-execution <staged|fused>] [-linear-previous-label-experimental] [-predictability-order-experimental] [-forward-msd-order] [-forward-direction-only-order-experimental] [-forward-mean-distance-s2-order-experimental] [-forward-mean-distance-direction-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-msd-order] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-reference-data-order <time step列表>] [-reference-data-rbf-score] [-ordering-scope <local|global>] [-ordering-score-min-ref-num <数量>] [-ordering-candidate-num <数量>] [-ordering-score-max-ref-num <数量>] [-ordering-msd-neighbor-prefetch-num-experimental <数量>] [-msd-candidate-score-geometry-reuse-experimental] [-kd-query-diagnostics-experimental] [-kd-leaf-valid-mask-experimental] [-kd-iterative-query-experimental] [-kd-scalar-one-reference-query-experimental] [-rbf-solver <general|ldlt>] [-precomputed-neighbor-num-experimental <数量>] [-multihead-execution-head-num-experimental <数量>] [-eb-schedule <模式> <倍率>] [-eb-schedule-log2-shift <正数>] [-eb-schedule-max-log2-exponent <正数>]");
+        if (param.point_set_predictor!="idw" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
             throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
         if (param.use_partition_adaptive_predictor_experimental && param.partition_size_experimental==0 && param.partition_num_experimental==0)
             throw runtime_error("partition自适应预测器需要指定空间partition");
@@ -441,18 +462,18 @@ namespace unsz
             throw runtime_error("逐点oracle统计需要启用partition自适应预测器");
         if (!param.data_dir.empty() && param.data_dir.back()!='/')
             param.data_dir+="/";
-        if(!param.no_prediction_dag_cache&&param.prediction_structure_path.empty())
+        if(!param.no_prediction_dag_cache&&param.dag_cache_path.empty())
         {
-            string dag_file_name=param.variable_name+".dag";
+            string dag_file_name=param.field_name+".dag";
             if(param.cross_time_spatial_point_num_experimental>0)
-                dag_file_name=param.variable_name+".joint.dag";
+                dag_file_name=param.field_name+".joint.dag";
             else if(param.precomputed_neighbor_num_experimental>0)
-                dag_file_name=param.variable_name+".precomputed"+to_string(param.precomputed_neighbor_num_experimental)+".dag";
-            param.prediction_structure_path=param.data_dir+".unsz_cache/"+dag_file_name;
+                dag_file_name=param.field_name+".precomputed"+to_string(param.precomputed_neighbor_num_experimental)+".dag";
+            param.dag_cache_path=param.data_dir+".unsz_cache/"+dag_file_name;
         }
         param.coord_path=param.data_dir+"coords.dat";
         for (uint32_t time_step:time_step_vec)
-            param.original_data_path_vec.push_back(param.data_dir+param.variable_name+".dat."+to_string(time_step));
+            param.original_data_path_vec.push_back(param.data_dir+param.field_name+".dat."+to_string(time_step));
         param.time_step_vec=time_step_vec;
         if (param.got_error_mode && param.error_mode=="REL")
         {
@@ -467,14 +488,24 @@ namespace unsz
         param.configure_point_sets();
         if(param.point_set_config_vec.size()==1)
             param.resolve_single_point_set_time_mode();
-        if(param.use_reference_data_rbf_score_experimental && param.order_reference_time_step_vec_experimental.empty())
-            throw runtime_error("-reference-data-rbf-score-experimental必须和-reference-data-order-experimental一起使用");
-        if(param.use_reference_data_rbf_score_experimental && none_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf_fitting;}))
-            throw runtime_error("RBF参考数据评分要求至少一个点集使用rbf_fitting");
+        if(param.use_reference_data_rbf_score && param.reference_time_step_vec.empty())
+            throw runtime_error("-reference-data-rbf-score必须和-reference-data-order一起使用");
+        if(param.use_reference_data_rbf_score && none_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf;}))
+            throw runtime_error("RBF参考数据评分要求至少一个点集使用rbf");
         param.cross_time_compress=false;
         param.load_adjust_coord_matrix_file();
-        if (param.actual_ref_num>param.max_ref_num)
-            throw runtime_error("actual_ref_num不能大于max_ref_num");
+        if(param.prediction_min_ref_num>param.prediction_max_ref_num)
+            throw runtime_error("prediction_min_ref_num不能大于prediction_max_ref_num");
+        if(param.ordering_candidate_num==0)
+            throw runtime_error("必须显式设置正数ordering_candidate_num");
+        if(param.ordering_score_max_ref_num==0)
+            throw runtime_error("必须显式设置正数ordering_score_max_ref_num");
+        if(param.ordering_score_min_ref_num==0)
+            throw runtime_error("必须显式设置正数ordering_score_min_ref_num");
+        if(param.ordering_score_min_ref_num>param.ordering_score_max_ref_num)
+            throw runtime_error("ordering_score_min_ref_num不能大于ordering_score_max_ref_num");
+        if(param.prediction_min_ref_num<2&&any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c&config){return config.codec==unsz::point_set_codec_e::rbf;}))
+            throw runtime_error("RBF的prediction_min_ref_num不能小于2");
 
     }
 

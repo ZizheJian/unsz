@@ -10,11 +10,10 @@
 文本格式为：
 
 ```text
-UNSZ_ADJUST_COORD_MATRIX 1
+UNSZ_ADJUST_COORD_MATRIX 2
 training_type spatial
-dataset Katrina
-variable attr0
-dim 3
+field attr0
+coordinate_dim 3
 lower_triangular c00 c10 c11 c20 c21 c22
 ```
 

@@ -1,163 +1,324 @@
 [
   {
-    "name":"TEMPERATURE",
-    "dataset":"TAPS",
-    "folder":"TAPS",
-    "field_list":[
+    "name": "taps_temperature",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+    "csv_path": "results/current/fields/taps_{field}.csv",
+    "field_list": [
       "TEMPERATURE"
     ],
-    "rel_eb_list":[
+    "rel_eb_list": [
       0.1,
       0.01,
       0.001,
       0.0001,
-      0.00001
+      1e-05
     ],
-    "method_list":[
+    "compressor_list": [
       "unsz"
     ],
-    "steps":1,
-    "dim":3,
-    "config":"rbf_split_rounds_then_sort_mean_reference_distance",
-    "ref_num":10,
-    "shape":0.01
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "predictor": {
+        "name": "rbf",
+        "rbf_kernel": "matern32",
+        "rbf_shape": 0.01,
+        "rbf_nugget": 1e-06,
+        "rbf_solver": "general",
+        "fallback": {
+          "name": "idw",
+          "idw_power": 2
+        }
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 10,
+      "prediction_max_ref_num": 10,
+      "ordering_score_max_ref_num": 10,
+      "ordering_score_min_ref_num": 10,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "ordering_candidate_num": 48
+    }
   },
   {
-    "name":"PRESSURE",
-    "dataset":"TAPS",
-    "folder":"TAPS",
-    "field_list":[
+    "name": "taps_pressure",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+    "csv_path": "results/current/fields/taps_{field}.csv",
+    "field_list": [
       "PRESSURE"
     ],
-    "rel_eb_list":[
+    "rel_eb_list": [
       0.1,
       0.01,
       0.001,
       0.0001,
-      0.00001
+      1e-05
     ],
-    "method_list":[
+    "compressor_list": [
       "unsz"
     ],
-    "steps":1,
-    "dim":3,
-    "config":"idw_sort_all_then_split_rounds_mean_reference_distance",
-    "ref_num":5,
-    "power":2.5
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "predictor": {
+        "name": "idw",
+        "idw_power": 2.5
+      },
+      "ordering_scope": "global",
+      "prediction_round_num": 1,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 1,
+      "prediction_max_ref_num": 5,
+      "ordering_score_max_ref_num": 5,
+      "ordering_score_min_ref_num": 5,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "ordering_candidate_num": 48
+    }
   },
   {
-    "name":"TKE",
-    "dataset":"TAPS",
-    "folder":"TAPS",
-    "field_list":[
+    "name": "taps_tke",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+    "csv_path": "results/current/fields/taps_{field}.csv",
+    "field_list": [
       "TKE"
     ],
-    "rel_eb_list":[
+    "rel_eb_list": [
       0.1,
       0.01,
       0.001,
       0.0001,
-      0.00001
+      1e-05
     ],
-    "method_list":[
+    "compressor_list": [
       "unsz"
     ],
-    "steps":1,
-    "dim":3,
-    "config":"rbf_split_rounds_then_sort_mean_reference_distance",
-    "ref_num":10,
-    "shape":0.01
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "predictor": {
+        "name": "rbf",
+        "rbf_kernel": "matern32",
+        "rbf_shape": 0.01,
+        "rbf_nugget": 1e-06,
+        "rbf_solver": "general",
+        "fallback": {
+          "name": "idw",
+          "idw_power": 2
+        }
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 10,
+      "prediction_max_ref_num": 10,
+      "ordering_score_max_ref_num": 10,
+      "ordering_score_min_ref_num": 10,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "ordering_candidate_num": 48
+    }
   },
   {
-    "name":"VELOCITY_X",
-    "dataset":"TAPS",
-    "folder":"TAPS",
-    "field_list":[
+    "name": "taps_velocity_x",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+    "csv_path": "results/current/fields/taps_{field}.csv",
+    "field_list": [
       "VELOCITY_X"
     ],
-    "rel_eb_list":[
+    "rel_eb_list": [
       0.1,
       0.01,
       0.001,
       0.0001,
-      0.00001
+      1e-05
     ],
-    "method_list":[
+    "compressor_list": [
       "unsz"
     ],
-    "steps":1,
-    "dim":3,
-    "config":"rbf_split_rounds_then_sort_mean_reference_distance",
-    "ref_num":10,
-    "shape":0.01
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "predictor": {
+        "name": "rbf",
+        "rbf_kernel": "matern32",
+        "rbf_shape": 0.01,
+        "rbf_nugget": 1e-06,
+        "rbf_solver": "general",
+        "fallback": {
+          "name": "idw",
+          "idw_power": 2
+        }
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 10,
+      "prediction_max_ref_num": 10,
+      "ordering_score_max_ref_num": 10,
+      "ordering_score_min_ref_num": 10,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "ordering_candidate_num": 48
+    }
   },
   {
-    "name":"RMS_T",
-    "dataset":"TAPS",
-    "folder":"TAPS",
-    "field_list":[
+    "name": "taps_rms_t",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+    "csv_path": "results/current/fields/taps_{field}.csv",
+    "field_list": [
       "RMS_T"
     ],
-    "rel_eb_list":[
+    "rel_eb_list": [
       0.1,
       0.01,
       0.001,
       0.0001,
-      0.00001
+      1e-05
     ],
-    "method_list":[
+    "compressor_list": [
       "unsz"
     ],
-    "steps":1,
-    "dim":3,
-    "config":"rbf_split_rounds_then_sort_mean_reference_distance",
-    "ref_num":10,
-    "shape":0.01
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "predictor": {
+        "name": "rbf",
+        "rbf_kernel": "matern32",
+        "rbf_shape": 0.01,
+        "rbf_nugget": 1e-06,
+        "rbf_solver": "general",
+        "fallback": {
+          "name": "idw",
+          "idw_power": 2
+        }
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 10,
+      "prediction_max_ref_num": 10,
+      "ordering_score_max_ref_num": 10,
+      "ordering_score_min_ref_num": 10,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "ordering_candidate_num": 48
+    }
   },
   {
-    "name":"CO2",
-    "dataset":"TAPS",
-    "folder":"TAPS",
-    "field_list":[
+    "name": "taps_co2",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+    "csv_path": "results/current/fields/taps_{field}.csv",
+    "field_list": [
       "CO2"
     ],
-    "rel_eb_list":[
+    "rel_eb_list": [
       0.1,
       0.01,
       0.001,
       0.0001,
-      0.00001
+      1e-05
     ],
-    "method_list":[
+    "compressor_list": [
       "unsz"
     ],
-    "steps":1,
-    "dim":3,
-    "config":"rbf_split_rounds_then_sort_mean_reference_distance",
-    "ref_num":10,
-    "shape":0.01
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "predictor": {
+        "name": "rbf",
+        "rbf_kernel": "matern32",
+        "rbf_shape": 0.01,
+        "rbf_nugget": 1e-06,
+        "rbf_solver": "general",
+        "fallback": {
+          "name": "idw",
+          "idw_power": 2
+        }
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 10,
+      "prediction_max_ref_num": 10,
+      "ordering_score_max_ref_num": 10,
+      "ordering_score_min_ref_num": 10,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "ordering_candidate_num": 48
+    }
   },
   {
-    "name":"C11H22",
-    "dataset":"TAPS",
-    "folder":"TAPS",
-    "field_list":[
+    "name": "taps_c11h22",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+    "csv_path": "results/current/fields/taps_{field}.csv",
+    "field_list": [
       "C11H22"
     ],
-    "rel_eb_list":[
+    "rel_eb_list": [
       0.1,
       0.01,
       0.001,
       0.0001,
-      0.00001
+      1e-05
     ],
-    "method_list":[
+    "compressor_list": [
       "unsz"
     ],
-    "steps":1,
-    "dim":3,
-    "config":"rbf_split_rounds_then_sort_mean_reference_distance",
-    "ref_num":10,
-    "shape":0.01
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "predictor": {
+        "name": "rbf",
+        "rbf_kernel": "matern32",
+        "rbf_shape": 0.01,
+        "rbf_nugget": 1e-06,
+        "rbf_solver": "general",
+        "fallback": {
+          "name": "idw",
+          "idw_power": 2
+        }
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 10,
+      "prediction_max_ref_num": 10,
+      "ordering_score_max_ref_num": 10,
+      "ordering_score_min_ref_num": 10,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "ordering_candidate_num": 48
+    }
   }
 ]

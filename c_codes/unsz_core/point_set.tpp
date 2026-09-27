@@ -27,7 +27,7 @@ namespace unsz
             return 0;
         if (use_majority)
         {
-            uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+            uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
             uint32_t vote_num[2]={0,0};
             for (uint32_t i=0;i<ref_num;i++)
                 vote_num[label_vec[ref_ids[i]]]++;
@@ -36,7 +36,7 @@ namespace unsz
             return vote_num[1]>vote_num[0];
         }
         double weight_sum[2]={0,0};
-        uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+        uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
         for (uint32_t i=0;i<ref_num;i++)
         {
             int ref_id=ref_ids[i];
@@ -54,7 +54,7 @@ namespace unsz
         if (ref_ids.empty())
             return 0;
         double total_weight=0,pred=0;
-        uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+        uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
         for (uint32_t i=0;i<ref_num;i++)
         {
             int ref_id=ref_ids[i];
@@ -75,7 +75,7 @@ namespace unsz
         if (ref_ids.empty())
             return 0;
         double pred=0;
-        uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+        uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
         for (uint32_t i=0;i<ref_num;i++)
             pred+=ref_weights[i]*label_value_vec[ref_ids[i]];
         return min(1.0,max(0.0,pred));
@@ -84,7 +84,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     bool param_c<T_coord,T_data>::predict_binary_label_and_inverse_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights,array_view_c<double> normalized_ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,bool predict_value,uint32_t &predicted_label,T_data &predicted_value)
     {
-        uint32_t label_ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+        uint32_t label_ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
         predicted_label=0;
         predicted_value=0;
         if(!normalized_ref_weights.empty())
@@ -121,7 +121,7 @@ namespace unsz
                     }
                     value_weight_sum+=weight;
                     weighted_value_sum+=weight*data[ref_id];
-                    if(value_ref_num==actual_ref_num)
+                    if(value_ref_num==prediction_max_ref_num)
                         break;
                 }
                 if(value_ref_num>0)
@@ -169,7 +169,7 @@ namespace unsz
                 }
                 value_weight_sum+=weight;
                 weighted_value_sum+=weight*data[ref_id];
-                if(value_ref_num==actual_ref_num)
+                if(value_ref_num==prediction_max_ref_num)
                     break;
             }
             if(value_ref_num>0)
@@ -196,7 +196,7 @@ namespace unsz
                 else
                     label_weight_sum[point_set_id]+=weight;
             }
-            if(predict_value && point_set_id==value_point_set_id && value_ref_num<actual_ref_num)
+            if(predict_value && point_set_id==value_point_set_id && value_ref_num<prediction_max_ref_num)
             {
                 value_ref_num++;
                 if(!value_fixed)
@@ -227,7 +227,7 @@ namespace unsz
         predicted_value=0;
         if(!predict_value)
             return false;
-        uint32_t normalized_ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+        uint32_t normalized_ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
         if(!normalized_ref_weights.empty()&&normalized_ref_num>0)
         {
             bool all_value_refs_match=true;
@@ -266,7 +266,7 @@ namespace unsz
             }
             value_weight_sum+=weight;
             weighted_value_sum+=weight*data[ref_id];
-            if(value_ref_num==actual_ref_num)
+            if(value_ref_num==prediction_max_ref_num)
                 break;
         }
         if(value_ref_num>0)
@@ -280,7 +280,7 @@ namespace unsz
         if (ref_ids.empty())
             return 0;
         if (!(power>0))
-            power=inverse_distance_power;
+            power=idw_power;
         double total_weight=0,prediction=0;
         for (int ref_id:ref_ids)
         {
@@ -474,7 +474,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    bool param_c<T_coord,T_data>::calculate_rbf_fitting_weights(int pred_id,array_view_c<int> ref_ids,vector<double> &weights)
+    bool param_c<T_coord,T_data>::calculate_rbf_weights(int pred_id,array_view_c<int> ref_ids,vector<double> &weights)
     {
         uint32_t ref_num=(uint32_t)ref_ids.size();
         if(ref_num<2)
@@ -523,24 +523,15 @@ namespace unsz
             }
             throw runtime_error("未知的RBF核函数："+rbf_kernel);
         };
-        uint32_t trend_size=1;
-        if(rbf_polynomial_degree>=1)
-            trend_size+=dim;
-        if(rbf_polynomial_degree>=2)
-            trend_size+=dim*(dim+1)/2;
-        if(ref_num<trend_size)
-            return false;
-        uint32_t system_size=ref_num+trend_size;
+        uint32_t system_size=ref_num+1;
         thread_local vector<vector<double>> A;
         if(A.size()!=system_size)
             A.assign(system_size,vector<double>(system_size,0));
         else
             for(auto&row:A)
                 fill(row.begin(),row.end(),0);
-        thread_local vector<double> target_feature,x,trend_feature;
+        thread_local vector<double> target_feature,x;
         target_feature.assign(system_size,0);
-        trend_feature.resize(trend_size);
-        double distance_scale=sqrt(mean_squared_distance);
         for(uint32_t row=0;row<ref_num;row++)
         {
             int row_ref_id=ref_ids[row];
@@ -558,27 +549,13 @@ namespace unsz
                 A[col][row]=kernel_value;
             }
             A[row][row]+=rbf_nugget;
-            uint32_t trend_id=0;
-            trend_feature[trend_id++]=1;
-            if(rbf_polynomial_degree>=1)
-                for(uint32_t d=0;d<dim;d++)
-                    trend_feature[trend_id++]=((double)coord_array[row_ref_id][d]-coord_array[pred_id][d])/distance_scale;
-            if(rbf_polynomial_degree>=2)
-                for(uint32_t first_dim=0;first_dim<dim;first_dim++)
-                    for(uint32_t second_dim=first_dim;second_dim<dim;second_dim++)
-                        trend_feature[trend_id++]=trend_feature[1+first_dim]*trend_feature[1+second_dim];
-            if(trend_id!=trend_size)
-                throw runtime_error("RBF趋势项数量不正确");
-            for(uint32_t current_trend_id=0;current_trend_id<trend_size;current_trend_id++)
-            {
-                A[row][ref_num+current_trend_id]=trend_feature[current_trend_id];
-                A[ref_num+current_trend_id][row]=trend_feature[current_trend_id];
-            }
+            A[row][ref_num]=1;
+            A[ref_num][row]=1;
             target_feature[row]=kernel(target_squared_distance[row]/mean_squared_distance);
         }
         target_feature[ref_num]=1;
         bool solved=false;
-        if(use_rbf_ldlt_experimental&&trend_size==1)
+        if(use_rbf_ldlt)
         {
             for(uint32_t row=0;row<ref_num;row++)
             {
@@ -646,7 +623,7 @@ namespace unsz
                 }
             }
         }
-        if(!solved&&!(use_rbf_ldlt_experimental&&trend_size==1))
+        if(!solved&&!use_rbf_ldlt)
             solved=solve_linear_system(A,target_feature,x);
         if(!solved)
             return false;
@@ -660,10 +637,10 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    bool param_c<T_coord,T_data>::predict_rbf_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction)
+    bool param_c<T_coord,T_data>::predict_rbf_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction)
     {
         vector<double> weights;
-        if(!calculate_rbf_fitting_weights(pred_id,ref_ids,weights))
+        if(!calculate_rbf_weights(pred_id,ref_ids,weights))
             return false;
         double predicted_value=0;
         for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
@@ -772,7 +749,7 @@ namespace unsz
     __attribute__((always_inline)) inline T_data param_c<T_coord,T_data>::predict_single_point_set_rbf_value(uint32_t pred_ref_id,vector<T_data> &data)
     {
         uint64_t ref_begin=pred_ref_begin[pred_ref_id],ref_end=pred_ref_begin[pred_ref_id+1];
-        uint32_t ref_num=min<uint32_t>(actual_ref_num,(uint32_t)(ref_end-ref_begin));
+        uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,(uint32_t)(ref_end-ref_begin));
         if(ref_num==0)
             return 0;
         const int *ref_ids=pred_ref_ids.data()+ref_begin;
@@ -790,7 +767,7 @@ namespace unsz
         }
         array_view_c<int> ref_id_view(pred_ref_ids.data()+ref_begin,(uint32_t)(ref_end-ref_begin));
         array_view_c<double> ref_weight_view(pred_ref_weights.data()+ref_begin,(uint32_t)(ref_end-ref_begin));
-        return predict_value_fixed<point_set_codec_e::rbf_fitting>(pred_ref_id,pred_target_ids[pred_ref_id],ref_id_view,ref_weight_view,0,data);
+        return predict_value_fixed<point_set_codec_e::rbf>(pred_ref_id,pred_target_ids[pred_ref_id],ref_id_view,ref_weight_view,0,data);
     }
 
     template<typename T_coord,typename T_data>
@@ -808,7 +785,7 @@ namespace unsz
     template<point_set_codec_e codec>
     T_data param_c<T_coord,T_data>::predict_value_fixed(uint32_t pred_ref_id,int pred_id,array_view_c<int> ref_ids,array_view_c<double> ref_weights,uint32_t point_set_id,vector<T_data> &data)
     {
-        static_assert(codec==point_set_codec_e::inverse_proportion||codec==point_set_codec_e::rbf_fitting,"固定数值预测器必须是IDW或RBF");
+        static_assert(codec==point_set_codec_e::idw||codec==point_set_codec_e::rbf,"固定数值预测器必须是IDW或RBF");
         auto predict_current_inverse=[&]()
         {
             double total_weight=0,prediction=0;
@@ -823,16 +800,49 @@ namespace unsz
                     return data[ref_id];
                 total_weight+=weight;
                 prediction+=weight*data[ref_id];
-                if (++valid_ref_num==actual_ref_num)
+                if (++valid_ref_num==prediction_max_ref_num)
                     break;
             }
             return valid_ref_num>0?(T_data)(prediction/total_weight):(T_data)0;
         };
-        if constexpr(codec==point_set_codec_e::rbf_fitting)
+        if constexpr(codec==point_set_codec_e::rbf)
         {
-            uint32_t expected_ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
-            bool can_use_precomputed=pred_ref_rbf_weights.size()==pred_ref_ids.size() && expected_ref_num>0;
+            uint32_t expected_ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
             uint64_t rbf_weight_begin=pred_ref_begin[pred_ref_id];
+            bool exact_ref_num_nearest_fallback=rbf_fallback_nearest&&prediction_min_ref_num==prediction_max_ref_num&&expected_ref_num==prediction_max_ref_num&&ref_ids.size()==expected_ref_num&&pred_ref_rbf_weights.size()==pred_ref_ids.size();
+            if(__builtin_expect(exact_ref_num_nearest_fallback,1))
+            {
+                int nearest_valid_ref_id=-1;
+                bool found_other_point_set=false;
+                for(uint32_t ref_index=0;ref_index<expected_ref_num;ref_index++)
+                {
+                    int ref_id=ref_ids[ref_index];
+                    bool in_point_set=point_set_id_vec[ref_id]==point_set_id;
+                    if(in_point_set&&nearest_valid_ref_id<0)
+                    {
+                        nearest_valid_ref_id=ref_id;
+                        if(found_other_point_set)
+                            return data[nearest_valid_ref_id];
+                    }
+                    else if(!in_point_set)
+                    {
+                        if(nearest_valid_ref_id>=0)
+                            return data[nearest_valid_ref_id];
+                        found_other_point_set=true;
+                    }
+                }
+                if(found_other_point_set)
+                    return nearest_valid_ref_id<0?(T_data)0:data[nearest_valid_ref_id];
+                if(isfinite(pred_ref_rbf_weights[rbf_weight_begin]))
+                {
+                    const double *rbf_weights=pred_ref_rbf_weights.data()+rbf_weight_begin;
+                    const int *rbf_ref_ids=ref_ids.begin();
+                    double rbf_prediction=rbf_weights[0]*data[rbf_ref_ids[0]]+rbf_weights[1]*data[rbf_ref_ids[1]]+rbf_weights[2]*data[rbf_ref_ids[2]]+rbf_weights[3]*data[rbf_ref_ids[3]]+rbf_weights[4]*data[rbf_ref_ids[4]]+rbf_weights[5]*data[rbf_ref_ids[5]]+rbf_weights[6]*data[rbf_ref_ids[6]]+rbf_weights[7]*data[rbf_ref_ids[7]]+rbf_weights[8]*data[rbf_ref_ids[8]]+rbf_weights[9]*data[rbf_ref_ids[9]];
+                    if(isfinite(rbf_prediction))
+                        return (T_data)rbf_prediction;
+                }
+            }
+            bool can_use_precomputed=pred_ref_rbf_weights.size()==pred_ref_ids.size()&&expected_ref_num>=prediction_min_ref_num;
             if(can_use_precomputed && point_set_codec_vec.size()==1)
                 can_use_precomputed=isfinite(pred_ref_rbf_weights[rbf_weight_begin]);
             else
@@ -851,30 +861,23 @@ namespace unsz
                 if(isfinite(rbf_prediction))
                     return (T_data)rbf_prediction;
             }
-            if(use_rbf_filtered_fallback_nearest_experimental)
-            {
-                for(int ref_id:ref_ids)
-                    if(point_set_id_vec[ref_id]==point_set_id)
-                        return data[ref_id];
-                return 0;
-            }
-        }
-        if constexpr(codec==point_set_codec_e::rbf_fitting)
-        {
             vector<int> valid_ref_ids;
-            valid_ref_ids.reserve(actual_ref_num);
+            valid_ref_ids.reserve(prediction_max_ref_num);
             for (int ref_id:ref_ids)
                 if (point_set_id_vec[ref_id]==point_set_id)
                 {
                     valid_ref_ids.push_back(ref_id);
-                    if (valid_ref_ids.size()==actual_ref_num)
+                    if (valid_ref_ids.size()==prediction_max_ref_num)
                         break;
                 }
-            if (valid_ref_ids.empty())
-                return 0;
-            T_data rbf_prediction;
-            if(predict_rbf_fitting_value(pred_id,valid_ref_ids,data,rbf_prediction))
-                return rbf_prediction;
+            if(valid_ref_ids.size()>=prediction_min_ref_num)
+            {
+                T_data rbf_prediction;
+                if(predict_rbf_value(pred_id,valid_ref_ids,data,rbf_prediction))
+                    return rbf_prediction;
+            }
+            if(rbf_fallback_nearest)
+                return valid_ref_ids.empty()?(T_data)0:data[valid_ref_ids[0]];
         }
         return predict_current_inverse();
     }
@@ -883,7 +886,7 @@ namespace unsz
     T_data param_c<T_coord,T_data>::predict_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights,vector<T_data> &data)
     {
         double pred=0;
-        uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+        uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
         if(ref_num==4)
         {
             pred+=ref_weights[0]*data[ref_ids[0]];

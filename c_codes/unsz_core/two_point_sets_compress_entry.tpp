@@ -16,7 +16,7 @@ void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point pre
         throw runtime_error("two_point_sets::compress要求恰好配置两个点集");
     if(param.time_anchor_stride_experimental>0)
     {
-        if(param.cross_time_predictor_experimental!="none"||param.cross_time_label_predictor_experimental!="none"||param.cross_time_spatial_point_num_experimental>0)
+        if(param.value_flow!="none"||param.label_flow!="none"||param.cross_time_spatial_point_num_experimental>0)
             throw runtime_error("固定步长锚点流程不能再叠加其他时间预测流程");
         param.prepare_compression_structure(preprocessing_start_time);
         param.compress_files(&param_c<T_coord,T_data>::compress_two_point_sets);

@@ -1,6 +1,6 @@
 {
-  "version":1,
+  "version":2,
   "labels":[
-    {"method":"inverse_proportion","eb_mode":"REL","eb_value":0.01}
+    {"predictor":"idw","eb_mode":"REL","eb_value":0.01}
   ]
 }

@@ -95,8 +95,9 @@ string read_option_value(int argc,char **argv,int &arg_id,string option)
 }
 
 template<typename T_coord>
-void run_decompression(unsz::param_c<T_coord,float> &param)
+void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::time_point preprocessing_start_time)
 {
+    double adjust_coord_time=0;
     bool joint_spatiotemporal=param.cross_time_spatial_point_num_experimental>0;
     if(joint_spatiotemporal)
     {
@@ -105,23 +106,29 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
         param.prepare_joint_spatiotemporal_coordinates();
     }
     if (param.if_adjust_coord)
+    {
+        auto adjust_coord_start_time=chrono::steady_clock::now();
         param.adjust_coord();
+        adjust_coord_time=chrono::duration<double>(chrono::steady_clock::now()-adjust_coord_start_time).count();
+    }
     param.load_or_generate_pred_refs_structure();
-    if(param.rbf_parameter_specified || any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf_fitting;}))
-        param.prepare_rbf_fitting_weights();
-    bool data_dependent_eb_schedule=param.eb_schedule_experimental=="round_point_ratio_dag" || param.eb_schedule_experimental=="round_point_ratio_dag_direct" || param.eb_schedule_experimental=="round_point_ratio_dag_variance_direct";
+    if(param.rbf_parameter_specified || any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf;}))
+        param.prepare_rbf_weights();
+    bool data_dependent_eb_schedule=param.eb_schedule=="round_point_ratio_dag" || param.eb_schedule=="round_point_ratio_dag_direct" || param.eb_schedule=="round_point_ratio_dag_variance_direct";
     if(!data_dependent_eb_schedule && param.cached_pred_eb_multiplier_vec.size()!=param.point_num)
         param.cached_pred_eb_multiplier_vec=param.generate_pred_eb_multiplier_vec();
     if (param.print_prediction_dag_statistics)
         param.print_prediction_dag_statistics_result();
+    double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time;
+    printf("preprocessing time excluding adjust coord= %f s\n",preprocessing_time);
     if(joint_spatiotemporal)
     {
         using param_type=unsz::param_c<T_coord,float>;
         auto codec=param.point_set_config_vec[0].codec;
-        if(codec==unsz::point_set_codec_e::inverse_proportion)
-            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_point_sets<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::inverse_proportion>);
-        else if(codec==unsz::point_set_codec_e::rbf_fitting)
-            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_point_sets<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::rbf_fitting>);
+        if(codec==unsz::point_set_codec_e::idw)
+            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_point_sets<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::idw>);
+        else if(codec==unsz::point_set_codec_e::rbf)
+            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_point_sets<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::rbf>);
         else
             throw runtime_error("单点集联合时空解压只支持IDW或RBF预测器");
         return;
@@ -224,16 +231,16 @@ void run_decompression(unsz::param_c<T_coord,float> &param)
 }
 
 template<typename T_coord>
-void general_run_decompression(unsz::param_c<T_coord,float> &param)
+void general_run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::time_point preprocessing_start_time)
 {
     if constexpr (is_same<T_coord,double>::value)
-        run_decompression(param);
+        run_decompression(param,preprocessing_start_time);
     else if (!param.need_double_coord())
-        run_decompression(param);
+        run_decompression(param,preprocessing_start_time);
     else
     {
         unsz::param_c<double,float> double_param(param);
-        general_run_decompression(double_param);
+        general_run_decompression(double_param,preprocessing_start_time);
     }
 }
 
@@ -255,12 +262,12 @@ int decompress_main(int argc,char **argv)
             param.data_dir=read_option_value(argc,argv,arg_id,option);
             param.got_data_dir=true;
         }
-        else if (option=="-variable")
+        else if (option=="-field")
         {
-            param.variable_name=read_option_value(argc,argv,arg_id,option);
-            param.got_variable=true;
+            param.field_name=read_option_value(argc,argv,arg_id,option);
+            param.got_field=true;
         }
-        else if (option=="-dim")
+        else if (option=="-coordinate-dim")
             param.dim=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-time-step")
         {
@@ -277,12 +284,12 @@ int decompress_main(int argc,char **argv)
                 throw runtime_error("-M的误差模式必须是REL或ABS："+param.error_mode);
             param.got_error_mode=true;
         }
-        else if (option=="-max-ref-num")
-            param.max_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-actual-ref-num")
-            param.actual_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-ordering-msd-ref-num-experimental")
-            param.ordering_msd_ref_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-prediction-min-ref-num")
+            param.prediction_min_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-prediction-max-ref-num")
+            param.prediction_max_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if(option=="-ordering-score-max-ref-num")
+            param.ordering_score_max_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-ordering-msd-neighbor-prefetch-num-experimental")
             param.ordering_msd_neighbor_prefetch_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-msd-candidate-score-geometry-reuse-experimental")
@@ -295,17 +302,22 @@ int decompress_main(int argc,char **argv)
             param.use_kd_iterative_query_experimental=true;
         else if(option=="-kd-scalar-one-reference-query-experimental")
             param.use_kd_scalar_one_reference_query_experimental=true;
-        else if(option=="-rbf-ldlt-experimental")
-            param.use_rbf_ldlt_experimental=true;
+        else if(option=="-rbf-solver")
+        {
+            string solver=read_option_value(argc,argv,arg_id,option);
+            if(solver!="general"&&solver!="ldlt")
+                throw runtime_error("-rbf-solver必须是general或ldlt");
+            param.use_rbf_ldlt=solver=="ldlt";
+        }
         else if(option=="-precomputed-neighbor-num-experimental")
             param.precomputed_neighbor_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-multihead-execution-head-num-experimental")
             param.multihead_execution_head_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-predict-round-num")
+        else if(option=="-prediction-round-num")
         {
-            param.predict_round_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-            if(param.predict_round_num>63)
-                throw runtime_error("-predict-round-num必须在[1,63]内");
+            param.prediction_round_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+            if(param.prediction_round_num>63)
+                throw runtime_error("-prediction-round-num必须在[1,63]内");
         }
         else if(option=="-round-size-growth-ratio-experimental")
         {
@@ -313,8 +325,8 @@ int decompress_main(int argc,char **argv)
             if(param.round_size_growth_ratio_experimental<1 || param.round_size_growth_ratio_experimental>16)
                 throw runtime_error("-round-size-growth-ratio-experimental必须在[1,16]内");
         }
-        else if (option=="-inverse-distance-power")
-            param.inverse_distance_power=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-idw-power")
+            param.idw_power=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-rbf-kernel")
         {
             param.rbf_parameter_specified=true;
@@ -332,30 +344,23 @@ int decompress_main(int argc,char **argv)
             param.rbf_parameter_specified=true;
             param.rbf_nugget=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
         }
-        else if(option=="-rbf-polynomial-degree")
-        {
-            param.rbf_parameter_specified=true;
-            param.rbf_polynomial_degree=parse_uint32(read_option_value(argc,argv,arg_id,option),option);
-            if(param.rbf_polynomial_degree>2)
-                throw runtime_error("-rbf-polynomial-degree必须是0、1或2");
-        }
-        else if (option=="-d-only-cache-refill-threshold-experimental")
-            param.d_only_cache_refill_threshold_experimental=parse_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-ordering-score-min-ref-num")
+            param.ordering_score_min_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-cross-time-spatial-point-num-experimental")
             param.cross_time_spatial_point_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-time-anchor-stride-experimental")
             param.time_anchor_stride_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-order-candidate-num-experimental")
-            param.order_candidate_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-ordering-candidate-num")
+            param.ordering_candidate_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-dag-cache")
         {
             if(param.no_prediction_dag_cache)
                 throw runtime_error("-dag-cache不能和-no-dag-cache同时使用");
-            param.prediction_structure_path=read_option_value(argc,argv,arg_id,option);
+            param.dag_cache_path=read_option_value(argc,argv,arg_id,option);
         }
         else if(option=="-no-dag-cache")
         {
-            if(!param.prediction_structure_path.empty())
+            if(!param.dag_cache_path.empty())
                 throw runtime_error("-no-dag-cache不能和-dag-cache同时使用");
             param.no_prediction_dag_cache=true;
         }
@@ -388,34 +393,32 @@ int decompress_main(int argc,char **argv)
         else if(option=="-predictor")
         {
             param.predictor=read_option_value(argc,argv,arg_id,option);
-            if(param.predictor!="inverse_proportion"&&param.predictor!="rbf_fitting")
-                throw runtime_error("-predictor必须是inverse_proportion或rbf_fitting");
+            if(param.predictor!="idw"&&param.predictor!="rbf")
+                throw runtime_error("-predictor必须是idw或rbf");
             param.got_predictor=true;
         }
         else if(option=="-point-set-config")
             param.point_set_config_path=read_option_value(argc,argv,arg_id,option);
-        else if (option=="-cross-time-predictor-experimental")
+        else if (option=="-value-flow")
         {
-            param.cross_time_predictor_experimental=read_option_value(argc,argv,arg_id,option);
-            if (param.cross_time_predictor_experimental!="constant_extrapolation" && param.cross_time_predictor_experimental!="linear_interpolation" && param.cross_time_predictor_experimental!="constant_extrapolation_spatial_residual" && param.cross_time_predictor_experimental!="linear_interpolation_spatial_residual")
-                throw runtime_error("-cross-time-predictor-experimental目前只支持constant_extrapolation、linear_interpolation、constant_extrapolation_spatial_residual或linear_interpolation_spatial_residual");
+            param.value_flow=read_option_value(argc,argv,arg_id,option);
+            if (param.value_flow!="constant_extrapolation" && param.value_flow!="linear_interpolation" && param.value_flow!="constant_extrapolation_spatial_residual" && param.value_flow!="linear_interpolation_spatial_residual")
+                throw runtime_error("-value-flow目前只支持constant_extrapolation、linear_interpolation、constant_extrapolation_spatial_residual或linear_interpolation_spatial_residual");
         }
-        else if (option=="-cross-time-label-predictor-experimental")
+        else if (option=="-label-flow")
         {
-            param.cross_time_label_predictor_experimental=read_option_value(argc,argv,arg_id,option);
-            if(param.cross_time_label_predictor_experimental!="previous"&&param.cross_time_label_predictor_experimental!="endpoint_agreement")
-                throw runtime_error("-cross-time-label-predictor-experimental必须是previous或endpoint_agreement");
+            param.label_flow=read_option_value(argc,argv,arg_id,option);
+            if(param.label_flow!="constant_extrapolation"&&param.label_flow!="endpoint_agreement")
+                throw runtime_error("-label-flow必须是constant_extrapolation或endpoint_agreement");
         }
         else if (option=="-adjust-coord-matrix-file")
-            param.adjust_coord_matrix_path=read_option_value(argc,argv,arg_id,option);
+            param.adjust_coord_matrix_file=read_option_value(argc,argv,arg_id,option);
         else if (option=="-parallelism-stats")
             param.print_prediction_dag_statistics=true;
         else if (option=="-prediction-geometry-stats")
             param.print_prediction_geometry_statistics=true;
         else if(option=="-decompression-stage-time")
             param.print_compression_stage_time=true;
-        else if(option=="-reorder-data-by-prediction-order-experimental")
-            param.reorder_data_by_prediction_order_experimental=true;
         else if(option=="-qb-storage-order")
         {
             param.qb_storage_order=read_option_value(argc,argv,arg_id,option);
@@ -424,16 +427,25 @@ int decompress_main(int argc,char **argv)
         }
         else if (option=="-normalized-weight-experimental")
             param.use_normalized_weight_experimental=true;
-        else if (option=="-fused-two-point-set-prediction-experimental")
-            param.use_fused_two_point_set_prediction_experimental=true;
+        else if(option=="-label-value-execution")
+        {
+            param.label_value_execution=read_option_value(argc,argv,arg_id,option);
+            if(param.label_value_execution!="staged"&&param.label_value_execution!="fused")
+                throw runtime_error("-label-value-execution必须是staged或fused");
+        }
         else if (option=="-linear-previous-label-experimental")
             param.use_linear_previous_label_experimental=true;
-        else if(option=="-rbf-filtered-fallback-nearest-experimental")
-            param.use_rbf_filtered_fallback_nearest_experimental=true;
+        else if(option=="-rbf-fallback")
+        {
+            string fallback=read_option_value(argc,argv,arg_id,option);
+            if(fallback!="idw"&&fallback!="nearest")
+                throw runtime_error("-rbf-fallback必须是idw或nearest");
+            param.rbf_fallback_nearest=fallback=="nearest";
+        }
         else if (option=="-predictability-order-experimental")
             param.use_predictability_order_experimental=true;
-        else if (option=="-forward-mean-distance-only-order-experimental")
-            param.use_forward_mean_distance_only_order_experimental=true;
+        else if (option=="-forward-msd-order")
+            param.use_forward_msd_order=true;
         else if (option=="-forward-direction-only-order-experimental")
             param.use_forward_direction_only_order_experimental=true;
         else if (option=="-forward-mean-distance-s2-order-experimental")
@@ -444,50 +456,60 @@ int decompress_main(int argc,char **argv)
             param.use_reverse_predictability_order_experimental=true;
         else if (option=="-reverse-distribution-order-experimental")
             param.use_reverse_distribution_order_experimental=true;
-        else if (option=="-reverse-mean-distance-only-order-experimental")
-            param.use_reverse_mean_distance_only_order_experimental=true;
+        else if (option=="-reverse-msd-order")
+            param.use_reverse_msd_order=true;
         else if (option=="-reverse-direction-only-order-experimental")
             param.use_reverse_direction_only_order_experimental=true;
         else if (option=="-reverse-direction-order-experimental")
             param.use_reverse_direction_order_experimental=true;
         else if (option=="-reverse-direction-distribution-order-experimental")
             param.use_reverse_direction_distribution_order_experimental=true;
-        else if (option=="-global-order-before-round-split-experimental")
-            param.use_global_order_before_round_split_experimental=true;
-        else if (option=="-eb-schedule-experimental")
+        else if(option=="-reference-data-order")
+            param.reference_time_step_vec=parse_time_step_vec(read_option_value(argc,argv,arg_id,option));
+        else if(option=="-reference-data-rbf-score")
+            param.use_reference_data_rbf_score=true;
+        else if(option=="-ordering-scope")
         {
-            param.eb_schedule_experimental=read_option_value(argc,argv,arg_id,option);
-            param.eb_schedule_start_ratio=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
-            if(param.eb_schedule_experimental!="none" && param.eb_schedule_experimental!="round" && param.eb_schedule_experimental!="point" && param.eb_schedule_experimental!="point_log2_ratio" && param.eb_schedule_experimental!="round_point" && param.eb_schedule_experimental!="round_ratio" && param.eb_schedule_experimental!="round_point_ratio" && param.eb_schedule_experimental!="round_point_ratio_dag" && param.eb_schedule_experimental!="round_point_ratio_dag_direct" && param.eb_schedule_experimental!="round_point_ratio_dag_variance_direct")
-                throw runtime_error("未知的实验性EB序列模式："+param.eb_schedule_experimental);
-            if (param.eb_schedule_start_ratio>1)
-                throw runtime_error("-eb-schedule-experimental的起始倍率不能大于1");
+            param.ordering_scope=read_option_value(argc,argv,arg_id,option);
+            if(param.ordering_scope!="local"&&param.ordering_scope!="global")
+                throw runtime_error("-ordering-scope必须是local或global");
         }
-        else if(option=="-eb-schedule-log2-shift-experimental")
-            param.eb_schedule_log2_shift_experimental=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+        else if (option=="-eb-schedule")
+        {
+            param.eb_schedule=read_option_value(argc,argv,arg_id,option);
+            param.eb_schedule_start_ratio=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+            if(param.eb_schedule!="none" && param.eb_schedule!="round" && param.eb_schedule!="point" && param.eb_schedule!="inverse_rank_log2" && param.eb_schedule!="round_point" && param.eb_schedule!="round_ratio" && param.eb_schedule!="round_point_ratio" && param.eb_schedule!="round_point_ratio_dag" && param.eb_schedule!="round_point_ratio_dag_direct" && param.eb_schedule!="round_point_ratio_dag_variance_direct")
+                throw runtime_error("未知的EB序列模式："+param.eb_schedule);
+            if (param.eb_schedule_start_ratio>1)
+                throw runtime_error("-eb-schedule的起始倍率不能大于1");
+        }
+        else if(option=="-eb-schedule-log2-shift")
+            param.eb_schedule_log2_shift=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+        else if(option=="-eb-schedule-max-log2-exponent")
+            param.eb_schedule_max_log2_exponent=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
         else
             throw runtime_error("未知参数："+option);
     }
-    if(!param.got_data_dir || !param.got_variable || !param.got_time_step || (!param.got_error_mode && param.point_set_config_path.empty()))
-        throw runtime_error("用法：s1_decompress -data-dir <目录> -variable <变量名> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-dim <维数>] [-time-anchor-stride-experimental <步长>] [-adjust-coord-matrix-file <路径>] [-cross-time-predictor-experimental <constant_extrapolation|linear_interpolation|constant_extrapolation_spatial_residual|linear_interpolation_spatial_residual>] [-cross-time-label-predictor-experimental <previous|endpoint_agreement>] [-predictor <inverse_proportion|rbf_fitting>] [-rbf-kernel <gaussian|exponential|matern32|matern52|inverse_multiquadric>] [-rbf-shape <正数>] [-rbf-nugget <正数>] [-rbf-polynomial-degree <0|1|2>] [-max-ref-num <数量>] [-actual-ref-num <数量>] [-predict-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-inverse-distance-power <指数>] [-point-set-predictor <名称>] [-dag-cache <路径> | -no-dag-cache] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-partition-adaptive-min-improvement-experimental <比例>] [-parallelism-stats] [-prediction-geometry-stats] [-decompression-stage-time] [-reorder-data-by-prediction-order-experimental] [-qb-storage-order <prediction|original>] [-normalized-weight-experimental] [-fused-two-point-set-prediction-experimental] [-linear-previous-label-experimental] [-rbf-filtered-fallback-nearest-experimental] [-predictability-order-experimental] [-forward-mean-distance-only-order-experimental] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-mean-distance-only-order-experimental] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-global-order-before-round-split-experimental] [-d-only-cache-refill-threshold-experimental <数量>] [-order-candidate-num-experimental <数量>] [-ordering-msd-ref-num-experimental <数量>] [-ordering-msd-neighbor-prefetch-num-experimental <数量>] [-msd-candidate-score-geometry-reuse-experimental] [-kd-query-diagnostics-experimental] [-kd-leaf-valid-mask-experimental] [-kd-iterative-query-experimental] [-kd-scalar-one-reference-query-experimental] [-rbf-ldlt-experimental] [-precomputed-neighbor-num-experimental <数量>] [-multihead-execution-head-num-experimental <数量>] [-eb-schedule-experimental <模式> <倍率>] [-eb-schedule-log2-shift-experimental <正数>]");
-    if (param.point_set_predictor!="inverse_proportion" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
+    if(!param.got_data_dir || !param.got_field || !param.got_time_step || (!param.got_error_mode && param.point_set_config_path.empty()))
+        throw runtime_error("用法：s1_decompress -data-dir <目录> -field <field名称> -time-step <区间或列表> (-M <REL|ABS> <误差> | -point-set-config <JSON路径>) [-coordinate-dim <维数>] [-time-anchor-stride-experimental <步长>] [-adjust-coord-matrix-file <路径>] [-value-flow <constant_extrapolation|linear_interpolation|constant_extrapolation_spatial_residual|linear_interpolation_spatial_residual>] [-label-flow <constant_extrapolation|endpoint_agreement>] [-predictor <idw|rbf>] [-rbf-kernel <gaussian|exponential|matern32|matern52|inverse_multiquadric>] [-rbf-shape <正数>] [-rbf-nugget <正数>] [-prediction-min-ref-num <数量>] [-prediction-max-ref-num <数量>] [-prediction-round-num <数量>] [-round-size-growth-ratio-experimental <比例>] [-idw-power <指数>] [-point-set-predictor <名称>] [-dag-cache <路径> | -no-dag-cache] [-kd-leaf-size <数量>] [-partition-size <数量>] [-partition-num <数量>] [-thread-num <数量>] [-partition-fitting-candidates-experimental <original|weighted|ridge|mixed|residual|extended|all>] [-partition-adaptive-min-improvement-experimental <比例>] [-parallelism-stats] [-prediction-geometry-stats] [-decompression-stage-time] [-qb-storage-order <prediction|original>] [-normalized-weight-experimental] [-label-value-execution <staged|fused>] [-linear-previous-label-experimental] [-rbf-fallback <idw|nearest>] [-predictability-order-experimental] [-forward-msd-order] [-reverse-predictability-order-experimental] [-reverse-distribution-order-experimental] [-reverse-msd-order] [-reverse-direction-only-order-experimental] [-reverse-direction-order-experimental] [-reverse-direction-distribution-order-experimental] [-reference-data-order <time step列表>] [-reference-data-rbf-score] [-ordering-scope <local|global>] [-ordering-score-min-ref-num <数量>] [-ordering-candidate-num <数量>] [-ordering-score-max-ref-num <数量>] [-ordering-msd-neighbor-prefetch-num-experimental <数量>] [-msd-candidate-score-geometry-reuse-experimental] [-kd-query-diagnostics-experimental] [-kd-leaf-valid-mask-experimental] [-kd-iterative-query-experimental] [-kd-scalar-one-reference-query-experimental] [-rbf-solver <general|ldlt>] [-precomputed-neighbor-num-experimental <数量>] [-multihead-execution-head-num-experimental <数量>] [-eb-schedule <模式> <倍率>] [-eb-schedule-log2-shift <正数>] [-eb-schedule-max-log2-exponent <正数>]");
+    if (param.point_set_predictor!="idw" && param.point_set_predictor!="majority" && param.point_set_predictor!="continuous_actual" && param.point_set_predictor!="continuous_reflect")
         throw runtime_error("未知的点集标签预测器："+param.point_set_predictor);
     if(param.thread_num>1 && param.partition_size_experimental==0 && param.partition_num_experimental==0)
         throw runtime_error("多线程模式需要指定partition数量或大小");
     if (!param.data_dir.empty() && param.data_dir.back()!='/')
         param.data_dir+="/";
-    if(!param.no_prediction_dag_cache&&param.prediction_structure_path.empty())
+    if(!param.no_prediction_dag_cache&&param.dag_cache_path.empty())
     {
-        string dag_file_name=param.variable_name+".dag";
+        string dag_file_name=param.field_name+".dag";
         if(param.cross_time_spatial_point_num_experimental>0)
-            dag_file_name=param.variable_name+".joint.dag";
+            dag_file_name=param.field_name+".joint.dag";
         else if(param.precomputed_neighbor_num_experimental>0)
-            dag_file_name=param.variable_name+".precomputed"+to_string(param.precomputed_neighbor_num_experimental)+".dag";
-        param.prediction_structure_path=param.data_dir+".unsz_cache/"+dag_file_name;
+            dag_file_name=param.field_name+".precomputed"+to_string(param.precomputed_neighbor_num_experimental)+".dag";
+        param.dag_cache_path=param.data_dir+".unsz_cache/"+dag_file_name;
     }
     param.coord_path=param.data_dir+"coords.dat";
     for (uint32_t time_step:time_step_vec)
-        param.original_data_path_vec.push_back(param.data_dir+param.variable_name+".dat."+to_string(time_step));
+        param.original_data_path_vec.push_back(param.data_dir+param.field_name+".dat."+to_string(time_step));
     param.time_step_vec=time_step_vec;
     if (param.got_error_mode && param.error_mode=="REL")
     {
@@ -502,13 +524,28 @@ int decompress_main(int argc,char **argv)
     param.configure_point_sets();
     if(param.point_set_config_vec.size()==1)
         param.resolve_single_point_set_time_mode();
+    if(param.use_reference_data_rbf_score&&param.reference_time_step_vec.empty())
+        throw runtime_error("-reference-data-rbf-score必须和-reference-data-order一起使用");
+    if(param.use_reference_data_rbf_score&&none_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c&config){return config.codec==unsz::point_set_codec_e::rbf;}))
+        throw runtime_error("RBF参考数据评分要求至少一个点集使用rbf");
     param.cross_time_compress=false;
     param.check_original_data_files=false;
     param.load_adjust_coord_matrix_file();
-    if (param.actual_ref_num>param.max_ref_num)
-        throw runtime_error("actual_ref_num不能大于max_ref_num");
+    if(param.prediction_min_ref_num>param.prediction_max_ref_num)
+        throw runtime_error("prediction_min_ref_num不能大于prediction_max_ref_num");
+    if(param.ordering_candidate_num==0)
+        throw runtime_error("必须显式设置正数ordering_candidate_num");
+    if(param.ordering_score_max_ref_num==0)
+        throw runtime_error("必须显式设置正数ordering_score_max_ref_num");
+    if(param.ordering_score_min_ref_num==0)
+        throw runtime_error("必须显式设置正数ordering_score_min_ref_num");
+    if(param.ordering_score_min_ref_num>param.ordering_score_max_ref_num)
+        throw runtime_error("ordering_score_min_ref_num不能大于ordering_score_max_ref_num");
+    if(param.prediction_min_ref_num<2&&any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c&config){return config.codec==unsz::point_set_codec_e::rbf;}))
+        throw runtime_error("RBF的prediction_min_ref_num不能小于2");
+    auto preprocessing_start_time=chrono::steady_clock::now();
     param.init();
-    general_run_decompression(param);
+    general_run_decompression(param,preprocessing_start_time);
     return 0;
 }
 }

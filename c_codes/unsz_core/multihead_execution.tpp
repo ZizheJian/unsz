@@ -11,9 +11,9 @@ namespace unsz
             return;
         if(multihead_execution_head_num_experimental<2||multihead_execution_head_num_experimental>64)
             throw runtime_error("多头执行数量必须在[2,64]内");
-        if(point_set_config_vec.size()!=1||point_set_config_vec[0].codec!=point_set_codec_e::rbf_fitting||get_prediction_framework(1).value_mode!=time_dimension_mode_e::spatial)
+        if(point_set_config_vec.size()!=1||point_set_config_vec[0].codec!=point_set_codec_e::rbf||get_prediction_framework(1).value_mode!=time_dimension_mode_e::spatial)
             throw runtime_error("多头执行实验目前只支持单点集纯空间RBF");
-        if(reorder_data_by_prediction_order_experimental)
+        if(reorder_by_prediction_order)
             throw runtime_error("多头执行实验暂不支持按预测顺序重排输入");
         if(partition_size_experimental>0||partition_num_experimental>0)
             throw runtime_error("多头执行实验暂不支持partition");
@@ -35,7 +35,7 @@ namespace unsz
         for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
         {
             auto ref_ids=get_pred_ref_ids(pred_ref_id);
-            uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+            uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
             indegree[pred_ref_id]=ref_num;
             for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
             {
@@ -54,7 +54,7 @@ namespace unsz
         for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
         {
             auto ref_ids=get_pred_ref_ids(pred_ref_id);
-            uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+            uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
             for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
             {
                 uint32_t ref_pred_ref_id=original_id_to_pred_ref_id[ref_ids[ref_index]];
@@ -117,7 +117,7 @@ namespace unsz
         {
             uint32_t pred_ref_id=multihead_execution_pred_ref_ids[position];
             auto ref_ids=get_pred_ref_ids(pred_ref_id);
-            uint32_t ref_num=min<uint32_t>(actual_ref_num,ref_ids.size());
+            uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
             for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
                 if(execution_position[original_id_to_pred_ref_id[ref_ids[ref_index]]]+1==position)
                 {

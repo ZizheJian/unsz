@@ -580,17 +580,9 @@ namespace unsz
             }
             throw runtime_error("未知的RBF核函数："+rbf_kernel);
         };
-        uint32_t trend_size=1;
-        if(rbf_polynomial_degree>=1)
-            trend_size+=dim;
-        if(rbf_polynomial_degree>=2)
-            trend_size+=dim*(dim+1)/2;
-        if(ref_num<trend_size)
-            return false;
-        uint32_t system_size=ref_num+trend_size;
+        uint32_t system_size=ref_num+1;
         vector<vector<double>> A(system_size,vector<double>(system_size,0));
-        vector<double> target_feature(system_size,0),x,trend_feature(trend_size);
-        double distance_scale=sqrt(mean_squared_distance);
+        vector<double> target_feature(system_size,0),x;
         for(uint32_t row=0;row<ref_num;row++)
         {
             int row_ref_id=ref_ids[row];
@@ -606,22 +598,8 @@ namespace unsz
                 A[row][col]=kernel(squared_distance/mean_squared_distance);
             }
             A[row][row]+=rbf_nugget;
-            uint32_t trend_id=0;
-            trend_feature[trend_id++]=1;
-            if(rbf_polynomial_degree>=1)
-                for(uint32_t d=0;d<dim;d++)
-                    trend_feature[trend_id++]=((double)coord_array[row_ref_id][d]-coord_array[pred_id][d])/distance_scale;
-            if(rbf_polynomial_degree>=2)
-                for(uint32_t first_dim=0;first_dim<dim;first_dim++)
-                    for(uint32_t second_dim=first_dim;second_dim<dim;second_dim++)
-                        trend_feature[trend_id++]=trend_feature[1+first_dim]*trend_feature[1+second_dim];
-            if(trend_id!=trend_size)
-                throw runtime_error("RBF趋势项数量不正确");
-            for(uint32_t current_trend_id=0;current_trend_id<trend_size;current_trend_id++)
-            {
-                A[row][ref_num+current_trend_id]=trend_feature[current_trend_id];
-                A[ref_num+current_trend_id][row]=trend_feature[current_trend_id];
-            }
+            A[row][ref_num]=1;
+            A[ref_num][row]=1;
             target_feature[row]=kernel(target_squared_distance[row]/mean_squared_distance);
         }
         target_feature[ref_num]=1;

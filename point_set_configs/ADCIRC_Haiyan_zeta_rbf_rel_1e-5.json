@@ -1,0 +1,7 @@
+{
+  "version":2,
+  "labels":[
+    {"predictor":"rbf","eb_mode":"REL","eb_value":0.00001,"condition":{"operator":"!=","value":-99999}},
+    {"predictor":"constant"}
+  ]
+}

@@ -5,18 +5,18 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::load_adjust_coord_matrix_file()
     {
-        if (adjust_coord_matrix_path.empty())
+        if (adjust_coord_matrix_file.empty())
             return;
-        ifstream file(adjust_coord_matrix_path);
+        ifstream file(adjust_coord_matrix_file);
         if (!file)
-            throw runtime_error("找不到坐标变换矩阵文件："+adjust_coord_matrix_path);
+            throw runtime_error("找不到坐标变换矩阵文件："+adjust_coord_matrix_file);
         string magic;
         uint32_t version;
-        if (!(file>>magic>>version) || magic!="UNSZ_ADJUST_COORD_MATRIX" || version!=1)
-            throw runtime_error("坐标变换矩阵文件格式或版本不正确："+adjust_coord_matrix_path);
-        bool got_training_type=false,got_dataset=false,got_variable=false,got_dim=false,got_matrix=false;
-        string matrix_dataset,matrix_variable,key;
-        uint32_t matrix_dim=0;
+        if (!(file>>magic>>version) || magic!="UNSZ_ADJUST_COORD_MATRIX" || version!=2)
+            throw runtime_error("坐标变换矩阵文件格式或版本不正确："+adjust_coord_matrix_file);
+        bool got_training_type=false,got_field=false,got_coordinate_dim=false,got_matrix=false;
+        string matrix_field,key;
+        uint32_t matrix_coordinate_dim=0;
         while (file>>key)
         {
             if (key=="training_type")
@@ -25,29 +25,23 @@ namespace unsz
                     throw runtime_error("坐标变换矩阵文件中的training_type不正确");
                 got_training_type=true;
             }
-            else if (key=="dataset")
+            else if (key=="field")
             {
-                if (got_dataset || !(file>>matrix_dataset))
-                    throw runtime_error("坐标变换矩阵文件中的dataset不正确");
-                got_dataset=true;
+                if (got_field || !(file>>matrix_field))
+                    throw runtime_error("坐标变换矩阵文件中的field不正确");
+                got_field=true;
             }
-            else if (key=="variable")
+            else if (key=="coordinate_dim")
             {
-                if (got_variable || !(file>>matrix_variable))
-                    throw runtime_error("坐标变换矩阵文件中的variable不正确");
-                got_variable=true;
-            }
-            else if (key=="dim")
-            {
-                if (got_dim || !(file>>matrix_dim))
-                    throw runtime_error("坐标变换矩阵文件中的dim不正确");
-                got_dim=true;
+                if (got_coordinate_dim || !(file>>matrix_coordinate_dim))
+                    throw runtime_error("坐标变换矩阵文件中的coordinate_dim不正确");
+                got_coordinate_dim=true;
             }
             else if (key=="lower_triangular")
             {
-                if (got_matrix || !got_dim)
-                    throw runtime_error("坐标变换矩阵文件中的lower_triangular重复或位于dim之前");
-                uint32_t parameter_num=matrix_dim*(matrix_dim+1)/2;
+                if (got_matrix || !got_coordinate_dim)
+                    throw runtime_error("坐标变换矩阵文件中的lower_triangular重复或位于coordinate_dim之前");
+                uint32_t parameter_num=matrix_coordinate_dim*(matrix_coordinate_dim+1)/2;
                 adjust_coord_matrix_parameter_vec.resize(parameter_num);
                 for (uint32_t parameter_id=0;parameter_id<parameter_num;parameter_id++)
                     if (!(file>>adjust_coord_matrix_parameter_vec[parameter_id]) || !isfinite(adjust_coord_matrix_parameter_vec[parameter_id]))
@@ -57,16 +51,16 @@ namespace unsz
             else
                 throw runtime_error("坐标变换矩阵文件包含未知字段："+key);
         }
-        if (!got_training_type || !got_dataset || !got_variable || !got_dim || !got_matrix)
-            throw runtime_error("坐标变换矩阵文件缺少必要字段："+adjust_coord_matrix_path);
+        if (!got_training_type || !got_field || !got_coordinate_dim || !got_matrix)
+            throw runtime_error("坐标变换矩阵文件缺少必要字段："+adjust_coord_matrix_file);
         if (adjust_coord_training_type!="spatial" && adjust_coord_training_type!="spatiotemporal")
             throw runtime_error("坐标变换矩阵训练类型必须是spatial或spatiotemporal");
-        uint32_t expected_dim=dim+(cross_time_spatial_point_num_experimental>0);
-        if(matrix_dim!=expected_dim)
-            throw runtime_error("坐标变换矩阵维数"+to_string(matrix_dim)+"与当前流程要求的dim="+to_string(expected_dim)+"不一致");
-        if (matrix_variable!=variable_name)
-            throw runtime_error("坐标变换矩阵field="+matrix_variable+"与当前field="+variable_name+"不一致");
+        uint32_t expected_coordinate_dim=dim+(cross_time_spatial_point_num_experimental>0);
+        if(matrix_coordinate_dim!=expected_coordinate_dim)
+            throw runtime_error("坐标变换矩阵维数"+to_string(matrix_coordinate_dim)+"与当前流程要求的coordinate_dim="+to_string(expected_coordinate_dim)+"不一致");
+        if(matrix_field!=field_name)
+            throw runtime_error("坐标变换矩阵field="+matrix_field+"与当前field="+field_name+"不一致");
         if_adjust_coord=true;
-        printf("Loaded %s adjust coord matrix: dataset=%s, variable=%s, dim=%u, path=%s\n",adjust_coord_training_type.c_str(),matrix_dataset.c_str(),matrix_variable.c_str(),matrix_dim,adjust_coord_matrix_path.c_str());
+        printf("Loaded %s adjust coord matrix: field=%s, coordinate_dim=%u, path=%s\n",adjust_coord_training_type.c_str(),matrix_field.c_str(),matrix_coordinate_dim,adjust_coord_matrix_file.c_str());
     }
 }

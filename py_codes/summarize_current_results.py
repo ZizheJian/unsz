@@ -35,18 +35,29 @@ def interpolate_at_psnr(rows,psnr,name):
             return left_value+(right_value-left_value)*(psnr-left_psnr)/(right_psnr-left_psnr)
     raise RuntimeError(f"PSNR {psnr}不在曲线范围内")
 
+def common_psnr_knots(reference,test):
+    reference_psnr=np.asarray([float(row["psnr"]) for row in reference])
+    test_psnr=np.asarray([float(row["psnr"]) for row in test])
+    lower=max(reference_psnr.min(),test_psnr.min())
+    upper=min(reference_psnr.max(),test_psnr.max())
+    if not upper>lower:
+        raise RuntimeError("RD曲线没有共同PSNR范围")
+    return np.unique(np.concatenate(([lower,upper],reference_psnr[(reference_psnr>lower)&(reference_psnr<upper)],test_psnr[(test_psnr>lower)&(test_psnr<upper)])))
+
+def geometric_metric_ratio_at_same_psnr(reference,test,name):
+    ratios=[interpolate_at_psnr(test,psnr,name)/interpolate_at_psnr(reference,psnr,name) for psnr in common_psnr_knots(reference,test)]
+    return geometric_mean(ratios)
+
 def main():
     summary=[]
     for path in sorted((result_root/"fields").glob("*.csv")):
         rows=read_rows(path)
-        unsz=sorted((row for row in rows if row["compressor"]=="unsz"),key=lambda row:float(row["rel_eb"]),reverse=True)
-        umc=sorted((row for row in rows if row["compressor"]=="umc"),key=lambda row:float(row["rel_eb"]),reverse=True)
-        if len(unsz)!=5 or umc and len(umc)!=5:
-            raise RuntimeError(f"{path}不是完整五点结果：UNSZ={len(unsz)},UMC={len(umc)}")
-        item={"field":unsz[0]["field"],"dataset":unsz[0]["dataset"],"variable":unsz[0]["variable"],"time_step_num":unsz[0]["time_step_num"],"representative_psnr":"","representative_cr_ratio_vs_umc":"","representative_total_time_ratio_vs_umc":"","average_br_change_vs_umc":"","compression_ratio_vs_umc":"","total_time_ratio_vs_umc":"","compression_time_ratio_vs_umc":"","decompression_time_ratio_vs_umc":"","unsz_total_throughput_MB_s":geometric_mean([float(row["input_bytes"])/(float(row["compression_time"])+float(row["decompression_time"]))/1e6 for row in unsz]),"umc_total_throughput_MB_s":""}
+        unsz=sorted((row for row in rows if row["compressor"]=="unsz"),key=lambda row:float(row["psnr"]))
+        umc=sorted((row for row in rows if row["compressor"]=="umc"),key=lambda row:float(row["psnr"]))
+        if len(unsz)<2 or umc and len(umc)<2:
+            raise RuntimeError(f"{path}没有可插值的完整曲线：UNSZ={len(unsz)},UMC={len(umc)}")
+        item={"field":unsz[0]["field"],"data_dir":unsz[0]["data_dir"],"time_step_num":unsz[0]["time_step_num"],"representative_psnr":"","representative_cr_ratio_vs_umc":"","representative_total_time_ratio_vs_umc":"","average_br_change_vs_umc":"","compression_ratio_vs_umc":"","total_time_ratio_vs_umc":"","compression_time_ratio_vs_umc":"","decompression_time_ratio_vs_umc":"","unsz_total_throughput_MB_s":geometric_mean([float(row["input_bytes"])/(float(row["compression_time"])+float(row["decompression_time"]))/1e6 for row in unsz]),"umc_total_throughput_MB_s":""}
         if umc:
-            if [float(row["rel_eb"]) for row in unsz]!=[float(row["rel_eb"]) for row in umc]:
-                raise RuntimeError(f"{path}的UNSZ与UMC EB不一致")
             average_br_change=calculate_average_br_change(umc,unsz)
             representative_row=min(umc,key=lambda row:abs(float(row["rel_eb"])-1e-3))
             representative_psnr=float(representative_row["psnr"])
@@ -54,7 +65,7 @@ def main():
             umc_br=interpolate_at_psnr(umc,representative_psnr,"br")
             unsz_total_time=interpolate_at_psnr(unsz,representative_psnr,"compression_decompression_time")
             umc_total_time=interpolate_at_psnr(umc,representative_psnr,"compression_decompression_time")
-            item.update({"representative_psnr":representative_psnr,"representative_cr_ratio_vs_umc":umc_br/unsz_br,"representative_total_time_ratio_vs_umc":unsz_total_time/umc_total_time,"average_br_change_vs_umc":average_br_change,"compression_ratio_vs_umc":1/(1+average_br_change/100),"total_time_ratio_vs_umc":geometric_mean([(float(u["compression_time"])+float(u["decompression_time"]))/(float(m["compression_time"])+float(m["decompression_time"])) for u,m in zip(unsz,umc)]),"compression_time_ratio_vs_umc":geometric_mean([float(u["compression_time"])/float(m["compression_time"]) for u,m in zip(unsz,umc)]),"decompression_time_ratio_vs_umc":geometric_mean([float(u["decompression_time"])/float(m["decompression_time"]) for u,m in zip(unsz,umc)]),"umc_total_throughput_MB_s":geometric_mean([float(row["input_bytes"])/(float(row["compression_time"])+float(row["decompression_time"]))/1e6 for row in umc])})
+            item.update({"representative_psnr":representative_psnr,"representative_cr_ratio_vs_umc":umc_br/unsz_br,"representative_total_time_ratio_vs_umc":unsz_total_time/umc_total_time,"average_br_change_vs_umc":average_br_change,"compression_ratio_vs_umc":1/(1+average_br_change/100),"total_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_decompression_time"),"compression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_time"),"decompression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"decompression_time"),"umc_total_throughput_MB_s":geometric_mean([float(row["input_bytes"])/(float(row["compression_time"])+float(row["decompression_time"]))/1e6 for row in umc])})
         summary.append(item)
     if len(summary)!=32:
         raise RuntimeError(f"当前结果应包含32个field，实际为{len(summary)}")

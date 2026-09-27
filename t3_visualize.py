@@ -7,7 +7,7 @@ data_root_default="/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructure
 dataset_config={
     "katrina":{
         "directory":"Katrina",
-        "variable":"attr0",
+        "field":"attr0",
         "time_step":80,
         "cell_point_num":3,
         "view":"isometric",
@@ -21,7 +21,7 @@ dataset_config={
     },
     "ocean-temperature":{
         "directory":"Ocean",
-        "variable":"temperature",
+        "field":"temperature",
         "time_step":15,
         "cell_point_num":2,
         "view":"xy",
@@ -35,7 +35,7 @@ dataset_config={
     # 当前方案相对UMC的CR/UMC最高：1.456×
     "tsunami-velocity-x":{
         "directory":"Tsunami",
-        "variable":"velocity_x",
+        "field":"velocity_x",
         "time_step":0,
         "mesh_file":"ugrid_demo.nc",
         "view":"xy",
@@ -46,7 +46,7 @@ dataset_config={
     # 当前方案相对UMC的CR/UMC最低：0.974×
     "tsunami-height":{
         "directory":"Tsunami",
-        "variable":"height",
+        "field":"height",
         "time_step":0,
         "mesh_file":"ugrid_demo.nc",
         "view":"xy",
@@ -98,7 +98,7 @@ def render_tsunami(config,data_dir,output_dir,data,clim):
     face_nodes-=start_index
     node_coord=np.column_stack((node_x,node_y,np.zeros(node_x.size,dtype=np.float64)))
     if data.size!=face_nodes.shape[0]:
-        raise ValueError(f"{config['variable']}的数据点数{data.size}与三角形数量{face_nodes.shape[0]}不一致")
+        raise ValueError(f"{config['field']}的数据点数{data.size}与三角形数量{face_nodes.shape[0]}不一致")
     grid=make_grid(node_coord,face_nodes,3)
     grid.cell_data["value"]=data
     save_grid(config,output_dir,grid,clim)
@@ -107,7 +107,7 @@ def render_tsunami(config,data_dir,output_dir,data,clim):
 def visualize(dataset_name,data_root,output_dir):
     config=dict(dataset_config[dataset_name])
     data_dir=data_root/config["directory"]
-    data=np.fromfile(data_dir/f"{config['variable']}.dat.{config['time_step']}",dtype=np.float32)
+    data=np.fromfile(data_dir/f"{config['field']}.dat.{config['time_step']}",dtype=np.float32)
     if config["abnormal_upper_bound"] is not None:
         data=np.where(data<config["abnormal_upper_bound"],np.nan,data)
     clim=np.nanquantile(data,[0.05,0.95])

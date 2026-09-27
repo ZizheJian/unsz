@@ -11,7 +11,7 @@ UNSZ是一个主要面向多time step点云数据的误差有界有损压缩研�
 | 文件 | 内容 |
 |---|---|
 | `coords.dat` | 按点连续保存的坐标，每个点包含`dim`个float32数值 |
-| `<variable>.dat.<time_step>` | 对应time step的float32 field，每个点一个数值 |
+| `<field>.dat.<time_step>` | 对应time step的float32 field，每个点一个数值 |
 
 例如三维、31个time step的temperature数据可以组织为：
 
@@ -24,7 +24,7 @@ Ocean/
 └── temperature.dat.30
 ```
 
-所有field文件的点数必须与`coords.dat`一致。二维数据通过`-dim 2`指定。程序读取float32坐标后会根据坐标跨度判断距离计算是否需要升级为double，但不会改变磁盘输入格式。
+所有field文件的点数必须与`coords.dat`一致。二维数据通过`-coordinate-dim 2`指定。程序读取float32坐标后会根据坐标跨度判断距离计算是否需要升级为double，但不会改变磁盘输入格式。
 
 ## 1.2. 安装
 
@@ -67,28 +67,28 @@ python -m pip install numpy scipy pyvista
 最基本的REL error bound压缩命令为：
 
 ```bash
-install/bin/s1_compress -data-dir /path/to/Ocean -variable temperature -time-step '[0,30]' -dim 3 -M REL 1e-3
+install/bin/s1_compress -data-dir /path/to/Ocean -field temperature -time-step '[0,30]' -coordinate-dim 3 -M REL 1e-3
 ```
 
 对应的解压命令为：
 
 ```bash
-install/bin/s1_decompress -data-dir /path/to/Ocean -variable temperature -time-step '[0,30]' -dim 3 -M REL 1e-3
+install/bin/s1_decompress -data-dir /path/to/Ocean -field temperature -time-step '[0,30]' -coordinate-dim 3 -M REL 1e-3
 ```
 
 ABS error bound使用：
 
 ```bash
-install/bin/s1_compress -data-dir /path/to/data -variable field -time-step '[0,9]' -dim 3 -M ABS 1e-4
+install/bin/s1_compress -data-dir /path/to/data -field field -time-step '[0,9]' -coordinate-dim 3 -M ABS 1e-4
 ```
 
 `-time-step`支持闭区间`[a,b]`、右开区间`[a,b)`和显式列表`{a1,a2,...}`。例如`[0,31)`和`{0,3,7}`分别处理0至30以及0、3、7号time step。包含括号或花括号的表达式建议使用引号，避免被shell解释。
 
-普通流程把压缩文件写到原数据旁边，名称为`<variable>.dat.<time_step>.unsz`；解压结果为`<variable>.dat.<time_step>.unsz.bin`。联合时空流程把全部time step写入单个`<variable>.joint.unsz`，解压时仍拆成各个`<variable>.dat.<time_step>.unsz.bin`。程序打印总BR、PSNR、最大误差比例以及预处理、核心压缩和核心解压时间。
+普通流程把压缩文件写到原数据旁边，名称为`<field>.dat.<time_step>.unsz`；解压结果为`<field>.dat.<time_step>.unsz.bin`。联合时空流程把全部time step写入单个`<field>.joint.unsz`，解压时仍拆成各个`<field>.dat.<time_step>.unsz.bin`。程序打印总BR、PSNR、最大误差比例、压缩端与解压端各自的预处理时间，以及核心压缩和核心解压时间。
 
 当前bitstream不保存用户error bound、坐标变换矩阵、预测参数或实验开关。解压时必须提供与压缩时完全相同的参数；参数不一致通常会导致解码失败或误差检查失败。
 
-空间预测DAG缓存（即在压缩时把DAG写入本地文件，解压时不用再次生成DAG）理应关闭，但现在暂时开启，用于加快调试速度。不指定路径时，压缩和解压自动使用`<data-dir>/.unsz_cache/<variable>.dag`：缓存不存在时生成并写入，存在时直接读取；`-dag-cache <path>`用于覆盖默认路径，`-no-dag-cache`用于关闭缓存并每次重新生成DAG，这两个选项不能同时使用。缓存必须由相同坐标变换和预测参数生成，同一field测试不同配置时必须为它们指定不同路径。
+空间预测DAG缓存默认启用：压缩时把DAG写入本地文件，解压时直接读取，不必再次生成。不指定路径时，压缩和解压自动使用`<data-dir>/.unsz_cache/<field>.dag`：缓存不存在时生成并写入，存在时直接读取；`-dag-cache <path>`用于覆盖默认路径，`-no-dag-cache`用于关闭缓存并每次重新生成DAG，这两个选项不能同时使用。缓存必须由相同坐标变换和预测参数生成，同一field测试不同配置时必须为它们指定不同路径。
 
 ## 1.4. 自定义有序点集
 
@@ -97,23 +97,23 @@ install/bin/s1_compress -data-dir /path/to/data -variable field -time-step '[0,9
 UNSZ目前只支持一个或两个点集。压缩入口依次执行`main`→`unsz::parse_args_and_select_types`→`unsz::parse_args`→初始化并选择`T_coord/T_data`→`unsz::compress`，再按配置中的点集数量进入`unsz::one_point_set::compress`或`unsz::two_point_sets::compress`。单点集入口继续按整体流程和预测器进入`unsz::one_point_set::<流程>::<idw或rbf>::compress`；六种流程与两个预测器组合成12个独立入口。
 
 ```bash
-install/bin/s1_compress -data-dir /path/to/Katrina -variable attr0 -time-step '[0,161]' -dim 3 -point-set-config point_set_configs/Katrina_attr0_rel_1e-2.json
-install/bin/s1_decompress -data-dir /path/to/Katrina -variable attr0 -time-step '[0,161]' -dim 3 -point-set-config point_set_configs/Katrina_attr0_rel_1e-2.json
+install/bin/s1_compress -data-dir /path/to/Katrina -field attr0 -time-step '[0,161]' -coordinate-dim 3 -point-set-config point_set_configs/Katrina_attr0_rbf_rel_1e-2.json
+install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0,161]' -coordinate-dim 3 -point-set-config point_set_configs/Katrina_attr0_rbf_rel_1e-2.json
 ```
 
 `labels`数组下标就是点集编号。程序按顺序测试除最后一个label外的`condition`，第一条成立的条件决定label；全部不成立时属于最后一个label。比较符直接使用`<`、`<=`、`>`、`>=`、`==`或`!=`。下面是Katrina的两点集配置，其中点集1使用自身值域上的REL EB，点集2由固定fill value组成并使用常量编码：
 
 ```json
 {
-  "version":1,
+  "version":2,
   "labels":[
-    {"method":"inverse_proportion","eb_mode":"REL","eb_value":0.01,"condition":{"operator":">=","value":-1000}},
-    {"method":"constant"}
+    {"predictor":"rbf","eb_mode":"REL","eb_value":0.01,"condition":{"operator":">=","value":-1000}},
+    {"predictor":"constant"}
   ]
 }
 ```
 
-最后一个label是默认兜底类型，因此省略`condition`（同时省略eb信息是因为`method=constant`，不需要eb）；配置文件只有一个label时同样不写`condition`。每个非常量label必须显式配置`eb_mode`和`eb_value`，模式为`REL`或`ABS`；`constant`省略这两个字段。当前可用method为`inverse_proportion`、`rbf_fitting`和`constant`。旧的`fitting`、`hybrid_loo`和`quadratic_fitting`实现已归档到`c_codes/trash/point_set_with_legacy_fitting_predictors.tpp`，不再属于当前接口。
+最后一个label是默认兜底类型，因此省略`condition`（同时省略eb信息是因为`predictor=constant`，不需要eb）；配置文件只有一个label时同样不写`condition`。每个非常量label必须显式配置`eb_mode`和`eb_value`，模式为`REL`或`ABS`；`constant`省略这两个字段。当前可用predictor为`idw`、`rbf`和`constant`。旧的`fitting`、`hybrid_loo`和`quadratic_fitting`实现已归档到`c_codes/trash/point_set_with_legacy_fitting_predictors.tpp`，不再属于当前接口。
 
 点集分类只读取当前field的数值并按上述条件执行，不接受额外标签文件。由于EB不写入bitstream，解压时仍必须使用与压缩时相同的配置。
 
@@ -121,36 +121,54 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -variable attr0 -time-step 
 
 | 脚本 | 功能 |
 |---|---|
-| `t1_start_c_code.py` | 正式实验通用入口，只接受一个位置参数：`configs/`中的JSON名称或任意JSON路径，例如`./unsz_env/bin/python t1_start_c_code.py tsunami`或`./unsz_env/bin/python t1_start_c_code.py /path/to/test.json`。入口读取任务后直接构造并执行UNSZ或UMC命令，不再调用第二层Python实验入口，结果直接写入CSV。UNSZ程序缺失时自动编译；不会编译UMC，UMC需要提前手动编译。 |
+| `t1_start_c_code.py` | 正式实验通用入口，只接受一个JSON位置参数：`configs/`中的JSON名称或任意JSON路径，例如`./unsz_env/bin/python t1_start_c_code.py tsunami`或`./unsz_env/bin/python t1_start_c_code.py /path/to/test.json`。包含UNSZ任务时，入口默认先执行CMake配置、增量构建和安装；临时复用现有安装时可添加`--skip-build`。随后直接构造并执行UNSZ或UMC命令，不再调用第二层Python实验入口，结果直接写入CSV。入口不会编译UMC，UMC需要提前手动编译。 |
 | `py_codes/parse_unsz_output.py`、`py_codes/parse_umc_output.py` | 只解析并核对压缩器输出，不负责调度或启动实验。 |
-| `t2_adjust_coord.py` | 训练坐标变换矩阵。命令行与`t1_start_c_code.py`一样只接受一个JSON名称或路径，并依次训练其中展开后的全部field；Python函数`train_adjust_coord()`直接接收展开后的field配置，仍可调整loss、采样、优化器、预测器、训练参考点数和输出路径。 |
+| `t2_adjust_coord.py` | 训练坐标变换矩阵。命令行与`t1_start_c_code.py`一样只接受一个JSON名称或路径，并依次训练每个task的全部field；Python函数`train_adjust_coord()`直接接收已经选定field的配置，仍可调整loss、采样、优化器、预测器、训练参考点数和输出路径。 |
 | `t3_visualize.py` | 生成Katrina attr0与Ocean temperature坐标变换前后的field图像，以及Tsunami最佳与最差field的原网格图像 |
 | `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h0、E3SM-h4、ADCIRC Haiyan、Tsunami、TAPS和Ocean-large发布数据转换为UNSZ/UMC共用的平坦二进制基准输入；共享工具位于同目录的`prepare_dataset_common.py` |
 | `py_codes/run_spatial_field_benchmark.slurm` | 在Slurm节点上运行环境变量`CONFIG`明确指定的完整task JSON，不在运行时拆分或改写JSON |
 | `py_codes/run_configurations.slurm` | 以Slurm array依次把当前9个正式数据集JSON交给`t1_start_c_code.py`。 |
 | `py_codes/plot_dataset_rd.py` | 为一个数据集的各field分别绘制UNSZ/UMC空间RD与核心吞吐率，并计算同PSNR下的平均BR变化 |
 
-JSON最外层是task list；同一个JSON可以包含不同数据集的任务。每个task都必须自行记录`name`、`dataset`、`folder`和`parameters`，即使相邻task使用同一数据集也不从外层继承。`parameters`中的标量表示固定值，list表示需要枚举的候选值；`t1`对所有list参数取笛卡尔积。例如下面的task会生成`2×2=4`个具体任务：
+JSON最外层是task list；同一个JSON可以包含不同数据目录的任务。每个task都必须自行记录描述实验用途的唯一`name`、绝对`data_dir`和CSV文件路径`csv_path`，即使相邻task使用同一数据目录也不从外层继承。相对`csv_path`以项目根目录为基准；一个task包含多个field时，路径使用`{field}`作为field名称占位符。同一数据、同一field需要测试不同固定参数时，应写成名称不同的多个task。
+
+`field_list`和`compressor_list`是所有task共有的穷举维度。单点集task使用`rel_eb_list`穷举误差上限；多点集task不再重复提供`rel_eb_list`，而是在`unsz.point_set_config_path_list`中依次列出待测的完整点集JSON，相对路径以项目根目录为基准。每份点集JSON是一次完整的UNSZ误差配置，不同点集可以使用不同EB。若同一task还测试UMC，t1收集全部点集JSON中出现的REL EB、去重后分别运行UMC；UMC不模拟一个文件内不同点集使用不同EB，而是生成用于同PSNR曲线比较的普通REL EB基线。UNSZ结果使用点集JSON路径标识，UMC和单点集UNSZ结果使用REL EB标识。UNSZ的`flow`是一个dict：`label`和`value`分别列出待测的标签与数值流程，二者做笛卡尔积；单点集只写`value`。UMC不使用UNSZ流程，因此下面的单点集task会运行`2个field×2个REL EB×2种压缩器=8`组实验。数据目录、time step数和坐标维数等公共信息直接写在task中；只有UNSZ使用的流程、预测、排序、坐标变换和EB参数放在`unsz`中，只有UMC使用的参数放在`umc`中。t1直接把选中的点集JSON传给压缩器和解压器，不临时生成或修改它。其他参数均为单值，不因写成list而自动展开。正式配置不接受绕过结构化字段的额外命令行参数列表。
 
 ```json
 [
   {
-    "name":"height_tuning",
-    "dataset":"Tsunami",
-    "folder":"Tsunami",
-    "parameters":{
-      "variable":"height",
-      "steps":1,
-      "dim":2,
-      "config":"rbf_sort_all_then_split_rounds_mean_reference_distance",
-      "shape":[0.01,0.03],
-      "ordering_candidate_num":[8,16]
+    "name":"tsunami_height_tuning",
+    "data_dir":"/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tsunami",
+    "csv_path":"results/current/fields/tsunami_{field}.csv",
+    "field_list":["height","momentum_x"],
+    "rel_eb_list":[0.01,0.001],
+    "compressor_list":["unsz","umc"],
+    "time_step_num":1,
+    "coordinate_dim":2,
+    "unsz":{
+      "flow":{"value":["spatial"]},
+      "predictor":{"name":"rbf","rbf_kernel":"matern32","rbf_shape":0.03,"rbf_nugget":1e-6,"rbf_solver":"ldlt","fallback":{"name":"idw","idw_power":2}},
+      "ordering_scope":"global",
+      "prediction_round_num":1,
+      "ordering_score":"msd",
+      "prediction_min_ref_num":10,
+      "prediction_max_ref_num":10,
+      "ordering_candidate_num":16,
+      "ordering_score_max_ref_num":10,
+      "ordering_score_min_ref_num":10,
+      "eb_schedule":{"name":"inverse_rank_log2","base":0.85,"log2_shift":0.5,"max_log2_exponent":7}
+    },
+    "umc":{
+      "from_edge":1,
+      "reorder":1,
+      "method":"NBP-IDW",
+      "neighbor_num":4
     }
   }
 ]
 ```
 
-`parameters`之外的list不参与展开，因此`common_extra`、`training`等有顺序或整体含义的数据仍按原样传递。若没有显式给出`rel_eb`，每个展开后的任务固定运行REL`1e-1～1e-5`五点曲线；把`rel_eb`写成`parameters`中的list时，则每个误差上限成为一个独立任务。
+`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`、`rbf_nugget`、`rbf_solver`和`fallback`，其中`fallback`明确记录同点集参考点不足时使用的`idw`及其`idw_power`，或者`nearest`。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是数值预测器最多使用的同点集参考点数；同点集参考点少于`prediction_min_ref_num`时，RBF改用`fallback`。当前正式RBF配置的上下限相同，IDW的下限为1。排序评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope`只决定在全体点还是各轮内部排序，`prediction_round_num`独立记录轮数；两者都必须显式配置，程序不会根据其中一个推导另一个。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时空流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`，因此不再依赖预测轮数限制最小EB倍率。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要覆盖默认DAG缓存路径时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器自动使用数据目录中的`.unsz_cache/<field>.dag`。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`、`.unsz.bin`和联合时空`.joint.unsz`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与DAG缓存不会被删除。
 
 UMC任务默认比较压缩端与独立解压端报告的PSNR，但不逐点读取磁盘上的`.umc.out`。需要在更新UMC、修改输入转换或冻结最终结果时检查实际输出文件，可以在task中设置`"verify_umc_disk_output":true`；该检查使用NumPy分块计算，不计入UMC核心压缩或解压时间。
 
@@ -227,7 +245,7 @@ UNSZ目前实现了六种压缩流程：
   </tbody>
 </table>
 
-`configs/`中的task JSON不是由C++直接读取的。对于单点集field，展开后的`config`参数指定该field采用纯空间、时间零阶外插、时间一阶内插或带空间补偿的时间预测。`t1_start_c_code.py`把它转换为命令行参数，并用同一组流程参数分别启动压缩器和解压器。C++再根据实际time step数量进入相应的专用函数：只有1步时固定使用纯空间；有2步时，一阶内插退化为零阶外插，“一阶内插＋空间补偿”相应退化为“零阶外插＋空间补偿”；至少有3步时才会进入一阶内插函数。六种流程各有独立入口，并使用编译期固定的预测模式，因此单点集的逐点数值循环不再反复判断当前属于哪种时间流程。
+`configs/`中的task JSON不是由C++直接读取的。对于单点集field，`unsz.flow.value`指定该field采用纯空间、时间零阶外插、时间一阶内插或带空间补偿的时间预测；对于双点集field，`unsz.flow.label`和`unsz.flow.value`分别指定标签与数值流程。`t1_start_c_code.py`展开流程组合，把它们转换为命令行参数，并用同一组流程参数分别启动压缩器和解压器。C++再根据实际time step数量进入相应的专用函数：只有1步时固定使用纯空间；有2步时，一阶内插退化为零阶外插，“一阶内插＋空间补偿”相应退化为“零阶外插＋空间补偿”；至少有3步时才会进入一阶内插函数。六种流程各有独立入口，并使用编译期固定的预测模式，因此单点集的逐点数值循环不再反复判断当前属于哪种时间流程。
 
 时间一阶内插可通过`-time-step-coordinate-file <path>`读取一维float64原始数组，第`i`个数是time step `i`的实际坐标。压缩和解压必须读取同一文件；不传该参数时保持原有的等间距假设。对应task使用`time_step_coordinate_file`记录文件名并同时传给两端，普通等时间间隔数据不需要记录这一项。
 
@@ -242,10 +260,10 @@ UNSZ根据点之间的距离选择参考点，但原始坐标中的距离不一�
 正式训练入口只指定一份task JSON。例如：
 
 ```bash
-./unsz_env/bin/python t2_adjust_coord.py tsunami
+./unsz_env/bin/python t2_adjust_coord.py katrina
 ```
 
-`t2`通过`t1_start_c_code.load_tasks()`读取明确指定的JSON，不会扫描`configs/`并根据dataset猜测配置文件。它依次使用每个展开后field的数据路径、维数、time step数和最终数值预测器；已有正式矩阵名时覆盖该文件名，否则默认写入`adjust_coord_matrices/<dataset>_<field>_spatial.txt`。命令行不提供单独的训练参数，避免正式矩阵使用不同协议。需要只训练部分field时，应提供只包含这些task或field的JSON；做消融时可以先调用该函数取得配置，再传给`t2_adjust_coord.train_adjust_coord()`并通过关键字参数覆盖统一训练配置。更底层的`adjust_coord()`也保留完整参数接口。
+`t2`通过`t1_start_c_code.load_json_tasks()`读取明确指定的JSON，不会扫描`configs/`并根据dataset猜测配置文件。它依次使用每个task的数据路径、维数、time step数和最终数值预测器。正式训练所需的loss、优化器、采样数量、迭代数、矩阵混合参数、训练REL EB和输出矩阵文件名都必须在task中显式记录；缺少字段时直接报错，不从其他参数推导，也不使用隐藏默认值。命令行不提供单独的训练参数，避免正式矩阵使用不同协议。需要只训练部分field时，应提供只包含这些task或field的JSON；做消融时可以调用`t2_adjust_coord.train_adjust_coord()`，通过函数参数明确覆盖训练配置。更底层的`adjust_coord()`保留完整参数接口。
 
 坐标按照`c'=cC`变换，训练希望两个点的数值差与它们在新坐标中的距离接近：
 
@@ -253,18 +271,18 @@ UNSZ根据点之间的距离选择参考点，但原始坐标中的距离不一�
 |v1-v2|≈||(c1-c2)C||₂
 ```
 
-这个过程是迭代式的。默认使用4轮；Katrina的码长loss在第3轮后明显退化，因此固定使用2轮。
+这个过程是迭代式的。迭代轮数由task中的`adjust_coord_iteration_num`明确给出；Katrina的码长loss在第3轮后明显退化，因此当前配置使用2轮。
 
-训练不需要读取所有time step，而是在整个时间范围内等间隔选择`sample_file_num`个文件，默认选择3个。例如Katrina共有162个文件时，会读取第27、80和134个文件。随后，每轮迭代中依次执行采样、训练和后处理。
+训练不需要读取所有time step，而是在整个时间范围内等间隔选择task中`adjust_coord_sample_file_num`指定数量的文件。Katrina当前明确设置为3，因此162个文件中会读取第27、80和134个文件。随后，每轮迭代中依次执行采样、训练和后处理。
 
 ### 2.2.1. 采样
 
 每轮迭代要做两次采样。第一次采样决定用哪些点建立近邻树，主要控制建树和查询的规模；第二次采样只从树上的点中挑选一部分作为目标，主要控制交给优化器的点对数量。具体过程如下：
 
-1. 从全部坐标中无放回地随机选择`ceil(point_num×first_sample_ratio)`个点，默认使用25%。选出的编号会排序，因此没有重复且保持原始点编号顺序。第一次采样不能太稀疏，否则树上的“最近点”会离目标太远，无法代表完整点云中的局部关系。
+1. 从全部坐标中无放回地随机选择`ceil(point_num×first_sample_ratio)`个点；比例由task中的`adjust_coord_first_sample_ratio`明确给出，Katrina当前使用25%。选出的编号会排序，因此没有重复且保持原始点编号顺序。第一次采样不能太稀疏，否则树上的“最近点”会离目标太远，无法代表完整点云中的局部关系。
 2. 对每个训练文件分别删除这批点中的异常值。当前Python版本只通过`is_abnormal()`把点分为正常和异常两类，并且不让异常点参与训练。由于异常点的位置会随time step改变，每个文件最终留下的点可能不同。
-3. 从每个文件剩余的点中再次无放回地随机选择目标，也就是训练点对的第一个点。`t2`默认每轮固定选择10000个目标，并尽量平均分给各训练文件，从而不让点数或time step数量改变优化器的输入规模；field可以在`t1`中覆盖该数值，Katrina当前使用100000个目标。Python函数可以通过`second_sample_num`调整固定数量；只有显式设为0时才改用`ceil(第一次采样点数×训练文件数×second_sample_ratio)`。
-4. 对每个文件单独建立一棵`cKDTree`。树上的坐标先经过当前`C`变换；查询时选择`actual_ref_num`个近邻作为点对的第二个点。正式`t2`从对应task读取实际预测器的参考点数，因此当前Tsunami配置中每个目标使用10个近邻；Python函数仍可显式覆盖该数值。
+3. 从每个文件剩余的点中再次无放回地随机选择目标，也就是训练点对的第一个点。目标数由task中的`adjust_coord_second_sample_num`明确给出，并尽量平均分给各训练文件，从而不让点数或time step数量改变优化器的输入规模；Katrina当前使用100000个目标。Python函数可以通过`second_sample_num`覆盖该固定数量；只有显式设为0时才改用`ceil(第一次采样点数×训练文件数×second_sample_ratio)`。
+4. 对每个文件单独建立一棵`cKDTree`。树上的坐标先经过当前`C`变换；查询时选择`prediction_max_ref_num`个近邻作为点对的第二个点。正式`t2`从对应task读取实际预测器的参考点数，因此当前Tsunami配置中每个目标使用10个近邻；Python函数仍可显式覆盖该数值。
 5. 对每个点对记录数值差`Δv`和未经变换的原始坐标差`Δc`。
 
 采样相关方案如下：
@@ -288,7 +306,7 @@ UNSZ根据点之间的距离选择参考点，但原始坐标中的距离不一�
     <tr>
       <td>第一次采样密度和第二次目标数量</td>
       <td>待验证</td>
-      <td>降低第一次采样率会减少建树、近邻查询的时间和内存，但树中点变稀疏，查询到的近邻会比完整点云中的真实近邻更远，可能使训练矩阵失真，目前使用25%。第二次采样只控制作为训练目标的点数，基本上决定adjust coord的速度。Katrina码长loss从10000增加到31324、60000和100000个目标时实际BR持续改善，当前固定为100000；其他field仍默认10000。</td>
+      <td>降低第一次采样率会减少建树、近邻查询的时间和内存，但树中点变稀疏，查询到的近邻会比完整点云中的真实近邻更远，可能使训练矩阵失真，Katrina当前使用25%。第二次采样只控制作为训练目标的点数，基本上决定adjust coord的速度。Katrina码长loss从10000增加到31324、60000和100000个目标时实际BR持续改善，当前配置固定为100000；其他field在建立正式训练配置时也必须显式记录该值。</td>
       <td>新field先使用10000个目标；只有实际压缩验证表明扩样有效时再增加</td>
     </tr>
     <tr>
@@ -308,7 +326,7 @@ UNSZ根据点之间的距离选择参考点，但原始坐标中的距离不一�
 
 ### 2.2.2. 训练
 
-汇总所有样本点对的数值差和原始坐标差后，程序训练一个公共的下三角矩阵`C`。当前`t2`默认使用离散量化区间码长loss `prediction_ggd_bit`。它从`t1`读取该field最终采用的IDW或RBF预测器及其参考点数、power、kernel、shape、nugget和多项式次数，再在真实数据上生成预测误差。二次方loss定义为：
+汇总所有样本点对的数值差和原始坐标差后，程序训练一个公共的下三角矩阵`C`。训练loss由task中的`adjust_coord_loss`明确指定；Katrina当前使用离散量化区间码长loss `prediction_ggd_bit`。程序从task JSON读取该field最终采用的IDW或RBF预测器及其参考点数、`idw_power`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`，再在真实数据上生成预测误差。二次方loss定义为：
 
 $$ L(C)=\sum_i\left(\lvert\Delta v_i\rvert-\lVert\Delta c_iC\rVert_2\right)^2 $$
 
@@ -477,8 +495,8 @@ $$ L(C)=\sum_i\left(\lvert\Delta v_i\rvert-\lVert\Delta c_iC\rVert_2\right)^2 $$
 推荐通过矩阵文件使用训练结果。压缩和解压必须提供同一个文件：
 
 ```bash
-install/bin/s1_compress -data-dir /path/to/Katrina -variable attr0 -time-step '[0,9]' -dim 3 -M REL 1e-3 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
-install/bin/s1_decompress -data-dir /path/to/Katrina -variable attr0 -time-step '[0,9]' -dim 3 -M REL 1e-3 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
+install/bin/s1_compress -data-dir /path/to/Katrina -field attr0 -time-step '[0,9]' -coordinate-dim 3 -M REL 1e-3 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
+install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0,9]' -coordinate-dim 3 -M REL 1e-3 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
 ```
 
 矩阵文件记录数据集、field、维数、下三角元素和训练类型。`training_type=spatial`表示只使用空间坐标训练；`training_type=spatiotemporal`表示把time step作为额外坐标维度进行联合时空训练。当前选定矩阵集中保存在`adjust_coord_matrices/`，格式和文件索引见其中的`README.md`。
@@ -687,7 +705,7 @@ d_i^2=\lVert c-c_i\rVert_2^2,\qquad
 \hat v_{\mathrm{IDW}}=\frac{\sum_i v_i(d_i^2)^{-p/2}}{\sum_i(d_i^2)^{-p/2}}.
 $$
 
-其中$p$由`-inverse-distance-power`指定。程序保存的是欧氏距离的平方，因此$(d_i^2)^{-p/2}$等价于使用$d_i^{-p}$；3.3.1节的高速IDW配置固定使用$p=2$。
+其中$p$由`-idw-power`指定。程序保存的是欧氏距离的平方，因此$(d_i^2)^{-p/2}$等价于使用$d_i^{-p}$；3.3.1节的高速IDW配置固定使用$p=2$。
 
 RBF的思路是：先根据坐标计算目标与各参考点、参考点彼此之间的相似度，再求出一组与这些相似度匹配的权重，最后对参考值加权求和。首先用目标到参考点的均方距离统一缩放当前局部邻域：
 
@@ -702,7 +720,9 @@ z(c_1,c_2)=\frac{\sqrt{3}\varepsilon\lVert c_1-c_2\rVert_2}{s},\qquad
 \kappa(c_1,c_2)=\left(1+z(c_1,c_2)\right)\exp\left(-z(c_1,c_2)\right).
 $$
 
-其中`ε`是shape。随后求解权重`w₁,...,wₖ`和一个辅助量`μ`，使每个参考点`cᵢ`都满足：
+其中`ε`是`rbf_shape`。另外也存在Gaussian、Exponential、Matérn-5/2、Inverse Multiquadric，不同的核对权重生成的速度的影响不大，因为耗时主要在下一步解方程中。
+
+随后求解权重`w₁,...,wₖ`和一个辅助量`μ`，使每个参考点`cᵢ`都满足：
 
 $$
 \begin{aligned}
@@ -711,13 +731,13 @@ $$
 \end{aligned}
 $$
 
-`λ`是nugget；最后一个约束保证常量field仍能被精确预测。得到权重后：
+`λ`是`rbf_nugget`；最后一个约束保证常量field仍能被精确预测。得到权重后：
 
 $$
 \hat v_{\mathrm{RBF}}=\sum_iw_iv_i.
 $$
 
-这就是当前0阶趋势RBF的完整计算。在相同参考点数量的情况下，RBF预测器的速度其实和IDW一样，因为最终的压缩还是加权平均。但RBF需要更多的参考点才能预测，并且预处理阶段生成权重需要更长的时间。另一方面来说，在参考点较多时，RBF提供更准确的预测。
+这就是RBF的完整计算。UNSZ固定使用0阶常数趋势：辅助量`μ`和约束`Σwᵢ=1`保证常量field被精确预测，不实现或配置更高阶趋势。在相同参考点数量的情况下，RBF预测器的速度其实和IDW一样，因为最终的压缩还是加权平均。但RBF需要更多的参考点才能预测，并且预处理阶段生成权重需要更长的时间。另一方面来说，在参考点较多时，RBF提供更准确的预测。
 
 <table class="fixed-layout-table" width="100%">
   <colgroup>
@@ -1195,7 +1215,7 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
     </tr>
     <tr>
       <td>预测器</td>
-      <td>RBF，10参考点，Matérn-3/2核，shape <code>0.03</code>，nugget <code>1e-6</code>，无趋势项</td>
+      <td>RBF，10参考点，Matérn-3/2核，<code>rbf_shape=0.03</code>，<code>rbf_nugget=1e-6</code>，0阶常数趋势</td>
     </tr>
     <tr>
       <td>多点集、空间预测时，RBF没有足够同类参考点的退化方案</td>
@@ -1224,7 +1244,9 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
 
 `configs/`中的task JSON是当前运行配置的权威记录，3.2节只汇总已经选定或正在调优的方案。主要baseline为UMC；SZ3和ZFP留到正式实验阶段补充。
 
-RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点，并在共同PSNR范围内直接对BR作分段线性插值。速度统计压缩与解压的程序内部核心时间之和；DAG、RBF权重和坐标变换等预处理单独报告。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
+单点集RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点；多点集RD曲线由`point_set_config_path_list`中的完整误差配置构成，每个点集可以使用不同EB。UNSZ与UMC曲线不要求使用相同EB，而是在共同PSNR范围内直接对BR和耗时作分段线性插值后比较。UMC合并多个time step的MSE时所需的数据范围，在每个task的每个field开始实验前计算一次，并传给该field的全部UMC实验，不随REL EB重复读取输入。速度统计压缩与解压的程序内部核心时间之和；压缩端与解压端的预处理时间分别记录，其中包括各自的DAG加载或生成、RBF权重生成等操作，坐标变换时间仍按现有输出单独排除。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
+
+UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同一计时口径：压缩时间为field重排与核心压缩之和，解压时间为核心解压与恢复原始顺序之和；读取输入、写出结果、读取原始field进行误差验证和误差统计均不计入。ADCIRC-Haiyan-1.5km的connectivity包含两个连通分量，而UMC的DPFS只遍历0号点所在的连通分量，无法生成覆盖全部点的有效重排。我们不修改UMC算法，也不改用`reorder=0`；因此Haiyan汇报为UMC无法运行，不计算`CR/UMC`和`总时间/UMC`。
 
 数据转换入口见`py_codes/prepare_datasets/prepare_*.py`。当前仓库只保留Tsunami和Katrina的详细实验结果；其他数据集保留可重新运行的正式配置和转换程序。
 

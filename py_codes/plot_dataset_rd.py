@@ -14,58 +14,27 @@ def read_csv_rows(csv_path):
 
 def read_rows(csv_path,time_step_num,reference_csv_path=None):
     source=read_csv_rows(csv_path)
-    if reference_csv_path is not None:
-        reference_source=read_csv_rows(reference_csv_path)
-        unsz_rows={float(row["rel_eb"]):row for row in source}
-        umc_rows={float(row["rel_eb"]):row for row in reference_source if row["compressor"]=="umc" and int(row["time_step_num"])==time_step_num}
-        rows=[]
-        for rel_eb in sorted(set(unsz_rows)&set(umc_rows),reverse=True):
-            unsz_row=unsz_rows[rel_eb]
-            umc_row=umc_rows[rel_eb]
-            input_mb=float(umc_row["input_bytes"])/1e6
-            rows.append({
-                "REL_EB":rel_eb,
-                "TIME_STEP_NUM":time_step_num,
-                "UNSZ_BR":unsz_row["br"],
-                "UNSZ_PSNR":unsz_row["psnr"],
-                "UNSZ_COMPRESSION_MB_S":input_mb/float(unsz_row["compression_time"]),
-                "UNSZ_DECOMPRESSION_MB_S":input_mb/float(unsz_row["decompression_time"]),
-                "UMC_BR":umc_row["br"],
-                "UMC_PSNR":umc_row["psnr"],
-                "UMC_COMPRESSION_MB_S":umc_row["compression_MB_s"],
-                "UMC_DECOMPRESSION_MB_S":umc_row["decompression_MB_s"],
-            })
-        if len(rows)!=5:
-            raise ValueError(f"{csv_path}和{reference_csv_path}没有完整的五点UNSZ/UMC曲线")
-        return rows
+    reference_source=read_csv_rows(reference_csv_path) if reference_csv_path is not None else source
     if source and "compressor" in source[0]:
-        grouped={}
-        for row in source:
-            if int(row["time_step_num"])==time_step_num:
-                grouped.setdefault(float(row["rel_eb"]),{})[row["compressor"]]=row
-        rows=[]
-        for rel_eb,group in grouped.items():
-            if "unsz" not in group or "umc" not in group:
-                continue
-            row={"REL_EB":rel_eb,"TIME_STEP_NUM":time_step_num}
-            for method in ("UNSZ","UMC"):
-                source_row=group[method.lower()]
-                row[f"{method}_BR"]=source_row["br"]
-                row[f"{method}_PSNR"]=source_row["psnr"]
-                row[f"{method}_COMPRESSION_MB_S"]=source_row["compression_MB_s"]
-                row[f"{method}_DECOMPRESSION_MB_S"]=source_row["decompression_MB_s"]
-            rows.append(row)
+        unsz_rows=[row for row in source if row["compressor"]=="unsz" and int(row["time_step_num"])==time_step_num]
+    elif source and "UNSZ_BR" in source[0]:
+        unsz_rows=[{"br":row["UNSZ_BR"],"psnr":row["UNSZ_PSNR"],"compression_MB_s":row["UNSZ_COMPRESSION_MB_S"],"decompression_MB_s":row["UNSZ_DECOMPRESSION_MB_S"]} for row in source if int(row["TIME_STEP_NUM"])==time_step_num and row.get("UNSZ_BR","")]
     else:
-        rows=[row for row in source if int(row["TIME_STEP_NUM"])==time_step_num and row.get("UNSZ_BR","") and row.get("UMC_BR","")]
-    rows.sort(key=lambda row:float(row["REL_EB"]),reverse=True)
-    if len(rows)!=5:
-        raise ValueError(f"{csv_path}没有完整的五点UNSZ/UMC曲线")
-    return rows
+        unsz_rows=[row for row in source if int(row["time_step_num"])==time_step_num]
+    if reference_source and "compressor" in reference_source[0]:
+        umc_rows=[row for row in reference_source if row["compressor"]=="umc" and int(row["time_step_num"])==time_step_num]
+    elif reference_source and "UMC_BR" in reference_source[0]:
+        umc_rows=[{"br":row["UMC_BR"],"psnr":row["UMC_PSNR"],"compression_MB_s":row["UMC_COMPRESSION_MB_S"],"decompression_MB_s":row["UMC_DECOMPRESSION_MB_S"]} for row in reference_source if int(row["TIME_STEP_NUM"])==time_step_num and row.get("UMC_BR","")]
+    else:
+        umc_rows=[]
+    if len(unsz_rows)<2 or len(umc_rows)<2:
+        raise ValueError(f"{csv_path}没有可插值的完整UNSZ/UMC曲线")
+    return unsz_rows,umc_rows
 
 
-def read_curve(rows,method):
-    rows=sorted(rows,key=lambda row:float(row[f"{method}_PSNR"]))
-    return np.asarray([float(row[f"{method}_BR"]) for row in rows]),np.asarray([float(row[f"{method}_PSNR"]) for row in rows])
+def read_curve(rows):
+    rows=sorted(rows,key=lambda row:float(row["psnr"]))
+    return np.asarray([float(row["br"]) for row in rows]),np.asarray([float(row["psnr"]) for row in rows])
 
 
 def calculate_average_br_change(reference_br,reference_psnr,test_br,test_psnr):
@@ -88,6 +57,23 @@ def combined_throughput(compression_throughput,decompression_throughput):
     return 1/(1/compression_throughput+1/decompression_throughput)
 
 
+def read_throughput_curve(rows):
+    rows=sorted(rows,key=lambda row:float(row["psnr"]))
+    psnr=np.asarray([float(row["psnr"]) for row in rows])
+    throughput=np.asarray([combined_throughput(float(row["compression_MB_s"]),float(row["decompression_MB_s"])) for row in rows])
+    return psnr,throughput
+
+
+def calculate_total_time_ratio(unsz_rows,umc_rows):
+    unsz_psnr,unsz_throughput=read_throughput_curve(unsz_rows)
+    umc_psnr,umc_throughput=read_throughput_curve(umc_rows)
+    lower=max(unsz_psnr.min(),umc_psnr.min())
+    upper=min(unsz_psnr.max(),umc_psnr.max())
+    knots=np.unique(np.concatenate(([lower,upper],unsz_psnr[(unsz_psnr>lower)&(unsz_psnr<upper)],umc_psnr[(umc_psnr>lower)&(umc_psnr<upper)])))
+    ratios=np.interp(knots,umc_psnr,umc_throughput)/np.interp(knots,unsz_psnr,unsz_throughput)
+    return math.exp(np.log(ratios).mean())
+
+
 def resolve_field_csv(data_dir,dataset,field):
     direct_path=data_dir/f"{field}.csv"
     if direct_path.exists():
@@ -107,9 +93,9 @@ def plot(data_dir,dataset,fields,time_step_num,output_prefix,column_num,referenc
     for field,axis in zip(fields,axes.ravel()):
         csv_path=resolve_field_csv(data_dir,dataset,field)
         reference_csv_path=resolve_field_csv(reference_data_dir,dataset,field) if reference_data_dir is not None else None
-        rows=read_rows(csv_path,time_step_num,reference_csv_path)
-        unsz_br,unsz_psnr=read_curve(rows,"UNSZ")
-        umc_br,umc_psnr=read_curve(rows,"UMC")
+        unsz_rows,umc_rows=read_rows(csv_path,time_step_num,reference_csv_path)
+        unsz_br,unsz_psnr=read_curve(unsz_rows)
+        umc_br,umc_psnr=read_curve(umc_rows)
         average_br_change=calculate_average_br_change(umc_br,umc_psnr,unsz_br,unsz_psnr)
         summary.append((field,average_br_change))
         axis.plot(umc_br,umc_psnr,color="#D55E00",marker="o",markersize=5,linewidth=2,label="UMC")
@@ -130,16 +116,13 @@ def plot(data_dir,dataset,fields,time_step_num,output_prefix,column_num,referenc
     for field,axis in zip(fields,axes.ravel()):
         csv_path=resolve_field_csv(data_dir,dataset,field)
         reference_csv_path=resolve_field_csv(reference_data_dir,dataset,field) if reference_data_dir is not None else None
-        rows=read_rows(csv_path,time_step_num,reference_csv_path)
-        rel_eb=np.asarray([float(row["REL_EB"]) for row in rows])
-        unsz_total=np.asarray([combined_throughput(float(row["UNSZ_COMPRESSION_MB_S"]),float(row["UNSZ_DECOMPRESSION_MB_S"])) for row in rows])
-        umc_total=np.asarray([combined_throughput(float(row["UMC_COMPRESSION_MB_S"]),float(row["UMC_DECOMPRESSION_MB_S"])) for row in rows])
-        total_time_ratio=math.prod(umc_total/unsz_total)**(1/len(rows))
-        axis.plot(rel_eb,unsz_total,color="#0072B2",marker="s",linewidth=2,label="UNSZ")
-        axis.plot(rel_eb,umc_total,color="#D55E00",marker="o",linewidth=2,label="UMC")
-        axis.set_xscale("log")
-        axis.invert_xaxis()
-        axis.set_xlabel("Relative error bound")
+        unsz_rows,umc_rows=read_rows(csv_path,time_step_num,reference_csv_path)
+        unsz_psnr,unsz_total=read_throughput_curve(unsz_rows)
+        umc_psnr,umc_total=read_throughput_curve(umc_rows)
+        total_time_ratio=calculate_total_time_ratio(unsz_rows,umc_rows)
+        axis.plot(unsz_psnr,unsz_total,color="#0072B2",marker="s",linewidth=2,label="UNSZ")
+        axis.plot(umc_psnr,umc_total,color="#D55E00",marker="o",linewidth=2,label="UMC")
+        axis.set_xlabel("PSNR (dB)")
         axis.set_ylabel("Combined throughput (MB/s)")
         axis.set_ylim(bottom=0)
         axis.set_title(field.removeprefix(dataset.lower()+"_"))

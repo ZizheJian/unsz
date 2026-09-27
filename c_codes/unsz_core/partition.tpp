@@ -74,8 +74,9 @@ namespace unsz
     void param_c<T_coord,T_data>::generate_partition_pred_refs_structure()
     {
         auto start_time=chrono::steady_clock::now();
-        if (d_only_cache_refill_threshold_experimental>max_ref_num)
-            throw runtime_error("D-only缓存重查阈值不能大于max_ref_num");
+        uint32_t effective_ordering_score_max_ref_num=ordering_score_max_ref_num;
+        if(ordering_score_min_ref_num>effective_ordering_score_max_ref_num)
+            throw runtime_error("MSD/reference-data ordering缓存重查阈值不能大于ordering_score_max_ref_num");
         uint32_t tree_leaf_size=kd_tree_leaf_size;
         if (partition_size_experimental>0)
             tree_leaf_size=min(tree_leaf_size,partition_size_experimental);
@@ -85,7 +86,7 @@ namespace unsz
         build_partitions(query_tree);
         printf("Generating fully independent partition prediction DAG with partition_num=%llu, thread_num=%u\n",(unsigned long long)partition_point_ids_vec.size(),thread_num);
         printf("Round size growth ratio: %.9g\n",round_size_growth_ratio_experimental);
-        vector<vector<vector<int>>> partition_round_target_ids(partition_point_ids_vec.size(),vector<vector<int>>(predict_round_num));
+        vector<vector<vector<int>>> partition_round_target_ids(partition_point_ids_vec.size(),vector<vector<int>>(prediction_round_num));
         mt19937 rng(0);
         for (uint32_t partition_id=0;partition_id<partition_point_ids_vec.size();partition_id++)
         {
@@ -93,7 +94,7 @@ namespace unsz
             shuffle(shuffled_ids.begin(),shuffled_ids.end(),rng);
             uint64_t previous_end=0;
             vector<uint32_t> round_target_num_vec=get_round_target_num_vec((uint32_t)shuffled_ids.size());
-            for(uint32_t round_id=0;round_id<predict_round_num;round_id++)
+            for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
             {
                 uint64_t current_end=previous_end+round_target_num_vec[round_id];
                 partition_round_target_ids[partition_id][round_id].assign(shuffled_ids.begin()+previous_end,shuffled_ids.begin()+current_end);
@@ -106,15 +107,15 @@ namespace unsz
         auto sorting_start_time=chrono::steady_clock::now();
         block_tree_c<T_coord> reference_tree(query_tree),target_tree(query_tree);
         target_tree.clear_all_valid_num();
-        uint32_t reverse_ref_query_num=min<uint64_t>((uint64_t)max_ref_num+1,point_num);
-        vector<double> d_only_cached_score(point_num);
-        vector<uint32_t> d_only_cached_ref_num(point_num);
-        vector<uint8_t> d_only_cache_initialized(point_num,0),reference_valid(point_num,1);
-        vector<int> d_only_cached_ref_ids((uint64_t)point_num*reverse_ref_query_num);
-        uint64_t d_only_cache_hit_num=0,d_only_cache_reduced_ref_hit_num=0,d_only_cache_miss_num=0;
-        printf("Independent partition D-only order candidates: %u, cache refill threshold: %u\n",order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num,d_only_cache_refill_threshold_experimental>0?d_only_cache_refill_threshold_experimental:max_ref_num);
+        uint32_t reverse_ref_query_num=min<uint64_t>((uint64_t)effective_ordering_score_max_ref_num+1,point_num);
+        vector<double> ordering_score_cached_score(point_num);
+        vector<uint32_t> ordering_score_cached_ref_num(point_num);
+        vector<uint8_t> ordering_score_cache_initialized(point_num,0),reference_valid(point_num,1);
+        vector<int> ordering_score_cached_ref_ids((uint64_t)point_num*reverse_ref_query_num);
+        uint64_t ordering_score_cache_hit_num=0,ordering_score_cache_reduced_ref_hit_num=0,ordering_score_cache_miss_num=0;
+        printf("Independent partition MSD/reference-data ordering order candidates: %u, score references: %u, cache refill threshold: %u\n",ordering_candidate_num,effective_ordering_score_max_ref_num,ordering_score_min_ref_num);
         exception_ptr sorting_exception;
-#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(thread_num>1) reduction(+:d_only_cache_hit_num,d_only_cache_reduced_ref_hit_num,d_only_cache_miss_num)
+#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(thread_num>1) reduction(+:ordering_score_cache_hit_num,ordering_score_cache_reduced_ref_hit_num,ordering_score_cache_miss_num)
         for (int64_t partition_index=0;partition_index<(int64_t)partition_point_ids_vec.size();partition_index++)
         {
             try
@@ -124,7 +125,7 @@ namespace unsz
             vector<T_coord> center_coord(dim);
             for (uint32_t d=0;d<dim;d++)
                 center_coord[d]=(query_tree.get_block_min_coord(block_root_id)[d]+query_tree.get_block_max_coord(block_root_id)[d])/2;
-            for (int round_id=predict_round_num-1;round_id>=0;round_id--)
+            for (int round_id=prediction_round_num-1;round_id>=0;round_id--)
             {
                 auto &target_ids=partition_round_target_ids[partition_id][round_id];
                 if (target_ids.empty())
@@ -138,8 +139,8 @@ namespace unsz
                 while (removed_target_ids.size()<target_ids.size())
                 {
                     nearest_queue_c<T_coord> candidate_queue;
-                    uint32_t order_candidate_num=order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num;
-                    uint32_t candidate_num=min<uint32_t>(order_candidate_num,target_ids.size()-removed_target_ids.size());
+                    uint32_t effective_ordering_candidate_num=ordering_candidate_num;
+                    uint32_t candidate_num=min<uint32_t>(effective_ordering_candidate_num,target_ids.size()-removed_target_ids.size());
                     target_tree.find_original_nearest(candidate_queue,coord_array,candidate_num,block_root_id,query_coord,true);
                     int selected_id=-1;
                     double best_mean_squared_distance=numeric_limits<double>::infinity();
@@ -150,32 +151,32 @@ namespace unsz
                         T_coord route_distance=candidate_queue.top().first;
                         candidate_queue.pop();
                         uint64_t cache_begin=(uint64_t)candidate_id*reverse_ref_query_num;
-                        uint32_t cached_ref_num=d_only_cached_ref_num[candidate_id],valid_cached_ref_num=0;
-                        if (d_only_cache_initialized[candidate_id])
+                        uint32_t cached_ref_num=ordering_score_cached_ref_num[candidate_id],valid_cached_ref_num=0;
+                        if (ordering_score_cache_initialized[candidate_id])
                             for (uint32_t ref_index=0;ref_index<cached_ref_num;ref_index++)
                             {
-                                int cached_ref_id=d_only_cached_ref_ids[cache_begin+ref_index];
+                                int cached_ref_id=ordering_score_cached_ref_ids[cache_begin+ref_index];
                                 if (reference_valid[cached_ref_id])
-                                    d_only_cached_ref_ids[cache_begin+valid_cached_ref_num++]=cached_ref_id;
+                                    ordering_score_cached_ref_ids[cache_begin+valid_cached_ref_num++]=cached_ref_id;
                             }
-                        uint32_t required_cached_ref_num=d_only_cache_refill_threshold_experimental>0?min(d_only_cache_refill_threshold_experimental,cached_ref_num):cached_ref_num;
-                        bool cache_valid=d_only_cache_initialized[candidate_id] && cached_ref_num>0 && valid_cached_ref_num>=required_cached_ref_num;
+                        uint32_t required_cached_ref_num=min(ordering_score_min_ref_num,cached_ref_num);
+                        bool cache_valid=ordering_score_cache_initialized[candidate_id] && cached_ref_num>0 && valid_cached_ref_num>=required_cached_ref_num;
                         double mean_squared_distance;
                         if (cache_valid)
                         {
                             if (valid_cached_ref_num==cached_ref_num)
-                                mean_squared_distance=d_only_cached_score[candidate_id];
+                                mean_squared_distance=ordering_score_cached_score[candidate_id];
                             else
                             {
                                 double squared_distance_sum=0;
                                 for (uint32_t ref_index=0;ref_index<valid_cached_ref_num;ref_index++)
-                                    squared_distance_sum+=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[d_only_cached_ref_ids[cache_begin+ref_index]],dim);
+                                    squared_distance_sum+=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[ordering_score_cached_ref_ids[cache_begin+ref_index]],dim);
                                 mean_squared_distance=squared_distance_sum/valid_cached_ref_num;
-                                d_only_cached_score[candidate_id]=mean_squared_distance;
-                                d_only_cached_ref_num[candidate_id]=valid_cached_ref_num;
-                                d_only_cache_reduced_ref_hit_num++;
+                                ordering_score_cached_score[candidate_id]=mean_squared_distance;
+                                ordering_score_cached_ref_num[candidate_id]=valid_cached_ref_num;
+                                ordering_score_cache_reduced_ref_hit_num++;
                             }
-                            d_only_cache_hit_num++;
+                            ordering_score_cache_hit_num++;
                         }
                         else
                         {
@@ -192,15 +193,15 @@ namespace unsz
                                 if (ref_id!=candidate_id)
                                 {
                                     squared_distance_sum+=squared_distance;
-                                    d_only_cached_ref_ids[cache_begin+reference_num]=ref_id;
+                                    ordering_score_cached_ref_ids[cache_begin+reference_num]=ref_id;
                                     reference_num++;
                                 }
                             }
                             mean_squared_distance=reference_num>0?squared_distance_sum/reference_num:numeric_limits<double>::infinity();
-                            d_only_cached_score[candidate_id]=mean_squared_distance;
-                            d_only_cached_ref_num[candidate_id]=reference_num;
-                            d_only_cache_initialized[candidate_id]=1;
-                            d_only_cache_miss_num++;
+                            ordering_score_cached_score[candidate_id]=mean_squared_distance;
+                            ordering_score_cached_ref_num[candidate_id]=reference_num;
+                            ordering_score_cache_initialized[candidate_id]=1;
+                            ordering_score_cache_miss_num++;
                         }
                         if (selected_id==-1 || mean_squared_distance<best_mean_squared_distance || (mean_squared_distance==best_mean_squared_distance && route_distance<best_route_distance))
                         {
@@ -231,11 +232,11 @@ namespace unsz
         if(sorting_exception)
             rethrow_exception(sorting_exception);
         printf("Independent partition target sorting time: %f s\n",chrono::duration<double>(chrono::steady_clock::now()-sorting_start_time).count());
-        printf("Independent partition D-only score cache: %llu hits, %llu misses\n",(unsigned long long)d_only_cache_hit_num,(unsigned long long)d_only_cache_miss_num);
-        printf("Independent partition D-only reduced-reference cache hits: %llu\n",(unsigned long long)d_only_cache_reduced_ref_hit_num);
+        printf("Independent partition MSD/reference-data ordering score cache: %llu hits, %llu misses\n",(unsigned long long)ordering_score_cache_hit_num,(unsigned long long)ordering_score_cache_miss_num);
+        printf("Independent partition MSD/reference-data ordering reduced-reference cache hits: %llu\n",(unsigned long long)ordering_score_cache_reduced_ref_hit_num);
 
-        vector<vector<vector<pair<int,vector<int>>>>> partition_round_entries(partition_point_ids_vec.size(),vector<vector<pair<int,vector<int>>>>(predict_round_num));
-        vector<vector<vector<vector<double>>>> partition_round_weights(partition_point_ids_vec.size(),vector<vector<vector<double>>>(predict_round_num));
+        vector<vector<vector<pair<int,vector<int>>>>> partition_round_entries(partition_point_ids_vec.size(),vector<vector<pair<int,vector<int>>>>(prediction_round_num));
+        vector<vector<vector<vector<double>>>> partition_round_weights(partition_point_ids_vec.size(),vector<vector<vector<double>>>(prediction_round_num));
         reference_tree.clear_all_valid_num();
         exception_ptr reference_exception;
 #pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(thread_num>1)
@@ -245,11 +246,11 @@ namespace unsz
             {
             uint32_t partition_id=(uint32_t)partition_index;
             int block_root_id=partition_root_block_ids[partition_id];
-            for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+            for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
                 for (int pred_id:partition_round_target_ids[partition_id][round_id])
                 {
                     nearest_queue_c<T_coord> reference_queue;
-                    reference_tree.find_original_nearest(reference_queue,coord_array,max_ref_num,block_root_id,coord_array[pred_id],true);
+                    reference_tree.find_original_nearest(reference_queue,coord_array,prediction_max_ref_num,block_root_id,coord_array[pred_id],true);
                     vector<int> ref_ids;
                     while (!reference_queue.empty())
                     {
@@ -262,7 +263,7 @@ namespace unsz
                     for (int ref_id:ref_ids)
                     {
                         double squared_distance=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
-                        ref_weights.push_back(squared_distance==0?numeric_limits<double>::infinity():pow(squared_distance,-inverse_distance_power/2));
+                        ref_weights.push_back(squared_distance==0?numeric_limits<double>::infinity():pow(squared_distance,-idw_power/2));
                     }
                     partition_round_entries[partition_id][round_id].push_back({pred_id,move(ref_ids)});
                     partition_round_weights[partition_id][round_id].push_back(move(ref_weights));
@@ -279,7 +280,7 @@ namespace unsz
         if(reference_exception)
             rethrow_exception(reference_exception);
 
-        round_target_ids.assign(predict_round_num,vector<int>());
+        round_target_ids.assign(prediction_round_num,vector<int>());
         pred_target_ids.clear();
         pred_target_ids.reserve(point_num);
         pred_ref_ids.clear();
@@ -287,7 +288,7 @@ namespace unsz
         pred_ref_begin.reserve((uint64_t)point_num+1);
         pred_ref_begin.push_back(0);
         pred_ref_weights.clear();
-        for (uint32_t round_id=0;round_id<predict_round_num;round_id++)
+        for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
             for (uint32_t partition_id=0;partition_id<partition_point_ids_vec.size();partition_id++)
                 for (uint32_t entry_id=0;entry_id<partition_round_entries[partition_id][round_id].size();entry_id++)
                 {
@@ -301,7 +302,7 @@ namespace unsz
                 }
         if (pred_target_ids.size()!=point_num)
             throw runtime_error("独立partition预测DAG没有覆盖所有点");
-        if (!prediction_structure_path.empty())
+        if (!dag_cache_path.empty())
             save_pred_refs_structure();
         prepare_pred_refs_structure();
         printf("Generated independent partition prediction entries: %llu, total time: %f s\n",(unsigned long long)pred_target_ids.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());

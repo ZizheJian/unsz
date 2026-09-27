@@ -159,13 +159,13 @@ def log_distance_loss_jacobian(coord_diff,abs_eb,parameter,dim):
             parameter_id+=1
     return jacobian
 
-def inverse_distance_prediction_error(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power):
+def inverse_distance_prediction_error(target_value,ref_value,coord_diff,parameter,dim,idw_power):
     transform_matrix=constant_lower_triangular_matrix(parameter,dim)
     transformed_coord_diff=np.einsum("nkd,df->nkf",coord_diff,transform_matrix)
     squared_distance=np.einsum("nkd,nkd->nk",transformed_coord_diff,transformed_coord_diff)
     zero_distance=squared_distance==0
     safe_squared_distance=np.where(zero_distance,1,squared_distance)
-    weight=safe_squared_distance**(-inverse_distance_power/2)
+    weight=safe_squared_distance**(-idw_power/2)
     predicted_value=np.sum(weight*ref_value,axis=1)/np.sum(weight,axis=1)
     has_zero_distance=np.any(zero_distance,axis=1)
     if np.any(has_zero_distance):
@@ -173,13 +173,13 @@ def inverse_distance_prediction_error(target_value,ref_value,coord_diff,paramete
         predicted_value[row_id]=ref_value[row_id,np.argmax(zero_distance[row_id],axis=1)]
     return target_value-predicted_value
 
-def inverse_distance_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power):
+def inverse_distance_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,idw_power):
     transform_matrix=constant_lower_triangular_matrix(parameter,dim)
     transformed_coord_diff=np.einsum("nkd,df->nkf",coord_diff,transform_matrix)
     squared_distance=np.einsum("nkd,nkd->nk",transformed_coord_diff,transformed_coord_diff)
     zero_distance=squared_distance==0
     safe_squared_distance=np.where(zero_distance,1,squared_distance)
-    weight=safe_squared_distance**(-inverse_distance_power/2)
+    weight=safe_squared_distance**(-idw_power/2)
     normalized_weight=weight/np.sum(weight,axis=1,keepdims=True)
     predicted_value=np.sum(normalized_weight*ref_value,axis=1)
     has_zero_distance=np.any(zero_distance,axis=1)
@@ -191,7 +191,7 @@ def inverse_distance_prediction_error_jacobian(target_value,ref_value,coord_diff
     for row in range(dim):
         for col in range(row+1):
             squared_distance_derivative=2*coord_diff[:,:,row]*transformed_coord_diff[:,:,col]
-            log_weight_derivative=(-inverse_distance_power/2)*squared_distance_derivative/safe_squared_distance
+            log_weight_derivative=(-idw_power/2)*squared_distance_derivative/safe_squared_distance
             prediction_derivative=np.sum(normalized_weight*(ref_value-predicted_value[:,None])*log_weight_derivative,axis=1)
             prediction_derivative[has_zero_distance]=0
             jacobian[:,parameter_id]=-prediction_derivative
@@ -234,26 +234,25 @@ def rbf_kernel_derivative(normalized_squared_distance,kernel,shape):
         return (-5*shape*shape/6)*(1+value)*np.exp(-value)
     raise ValueError(f"未知的RBF核函数：{kernel}")
 
-def rbf_prediction_error(target_value,ref_value,coord_diff,parameter,dim,kernel,shape,nugget,polynomial_degree,inverse_distance_power):
-    if polynomial_degree not in (0,1,2):
-        raise ValueError("RBF多项式次数必须是0、1或2")
+def rbf_prediction_error(target_value,ref_value,coord_diff,parameter,dim,kernel,shape,nugget,fallback_name,fallback_power):
     if not shape>0 or not nugget>0:
         raise ValueError("RBF shape和nugget必须为正数")
-    fallback_error=inverse_distance_prediction_error(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power)
     transform_matrix=constant_lower_triangular_matrix(parameter,dim)
     transformed_coord_diff=np.einsum("nkd,df->nkf",coord_diff,transform_matrix)
     target_squared_distance=np.einsum("nkd,nkd->nk",transformed_coord_diff,transformed_coord_diff)
     zero_distance=target_squared_distance==0
-    predicted_value=target_value-fallback_error
+    if fallback_name=="idw":
+        predicted_value=target_value-inverse_distance_prediction_error(target_value,ref_value,coord_diff,parameter,dim,fallback_power)
+    elif fallback_name=="nearest":
+        predicted_value=ref_value[np.arange(ref_value.shape[0]),np.argmin(target_squared_distance,axis=1)]
+    else:
+        raise ValueError(f"未知RBF回退预测器：{fallback_name}")
     has_zero_distance=np.any(zero_distance,axis=1)
     if np.any(has_zero_distance):
         row_ids=np.flatnonzero(has_zero_distance)
         predicted_value[row_ids]=ref_value[row_ids,np.argmax(zero_distance[row_ids],axis=1)]
     active_ids=np.flatnonzero(~has_zero_distance)
-    trend_size=1+(dim if polynomial_degree>=1 else 0)+(dim*(dim+1)//2 if polynomial_degree>=2 else 0)
     ref_num=ref_value.shape[1]
-    if ref_num<trend_size:
-        return target_value-predicted_value
     for batch_begin in range(0,active_ids.size,512):
         batch_ids=active_ids[batch_begin:batch_begin+512]
         batch_coord_diff=transformed_coord_diff[batch_ids]
@@ -272,20 +271,11 @@ def rbf_prediction_error(target_value,ref_value,coord_diff,parameter,dim,kernel,
         kernel_matrix=rbf_kernel_value(pair_squared_distance/mean_squared_distance[:,None,None],kernel,shape)
         diagonal=np.arange(ref_num)
         kernel_matrix[:,diagonal,diagonal]+=nugget
-        distance_scale=np.sqrt(mean_squared_distance)
-        trend_vec=[np.ones((solve_ids.size,ref_num,1),dtype=np.float64)]
-        if polynomial_degree>=1:
-            linear_feature=ref_relative_coord/distance_scale[:,None,None]
-            trend_vec.append(linear_feature)
-        if polynomial_degree>=2:
-            quadratic_feature=[linear_feature[:,:,first_dim]*linear_feature[:,:,second_dim] for first_dim in range(dim) for second_dim in range(first_dim,dim)]
-            trend_vec.append(np.stack(quadratic_feature,axis=2))
-        trend=np.concatenate(trend_vec,axis=2)
-        system_size=ref_num+trend_size
+        system_size=ref_num+1
         system=np.zeros((solve_ids.size,system_size,system_size),dtype=np.float64)
         system[:,:ref_num,:ref_num]=kernel_matrix
-        system[:,:ref_num,ref_num:]=trend
-        system[:,ref_num:,:ref_num]=np.swapaxes(trend,1,2)
+        system[:,:ref_num,ref_num]=1
+        system[:,ref_num,:ref_num]=1
         target_feature=np.zeros((solve_ids.size,system_size),dtype=np.float64)
         target_feature[:,:ref_num]=rbf_kernel_value(batch_target_squared_distance/mean_squared_distance[:,None],kernel,shape)
         target_feature[:,ref_num]=1
@@ -303,16 +293,19 @@ def rbf_prediction_error(target_value,ref_value,coord_diff,parameter,dim,kernel,
         predicted_value[solve_ids[valid_prediction]]=batch_prediction[valid_prediction]
     return target_value-predicted_value
 
-def rbf_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,kernel,shape,nugget,polynomial_degree,inverse_distance_power):
-    if polynomial_degree!=0:
-        raise ValueError("微分熵loss的RBF解析梯度目前只支持0次多项式")
-    fallback_error,fallback_jacobian=inverse_distance_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power)
+def rbf_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,kernel,shape,nugget,fallback_name,fallback_power):
     transform_matrix=constant_lower_triangular_matrix(parameter,dim)
     transformed_coord_diff=np.einsum("nkd,df->nkf",coord_diff,transform_matrix)
     target_squared_distance=np.einsum("nkd,nkd->nk",transformed_coord_diff,transformed_coord_diff)
     zero_distance=target_squared_distance==0
-    predicted_value=target_value-fallback_error
-    jacobian=fallback_jacobian.copy()
+    if fallback_name=="idw":
+        fallback_error,jacobian=inverse_distance_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,fallback_power)
+        predicted_value=target_value-fallback_error
+    elif fallback_name=="nearest":
+        predicted_value=ref_value[np.arange(ref_value.shape[0]),np.argmin(target_squared_distance,axis=1)]
+        jacobian=np.zeros((target_value.size,parameter.size),dtype=np.float64)
+    else:
+        raise ValueError(f"未知RBF回退预测器：{fallback_name}")
     has_zero_distance=np.any(zero_distance,axis=1)
     if np.any(has_zero_distance):
         row_ids=np.flatnonzero(has_zero_distance)
@@ -405,18 +398,18 @@ def rbf_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,di
         jacobian[solved_ids[valid_prediction]]=-batch_prediction_derivative[valid_prediction]
     return target_value-predicted_value,jacobian
 
-def value_prediction_error(target_value,ref_value,coord_diff,parameter,dim,predictor_name,inverse_distance_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree):
-    if predictor_name=="inverse_proportion":
-        return inverse_distance_prediction_error(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power)
-    if predictor_name=="rbf_fitting":
-        return rbf_prediction_error(target_value,ref_value,coord_diff,parameter,dim,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree,inverse_distance_power)
+def value_prediction_error(target_value,ref_value,coord_diff,parameter,dim,predictor_name,idw_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_fallback_name):
+    if predictor_name=="idw":
+        return inverse_distance_prediction_error(target_value,ref_value,coord_diff,parameter,dim,idw_power)
+    if predictor_name=="rbf":
+        return rbf_prediction_error(target_value,ref_value,coord_diff,parameter,dim,rbf_kernel,rbf_shape,rbf_nugget,rbf_fallback_name,idw_power)
     raise ValueError(f"未知的数值预测器：{predictor_name}")
 
-def value_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,predictor_name,inverse_distance_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree):
-    if predictor_name=="inverse_proportion":
-        return inverse_distance_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,inverse_distance_power)
-    if predictor_name=="rbf_fitting":
-        return rbf_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree,inverse_distance_power)
+def value_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,predictor_name,idw_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_fallback_name):
+    if predictor_name=="idw":
+        return inverse_distance_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,idw_power)
+    if predictor_name=="rbf":
+        return rbf_prediction_error_jacobian(target_value,ref_value,coord_diff,parameter,dim,rbf_kernel,rbf_shape,rbf_nugget,rbf_fallback_name,idw_power)
     raise ValueError(f"未知的数值预测器：{predictor_name}")
 
 def generalized_gaussian_bit_residual(normalized_error,file_group,shape):
@@ -484,7 +477,7 @@ def separate_transform_scale(transform_matrix):
         raise RuntimeError("坐标变换矩阵倍率必须是有限正数")
     return transform_matrix/scale,scale
 
-def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",iteration_num=4,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.1,new_matrix_weight=0.5,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=1,optimizer_name="least_squares",matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=10000,predictor_name="inverse_proportion",inverse_distance_power=2,rbf_kernel="matern32",rbf_shape=0.01,rbf_nugget=1e-6,rbf_polynomial_degree=0): # 访问多个文件来决定公共变换矩阵，但这个矩阵只会应用到每个文件的坐标上，而不会跨时间步使用
+def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",iteration_num=4,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.1,new_matrix_weight=0.5,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=1,optimizer_name="least_squares",matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=10000,predictor_name="idw",idw_power=2,rbf_kernel="matern32",rbf_shape=0.01,rbf_nugget=1e-6,rbf_fallback_name="idw"): # 访问多个文件来决定公共变换矩阵，但这个矩阵只会应用到每个文件的坐标上，而不会跨时间步使用
     generalized_gaussian_shape=0.5
     random_seed=0
     if matrix_scale_mode not in ["discard","separate"]:
@@ -542,8 +535,8 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
         for sampled_file_id,data in enumerate(sampled_data):
             stage_start_time=time.perf_counter()
             valid_ids=np.flatnonzero(~is_abnormal(data))
-            if valid_ids.size<=param.actual_ref_num:
-                raise ValueError(f"第{file_ids[sampled_file_id]}个数据文件在第一次采样后只有{valid_ids.size}个有效点，无法寻找{param.actual_ref_num}个参考点")
+            if valid_ids.size<=param.prediction_max_ref_num:
+                raise ValueError(f"第{file_ids[sampled_file_id]}个数据文件在第一次采样后只有{valid_ids.size}个有效点，无法寻找{param.prediction_max_ref_num}个参考点")
             current_sample_num=min(valid_ids.size,int(np.ceil(remaining_sample_num/(len(sampled_data)-sampled_file_id))))
             target_ids=np.sort(rng.choice(valid_ids,size=current_sample_num,replace=False))
             remaining_sample_num-=current_sample_num
@@ -554,7 +547,7 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
             time_dict["建树"]+=time.perf_counter()-stage_start_time
     
             stage_start_time=time.perf_counter()
-            query_num=param.actual_ref_num+1
+            query_num=param.prediction_max_ref_num+1
             _,neighbor_tree_ids=tree.query(sampled_coord[target_ids],k=query_num)
             neighbor_tree_ids=np.asarray(neighbor_tree_ids).reshape(-1,query_num)
             time_dict["最近邻查询"]+=time.perf_counter()-stage_start_time
@@ -562,13 +555,13 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
             stage_start_time=time.perf_counter()
             neighbor_ids=valid_ids[neighbor_tree_ids]
             nonself_mask=neighbor_ids!=target_ids[:,None]
-            selected_mask=nonself_mask & (np.cumsum(nonself_mask,axis=1)<=param.actual_ref_num)
+            selected_mask=nonself_mask & (np.cumsum(nonself_mask,axis=1)<=param.prediction_max_ref_num)
             selected_num=np.sum(selected_mask,axis=1)
-            if np.any(selected_num!=param.actual_ref_num):
-                failed_target_id=target_ids[np.flatnonzero(selected_num!=param.actual_ref_num)[0]]
-                failed_selected_num=selected_num[np.flatnonzero(selected_num!=param.actual_ref_num)[0]]
+            if np.any(selected_num!=param.prediction_max_ref_num):
+                failed_target_id=target_ids[np.flatnonzero(selected_num!=param.prediction_max_ref_num)[0]]
+                failed_selected_num=selected_num[np.flatnonzero(selected_num!=param.prediction_max_ref_num)[0]]
                 raise RuntimeError(f"第{file_ids[sampled_file_id]}个数据文件的目标点{failed_target_id}只找到了{failed_selected_num}个非自身参考点")
-            selected_neighbor_ids=neighbor_ids[selected_mask].reshape(-1,param.actual_ref_num)
+            selected_neighbor_ids=neighbor_ids[selected_mask].reshape(-1,param.prediction_max_ref_num)
             prediction_coord_diff.append(original_sampled_coord[target_ids,None,:]-original_sampled_coord[selected_neighbor_ids])
             prediction_target_value.append(data[target_ids])
             prediction_ref_value.append(data[selected_neighbor_ids])
@@ -584,7 +577,7 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
         prediction_file_group=np.concatenate(prediction_file_group).astype(np.int64,copy=False)
         pair_coord_diff=prediction_coord_diff.reshape(-1,param.dim)
         pair_value_diff=(prediction_target_value[:,None]-prediction_ref_value).ravel()
-        pair_abs_eb=np.repeat(prediction_abs_eb,param.actual_ref_num)
+        pair_abs_eb=np.repeat(prediction_abs_eb,param.prediction_max_ref_num)
         time_dict["合并点对数组"]+=time.perf_counter()-stage_start_time
     
         def residual(parameter):
@@ -595,12 +588,12 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
             if loss_function_name=="log_distance":
                 return log_distance_loss(pair_value_diff,pair_coord_diff,pair_abs_eb,parameter,param.dim)
             if loss_function_name=="prediction_ggd_bit":
-                prediction_error=value_prediction_error(prediction_target_value,prediction_ref_value,prediction_coord_diff,parameter,param.dim,predictor_name,inverse_distance_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree)
+                prediction_error=value_prediction_error(prediction_target_value,prediction_ref_value,prediction_coord_diff,parameter,param.dim,predictor_name,idw_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_fallback_name)
                 return generalized_gaussian_bit_residual(prediction_error/prediction_abs_eb,prediction_file_group,generalized_gaussian_shape)
             raise ValueError(f"未知的坐标调整损失函数：{loss_function_name}")
 
         def differential_entropy_value_gradient(parameter):
-            prediction_error,prediction_error_jacobian=value_prediction_error_jacobian(prediction_target_value,prediction_ref_value,prediction_coord_diff,parameter,param.dim,predictor_name,inverse_distance_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree)
+            prediction_error,prediction_error_jacobian=value_prediction_error_jacobian(prediction_target_value,prediction_ref_value,prediction_coord_diff,parameter,param.dim,predictor_name,idw_power,rbf_kernel,rbf_shape,rbf_nugget,rbf_fallback_name)
             return generalized_gaussian_differential_entropy_value_gradient(prediction_error,prediction_error_jacobian,prediction_file_group,generalized_gaussian_shape)
     
         stage_start_time=time.perf_counter()
@@ -680,7 +673,7 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
         if matrix_history_path and ((iteration+1)%matrix_save_interval==0 or iteration+1==iteration_num):
             history_path=Path(matrix_history_path)
             history_path.parent.mkdir(parents=True,exist_ok=True)
-            np.savez(history_path,loss_function_name=loss_function_name,optimizer_name=optimizer_name,predictor_name=predictor_name,rbf_kernel=rbf_kernel,rbf_shape=rbf_shape,rbf_nugget=rbf_nugget,rbf_polynomial_degree=rbf_polynomial_degree,iteration=np.asarray(iteration_history),matrix=np.asarray(matrix_history),loss=np.asarray(loss_history),scaled_loss=np.asarray(scaled_loss_history),nfev=np.asarray(nfev_history),njev=np.asarray(njev_history),optimality=np.asarray(optimality_history),elapsed_time=np.asarray(elapsed_time_history),pair_num=np.asarray(pair_num_history),first_sample_num=np.asarray(first_sample_num_history),first_sample_spatial_nearest_distance=np.asarray(first_sample_spatial_nearest_distance_history),transform_scale=np.asarray(transform_scale_history),fitted_scale=np.asarray(fitted_scale_history),first_sample_ratio=first_sample_ratio,second_sample_ratio=second_sample_ratio,second_sample_num=second_sample_num,new_matrix_weight=new_matrix_weight,new_matrix_scale_weight=new_matrix_scale_weight,matrix_scale_mode=matrix_scale_mode,adjust_max_nfev=adjust_max_nfev,sample_file_num=sample_file_num,actual_ref_num=param.actual_ref_num,inverse_distance_power=inverse_distance_power,generalized_gaussian_shape=generalized_gaussian_shape,matrix_save_interval=matrix_save_interval)
+            np.savez(history_path,loss_function_name=loss_function_name,optimizer_name=optimizer_name,predictor_name=predictor_name,rbf_kernel=rbf_kernel,rbf_shape=rbf_shape,rbf_nugget=rbf_nugget,rbf_fallback_name=rbf_fallback_name,iteration=np.asarray(iteration_history),matrix=np.asarray(matrix_history),loss=np.asarray(loss_history),scaled_loss=np.asarray(scaled_loss_history),nfev=np.asarray(nfev_history),njev=np.asarray(njev_history),optimality=np.asarray(optimality_history),elapsed_time=np.asarray(elapsed_time_history),pair_num=np.asarray(pair_num_history),first_sample_num=np.asarray(first_sample_num_history),first_sample_spatial_nearest_distance=np.asarray(first_sample_spatial_nearest_distance_history),transform_scale=np.asarray(transform_scale_history),fitted_scale=np.asarray(fitted_scale_history),first_sample_ratio=first_sample_ratio,second_sample_ratio=second_sample_ratio,second_sample_num=second_sample_num,new_matrix_weight=new_matrix_weight,new_matrix_scale_weight=new_matrix_scale_weight,matrix_scale_mode=matrix_scale_mode,adjust_max_nfev=adjust_max_nfev,sample_file_num=sample_file_num,prediction_max_ref_num=param.prediction_max_ref_num,idw_power=idw_power,generalized_gaussian_shape=generalized_gaussian_shape,matrix_save_interval=matrix_save_interval)
         if (iteration+1)%10==0 and iteration+1<iteration_num:
             stage_start_time=time.perf_counter()
             iteration_transformed_coord=param.coord_array@transform_matrix
@@ -707,9 +700,9 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
             print(f"  {name}：{value:.6f} s")
     print(f"  adjust_coord总耗时：{time_dict['adjust_coord总耗时']:.6f} s")
 
-def adjust_coord(param,loss_function_name="prediction_ggd_bit",iteration_num=4,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.1,new_matrix_weight=0.5,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=1,optimizer_name="least_squares",matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=10000,predictor_name="inverse_proportion",inverse_distance_power=2,rbf_kernel="matern32",rbf_shape=0.01,rbf_nugget=1e-6,rbf_polynomial_degree=0)->None:
+def adjust_coord(param,loss_function_name="prediction_ggd_bit",iteration_num=4,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.1,new_matrix_weight=0.5,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=1,optimizer_name="least_squares",matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=10000,predictor_name="idw",idw_power=2,rbf_kernel="matern32",rbf_shape=0.01,rbf_nugget=1e-6,rbf_fallback_name="idw")->None:
     if param.cross_time_compress:
         raise ValueError("联合时空adjust coord已弃用")
-    adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,matrix_scale_mode=matrix_scale_mode,new_matrix_scale_weight=new_matrix_scale_weight,second_sample_num=second_sample_num,predictor_name=predictor_name,inverse_distance_power=inverse_distance_power,rbf_kernel=rbf_kernel,rbf_shape=rbf_shape,rbf_nugget=rbf_nugget,rbf_polynomial_degree=rbf_polynomial_degree)
+    adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,matrix_scale_mode=matrix_scale_mode,new_matrix_scale_weight=new_matrix_scale_weight,second_sample_num=second_sample_num,predictor_name=predictor_name,idw_power=idw_power,rbf_kernel=rbf_kernel,rbf_shape=rbf_shape,rbf_nugget=rbf_nugget,rbf_fallback_name=rbf_fallback_name)
 
     

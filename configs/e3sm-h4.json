@@ -1,63 +1,101 @@
 [
   {
-    "name":"AODDUST",
-    "dataset":"E3SM-h4",
-    "folder":"E3SM-h4",
-    "field_list":[
+    "name": "e3sm_h4_aoddust",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h4",
+    "csv_path": "results/current/fields/e3sm_h4_{field}.csv",
+    "field_list": [
       "AODDUST"
     ],
-    "rel_eb_list":[
-      0.1,
-      0.01,
-      0.001,
-      0.0001,
-      0.00001
-    ],
-    "method_list":[
+    "compressor_list": [
       "unsz",
       "umc"
     ],
-    "steps":720,
-    "dim":3,
-    "config":"constant_extrapolation",
-    "predictor":"inverse_proportion",
-    "ref_num":4,
-    "condition":{
-      "operator":">=",
-      "value":-1000
+    "time_step_num": 720,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "label": [
+          "spatial"
+        ],
+        "value": [
+          "constant_extrapolation"
+        ]
+      },
+      "predictor": {
+        "name": "idw",
+        "idw_power": 2
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 1,
+      "prediction_max_ref_num": 4,
+      "ordering_score_max_ref_num": 4,
+      "ordering_score_min_ref_num": 4,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "label_value_execution": "staged",
+      "ordering_candidate_num": 4,
+      "point_set_config_path_list": [
+        "point_set_configs/E3SM_h4_AODDUST_idw_rel_1e-1.json",
+        "point_set_configs/E3SM_h4_AODDUST_idw_rel_1e-2.json",
+        "point_set_configs/E3SM_h4_AODDUST_idw_rel_1e-3.json",
+        "point_set_configs/E3SM_h4_AODDUST_idw_rel_1e-4.json",
+        "point_set_configs/E3SM_h4_AODDUST_idw_rel_1e-5.json"
+      ]
     },
-    "umc":{
-      "umc_from_edge":1,
-      "umc_method":"NBP-IDW-INP",
-      "umc_neighbor_num":4,
-      "umc_batch":10
+    "umc": {
+      "from_edge": 1,
+      "reorder": 1,
+      "method": "NBP-IDW-INP",
+      "neighbor_num": 4,
+      "batch": 10
     }
   },
   {
-    "name":"Mass_dst_srf",
-    "dataset":"E3SM-h4",
-    "folder":"E3SM-h4",
-    "field_list":[
+    "name": "e3sm_h4_mass_dst_srf",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h4",
+    "csv_path": "results/current/fields/e3sm_h4_{field}.csv",
+    "field_list": [
       "Mass_dst_srf"
     ],
-    "rel_eb_list":[
+    "rel_eb_list": [
       0.1,
       0.01,
       0.001,
       0.0001,
-      0.00001
+      1e-05
     ],
-    "method_list":[
+    "compressor_list": [
       "unsz",
       "umc"
     ],
-    "steps":720,
-    "dim":3,
-    "config":"linear_interpolation",
-    "predictor":"inverse_proportion",
-    "ref_num":4,
-    "umc":{
-      "umc_from_edge":1
+    "time_step_num": 720,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "linear_interpolation"
+        ]
+      },
+      "predictor": {
+        "name": "idw",
+        "idw_power": 2
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 1,
+      "prediction_max_ref_num": 4,
+      "ordering_score_max_ref_num": 4,
+      "ordering_score_min_ref_num": 4,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "ordering_candidate_num": 4
+    },
+    "umc": {
+      "from_edge": 1,
+      "reorder": 1,
+      "method": "NBP-IDW",
+      "neighbor_num": 4
     }
   }
 ]

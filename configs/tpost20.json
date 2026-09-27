@@ -1,30 +1,56 @@
 [
   {
-    "name":"scalar",
-    "dataset":"Tpost20",
-    "folder":"Tpost20",
-    "field_list":[
+    "name": "tpost20_scalar",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20",
+    "csv_path": "results/current/fields/tpost20_{field}.csv",
+    "field_list": [
       "scalar"
     ],
-    "rel_eb_list":[
+    "rel_eb_list": [
       0.1,
       0.01,
       0.001,
       0.0001,
-      0.00001
+      1e-05
     ],
-    "method_list":[
+    "compressor_list": [
       "unsz",
       "umc"
     ],
-    "steps":20,
-    "dim":3,
-    "config":"linear_interpolation_spatial_residual",
-    "predictor":"rbf_fitting",
-    "ref_num":10,
-    "shape":0.03,
-    "umc":{
-      "umc_from_edge":0
+    "time_step_num": 20,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "linear_interpolation_spatial_residual"
+        ]
+      },
+      "predictor": {
+        "name": "rbf",
+        "rbf_kernel": "matern32",
+        "rbf_shape": 0.03,
+        "rbf_nugget": 1e-06,
+        "rbf_solver": "general",
+        "fallback": {
+          "name": "idw",
+          "idw_power": 2
+        }
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 10,
+      "prediction_max_ref_num": 10,
+      "ordering_score_max_ref_num": 10,
+      "ordering_score_min_ref_num": 10,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "ordering_candidate_num": 10
+    },
+    "umc": {
+      "from_edge": 0,
+      "reorder": 1,
+      "method": "NBP-IDW",
+      "neighbor_num": 4
     }
   }
 ]

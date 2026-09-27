@@ -25,16 +25,16 @@ namespace unsz
             throw runtime_error("单点集时间流程选择要求field恰好配置一个点集");
         if(cross_time_spatial_point_num_experimental>0)
             return;
-        if(cross_time_predictor_experimental!="none"&&cross_time_predictor_experimental!="constant_extrapolation"&&cross_time_predictor_experimental!="linear_interpolation"&&cross_time_predictor_experimental!="constant_extrapolation_spatial_residual"&&cross_time_predictor_experimental!="linear_interpolation_spatial_residual")
-            throw runtime_error("未知的单点集数值预测流程："+cross_time_predictor_experimental);
+        if(value_flow!="none"&&value_flow!="constant_extrapolation"&&value_flow!="linear_interpolation"&&value_flow!="constant_extrapolation_spatial_residual"&&value_flow!="linear_interpolation_spatial_residual")
+            throw runtime_error("未知的单点集数值预测流程："+value_flow);
         if(time_step_vec.empty())
             throw runtime_error("单点集压缩或解压至少需要一个time step");
         if(time_step_vec.size()==1)
-            cross_time_predictor_experimental="none";
-        else if(time_step_vec.size()==2&&cross_time_predictor_experimental=="linear_interpolation")
-            cross_time_predictor_experimental="constant_extrapolation";
-        else if(time_step_vec.size()==2&&cross_time_predictor_experimental=="linear_interpolation_spatial_residual")
-            cross_time_predictor_experimental="constant_extrapolation_spatial_residual";
+            value_flow="none";
+        else if(time_step_vec.size()==2&&value_flow=="linear_interpolation")
+            value_flow="constant_extrapolation";
+        else if(time_step_vec.size()==2&&value_flow=="linear_interpolation_spatial_residual")
+            value_flow="constant_extrapolation_spatial_residual";
     }
 
     template<typename T_coord,typename T_data>
@@ -48,7 +48,7 @@ namespace unsz
         {
             if(point_set_num!=2)
                 throw runtime_error("固定步长锚点流程目前只支持两个点集");
-            if(cross_time_predictor_experimental!="none"||cross_time_label_predictor_experimental!="none"||cross_time_spatial_point_num_experimental>0)
+            if(value_flow!="none"||label_flow!="none"||cross_time_spatial_point_num_experimental>0)
                 throw runtime_error("固定步长锚点流程不能再叠加其他时间预测流程");
             bool first_anchor=current_time_step==time_anchor_first_step;
             bool regular_anchor=current_time_step_is_regular_anchor();
@@ -68,11 +68,11 @@ namespace unsz
                 framework.label_mode=time_dimension_mode_e::endpoint_agreement;
                 framework.value_mode=time_dimension_mode_e::linear_interpolation_spatial_residual;
             }
-            framework.execution=use_fused_two_point_set_prediction_experimental?label_value_execution_e::fused:label_value_execution_e::staged;
+            framework.execution=label_value_execution=="fused"?label_value_execution_e::fused:label_value_execution_e::staged;
             return framework;
         }
         bool use_joint_spatiotemporal=cross_time_spatial_point_num_experimental>0;
-        if(use_joint_spatiotemporal && (cross_time_predictor_experimental!="none" || cross_time_label_predictor_experimental!="none"))
+        if(use_joint_spatiotemporal && (value_flow!="none" || label_flow!="none"))
             throw runtime_error("统一时空DAG不能再叠加零阶外插或一阶内插");
         if(use_joint_spatiotemporal)
         {
@@ -82,33 +82,33 @@ namespace unsz
         }
         else
         {
-            if(cross_time_predictor_experimental=="none")
+            if(value_flow=="none")
                 framework.value_mode=time_dimension_mode_e::spatial;
-            else if(cross_time_predictor_experimental=="constant_extrapolation")
+            else if(value_flow=="constant_extrapolation")
                 framework.value_mode=time_dimension_mode_e::constant_extrapolation;
-            else if(cross_time_predictor_experimental=="linear_interpolation")
+            else if(value_flow=="linear_interpolation")
                 framework.value_mode=time_dimension_mode_e::linear_interpolation;
-            else if(cross_time_predictor_experimental=="linear_interpolation_spatial_residual")
+            else if(value_flow=="linear_interpolation_spatial_residual")
                 framework.value_mode=time_dimension_mode_e::linear_interpolation_spatial_residual;
-            else if(cross_time_predictor_experimental=="constant_extrapolation_spatial_residual")
+            else if(value_flow=="constant_extrapolation_spatial_residual")
                 framework.value_mode=time_dimension_mode_e::constant_extrapolation_spatial_residual;
             else
-                throw runtime_error("未知的数值时间预测方式："+cross_time_predictor_experimental);
+                throw runtime_error("未知的数值时间预测方式："+value_flow);
             if(framework.has_label)
             {
-                if(cross_time_label_predictor_experimental=="none")
+                if(label_flow=="none")
                     framework.label_mode=time_dimension_mode_e::spatial;
-                else if(cross_time_label_predictor_experimental=="previous")
+                else if(label_flow=="constant_extrapolation")
                     framework.label_mode=time_dimension_mode_e::constant_extrapolation;
-                else if(cross_time_label_predictor_experimental=="endpoint_agreement")
+                else if(label_flow=="endpoint_agreement")
                     framework.label_mode=time_dimension_mode_e::endpoint_agreement;
                 else
-                    throw runtime_error("未知的标签时间预测方式："+cross_time_label_predictor_experimental);
+                    throw runtime_error("未知的标签时间预测方式："+label_flow);
             }
         }
         if(!framework.has_label)
             framework.execution=label_value_execution_e::no_label;
-        else if(use_fused_two_point_set_prediction_experimental)
+        else if(label_value_execution=="fused")
             framework.execution=label_value_execution_e::fused;
         else
             framework.execution=label_value_execution_e::staged;

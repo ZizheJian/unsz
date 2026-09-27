@@ -39,13 +39,13 @@ namespace unsz
 
     inline point_set_codec_e parse_point_set_codec(const string &text,const string &location)
     {
-        if(text=="inverse_proportion")
-            return point_set_codec_e::inverse_proportion;
+        if(text=="idw")
+            return point_set_codec_e::idw;
         if(text=="constant")
             return point_set_codec_e::constant;
-        if(text=="rbf_fitting")
-            return point_set_codec_e::rbf_fitting;
-        throw runtime_error(location+"的codec必须是inverse_proportion、constant或rbf_fitting："+text);
+        if(text=="rbf")
+            return point_set_codec_e::rbf;
+        throw runtime_error(location+"的predictor必须是idw、constant或rbf："+text);
     }
 
     inline point_set_error_mode_e parse_point_set_error_mode(const string &text,const string &location)
@@ -103,8 +103,8 @@ namespace unsz
             throw runtime_error("读取点集配置文件失败："+point_set_config_path);
         json_value_c root=json_parser_c(buffer.str()).parse();
         double version=require_json_number(root,"version","点集配置根对象");
-        if(version!=1 || floor(version)!=version)
-            throw runtime_error("点集配置version目前必须是1");
+        if(version!=2 || floor(version)!=version)
+            throw runtime_error("点集配置version目前必须是2");
         reject_unknown_json_fields(root,{"version","labels"},"点集配置根对象");
         const json_value_c &labels=require_json_field(root,"labels","点集配置根对象");
         if(labels.type!=json_type_e::array_value || labels.array_value.empty())
@@ -115,9 +115,9 @@ namespace unsz
         {
             const json_value_c &label=labels.array_value[label_id];
             string location="labels["+to_string(label_id)+"]";
-            reject_unknown_json_fields(label,{"method","eb_mode","eb_value","condition"},location);
+            reject_unknown_json_fields(label,{"predictor","eb_mode","eb_value","condition"},location);
             point_set_config_c config;
-            config.codec=parse_point_set_codec(require_json_string(label,"method",location),location);
+            config.codec=parse_point_set_codec(require_json_string(label,"predictor",location),location);
             auto eb_mode_iterator=label.object_value.find("eb_mode"),eb_value_iterator=label.object_value.find("eb_value");
             if(config.codec==point_set_codec_e::constant)
             {

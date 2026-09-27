@@ -5,7 +5,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_linear_interpolation_order()
     {
-        bool use_linear_interpolation_order=cross_time_predictor_experimental=="linear_interpolation"||cross_time_predictor_experimental=="linear_interpolation_spatial_residual"||cross_time_label_predictor_experimental=="endpoint_agreement";
+        bool use_linear_interpolation_order=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||label_flow=="endpoint_agreement";
         if(!use_linear_interpolation_order||time_anchor_stride_experimental>0)
             return;
         if(time_step_vec.size()<2)

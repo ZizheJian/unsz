@@ -8,7 +8,6 @@
   "rbf_kernel":"matern32",
   "rbf_shape":0.3,
   "rbf_nugget":1e-6,
-  "rbf_polynomial_degree":0,
   "predict_round_num":8,
   "round_size_growth_ratio":2,
   "eb_schedule":"round_point_ratio",

@@ -73,9 +73,9 @@ namespace unsz
             if (config.fitting_method==partition_fitting_method_e::direct)
                 fitting_succeeded=predict_fitting_value(pred_id,selected_ref_ids,data,fitting_prediction,config.fitting_weight_power,config.fitting_ridge,config.normalize_fitting_coord);
             else if (config.fitting_method==partition_fitting_method_e::continuous_mix)
-                fitting_succeeded=predict_continuous_mix_value(pred_id,selected_ref_ids,data,config.inverse_distance_power,config.fitting_weight_power,fitting_prediction);
+                fitting_succeeded=predict_continuous_mix_value(pred_id,selected_ref_ids,data,config.idw_power,config.fitting_weight_power,fitting_prediction);
             else if (config.fitting_method==partition_fitting_method_e::idw_residual)
-                fitting_succeeded=predict_idw_residual_fitting_value(pred_id,selected_ref_ids,data,config.inverse_distance_power,config.fitting_weight_power,fitting_prediction);
+                fitting_succeeded=predict_idw_residual_fitting_value(pred_id,selected_ref_ids,data,config.idw_power,config.fitting_weight_power,fitting_prediction);
             if (fitting_succeeded)
                 return fitting_prediction;
         }
@@ -85,7 +85,7 @@ namespace unsz
             double squared_distance=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
             if (squared_distance==0)
                 return data[ref_id];
-            double weight=pow(squared_distance,-config.inverse_distance_power/2);
+            double weight=pow(squared_distance,-config.idw_power/2);
             if (isinf(weight))
                 return data[ref_id];
             total_weight+=weight;
@@ -101,7 +101,7 @@ namespace unsz
             return;
         if (point_set_point_num_vec.size()!=1)
             throw runtime_error("partition自适应预测器当前只支持单点集数据");
-        if (reorder_data_by_prediction_order_experimental)
+        if (reorder_by_prediction_order)
             throw runtime_error("partition自适应预测器暂不支持预测顺序内部重排");
         vector<partition_prediction_config_c> config_vec=get_partition_prediction_config_vec();
         partition_prediction_config_id_vec.assign(partition_point_ids_vec.size(),0);
@@ -156,8 +156,8 @@ namespace unsz
             uint32_t selected_config_id=local_config_id!=field_config_id&&local_improvement<partition_adaptive_min_improvement_experimental?field_config_id:local_config_id;
             partition_prediction_config_id_vec[partition_id]=(uint8_t)selected_config_id;
             auto &selected_config=config_vec[selected_config_id];
-            const char *predictor_name=!selected_config.use_fitting?"inverse_proportion":selected_config.fitting_method==partition_fitting_method_e::continuous_mix?"continuous_mix":selected_config.fitting_method==partition_fitting_method_e::idw_residual?"idw_residual_fitting":selected_config.fitting_weight_power>0?"weighted_fitting":selected_config.fitting_ridge>0?"ridge_fitting":"fitting";
-            printf("partition_adaptive_config: partition=%u,sample_num=%u,config=%u,local_config=%u,field_config=%u,local_improvement=%.6f,predictor=%s,ref_num=%u,power=%.6g,fitting_weight_power=%.6g,ridge=%.6g,normalize_coord=%u,score=%.6f\n",partition_id,partition_sample_num_vec[partition_id],selected_config_id,local_config_id,field_config_id,local_improvement,predictor_name,selected_config.ref_num,selected_config.inverse_distance_power,selected_config.fitting_weight_power,selected_config.fitting_ridge,selected_config.normalize_fitting_coord,score_vec[selected_config_id]);
+            const char *predictor_name=!selected_config.use_fitting?"idw":selected_config.fitting_method==partition_fitting_method_e::continuous_mix?"continuous_mix":selected_config.fitting_method==partition_fitting_method_e::idw_residual?"idw_residual_fitting":selected_config.fitting_weight_power>0?"weighted_fitting":selected_config.fitting_ridge>0?"ridge_fitting":"fitting";
+            printf("partition_adaptive_config: partition=%u,sample_num=%u,config=%u,local_config=%u,field_config=%u,local_improvement=%.6f,predictor=%s,ref_num=%u,power=%.6g,fitting_weight_power=%.6g,ridge=%.6g,normalize_coord=%u,score=%.6f\n",partition_id,partition_sample_num_vec[partition_id],selected_config_id,local_config_id,field_config_id,local_improvement,predictor_name,selected_config.ref_num,selected_config.idw_power,selected_config.fitting_weight_power,selected_config.fitting_ridge,selected_config.normalize_fitting_coord,score_vec[selected_config_id]);
         }
     }
 }

@@ -32,7 +32,7 @@ using namespace std;
 
 namespace unsz
 {
-    enum class point_set_codec_e:uint8_t{inverse_proportion=0,constant=2,rbf_fitting=5};
+    enum class point_set_codec_e:uint8_t{idw=0,constant=2,rbf=5};
     enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
     enum class partition_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
@@ -49,7 +49,7 @@ namespace unsz
 
     struct point_set_config_c
     {
-        point_set_codec_e codec=point_set_codec_e::inverse_proportion;
+        point_set_codec_e codec=point_set_codec_e::idw;
         point_set_error_mode_e error_mode=point_set_error_mode_e::relative;
         double eb=0;
     };
@@ -81,7 +81,7 @@ namespace unsz
     struct partition_prediction_config_c
     {
         uint32_t ref_num;
-        double inverse_distance_power;
+        double idw_power;
         bool use_fitting;
         double fitting_weight_power=0;
         double fitting_ridge=0;
@@ -93,7 +93,7 @@ namespace unsz
     class nearest_queue_c
     {
         private:
-            static constexpr uint32_t small_capacity=11;//常用max_ref_num不超过10，反向查询额外包含目标自身
+            static constexpr uint32_t small_capacity=11;//常用prediction_max_ref_num不超过10，反向查询额外包含目标自身
             struct distance_less_c
             {
                 inline bool operator()(const pair<T_coord,int> &a,const pair<T_coord,int> &b) const{return a.first<b.first;}
@@ -241,19 +241,19 @@ namespace unsz
             template<typename T_coord2>
             param_c(const param_c<T_coord2,T_data> &other);
 
-            string data_dir,variable_name,error_mode,coord_path,time_step_coordinate_path,prediction_structure_path,adjust_coord_matrix_path,adjust_coord_training_type,point_set_config_path;
+            string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,dag_cache_path,adjust_coord_matrix_file,adjust_coord_training_type,point_set_config_path;
             vector<string> original_data_path_vec,compressed_data_path_vec,decompressed_data_path_vec;
             uint32_t dim=3;
             uint32_t point_num=0;
             T_data rel_eb=0,abs_eb=0;
             bool got_rel_eb=false,got_abs_eb=false;
-            bool got_data_dir=false,got_variable=false,got_time_step=false,got_error_mode=false,got_predictor=false,no_prediction_dag_cache=false;
+            bool got_data_dir=false,got_field=false,got_time_step=false,got_error_mode=false,got_predictor=false,no_prediction_dag_cache=false;
             vector<point_set_rule_c> point_set_rule_vec;
             vector<point_set_config_c> point_set_config_vec;
             bool check_original_data_files=true;
             bool cross_time_compress=false;
-            string cross_time_predictor_experimental="none";//none / constant_extrapolation / linear_interpolation / constant_extrapolation_spatial_residual / linear_interpolation_spatial_residual
-            string cross_time_label_predictor_experimental="none";//none / previous / endpoint_agreement
+            string value_flow="none";//none / constant_extrapolation / linear_interpolation / constant_extrapolation_spatial_residual / linear_interpolation_spatial_residual
+            string label_flow="none";//none / constant_extrapolation / endpoint_agreement
             bool if_adjust_coord=false;
             vector<double> adjust_coord_matrix_parameter_vec;
             bool print_round_statistics=false;
@@ -263,41 +263,41 @@ namespace unsz
             bool print_compression_stage_time=false;
             bool print_prediction_dag_statistics=false;
             bool print_pointwise_oracle_statistics_experimental=false;
-            bool reorder_data_by_prediction_order_experimental=false;
+            bool reorder_by_prediction_order=false;
             string qb_storage_order="prediction";//prediction / original
             double last_reorder_data_by_prediction_order_time=0;
             bool use_normalized_weight_experimental=false;
             bool use_prediction_order_label_experimental=false;
-            bool use_fused_two_point_set_prediction_experimental=false;
+            string label_value_execution="staged";//staged / fused
             bool use_linear_previous_label_experimental=false;
             bool use_predictability_order_experimental=false;
-            bool use_forward_mean_distance_only_order_experimental=false;
+            bool use_forward_msd_order=false;
             bool use_forward_s2_only_order_experimental=false;
             bool use_forward_direction_only_order_experimental=false;
             bool use_forward_mean_distance_s2_order_experimental=false;
             bool use_forward_mean_distance_direction_order_experimental=false;
             bool use_reverse_predictability_order_experimental=false;
             bool use_reverse_distribution_order_experimental=false;
-            bool use_reverse_mean_distance_only_order_experimental=false;
+            bool use_reverse_msd_order=false;
             bool use_reverse_reference_reuse_order_experimental=false;
             bool use_reverse_s2_only_order_experimental=false;
             bool use_reverse_direction_only_order_experimental=false;
             bool use_reverse_direction_order_experimental=false;
             bool use_reverse_direction_distribution_order_experimental=false;
-            vector<uint32_t> order_reference_time_step_vec_experimental;//非空时使用多个参考time step的预测误差搜索公共顺序
-            bool use_reference_data_rbf_score_experimental=false;//参考数据辅助顺序使用RBF而非IDW预测误差评分
-            bool use_global_order_before_round_split_experimental=false;
+            vector<uint32_t> reference_time_step_vec;//非空时使用多个参考time step的预测误差搜索公共顺序
+            bool use_reference_data_rbf_score=false;//参考数据辅助顺序使用RBF而非IDW预测误差评分
+            string ordering_scope="local";//local / global
             uint32_t cache_subpartition_num_experimental=0;//后3轮按kd-tree上层区域连续处理；0表示关闭
-            uint32_t d_only_cache_refill_threshold_experimental=3;//0表示任一参考点失效就重新查询，即精确模式
-            uint32_t order_candidate_num_experimental=0;//0表示使用max_ref_num
-            uint32_t ordering_msd_ref_num_experimental=0;//0表示使用max_ref_num；只控制反向MSD排序评分的参考点数量
+            uint32_t ordering_score_min_ref_num=0;//必须显式设置；缓存中的有效评分参考点少于该值时重新查询
+            uint32_t ordering_candidate_num=0;//必须显式设置
+            uint32_t ordering_score_max_ref_num=0;//必须显式设置；只控制反向MSD排序评分的参考点数量
             uint32_t ordering_msd_neighbor_prefetch_num_experimental=0;//非0时为1点MSD评分预取近邻，并尝试复用为排序候选
             bool use_msd_candidate_score_geometry_reuse_experimental=false;//用排序候选云的距离界证明最近评分参考点时不查kd-tree
             bool use_kd_query_diagnostics_experimental=false;//分别统计排序候选和MSD评分查询的kd-tree工作量
             bool use_kd_leaf_valid_mask_experimental=false;//叶节点用位图枚举有效点，避免逐点检查失效状态
             bool use_kd_iterative_query_experimental=false;//固定栈迭代遍历kd-tree，避免递归函数调用
             bool use_kd_scalar_one_reference_query_experimental=false;//1点MSD用标量最近邻查询并排除目标自身
-            bool use_rbf_ldlt_experimental=false;//常数趋势RBF用正定核矩阵的LDLT分解求权重
+            bool use_rbf_ldlt=false;//常数趋势RBF用正定核矩阵的LDLT分解求权重
             uint32_t precomputed_neighbor_num_experimental=0;//0保持原DAG生成；非0只在初始阶段用kd-tree预存近邻
             uint32_t multihead_execution_head_num_experimental=0;//非0时按空间头轮转执行DAG，并按头连续存储qb
             uint32_t time_anchor_stride_experimental=0;//非0时使用固定步长锚点和区间内插的两点集时间流程
@@ -312,23 +312,23 @@ namespace unsz
             double partition_adaptive_min_improvement_experimental=0;
             string partition_fitting_candidates_experimental="original";//original / weighted / ridge / mixed / residual / extended / all
             string multi_huffman_mode_experimental="none";//none / round / partition / partition_round
-            string eb_schedule_experimental="round_point_ratio";//none / round / point / point_log2_ratio / round_point / round_ratio / round_point_ratio / round_point_ratio_dag / round_point_ratio_dag_direct / round_point_ratio_dag_variance_direct
+            string eb_schedule="round_point_ratio";//none / round / point / inverse_rank_log2 / round_point / round_ratio / round_point_ratio / round_point_ratio_dag / round_point_ratio_dag_direct / round_point_ratio_dag_variance_direct
             double eb_schedule_start_ratio=0.8;
-            double eb_schedule_log2_shift_experimental=0;//point_log2_ratio的指数位移
-            uint32_t predict_round_num=8;
+            double eb_schedule_log2_shift=0;//inverse_rank_log2的指数位移
+            double eb_schedule_max_log2_exponent=7;//inverse_rank_log2的最小EB倍率由该指数限制，不依赖预测轮数
+            uint32_t prediction_round_num=8;
             double round_size_growth_ratio_experimental=2;
-            uint32_t max_ref_num=4;//不知道点集时先保留候选点，再筛选同点集参考点
-            uint32_t actual_ref_num=4;//标签预测使用的候选点数，也是数值预测最多使用的同点集参考点数
-            double inverse_distance_power=2;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
+            uint32_t prediction_min_ref_num=1;//同点集参考点少于该值时使用fallback
+            uint32_t prediction_max_ref_num=4;//DAG保存的参考点数，也是预测器最多使用的同点集参考点数
+            double idw_power=2;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
             string rbf_kernel="gaussian";//gaussian / exponential / matern32 / matern52 / inverse_multiquadric
             double rbf_shape=1;
             double rbf_nugget=1e-8;
-            uint32_t rbf_polynomial_degree=0;
             bool rbf_parameter_specified=false;
-            bool use_rbf_filtered_fallback_nearest_experimental=false;
+            bool rbf_fallback_nearest=false;
             int zstd_compression_level=3;
-            string point_set_predictor="inverse_proportion";//inverse_proportion / majority / continuous_actual / continuous_reflect
-            string predictor="inverse_proportion";//没有逐点集配置时使用的默认预测器
+            string point_set_predictor="idw";//idw / majority / continuous_actual / continuous_reflect
+            string predictor="idw";//没有逐点集配置时使用的默认预测器
 
             Array2D<T_coord> coord_array,coord_array_backup;
             vector<T_coord> min_coord,max_coord;
@@ -415,7 +415,7 @@ namespace unsz
             void generate_precomputed_neighbor_pred_refs_structure();
             void prepare_pred_refs_structure();
             void prepare_multihead_execution_order();
-            void prepare_rbf_fitting_weights();
+            void prepare_rbf_weights();
             void print_prediction_geometry_statistics_result();
             void save_pred_refs_structure();
             void load_pred_refs_structure();
@@ -436,8 +436,8 @@ namespace unsz
             T_data predict_inverse_value_from_coords(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power=-1);
             bool predict_inverse_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error);
             bool predict_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double weight_power=0,double ridge=0,bool normalize_coord=false);
-            bool calculate_rbf_fitting_weights(int pred_id,array_view_c<int> ref_ids,vector<double> &weights);
-            bool predict_rbf_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction);
+            bool calculate_rbf_weights(int pred_id,array_view_c<int> ref_ids,vector<double> &weights);
+            bool predict_rbf_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction);
             bool predict_fitting_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power=0,double ridge=0,bool normalize_coord=true);
             bool predict_continuous_mix_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction);
             bool predict_idw_residual_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction);

@@ -13,9 +13,9 @@ void param_c<T_coord,T_data>::prepare_compression_structure(chrono::steady_clock
         adjust_coord_time=chrono::duration<double>(chrono::steady_clock::now()-adjust_coord_start_time).count();
     }
     load_or_generate_pred_refs_structure();
-    if(any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::rbf_fitting;}))
-        prepare_rbf_fitting_weights();
-    bool data_dependent_eb_schedule=eb_schedule_experimental=="round_point_ratio_dag" || eb_schedule_experimental=="round_point_ratio_dag_direct" || eb_schedule_experimental=="round_point_ratio_dag_variance_direct";
+    if(any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::rbf;}))
+        prepare_rbf_weights();
+    bool data_dependent_eb_schedule=eb_schedule=="round_point_ratio_dag" || eb_schedule=="round_point_ratio_dag_direct" || eb_schedule=="round_point_ratio_dag_variance_direct";
     if(!data_dependent_eb_schedule && cached_pred_eb_multiplier_vec.size()!=point_num)
         cached_pred_eb_multiplier_vec=generate_pred_eb_multiplier_vec(true);
     if (cross_time_spatial_point_num_experimental>0)
@@ -27,11 +27,11 @@ void param_c<T_coord,T_data>::prepare_compression_structure(chrono::steady_clock
         for (uint32_t pred_ref_id=0;pred_ref_id<pred_target_ids.size();pred_ref_id++)
         {
             int pred_id=pred_target_ids[pred_ref_id];
-            uint32_t pred_original_id=reorder_data_by_prediction_order_experimental?prediction_id_to_original_id[pred_id]:pred_id;
+            uint32_t pred_original_id=reorder_by_prediction_order?prediction_id_to_original_id[pred_id]:pred_id;
             bool has_cross_time_ref=false;
             for (int ref_id:get_pred_ref_ids(pred_ref_id))
             {
-                uint32_t ref_original_id=reorder_data_by_prediction_order_experimental?prediction_id_to_original_id[ref_id]:ref_id;
+                uint32_t ref_original_id=reorder_by_prediction_order?prediction_id_to_original_id[ref_id]:ref_id;
                 bool cross_time_ref=pred_original_id!=ref_original_id && pred_original_id%spatial_point_num==ref_original_id%spatial_point_num;
                 cross_time_ref_num+=cross_time_ref;
                 total_ref_num++;
@@ -119,7 +119,7 @@ void param_c<T_coord,T_data>::compress_files(void(param_c<T_coord,T_data>::*comp
         printf("file compression time= %f s\n",compression_time);
         if(last_reorder_data_by_prediction_order_time>0)
             printf("compression input reorder-by-prediction-order time excluded from compression= %f s\n",last_reorder_data_by_prediction_order_time);
-        if (reorder_data_by_prediction_order_experimental)
+        if (reorder_by_prediction_order)
         {
             auto result_reorder_start_time=chrono::steady_clock::now();
             restore_compression_result_to_original_order();
@@ -210,7 +210,7 @@ void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T
         if(fclose(file)!=0)
             throw runtime_error("关闭原始数据文件失败："+path);
     }
-    string compressed_path=data_dir+variable_name+".joint.unsz";
+    string compressed_path=data_dir+field_name+".joint.unsz";
     compressed_data_path_vec.push_back(compressed_path);
     printf("Compressing %llu files as one joint spatiotemporal field: %s\n",(unsigned long long)original_data_path_vec.size(),compressed_path.c_str());
     auto compression_start_time=chrono::steady_clock::now();
@@ -218,7 +218,7 @@ void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T
     double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count()-last_reorder_data_by_prediction_order_time;
     if(last_reorder_data_by_prediction_order_time>0)
         printf("compression input reorder-by-prediction-order time excluded from compression= %f s\n",last_reorder_data_by_prediction_order_time);
-    if(reorder_data_by_prediction_order_experimental)
+    if(reorder_by_prediction_order)
     {
         auto result_reorder_start_time=chrono::steady_clock::now();
         restore_compression_result_to_original_order();
@@ -280,7 +280,7 @@ void param_c<T_coord,T_data>::decompress_joint_spatiotemporal_files(void(param_c
     uint32_t spatial_point_num=cross_time_spatial_point_num_experimental;
     if((uint64_t)spatial_point_num*original_data_path_vec.size()!=point_num)
         throw runtime_error("联合时空点数与time step文件数量不一致");
-    string compressed_path=data_dir+variable_name+".joint.unsz";
+    string compressed_path=data_dir+field_name+".joint.unsz";
     FILE *compressed_file=fopen(compressed_path.c_str(),"rb");
     if(!compressed_file)
         throw runtime_error("找不到联合时空压缩文件："+compressed_path);
@@ -383,73 +383,73 @@ void param_c<T_coord,T_data>::decompress_joint_spatiotemporal_files(void(param_c
 namespace one_point_set::spatial::idw
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::inverse_proportion>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::idw>);}
 }
 
 namespace one_point_set::spatial::rbf
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf_fitting>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf>);}
 }
 
 namespace one_point_set::constant_extrapolation::idw
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::inverse_proportion>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::idw>);}
 }
 
 namespace one_point_set::constant_extrapolation::rbf
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf_fitting>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf>);}
 }
 
 namespace one_point_set::linear_interpolation::idw
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::linear_interpolation,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::inverse_proportion>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::linear_interpolation,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::idw>);}
 }
 
 namespace one_point_set::linear_interpolation::rbf
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::linear_interpolation,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf_fitting>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::linear_interpolation,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf>);}
 }
 
 namespace one_point_set::constant_extrapolation_then_spatial::idw
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::constant_extrapolation_spatial_residual,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::inverse_proportion>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::constant_extrapolation_spatial_residual,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::idw>);}
 }
 
 namespace one_point_set::constant_extrapolation_then_spatial::rbf
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::constant_extrapolation_spatial_residual,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf_fitting>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::constant_extrapolation_spatial_residual,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf>);}
 }
 
 namespace one_point_set::linear_interpolation_then_spatial::idw
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::linear_interpolation_spatial_residual,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::inverse_proportion>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::linear_interpolation_spatial_residual,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::idw>);}
 }
 
 namespace one_point_set::linear_interpolation_then_spatial::rbf
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::linear_interpolation_spatial_residual,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf_fitting>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::linear_interpolation_spatial_residual,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf>);}
 }
 
 namespace one_point_set::joint_spatiotemporal::idw
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_joint_spatiotemporal_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::inverse_proportion>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_joint_spatiotemporal_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::idw>);}
 }
 
 namespace one_point_set::joint_spatiotemporal::rbf
 {
 template<typename T_coord,typename T_data>
-void compress(param_c<T_coord,T_data> &param){param.compress_joint_spatiotemporal_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf_fitting>);}
+void compress(param_c<T_coord,T_data> &param){param.compress_joint_spatiotemporal_files(&param_c<T_coord,T_data>::template compress_point_sets<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf>);}
 }
 
 namespace one_point_set::spatial
@@ -458,9 +458,9 @@ template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data> &param)
 {
     point_set_codec_e codec=param.point_set_config_vec[0].codec;
-    if(codec==point_set_codec_e::inverse_proportion)
+    if(codec==point_set_codec_e::idw)
         idw::compress(param);
-    else if(codec==point_set_codec_e::rbf_fitting)
+    else if(codec==point_set_codec_e::rbf)
         rbf::compress(param);
     else
         throw runtime_error("单点集纯空间压缩只支持IDW或RBF预测器");
@@ -473,9 +473,9 @@ template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data> &param)
 {
     point_set_codec_e codec=param.point_set_config_vec[0].codec;
-    if(codec==point_set_codec_e::inverse_proportion)
+    if(codec==point_set_codec_e::idw)
         idw::compress(param);
-    else if(codec==point_set_codec_e::rbf_fitting)
+    else if(codec==point_set_codec_e::rbf)
         rbf::compress(param);
     else
         throw runtime_error("单点集零阶外插压缩只支持IDW或RBF空间预测器");
@@ -488,9 +488,9 @@ template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data> &param)
 {
     point_set_codec_e codec=param.point_set_config_vec[0].codec;
-    if(codec==point_set_codec_e::inverse_proportion)
+    if(codec==point_set_codec_e::idw)
         idw::compress(param);
-    else if(codec==point_set_codec_e::rbf_fitting)
+    else if(codec==point_set_codec_e::rbf)
         rbf::compress(param);
     else
         throw runtime_error("单点集一阶内插压缩只支持IDW或RBF空间预测器");
@@ -503,9 +503,9 @@ template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data> &param)
 {
     point_set_codec_e codec=param.point_set_config_vec[0].codec;
-    if(codec==point_set_codec_e::inverse_proportion)
+    if(codec==point_set_codec_e::idw)
         idw::compress(param);
-    else if(codec==point_set_codec_e::rbf_fitting)
+    else if(codec==point_set_codec_e::rbf)
         rbf::compress(param);
     else
         throw runtime_error("单点集零阶外插加空间补偿只支持IDW或RBF空间预测器");
@@ -518,9 +518,9 @@ template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data> &param)
 {
     point_set_codec_e codec=param.point_set_config_vec[0].codec;
-    if(codec==point_set_codec_e::inverse_proportion)
+    if(codec==point_set_codec_e::idw)
         idw::compress(param);
-    else if(codec==point_set_codec_e::rbf_fitting)
+    else if(codec==point_set_codec_e::rbf)
         rbf::compress(param);
     else
         throw runtime_error("单点集一阶内插加空间补偿只支持IDW或RBF空间预测器");
@@ -533,9 +533,9 @@ template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data> &param)
 {
     point_set_codec_e codec=param.point_set_config_vec[0].codec;
-    if(codec==point_set_codec_e::inverse_proportion)
+    if(codec==point_set_codec_e::idw)
         idw::compress(param);
-    else if(codec==point_set_codec_e::rbf_fitting)
+    else if(codec==point_set_codec_e::rbf)
         rbf::compress(param);
     else
         throw runtime_error("单点集联合时空压缩只支持IDW或RBF空间预测器");
@@ -552,7 +552,7 @@ void compress(param_c<T_coord,T_data> &param,chrono::steady_clock::time_point pr
     param.resolve_single_point_set_time_mode();
     if(param.cross_time_spatial_point_num_experimental>0)
     {
-        if(!param.order_reference_time_step_vec_experimental.empty())
+        if(!param.reference_time_step_vec.empty())
             throw runtime_error("联合时空压缩暂不支持参考数据辅助排序");
         param.prepare_joint_spatiotemporal_coordinates();
         param.prepare_compression_structure(preprocessing_start_time);
@@ -560,18 +560,18 @@ void compress(param_c<T_coord,T_data> &param,chrono::steady_clock::time_point pr
         return;
     }
     param.prepare_compression_structure(preprocessing_start_time);
-    if(param.cross_time_predictor_experimental=="none")
+    if(param.value_flow=="none")
         spatial::compress(param);
-    else if(param.cross_time_predictor_experimental=="constant_extrapolation")
+    else if(param.value_flow=="constant_extrapolation")
         constant_extrapolation::compress(param);
-    else if(param.cross_time_predictor_experimental=="linear_interpolation")
+    else if(param.value_flow=="linear_interpolation")
         linear_interpolation::compress(param);
-    else if(param.cross_time_predictor_experimental=="constant_extrapolation_spatial_residual")
+    else if(param.value_flow=="constant_extrapolation_spatial_residual")
         constant_extrapolation_then_spatial::compress(param);
-    else if(param.cross_time_predictor_experimental=="linear_interpolation_spatial_residual")
+    else if(param.value_flow=="linear_interpolation_spatial_residual")
         linear_interpolation_then_spatial::compress(param);
     else
-        throw runtime_error("未知的单点集数值预测流程："+param.cross_time_predictor_experimental);
+        throw runtime_error("未知的单点集数值预测流程："+param.value_flow);
 }
 }
 

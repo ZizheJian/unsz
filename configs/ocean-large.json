@@ -1,59 +1,102 @@
 [
   {
-    "name":"temperatureSurfaceValue",
-    "dataset":"Ocean-large",
-    "folder":"Ocean-large/data",
-    "field_list":[
+    "name": "ocean_large_temperature_surface_value",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/data",
+    "csv_path": "results/current/fields/ocean_large_{field}.csv",
+    "field_list": [
       "temperatureSurfaceValue"
     ],
-    "rel_eb_list":[
+    "rel_eb_list": [
       0.1,
       0.01,
       0.001,
       0.0001,
-      0.00001
+      1e-05
     ],
-    "method_list":[
+    "compressor_list": [
       "unsz",
       "umc"
     ],
-    "dim":3,
-    "steps":1,
-    "config":"rbf_split_rounds_then_sort_mean_reference_distance",
-    "ref_num":10,
-    "shape":0.03,
-    "reorder_by_prediction_order":true,
-    "persist_dag":true,
-    "umc":{
-      "umc_from_edge":1
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "predictor": {
+        "name": "rbf",
+        "rbf_kernel": "matern32",
+        "rbf_shape": 0.03,
+        "rbf_nugget": 1e-06,
+        "rbf_solver": "general",
+        "fallback": {
+          "name": "idw",
+          "idw_power": 2
+        }
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 10,
+      "prediction_max_ref_num": 10,
+      "ordering_score_max_ref_num": 10,
+      "ordering_score_min_ref_num": 10,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "ordering_candidate_num": 48,
+      "dag_cache_path": ".unsz_cache/ocean_large_temperature_surface_value_rbf10.dag"
+    },
+    "umc": {
+      "from_edge": 1,
+      "reorder": 1,
+      "method": "NBP-IDW",
+      "neighbor_num": 4
     }
   },
   {
-    "name":"temperature_vertical",
-    "dataset":"Ocean-large",
-    "folder":"Ocean-large/data",
-    "field_list":[
+    "name": "ocean_large_temperature_vertical",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/data",
+    "csv_path": "results/current/fields/ocean_large_{field}.csv",
+    "field_list": [
       "temperature"
     ],
-    "rel_eb_list":[
-      0.1,
-      0.01,
-      0.001,
-      0.0001,
-      0.00001
-    ],
-    "method_list":[
+    "compressor_list": [
       "unsz"
     ],
-    "dim":3,
-    "steps":80,
-    "config":"linear_interpolation",
-    "predictor":"inverse_proportion",
-    "ref_num":4,
-    "time_step_coordinate_file":"refBottomDepth.dat",
-    "condition":{
-      "operator":">",
-      "value":-1e+30
+    "time_step_num": 80,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "label": [
+          "spatial"
+        ],
+        "value": [
+          "linear_interpolation"
+        ]
+      },
+      "predictor": {
+        "name": "idw",
+        "idw_power": 2
+      },
+      "ordering_scope": "local",
+      "prediction_round_num": 8,
+      "ordering_score": "msd",
+      "prediction_min_ref_num": 1,
+      "prediction_max_ref_num": 4,
+      "ordering_score_max_ref_num": 4,
+      "ordering_score_min_ref_num": 4,
+      "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
+      "label_value_execution": "staged",
+      "ordering_candidate_num": 4,
+      "time_step_coordinate_file": "refBottomDepth.dat",
+      "point_set_config_path_list": [
+        "point_set_configs/Ocean_large_temperature_idw_rel_1e-1.json",
+        "point_set_configs/Ocean_large_temperature_idw_rel_1e-2.json",
+        "point_set_configs/Ocean_large_temperature_idw_rel_1e-3.json",
+        "point_set_configs/Ocean_large_temperature_idw_rel_1e-4.json",
+        "point_set_configs/Ocean_large_temperature_idw_rel_1e-5.json"
+      ]
     }
   }
 ]

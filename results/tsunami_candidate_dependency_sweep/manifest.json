@@ -7,7 +7,7 @@
   "fields":["bathy","height","momentum_x","momentum_y","velocity_x","velocity_y"],
   "candidate_nums":[4,8,12,16,20,24,28,32],
   "rel_ebs":[0.1,0.01,0.001,0.0001,0.00001],
-  "fixed_configuration":{"coordinate":"original","spatiotemporal_method":"spatial","predictor":"rbf_fitting","prediction_ref_num":10,"rbf_kernel":"matern32","rbf_shape":0.03,"rbf_nugget":0.000001,"rbf_polynomial_degree":0,"ordering_scale":"global","ordering_score":"mean_reference_distance","ordering_score_max_ref_num":10,"ordering_score_min_ref_num":10,"eb_schedule":"point_log2_ratio","eb_schedule_base":0.85,"eb_schedule_log2_shift":0.5,"reorder_input":false,"qb_storage_order":"prediction"},
+  "fixed_configuration":{"coordinate":"original","spatiotemporal_method":"spatial","predictor":"rbf_fitting","prediction_ref_num":10,"rbf_kernel":"matern32","rbf_shape":0.03,"rbf_nugget":0.000001,"ordering_scale":"global","ordering_score":"mean_reference_distance","ordering_score_max_ref_num":10,"ordering_score_min_ref_num":10,"eb_schedule":"point_log2_ratio","eb_schedule_base":0.85,"eb_schedule_log2_shift":0.5,"reorder_input":false,"qb_storage_order":"prediction"},
   "timing":{"source":"internal program timers","reported_metric":"compression+decompression","excluded":["DAG generation","DAG loading","RBF weight precomputation"]},
   "br_comparison":{"baseline_candidate_num":16,"interpolation":"piecewise linear BR versus PSNR without log transform","aggregation":"curve integral ratio over common PSNR range,then field-equal arithmetic mean"},
   "binary_sha256":{"s1_compress":"2c39ff9b4806c3afecf20c2211cd93b825ed165ab40b56a53fd1e018d02b3fa5","s1_decompress":"7ae819bd11629b511ade580e6fa62065df4d871420a55089ec8a308bb32b6736"},

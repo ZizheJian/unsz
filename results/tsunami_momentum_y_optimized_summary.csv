@@ -1,2 +1,2 @@
-variable,coordinate,predictor,ref_num,rbf_kernel,rbf_shape,rbf_nugget,rbf_polynomial_degree,round_formation,ordering_construction,ordering_score,bd_rate_vs_previous_split,bd_rate_vs_umc,compression_ratio_vs_umc
-momentum_y,original,rbf_fitting,24,matern32,0.3,1e-6,0,split_rounds_then_sort,reverse_elimination,nearest_reference_distance+direction_concentration,-2.9385600426028335,-29.43916862903089,1.4172168617778371
+variable,coordinate,predictor,ref_num,rbf_kernel,rbf_shape,rbf_nugget,round_formation,ordering_construction,ordering_score,bd_rate_vs_previous_split,bd_rate_vs_umc,compression_ratio_vs_umc
+momentum_y,original,rbf_fitting,24,matern32,0.3,1e-6,split_rounds_then_sort,reverse_elimination,nearest_reference_distance+direction_concentration,-2.9385600426028335,-29.43916862903089,1.4172168617778371

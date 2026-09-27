@@ -5,14 +5,14 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::generate_precomputed_neighbor_pred_refs_structure()
     {
-        if(!use_global_order_before_round_split_experimental||!use_reverse_mean_distance_only_order_experimental||!order_reference_time_step_vec_experimental.empty()||use_reverse_reference_reuse_order_experimental||partition_size_experimental>0||partition_num_experimental>0||cache_subpartition_num_experimental>0)
+        if(ordering_scope!="global"||!use_reverse_msd_order||!reference_time_step_vec.empty()||use_reverse_reference_reuse_order_experimental||partition_size_experimental>0||partition_num_experimental>0||cache_subpartition_num_experimental>0)
             throw runtime_error("预存近邻实验目前只支持单线程global反向MSD排序，不支持参考数据辅助、partition或cache subpartition");
-        if(point_num==0||predict_round_num==0||predict_round_num>63||max_ref_num==0)
+        if(point_num==0||prediction_round_num==0||prediction_round_num>63||prediction_max_ref_num==0)
             throw runtime_error("预存近邻实验的点数、轮数或参考点数无效");
         uint32_t neighbor_limit=precomputed_neighbor_num_experimental;
-        uint32_t candidate_limit=order_candidate_num_experimental>0?order_candidate_num_experimental:max_ref_num;
-        uint32_t score_limit=ordering_msd_ref_num_experimental>0?ordering_msd_ref_num_experimental:max_ref_num;
-        if(neighbor_limit>256||neighbor_limit<max({candidate_limit,score_limit,max_ref_num}))
+        uint32_t candidate_limit=ordering_candidate_num;
+        uint32_t score_limit=ordering_score_max_ref_num;
+        if(neighbor_limit>256||neighbor_limit<max({candidate_limit,score_limit,prediction_max_ref_num}))
             throw runtime_error("预存近邻数量必须覆盖排序候选、MSD评分和最终参考点数，且最多为256");
         uint32_t stored_limit=min<uint32_t>(neighbor_limit,point_num-1);
         auto total_start_time=chrono::steady_clock::now();
@@ -58,8 +58,8 @@ namespace unsz
         vector<uint64_t> pending_ref_begin(point_num,numeric_limits<uint64_t>::max());
         vector<int> pending_ref_ids;
         vector<T_coord> pending_ref_squared_dist;
-        pending_ref_ids.reserve((uint64_t)point_num*max_ref_num);
-        pending_ref_squared_dist.reserve((uint64_t)point_num*max_ref_num);
+        pending_ref_ids.reserve((uint64_t)point_num*prediction_max_ref_num);
+        pending_ref_squared_dist.reserve((uint64_t)point_num*prediction_max_ref_num);
         vector<uint16_t> scanned_max_original_rank(point_num,0),candidate_max_original_rank(point_num,0),score_max_original_rank(point_num,0),final_ref_original_rank(point_num,0);
         uint64_t invalid_entry_removed_num=0,candidate_query_num=0,score_query_num=0,candidate_restart_num=0,short_candidate_query_num=0,short_score_query_num=0,short_final_ref_num=0;
         auto get_valid_prefix=[&](int point_id,uint32_t needed)->pair<uint32_t,uint16_t>
@@ -131,14 +131,14 @@ namespace unsz
                 if(candidate_num<candidate_limit&&remaining_ids.size()>=candidate_limit)
                     short_candidate_query_num++;
                 uint64_t candidate_begin=(uint64_t)previous_removed_id*stored_limit;
-                uint32_t ref_num=min<uint32_t>(max_ref_num,candidate_num);
-                if(ref_num<max_ref_num&&remaining_ids.size()>=max_ref_num)
+                uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,candidate_num);
+                if(ref_num<prediction_max_ref_num&&remaining_ids.size()>=prediction_max_ref_num)
                     short_final_ref_num++;
                 pending_ref_begin[previous_removed_id]=pending_ref_ids.size();
                 pending_ref_num[previous_removed_id]=(uint16_t)ref_num;
                 if(ref_num>0)
                     final_ref_original_rank[previous_removed_id]=neighbor_original_rank[candidate_begin+ref_num-1];
-                if(ref_num<max_ref_num&&remaining_ids.size()>=max_ref_num)
+                if(ref_num<prediction_max_ref_num&&remaining_ids.size()>=prediction_max_ref_num)
                     final_ref_original_rank[previous_removed_id]=(uint16_t)(stored_limit+1);
                 for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
                 {
@@ -151,20 +151,20 @@ namespace unsz
                 {
                     int candidate_id=neighbor_ids[candidate_begin+candidate_index];
                     T_coord route_dist=neighbor_squared_dist[candidate_begin+candidate_index];
-                    auto [score_ref_num,score_depth]=get_valid_prefix(candidate_id,score_limit);
+                    auto [valid_ordering_score_ref_num,score_depth]=get_valid_prefix(candidate_id,score_limit);
                     score_query_num++;
-                    uint16_t score_need_depth=score_ref_num<score_limit&&remaining_ids.size()>score_limit?(uint16_t)(stored_limit+1):score_depth;
+                    uint16_t score_need_depth=valid_ordering_score_ref_num<score_limit&&remaining_ids.size()>score_limit?(uint16_t)(stored_limit+1):score_depth;
                     score_max_original_rank[candidate_id]=max(score_max_original_rank[candidate_id],score_need_depth);
-                    if(score_ref_num<score_limit&&remaining_ids.size()>score_limit)
+                    if(valid_ordering_score_ref_num<score_limit&&remaining_ids.size()>score_limit)
                         short_score_query_num++;
                     uint64_t score_begin=(uint64_t)candidate_id*stored_limit;
                     double score=numeric_limits<double>::infinity();
-                    if(score_ref_num>0)
+                    if(valid_ordering_score_ref_num>0)
                     {
                         double sum=0;
-                        for(uint32_t score_index=0;score_index<score_ref_num;score_index++)
+                        for(uint32_t score_index=0;score_index<valid_ordering_score_ref_num;score_index++)
                             sum+=(double)neighbor_squared_dist[score_begin+score_index];
-                        score=sum/score_ref_num;
+                        score=sum/valid_ordering_score_ref_num;
                     }
                     if(selected_id<0||score<best_score||(score==best_score&&route_dist<best_route_dist))
                     {
@@ -193,7 +193,7 @@ namespace unsz
         double sorting_time=chrono::duration<double>(chrono::steady_clock::now()-sorting_start_time).count();
         reverse(reverse_order.begin(),reverse_order.end());
         vector<uint32_t> round_size=get_round_target_num_vec(point_num);
-        round_target_ids.assign(predict_round_num,vector<int>());
+        round_target_ids.assign(prediction_round_num,vector<int>());
         pred_target_ids.clear();
         pred_target_ids.reserve(point_num);
         pred_ref_ids.clear();
@@ -204,7 +204,7 @@ namespace unsz
         pred_ref_begin.reserve((uint64_t)point_num+1);
         pred_ref_begin.push_back(0);
         uint32_t order_index=0;
-        for(uint32_t round_id=0;round_id<predict_round_num;round_id++)
+        for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
             round_target_ids[round_id].reserve(round_size[round_id]);
             for(uint32_t local_index=0;local_index<round_size[round_id];local_index++)
@@ -219,7 +219,7 @@ namespace unsz
                         int ref_id=pending_ref_ids[begin+ref_index];
                         T_coord dist=pending_ref_squared_dist[begin+ref_index];
                         pred_ref_ids.push_back(ref_id);
-                        pred_ref_weights.push_back(dist==0?numeric_limits<double>::infinity():pow((double)dist,-inverse_distance_power/2));
+                        pred_ref_weights.push_back(dist==0?numeric_limits<double>::infinity():pow((double)dist,-idw_power/2));
                     }
                 pred_ref_begin.push_back(pred_ref_ids.size());
             }
@@ -250,7 +250,7 @@ namespace unsz
         print_rank_coverage("MSD_score",score_max_original_rank);
         print_rank_coverage("final_reference",final_ref_original_rank);
         printf("Precomputed-neighbor lazy filtering: removed_entries=%llu,candidate_queries=%llu,score_queries=%llu,restarts=%llu,short_candidate=%llu,short_score=%llu,short_final_reference=%llu,sorting_time=%f s\n",(unsigned long long)invalid_entry_removed_num,(unsigned long long)candidate_query_num,(unsigned long long)score_query_num,(unsigned long long)candidate_restart_num,(unsigned long long)short_candidate_query_num,(unsigned long long)short_score_query_num,(unsigned long long)short_final_ref_num,sorting_time);
-        if(!prediction_structure_path.empty())
+        if(!dag_cache_path.empty())
             save_pred_refs_structure();
         print_prediction_geometry_statistics_result();
         prepare_pred_refs_structure();

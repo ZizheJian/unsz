@@ -1,30 +1,7 @@
-import array,math,os,re
+import math,os,re
 import numpy as np
 
 # UMC命令由t1执行，这里只解析和核对输出
-
-def calculate_data_range(data_paths):
-    minimum=math.inf
-    maximum=-math.inf
-    for path in data_paths:
-        values=array.array("f")
-        with open(path,"rb") as file:
-            values.fromfile(file,os.path.getsize(path)//values.itemsize)
-        valid_values=(value for value in values if value!=-99999.0)
-        try:
-            first=next(valid_values)
-        except StopIteration:
-            continue
-        local_minimum=first
-        local_maximum=first
-        for value in valid_values:
-            local_minimum=min(local_minimum,value)
-            local_maximum=max(local_maximum,value)
-        minimum=min(minimum,local_minimum)
-        maximum=max(maximum,local_maximum)
-    if not minimum<=maximum:
-        raise RuntimeError("无法从输入float32文件计算数据范围")
-    return minimum,maximum
 
 def calculate_umc_disk_error(data_paths,chunk_point_num=1<<20):
     total_squared_error=0
@@ -53,17 +30,18 @@ def calculate_umc_disk_error(data_paths,chunk_point_num=1<<20):
         raise RuntimeError("UMC磁盘输出检查没有读到数据")
     return total_squared_error/total_point_num,max_error
 
-def parse_umc_decompression_result(output,data_paths,umc_method,data_range=None):
-    if umc_method=="NBP-IDW-INP":
-        decompression_times=[float(value) for value in re.findall(r"^decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
-        if len(decompression_times)!=len(data_paths):
-            raise RuntimeError(f"UMC动态异常点核心解压时间数量不一致：文件{len(data_paths)}，解压时间{len(decompression_times)}")
-        decompression_time=sum(decompression_times)
-    else:
-        decompression_times=[float(value) for value in re.findall(r"^core decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
-        if len(decompression_times)!=len(data_paths):
-            raise RuntimeError(f"UMC核心解压时间数量不一致：文件{len(data_paths)}，核心解压时间{len(decompression_times)}")
-        decompression_time=sum(decompression_times)
+def parse_umc_decompression_result(output,data_paths,data_range):
+    preprocessing_times=[float(value) for value in re.findall(r"^preprocessing time\s*=\s*([^\s]+)",output,re.MULTILINE)]
+    if len(preprocessing_times)!=1:
+        raise RuntimeError(f"UMC解压端预处理时间数量应为1，实际为{len(preprocessing_times)}")
+    decompression_times=[float(value) for value in re.findall(r"^core decompression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
+    if len(decompression_times)!=len(data_paths):
+        raise RuntimeError(f"UMC核心解压时间数量不一致：文件{len(data_paths)}，核心解压时间{len(decompression_times)}")
+    decompression_time=sum(decompression_times)
+    restore_times=[float(value) for value in re.findall(r"^reorder time\s*=\s*([^\s]+)",output,re.MULTILINE)]
+    if len(restore_times)!=len(data_paths):
+        raise RuntimeError(f"UMC输出恢复时间数量不一致：文件{len(data_paths)}，恢复时间{len(restore_times)}")
+    decompression_time+=sum(restore_times)
     mse_list=[float(value) for value in re.findall(r"^MSE\s*=\s*([^,\s]+)",output,re.MULTILINE)]
     range_matches=re.findall(r"^Max value\s*=\s*([^,]+),\s*min value\s*=\s*([^,\s]+)",output,re.MULTILINE)
     max_error_list=[float(value) for value in re.findall(r"^Max error\s*=\s*([^,\s]+)",output,re.MULTILINE)]
@@ -72,11 +50,11 @@ def parse_umc_decompression_result(output,data_paths,umc_method,data_range=None)
     total_point_num=sum(os.path.getsize(path)//4 for path in data_paths)
     total_squared_error=sum(mse*(os.path.getsize(path)//4) for mse,path in zip(mse_list,data_paths))
     total_mse=total_squared_error/total_point_num
-    total_min_data,total_max_data=data_range or calculate_data_range(data_paths)
+    total_min_data,total_max_data=data_range
     total_psnr=math.inf if total_mse==0 else 10*math.log10((total_max_data-total_min_data)**2/total_mse)
-    return decompression_time,total_psnr,max(max_error_list)
+    return preprocessing_times[0],decompression_time,total_psnr,max(max_error_list)
 
-def parse_umc_compression_result(output,data_paths,data_range=None):
+def parse_umc_compression_result(output,data_paths,data_range):
     compressed_sizes=[int(value) for value in re.findall(r"compressed_size\s*=\s*(\d+)",output)]
     mse_list=[float(value) for value in re.findall(r"^MSE\s*=\s*([^\s]+)",output,re.MULTILINE)]
     range_matches=re.findall(r"Max value\s*=\s*([^,]+),\s*min value\s*=\s*([^,]+),",output)
@@ -86,17 +64,16 @@ def parse_umc_compression_result(output,data_paths,data_range=None):
     total_compressed_bytes=sum(compressed_sizes)
     total_point_num=sum(os.path.getsize(path)//4 for path in data_paths)
     total_squared_error=sum(mse*(os.path.getsize(path)//4) for mse,path in zip(mse_list,data_paths))
-    total_min_data,total_max_data=data_range or calculate_data_range(data_paths)
+    total_min_data,total_max_data=data_range
     total_mse=total_squared_error/total_point_num
     total_cr=total_original_bytes/total_compressed_bytes
     total_br=32/total_cr
-    total_psnr=10*math.log10((total_max_data-total_min_data)**2/total_mse)
+    total_psnr=math.inf if total_mse==0 else 10*math.log10((total_max_data-total_min_data)**2/total_mse)
     preprocessing_times=[float(value) for value in re.findall(r"^preprocessing time\s*=\s*([^\s]+)",output,re.MULTILINE)]
-    reorder_times=[float(value) for value in re.findall(r"^reorder time\s*=\s*([^\s]+)",output,re.MULTILINE)]
-    compression_times=[float(value) for value in re.findall(r"^compression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
+    core_compression_times=[float(value) for value in re.findall(r"^core compression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
+    reorder_times=[float(value) for value in re.findall(r"^data reorder time\s*=\s*([^\s]+)",output,re.MULTILINE)]
     if len(preprocessing_times)!=1:
-        raise RuntimeError(f"UMC预处理时间数量应为1，实际为{len(preprocessing_times)}")
-    if len(reorder_times)!=len(data_paths) or len(compression_times)!=len(data_paths):
-        raise RuntimeError(f"UMC逐文件计时数量不一致：文件{len(data_paths)}，reorder {len(reorder_times)}，compression {len(compression_times)}")
-    core_compression_time=sum(compression_time-reorder_time for compression_time,reorder_time in zip(compression_times,reorder_times))
-    return total_br,total_psnr,preprocessing_times[0],core_compression_time
+        raise RuntimeError(f"UMC压缩端预处理时间数量应为1，实际为{len(preprocessing_times)}")
+    if len(core_compression_times)!=len(data_paths) or len(reorder_times)!=len(data_paths):
+        raise RuntimeError(f"UMC逐文件计时数量不一致：文件{len(data_paths)}，核心压缩时间{len(core_compression_times)}，重排时间{len(reorder_times)}")
+    return total_br,total_psnr,preprocessing_times[0],sum(core_compression_times)+sum(reorder_times)
