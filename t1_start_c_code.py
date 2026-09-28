@@ -45,7 +45,7 @@ def read_point_set_rel_eb_list(path):
         raise FileNotFoundError(f"找不到点集配置文件：{path}")
     with path.open(encoding="utf-8") as file:
         document=json.load(file)
-    rel_eb_vec=[label["eb_value"] for label in document["labels"] if label["predictor"]!="constant" and label["eb_mode"]=="REL"]
+    rel_eb_vec=[label["eb_value"] for label in document["labels"] if label["method"]=="predict" and label["eb_mode"]=="REL"]
     return list(dict.fromkeys(rel_eb_vec))
 
 # 公共路径和程序
@@ -168,7 +168,7 @@ def build_eb_schedule_arguments(eb_schedule):
     return arguments
 
 def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expression):
-    predictor,predictor_arguments=build_predictor_arguments(config["predictor"])
+    _,predictor_arguments=build_predictor_arguments(config["predictor"])
     if config["prediction_min_ref_num"]>config["prediction_max_ref_num"]:
         raise ValueError("prediction_min_ref_num不能大于prediction_max_ref_num")
     if config["ordering_score_min_ref_num"]>config["ordering_score_max_ref_num"]:
@@ -184,17 +184,6 @@ def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expre
                *build_eb_schedule_arguments(config["eb_schedule"])]
     if dag_cache_path is not None:
         arguments.extend(("-dag-cache",dag_cache_path))
-    if config["ordering_score"]=="msd":
-        arguments.append("-reverse-msd-order")
-    elif config["ordering_score"]=="reference_data_prediction_error":
-        if not config["reference_time_step_list"]:
-            raise ValueError("参考数据辅助顺序至少需要一个reference time step")
-        training_expression="{"+",".join(str(value) for value in config["reference_time_step_list"])+"}"
-        arguments.extend(("-reference-data-order",training_expression))
-        if predictor=="rbf":
-            arguments.append("-reference-data-rbf-score")
-    else:
-        raise ValueError(f"未知排序标准：{config['ordering_score']}")
     if "adjust_coord_matrix_file" in config:
         arguments.extend(("-adjust-coord-matrix-file",project_root/"adjust_coord_matrices"/config["adjust_coord_matrix_file"]))
     if config["label_flow"] is not None:
@@ -239,12 +228,12 @@ def build_unsz_commands(config,data_dir,dag_cache_path):
         point_set_config_path=resolve_point_set_config_path(config["point_set_config_path"])
         if not point_set_config_path.is_file():
             raise FileNotFoundError(f"找不到点集配置文件：{point_set_config_path}")
-        compression_error=["-point-set-config",point_set_config_path]
+        compression_error=["-point-set-config",point_set_config_path,"-predictor",predictor]
         decompression_error=compression_error
     else:
         rel_eb=config["rel_eb"]
         compression_error=["-M","REL",rel_eb,"-predictor",predictor]
-        decompression_error=["-M","REL",rel_eb]
+        decompression_error=["-M","REL",rel_eb,"-predictor",predictor]
     compression_command=[project_root/"install/bin/s1_compress",*compression_error,*arguments]
     decompression_command=[project_root/"install/bin/s1_decompress",*decompression_error,*arguments]
     return compression_command,decompression_command

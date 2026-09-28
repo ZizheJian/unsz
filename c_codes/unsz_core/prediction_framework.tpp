@@ -5,7 +5,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     uint32_t param_c<T_coord,T_data>::get_last_regular_time_anchor() const
     {
-        if(time_anchor_stride_experimental==0||time_step_vec.empty())
+        if(time_anchor_stride==0||time_step_vec.empty())
             throw runtime_error("固定步长锚点流程尚未配置步长或time step");
         return time_anchor_last_regular_step;
     }
@@ -13,9 +13,9 @@ namespace unsz
     template<typename T_coord,typename T_data>
     bool param_c<T_coord,T_data>::current_time_step_is_regular_anchor() const
     {
-        if(time_anchor_stride_experimental==0||time_step_vec.empty())
+        if(time_anchor_stride==0||time_step_vec.empty())
             return false;
-        return current_time_step>=time_anchor_first_step&&current_time_step<=time_anchor_last_regular_step&&(current_time_step-time_anchor_first_step)%time_anchor_stride_experimental==0;
+        return current_time_step>=time_anchor_first_step&&current_time_step<=time_anchor_last_regular_step&&(current_time_step-time_anchor_first_step)%time_anchor_stride==0;
     }
 
     template<typename T_coord,typename T_data>
@@ -23,7 +23,7 @@ namespace unsz
     {
         if(point_set_config_vec.size()!=1)
             throw runtime_error("单点集时间流程选择要求field恰好配置一个点集");
-        if(cross_time_spatial_point_num_experimental>0)
+        if(value_flow=="joint_spatiotemporal")
             return;
         if(value_flow!="none"&&value_flow!="constant_extrapolation"&&value_flow!="linear_interpolation"&&value_flow!="constant_extrapolation_spatial_residual"&&value_flow!="linear_interpolation_spatial_residual")
             throw runtime_error("未知的单点集数值预测流程："+value_flow);
@@ -44,11 +44,11 @@ namespace unsz
             throw runtime_error("点集数量不能为0");
         prediction_framework_c framework;
         framework.has_label=point_set_num>1;
-        if(time_anchor_stride_experimental>0)
+        if(time_anchor_stride>0)
         {
             if(point_set_num!=2)
                 throw runtime_error("固定步长锚点流程目前只支持两个点集");
-            if(value_flow!="none"||label_flow!="none"||cross_time_spatial_point_num_experimental>0)
+            if(value_flow!="none"||label_flow!="none")
                 throw runtime_error("固定步长锚点流程不能再叠加其他时间预测流程");
             bool first_anchor=current_time_step==time_anchor_first_step;
             bool regular_anchor=current_time_step_is_regular_anchor();
@@ -71,9 +71,9 @@ namespace unsz
             framework.execution=label_value_execution=="fused"?label_value_execution_e::fused:label_value_execution_e::staged;
             return framework;
         }
-        bool use_joint_spatiotemporal=cross_time_spatial_point_num_experimental>0;
-        if(use_joint_spatiotemporal && (value_flow!="none" || label_flow!="none"))
-            throw runtime_error("统一时空DAG不能再叠加零阶外插或一阶内插");
+        bool use_joint_spatiotemporal=value_flow=="joint_spatiotemporal";
+        if(use_joint_spatiotemporal&&label_flow!="none")
+            throw runtime_error("联合时空数值流程不能再叠加标签时间预测流程");
         if(use_joint_spatiotemporal)
         {
             framework.value_mode=time_dimension_mode_e::joint_spatiotemporal;
@@ -131,7 +131,7 @@ namespace unsz
     void param_c<T_coord,T_data>::advance_time_prediction_buffers()
     {
         const prediction_framework_c &framework=current_prediction_framework;
-        bool first_time_anchor=time_anchor_stride_experimental>0&&current_time_step==time_anchor_first_step;
+        bool first_time_anchor=time_anchor_stride>0&&current_time_step==time_anchor_first_step;
         if(framework.value_mode==time_dimension_mode_e::constant_extrapolation || framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||first_time_anchor)
             previous_time_decompressed_data.swap(current_decompressed_data);
         bool use_causal_time_label=framework.label_mode==time_dimension_mode_e::constant_extrapolation;

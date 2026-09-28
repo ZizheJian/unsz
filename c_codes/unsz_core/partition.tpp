@@ -76,7 +76,7 @@ namespace unsz
         auto start_time=chrono::steady_clock::now();
         uint32_t effective_ordering_score_max_ref_num=ordering_score_max_ref_num;
         if(ordering_score_min_ref_num>effective_ordering_score_max_ref_num)
-            throw runtime_error("MSD/reference-data ordering缓存重查阈值不能大于ordering_score_max_ref_num");
+            throw runtime_error("MSD排序缓存重查阈值不能大于ordering_score_max_ref_num");
         uint32_t tree_leaf_size=kd_tree_leaf_size;
         if (partition_size_experimental>0)
             tree_leaf_size=min(tree_leaf_size,partition_size_experimental);
@@ -113,7 +113,7 @@ namespace unsz
         vector<uint8_t> ordering_score_cache_initialized(point_num,0),reference_valid(point_num,1);
         vector<int> ordering_score_cached_ref_ids((uint64_t)point_num*reverse_ref_query_num);
         uint64_t ordering_score_cache_hit_num=0,ordering_score_cache_reduced_ref_hit_num=0,ordering_score_cache_miss_num=0;
-        printf("Independent partition MSD/reference-data ordering order candidates: %u, score references: %u, cache refill threshold: %u\n",ordering_candidate_num,effective_ordering_score_max_ref_num,ordering_score_min_ref_num);
+        printf("Independent partition MSD ordering candidates: %u, score references: %u, cache refill threshold: %u\n",ordering_candidate_num,effective_ordering_score_max_ref_num,ordering_score_min_ref_num);
         exception_ptr sorting_exception;
 #pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(thread_num>1) reduction(+:ordering_score_cache_hit_num,ordering_score_cache_reduced_ref_hit_num,ordering_score_cache_miss_num)
         for (int64_t partition_index=0;partition_index<(int64_t)partition_point_ids_vec.size();partition_index++)
@@ -232,8 +232,8 @@ namespace unsz
         if(sorting_exception)
             rethrow_exception(sorting_exception);
         printf("Independent partition target sorting time: %f s\n",chrono::duration<double>(chrono::steady_clock::now()-sorting_start_time).count());
-        printf("Independent partition MSD/reference-data ordering score cache: %llu hits, %llu misses\n",(unsigned long long)ordering_score_cache_hit_num,(unsigned long long)ordering_score_cache_miss_num);
-        printf("Independent partition MSD/reference-data ordering reduced-reference cache hits: %llu\n",(unsigned long long)ordering_score_cache_reduced_ref_hit_num);
+        printf("Independent partition MSD ordering score cache: %llu hits, %llu misses\n",(unsigned long long)ordering_score_cache_hit_num,(unsigned long long)ordering_score_cache_miss_num);
+        printf("Independent partition MSD ordering reduced-reference cache hits: %llu\n",(unsigned long long)ordering_score_cache_reduced_ref_hit_num);
 
         vector<vector<vector<pair<int,vector<int>>>>> partition_round_entries(partition_point_ids_vec.size(),vector<vector<pair<int,vector<int>>>>(prediction_round_num));
         vector<vector<vector<vector<double>>>> partition_round_weights(partition_point_ids_vec.size(),vector<vector<vector<double>>>(prediction_round_num));

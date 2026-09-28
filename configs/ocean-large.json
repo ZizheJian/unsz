@@ -38,14 +38,12 @@
       },
       "ordering_scope": "local",
       "prediction_round_num": 8,
-      "ordering_score": "msd",
       "prediction_min_ref_num": 10,
       "prediction_max_ref_num": 10,
       "ordering_score_max_ref_num": 10,
       "ordering_score_min_ref_num": 10,
       "eb_schedule": {"name": "round_point_ratio", "base": 0.8},
-      "ordering_candidate_num": 48,
-      "dag_cache_path": ".unsz_cache/ocean_large_temperature_surface_value_rbf10.dag"
+      "ordering_candidate_num": 48
     },
     "umc": {
       "from_edge": 1,
@@ -81,7 +79,6 @@
       },
       "ordering_scope": "local",
       "prediction_round_num": 8,
-      "ordering_score": "msd",
       "prediction_min_ref_num": 1,
       "prediction_max_ref_num": 4,
       "ordering_score_max_ref_num": 4,

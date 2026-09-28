@@ -18,20 +18,20 @@ void param_c<T_coord,T_data>::prepare_compression_structure(chrono::steady_clock
     bool data_dependent_eb_schedule=eb_schedule=="round_point_ratio_dag" || eb_schedule=="round_point_ratio_dag_direct" || eb_schedule=="round_point_ratio_dag_variance_direct";
     if(!data_dependent_eb_schedule && cached_pred_eb_multiplier_vec.size()!=point_num)
         cached_pred_eb_multiplier_vec=generate_pred_eb_multiplier_vec(true);
-    if (cross_time_spatial_point_num_experimental>0)
+    if(value_flow=="joint_spatiotemporal")
     {
-        uint32_t spatial_point_num=cross_time_spatial_point_num_experimental;
-        if (point_num%spatial_point_num!=0)
-            throw runtime_error("时空联合点数不能被空间点数整除");
+        if(original_data_path_vec.empty()||point_num%original_data_path_vec.size()!=0)
+            throw runtime_error("联合时空点数不能被time step数量整除");
+        uint32_t spatial_point_num=point_num/original_data_path_vec.size();
         uint64_t cross_time_ref_num=0,total_ref_num=0,target_with_cross_time_ref_num=0;
         for (uint32_t pred_ref_id=0;pred_ref_id<pred_target_ids.size();pred_ref_id++)
         {
             int pred_id=pred_target_ids[pred_ref_id];
-            uint32_t pred_original_id=reorder_by_prediction_order?prediction_id_to_original_id[pred_id]:pred_id;
+            uint32_t pred_original_id=pred_id;
             bool has_cross_time_ref=false;
             for (int ref_id:get_pred_ref_ids(pred_ref_id))
             {
-                uint32_t ref_original_id=reorder_by_prediction_order?prediction_id_to_original_id[ref_id]:ref_id;
+                uint32_t ref_original_id=ref_id;
                 bool cross_time_ref=pred_original_id!=ref_original_id && pred_original_id%spatial_point_num==ref_original_id%spatial_point_num;
                 cross_time_ref_num+=cross_time_ref;
                 total_ref_num++;
@@ -51,8 +51,6 @@ template<typename T_coord,typename T_data>
 void param_c<T_coord,T_data>::prepare_joint_spatiotemporal_coordinates()
 {
     uint32_t spatial_point_num=point_num;
-    if(cross_time_spatial_point_num_experimental!=spatial_point_num)
-        throw runtime_error("联合时空配置中的空间点数与coords.dat不一致");
     uint64_t time_step_num=time_step_vec.size();
     uint64_t joint_point_num=(uint64_t)spatial_point_num*time_step_num;
     if(time_step_num<2)
@@ -114,17 +112,9 @@ void param_c<T_coord,T_data>::compress_files(void(param_c<T_coord,T_data>::*comp
             throw runtime_error("关闭原始数据文件失败："+original_data_path);
         auto compression_start_time=chrono::steady_clock::now();
         (this->*compress_current_file)();
-        double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count()-last_reorder_data_by_prediction_order_time;
+        double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count();
         total_compression_time+=compression_time;
         printf("file compression time= %f s\n",compression_time);
-        if(last_reorder_data_by_prediction_order_time>0)
-            printf("compression input reorder-by-prediction-order time excluded from compression= %f s\n",last_reorder_data_by_prediction_order_time);
-        if (reorder_by_prediction_order)
-        {
-            auto result_reorder_start_time=chrono::steady_clock::now();
-            restore_compression_result_to_original_order();
-            printf("compression result reorder time excluded from compression= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-result_reorder_start_time).count());
-        }
         save_time_reconstruction();
         total_original_bytes+=(uint64_t)point_num*sizeof(T_data);
         total_compressed_bytes+=current_zstd_bs_vec.size();
@@ -177,7 +167,7 @@ void param_c<T_coord,T_data>::compress_files(void(param_c<T_coord,T_data>::*comp
         advance_time_prediction_buffers();
     }
     printf("全部文件最大误差/用户误差上限= %.9f\n",max_error_ratio);
-    if (max_error_ratio>1.1)
+    if (max_error_ratio>1.01)
         throw runtime_error("全部文件压缩完成后误差检查失败：文件="+max_error_data_path+"，点="+to_string(max_error_point_id)+"，点集="+to_string(max_error_point_set_id)+"，误差="+to_string(max_error)+"，绝对误差上限="+to_string(max_error_abs_eb)+"，误差/上限="+to_string(max_error_ratio));
     double total_cr=(double)total_original_bytes/total_compressed_bytes;
     double total_mse=total_squared_error/total_point_num;
@@ -191,9 +181,9 @@ void param_c<T_coord,T_data>::compress_files(void(param_c<T_coord,T_data>::*comp
 template<typename T_coord,typename T_data>
 void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T_coord,T_data>::*compress_current_field)())
 {
-    uint32_t spatial_point_num=cross_time_spatial_point_num_experimental;
-    if((uint64_t)spatial_point_num*original_data_path_vec.size()!=point_num)
+    if(original_data_path_vec.empty()||point_num%original_data_path_vec.size()!=0)
         throw runtime_error("联合时空点数与time step文件数量不一致");
+    uint32_t spatial_point_num=point_num/original_data_path_vec.size();
     current_data.resize(point_num);
     for(uint32_t file_id=0;file_id<original_data_path_vec.size();file_id++)
     {
@@ -215,15 +205,7 @@ void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T
     printf("Compressing %llu files as one joint spatiotemporal field: %s\n",(unsigned long long)original_data_path_vec.size(),compressed_path.c_str());
     auto compression_start_time=chrono::steady_clock::now();
     (this->*compress_current_field)();
-    double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count()-last_reorder_data_by_prediction_order_time;
-    if(last_reorder_data_by_prediction_order_time>0)
-        printf("compression input reorder-by-prediction-order time excluded from compression= %f s\n",last_reorder_data_by_prediction_order_time);
-    if(reorder_by_prediction_order)
-    {
-        auto result_reorder_start_time=chrono::steady_clock::now();
-        restore_compression_result_to_original_order();
-        printf("compression result reorder time excluded from compression= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-result_reorder_start_time).count());
-    }
+    double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count();
     uint32_t primary_point_set_id=0;
     while(point_set_point_num_vec[primary_point_set_id]==0)
         primary_point_set_id++;
@@ -252,7 +234,7 @@ void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T
         }
     }
     printf("全部文件最大误差/用户误差上限= %.9f\n",max_error_ratio);
-    if(max_error_ratio>1.1)
+    if(max_error_ratio>1.01)
     {
         uint32_t time_id=max_error_point_id/spatial_point_num,spatial_point_id=max_error_point_id%spatial_point_num;
         throw runtime_error("联合时空压缩误差检查失败：time step="+to_string(time_step_vec[time_id])+"，空间点="+to_string(spatial_point_id)+"，点集="+to_string(max_error_point_set_id)+"，误差="+to_string(max_error)+"，绝对误差上限="+to_string(max_error_abs_eb)+"，误差/上限="+to_string(max_error_ratio));
@@ -277,9 +259,9 @@ void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T
 template<typename T_coord,typename T_data>
 void param_c<T_coord,T_data>::decompress_joint_spatiotemporal_files(void(param_c<T_coord,T_data>::*decompress_current_field)())
 {
-    uint32_t spatial_point_num=cross_time_spatial_point_num_experimental;
-    if((uint64_t)spatial_point_num*original_data_path_vec.size()!=point_num)
+    if(original_data_path_vec.empty()||point_num%original_data_path_vec.size()!=0)
         throw runtime_error("联合时空点数与time step文件数量不一致");
+    uint32_t spatial_point_num=point_num/original_data_path_vec.size();
     string compressed_path=data_dir+field_name+".joint.unsz";
     FILE *compressed_file=fopen(compressed_path.c_str(),"rb");
     if(!compressed_file)
@@ -305,9 +287,7 @@ void param_c<T_coord,T_data>::decompress_joint_spatiotemporal_files(void(param_c
         throw runtime_error("关闭联合时空压缩文件失败："+compressed_path);
     auto decompression_start_time=chrono::steady_clock::now();
     (this->*decompress_current_field)();
-    double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count()-last_reorder_data_by_prediction_order_time;
-    if(last_reorder_data_by_prediction_order_time>0)
-        printf("decompression output restore-original-order time excluded from decompression= %f s\n",last_reorder_data_by_prediction_order_time);
+    double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
     double squared_error=0,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
     uint64_t validated_point_num=0;
     uint32_t max_error_joint_point_id=0,max_error_point_set_id=0;
@@ -365,7 +345,7 @@ void param_c<T_coord,T_data>::decompress_joint_spatiotemporal_files(void(param_c
         printf("Decompressed %s\n",output_path.c_str());
     }
     printf("全部文件最大误差/用户误差上限= %.9f\n",max_error_ratio);
-    if(max_error_ratio>1.1)
+    if(max_error_ratio>1.01)
     {
         uint32_t time_id=max_error_joint_point_id/spatial_point_num,spatial_point_id=max_error_joint_point_id%spatial_point_num;
         throw runtime_error("联合时空解压误差检查失败：文件="+max_error_data_path+"，time step="+to_string(time_step_vec[time_id])+"，空间点="+to_string(spatial_point_id)+"，点集="+to_string(max_error_point_set_id)+"，误差="+to_string(max_error)+"，绝对误差上限="+to_string(max_error_abs_eb)+"，误差/上限="+to_string(max_error_ratio));
@@ -550,10 +530,8 @@ void compress(param_c<T_coord,T_data> &param,chrono::steady_clock::time_point pr
     if(param.point_set_config_vec.size()!=1)
         throw runtime_error("one_point_set::compress要求恰好配置一个点集");
     param.resolve_single_point_set_time_mode();
-    if(param.cross_time_spatial_point_num_experimental>0)
+    if(param.value_flow=="joint_spatiotemporal")
     {
-        if(!param.reference_time_step_vec.empty())
-            throw runtime_error("联合时空压缩暂不支持参考数据辅助排序");
         param.prepare_joint_spatiotemporal_coordinates();
         param.prepare_compression_structure(preprocessing_start_time);
         joint_spatiotemporal::compress(param);

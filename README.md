@@ -67,19 +67,19 @@ python -m pip install numpy scipy pyvista
 最基本的REL error bound压缩命令为：
 
 ```bash
-install/bin/s1_compress -data-dir /path/to/Ocean -field temperature -time-step '[0,30]' -coordinate-dim 3 -M REL 1e-3
+install/bin/s1_compress -data-dir /path/to/Ocean -field temperature -time-step '[0,30]' -coordinate-dim 3 -M REL 1e-3 -predictor idw -prediction-min-ref-num 1 -prediction-max-ref-num 4 -ordering-candidate-num 16 -ordering-score-max-ref-num 1 -ordering-score-min-ref-num 1
 ```
 
 对应的解压命令为：
 
 ```bash
-install/bin/s1_decompress -data-dir /path/to/Ocean -field temperature -time-step '[0,30]' -coordinate-dim 3 -M REL 1e-3
+install/bin/s1_decompress -data-dir /path/to/Ocean -field temperature -time-step '[0,30]' -coordinate-dim 3 -M REL 1e-3 -predictor idw -prediction-min-ref-num 1 -prediction-max-ref-num 4 -ordering-candidate-num 16 -ordering-score-max-ref-num 1 -ordering-score-min-ref-num 1
 ```
 
 ABS error bound使用：
 
 ```bash
-install/bin/s1_compress -data-dir /path/to/data -field field -time-step '[0,9]' -coordinate-dim 3 -M ABS 1e-4
+install/bin/s1_compress -data-dir /path/to/data -field field -time-step '[0,9]' -coordinate-dim 3 -M ABS 1e-4 -predictor idw -prediction-min-ref-num 1 -prediction-max-ref-num 4 -ordering-candidate-num 16 -ordering-score-max-ref-num 1 -ordering-score-min-ref-num 1
 ```
 
 `-time-step`支持闭区间`[a,b]`、右开区间`[a,b)`和显式列表`{a1,a2,...}`。例如`[0,31)`和`{0,3,7}`分别处理0至30以及0、3、7号time step。包含括号或花括号的表达式建议使用引号，避免被shell解释。
@@ -88,32 +88,32 @@ install/bin/s1_compress -data-dir /path/to/data -field field -time-step '[0,9]' 
 
 当前bitstream不保存用户error bound、坐标变换矩阵、预测参数或实验开关。解压时必须提供与压缩时完全相同的参数；参数不一致通常会导致解码失败或误差检查失败。
 
-空间预测DAG缓存默认启用：压缩时把DAG写入本地文件，解压时直接读取，不必再次生成。不指定路径时，压缩和解压自动使用`<data-dir>/.unsz_cache/<field>.dag`：缓存不存在时生成并写入，存在时直接读取；`-dag-cache <path>`用于覆盖默认路径，`-no-dag-cache`用于关闭缓存并每次重新生成DAG，这两个选项不能同时使用。缓存必须由相同坐标变换和预测参数生成，同一field测试不同配置时必须为它们指定不同路径。
+空间预测DAG默认不缓存，压缩和解压分别现场生成。显式传入`-dag-cache <path>`后才启用缓存：路径不存在时，压缩器或解压器生成DAG并写入该路径；路径存在时直接读取。缓存必须由相同坐标变换和预测参数生成，同一field测试不同配置时必须为它们指定不同路径。
 
 ## 1.4. 自定义有序点集
 
-不传`-point-set-config`时，程序把全部数据作为一个点集，使用命令行`-predictor`和`-M`来指定使用的预测器和误差上限。使用`-point-set-config`并传入JSON配置文件时，文件可以定义一个或多个点集；命令行中即使同时出现`-predictor`或`-M`也会被忽略。压缩和解压必须传入相同的配置文件：
+不传`-point-set-config`时，程序把全部数据作为一个点集，使用命令行`-predictor`和`-M`显式指定预测器和误差上限。`-M`和`-point-set-config`必须且只能选择一个。使用`-point-set-config`时，JSON定义一个或多个点集的分类条件、编码方法和误差上限；只要其中存在`method="predict"`的点集，就必须用`-predictor`统一指定它们共用的空间预测器。压缩和解压必须传入相同的点集配置和预测器参数：
 
 UNSZ目前只支持一个或两个点集。压缩入口依次执行`main`→`unsz::parse_args_and_select_types`→`unsz::parse_args`→初始化并选择`T_coord/T_data`→`unsz::compress`，再按配置中的点集数量进入`unsz::one_point_set::compress`或`unsz::two_point_sets::compress`。单点集入口继续按整体流程和预测器进入`unsz::one_point_set::<流程>::<idw或rbf>::compress`；六种流程与两个预测器组合成12个独立入口。
 
 ```bash
-install/bin/s1_compress -data-dir /path/to/Katrina -field attr0 -time-step '[0,161]' -coordinate-dim 3 -point-set-config point_set_configs/Katrina_attr0_rbf_rel_1e-2.json
-install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0,161]' -coordinate-dim 3 -point-set-config point_set_configs/Katrina_attr0_rbf_rel_1e-2.json
+install/bin/s1_compress -data-dir /path/to/Katrina -field attr0 -time-step '[0,161]' -coordinate-dim 3 -point-set-config point_set_configs/Katrina_attr0_rbf_rel_1e-2.json -predictor rbf -prediction-min-ref-num 10 -prediction-max-ref-num 10 -ordering-candidate-num 16 -ordering-score-max-ref-num 1 -ordering-score-min-ref-num 1
+install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0,161]' -coordinate-dim 3 -point-set-config point_set_configs/Katrina_attr0_rbf_rel_1e-2.json -predictor rbf -prediction-min-ref-num 10 -prediction-max-ref-num 10 -ordering-candidate-num 16 -ordering-score-max-ref-num 1 -ordering-score-min-ref-num 1
 ```
 
 `labels`数组下标就是点集编号。程序按顺序测试除最后一个label外的`condition`，第一条成立的条件决定label；全部不成立时属于最后一个label。比较符直接使用`<`、`<=`、`>`、`>=`、`==`或`!=`。下面是Katrina的两点集配置，其中点集1使用自身值域上的REL EB，点集2由固定fill value组成并使用常量编码：
 
 ```json
 {
-  "version":2,
+  "version":3,
   "labels":[
-    {"predictor":"rbf","eb_mode":"REL","eb_value":0.01,"condition":{"operator":">=","value":-1000}},
-    {"predictor":"constant"}
+    {"method":"predict","eb_mode":"REL","eb_value":0.01,"condition":{"operator":">=","value":-1000}},
+    {"method":"constant"}
   ]
 }
 ```
 
-最后一个label是默认兜底类型，因此省略`condition`（同时省略eb信息是因为`predictor=constant`，不需要eb）；配置文件只有一个label时同样不写`condition`。每个非常量label必须显式配置`eb_mode`和`eb_value`，模式为`REL`或`ABS`；`constant`省略这两个字段。当前可用predictor为`idw`、`rbf`和`constant`。旧的`fitting`、`hybrid_loo`和`quadratic_fitting`实现已归档到`c_codes/trash/point_set_with_legacy_fitting_predictors.tpp`，不再属于当前接口。
+最后一个label是默认兜底类型，因此省略`condition`（同时省略eb信息是因为`method="constant"`，不需要eb）；配置文件只有一个label时同样不写`condition`。每个`method="predict"`的label必须显式配置`eb_mode`和`eb_value`，模式为`REL`或`ABS`；`method="constant"`省略这两个字段。点集JSON中的`method`只能是`predict`或`constant`；IDW或RBF及其参数只在主配置的`predictor`中记录，不在点集JSON中重复指定。
 
 点集分类只读取当前field的数值并按上述条件执行，不接受额外标签文件。由于EB不写入bitstream，解压时仍必须使用与压缩时相同的配置。
 
@@ -150,12 +150,11 @@ JSON最外层是task list；同一个JSON可以包含不同数据目录的任务
       "predictor":{"name":"rbf","rbf_kernel":"matern32","rbf_shape":0.03,"rbf_nugget":1e-6,"rbf_solver":"ldlt","fallback":{"name":"idw","idw_power":2}},
       "ordering_scope":"global",
       "prediction_round_num":1,
-      "ordering_score":"msd",
       "prediction_min_ref_num":10,
       "prediction_max_ref_num":10,
       "ordering_candidate_num":16,
-      "ordering_score_max_ref_num":10,
-      "ordering_score_min_ref_num":10,
+      "ordering_score_max_ref_num":1,
+      "ordering_score_min_ref_num":1,
       "eb_schedule":{"name":"inverse_rank_log2","base":0.85,"log2_shift":0.5,"max_log2_exponent":7}
     },
     "umc":{
@@ -168,7 +167,7 @@ JSON最外层是task list；同一个JSON可以包含不同数据目录的任务
 ]
 ```
 
-`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`、`rbf_nugget`、`rbf_solver`和`fallback`，其中`fallback`明确记录同点集参考点不足时使用的`idw`及其`idw_power`，或者`nearest`。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是数值预测器最多使用的同点集参考点数；同点集参考点少于`prediction_min_ref_num`时，RBF改用`fallback`。当前正式RBF配置的上下限相同，IDW的下限为1。排序评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope`只决定在全体点还是各轮内部排序，`prediction_round_num`独立记录轮数；两者都必须显式配置，程序不会根据其中一个推导另一个。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时空流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`，因此不再依赖预测轮数限制最小EB倍率。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要覆盖默认DAG缓存路径时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器自动使用数据目录中的`.unsz_cache/<field>.dag`。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`、`.unsz.bin`和联合时空`.joint.unsz`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与DAG缓存不会被删除。
+`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`、`rbf_nugget`、`rbf_solver`和`fallback`，其中`fallback`明确记录同点集参考点不足时使用的`idw`及其`idw_power`，或者`nearest`。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是数值预测器最多使用的同点集参考点数；同点集参考点少于`prediction_min_ref_num`时，RBF改用`fallback`。当前正式RBF配置的上下限相同，IDW的下限为1。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope`只决定在全体点还是各轮内部排序，`prediction_round_num`独立记录轮数；两者都必须显式配置，程序不会根据其中一个推导另一个。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时空流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`，因此不再依赖预测轮数限制最小EB倍率。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`、`.unsz.bin`和联合时空`.joint.unsz`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
 
 UMC任务默认比较压缩端与独立解压端报告的PSNR，但不逐点读取磁盘上的`.umc.out`。需要在更新UMC、修改输入转换或冻结最终结果时检查实际输出文件，可以在task中设置`"verify_umc_disk_output":true`；该检查使用NumPy分块计算，不计入UMC核心压缩或解压时间。
 
@@ -249,7 +248,7 @@ UNSZ目前实现了六种压缩流程：
 
 时间一阶内插可通过`-time-step-coordinate-file <path>`读取一维float64原始数组，第`i`个数是time step `i`的实际坐标。压缩和解压必须读取同一文件；不传该参数时保持原有的等间距假设。对应task使用`time_step_coordinate_file`记录文件名并同时传给两端，普通等时间间隔数据不需要记录这一项。
 
-~~联合时空流程在普通命令后增加`-cross-time-spatial-point-num-experimental <N>`，其中`N`必须等于`coords.dat`中的空间点数。输入仍是原始空间坐标和逐time step的field文件，不需要由Python预先生成升维坐标或拼接field；时间坐标同样由`-time-step-coordinate-file`提供，不传时直接使用time step编号。~~
+联合时空流程使用`"value_flow":"joint_spatiotemporal"`。C++直接从`coords.dat`获得每个time step的空间点数，将空间坐标复制到各个time step并增加一个时间坐标维度，再把所有time step作为一个统一点云生成DAG；不再要求用户重复传入空间点数。输入仍是原始空间坐标和逐time step的field文件，不需要由Python预先生成升维坐标或拼接field；时间坐标由`time_step_coordinate_file`提供，不设置时使用time step编号。当前联合时空流程只支持单点集field。
 
 ## 2.2. 生成坐标变换矩阵
 
@@ -495,8 +494,8 @@ $$ L(C)=\sum_i\left(\lvert\Delta v_i\rvert-\lVert\Delta c_iC\rVert_2\right)^2 $$
 推荐通过矩阵文件使用训练结果。压缩和解压必须提供同一个文件：
 
 ```bash
-install/bin/s1_compress -data-dir /path/to/Katrina -field attr0 -time-step '[0,9]' -coordinate-dim 3 -M REL 1e-3 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
-install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0,9]' -coordinate-dim 3 -M REL 1e-3 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
+install/bin/s1_compress -data-dir /path/to/Katrina -field attr0 -time-step '[0,9]' -coordinate-dim 3 -M REL 1e-3 -predictor idw -prediction-min-ref-num 1 -prediction-max-ref-num 4 -ordering-candidate-num 16 -ordering-score-max-ref-num 1 -ordering-score-min-ref-num 1 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
+install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0,9]' -coordinate-dim 3 -M REL 1e-3 -predictor idw -prediction-min-ref-num 1 -prediction-max-ref-num 4 -ordering-candidate-num 16 -ordering-score-max-ref-num 1 -ordering-score-min-ref-num 1 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
 ```
 
 矩阵文件记录数据集、field、维数、下三角元素和训练类型。`training_type=spatial`表示只使用空间坐标训练；`training_type=spatiotemporal`表示把time step作为额外坐标维度进行联合时空训练。当前选定矩阵集中保存在`adjust_coord_matrices/`，格式和文件索引见其中的`README.md`。
@@ -548,110 +547,19 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0
 
 ### 2.3.2. 预测目标排序
 
-考虑到在多time step、多标签情况下，不同time step可能有不同的标签分布，对预测目标排序时往往不会考虑到标签。
+当前预测目标排序固定为反向MSD，不再把排序方向或评分公式作为可调配置。先假定所有点均可作为参考点，每次只在上一个被剔除点附近的固定数量候选点中，选择MSD最小的点剔除；完成后反转剔除序列，得到正向预测顺序。MSD定义为：
 
-<table class="fixed-layout-table" width="100%">
-  <colgroup>
-    <col width="20%">
-    <col width="10%">
-    <col width="42%">
-    <col width="28%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th width="20%">优化方案</th>
-      <th width="10%">当前状态</th>
-      <th width="42%">已有结论</th>
-      <th width="28%">下一步</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>直接对所有点进行排序</td>
-      <td>已采纳</td>
-      <td></td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>先把数据随机的、按照一定比例分成多轮，每轮内部进行排序</td>
-      <td>待验证</td>
-      <td>略微降低压缩效果，略微加速。但是预处理时间没有那么重要。</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>反向剔除</td>
-      <td>已采纳</td>
-      <td>先假定所有点都已经被预测，然后依次去掉最好预测的点。比正向添加更好。</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>仅在近邻点内寻找下一个预测目标</td>
-      <td>已验证</td>
-      <td>如果每次都从所有未处理点中寻找下一个目标，时间复杂度是O(N²)的，因此当前只从刚选中目标附近的固定数量点中选择下一个目标。候选数较小会减少DAG生成时的耗时，但也会改变最终DAG。<br>
-      当候选数量较少的时候，对压缩性能的影响并不固定。随着候选数量不断变大，更有可能选到和上一预测目标距离较远的点，并影响无损压缩的连续性，进而降低压缩比。<br>
-      另一方面来说，候选数量较少时，很容易出现当前目标依赖上一目标的情况，导致压缩过程有大量的串行依赖，进而降低压缩速度。随着候选数量不断增大，压缩耗时不断下降，但收益越来越小。Tsunami RBF10扫描中，4和8候选都形成覆盖全部点的依赖链，总时间反而是16候选的1.292和1.208倍；16～32候选的核心时间只再缩短约5%。</td>
-      <td>Tsunami六个field统一采用16候选；在其他网格上仍需检查速度与BR的拐点是否变化。</td>
-    </tr>
-    <tr>
-      <td>缓存参考点并延迟重新查询</td>
-      <td>待验证</td>
-      <td>为每个候选目标缓存一组用于评分的参考点。每次评分时，先去掉已经被剔除的参考点，然后如果剩余参考点数量不小于阈值，就只使用缓存中剩余的参考点，否则才重新查询kd-tree并补满缓存。略微增加br，但大幅加速。</td>
-      <td>可以缺少的参考点数量和最大参考点数量有关，需要重新验证。</td>
-    </tr>
-    <tr>
-      <td>根据平均平方距离<code>MSD</code>生成预测顺序</td>
-      <td>已采纳</td>
-      <td>不依赖数据，因此可以不存储DAG，但压缩能力弱于参考数据辅助顺序</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>根据预测目标相对参考数据云的位置<code>S2</code>生成预测顺序</td>
-      <td>弃用</td>
-      <td>$$ D=\frac{1}{k}\sum_{i=1}^{k}\lVert c-c_i\rVert_2^2 $$
-      $$ R=\frac{2}{k(k-1)}\sum_{1\le i\lt j\le k}\lVert c_i-c_j\rVert_2^2 $$
-      $$ S_2=\frac{2D}{R} $$
-      其中<code>c</code>是预测目标坐标，<code>c_i</code>是第<code>i</code>个参考点坐标，<code>k</code>是参考点数；<code>D</code>是目标到参考点的平均平方距离，<code>R</code>是参考点两两之间的平均平方距离。<code>S2</code>衡量目标相对参考点云的偏离程度，实验效果不如MSD</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>根据预测误差生成预测顺序</td>
-      <td>可选</td>
-      <td>在多time step时，使用少量文件作为参考数据，用实际使用的预测器在原始数据上估算出预测误差，然后根据预测误差排序。或者在单time step时，直接使用数据本身作为参考数据。通常比<code>msD</code>好一些，但是必须存储DAG，另外耗时和实际使用的预测器有关。在多time step时也有可能不存储DAG，方法是先用其他不需要DAG的排序方式来压缩并解压参考数据吗，然后使用有损参考数据来排序剩余的数据，但因为要生成两次DAG，收益可能比不上耗时。
-      关于在多time step下使用的参考文件数量，目前使用3个。</td>
-      <td>暂时不采用，除非在特定数据上发现MSD不够好，并且这个方案有很大提升。</td>
-    </tr>
-    <tr>
-      <td>生成参考数据辅助顺序时，暂时少用几个参考点</td>
-      <td>放弃</td>
-      <td>生成顺序的过程中，一些缓存参考点会逐渐变得不可用。继续用剩下的参考点评分可以减少kd-tree查询，但会生成更差的顺序，最终增加BR</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>在根据预测误差排序时，允许参考不可用的点</td>
-      <td>放弃</td>
-      <td>首次预处理约快<code>2.18～2.27</code>倍，但相对动态分数在Katrina和Ocean temperature增加BD-rate <code>6.336%/42.165%</code></td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>在先分轮再排序的方案中，对于最后几轮，根据kd tree对空间进行划分，然后在排序的时候，排完一个区域所有的点，再处理下一个区域。</td>
-      <td>放弃</td>
-      <td>预期是略微增加br，但增加缓存命中率，所以会有一定的加速。实际上略微减小br，并且变慢。</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>生成预测顺序后，把数据按照预测顺序重排</td>
-      <td>按field选择</td>
-      <td>只改变数据在内存中的排列，不改变预测关系、BR、PSNR或码流。Ocean-large的核心循环从中受益；Katrina因为多点集标签和顺序转换而变慢。Tsunami momentum_x的核心计算快约<code>3.5%</code>，但计入压缩端输入重排和解压端恢复原顺序后，压缩与解压总时间增加约<code>7.7%</code></td>
-      <td>只在计入两端顺序转换后总时间下降的field上启用</td>
-    </tr>
-    <tr>
-      <td>联合使用多种排序标准</td>
-      <td>待验证</td>
-      <td>疑似MSD+S2不如纯粹的MSD</td>
-      <td>如果之后打算使用预测误差来排序，可以重新尝试这个方案</td>
-    </tr>
-  </tbody>
-</table>
+$$
+\operatorname{MSD}(c)=\frac{1}{k}\sum_{i=1}^{k}\lVert c-c_i\rVert_2^2,
+$$
+
+其中$c$是候选目标坐标，$c_i$是当前仍可用的评分参考点坐标。该分数只依赖坐标和已确定的剔除状态，因此压缩端和解压端可以独立生成相同DAG，无需保存预测顺序。
+
+当前仍显式配置与反向MSD本身相关的参数：`ordering_scope`决定全局排序或各轮内排序，`ordering_candidate_num`决定每次检查的附近候选数，`ordering_score_max_ref_num`和`ordering_score_min_ref_num`决定MSD评分使用的参考点数量。Tsunami和Katrina当前均使用1点MSD和16个排序候选点。
+
+生成顺序时会缓存每个候选的MSD参考点，只在缓存中的可用点数低于下限时重新查询kd-tree。全局反向1点MSD还会自动复用排序候选查询的几何信息：只有能严格证明候选集内某点是全局最近可用参考点时才省略额外查询，因此不改变DAG。
+
+正向排序、最近参考距离、`S2`、方向集中度、联合评分和参考数据辅助排序等实现及CLI均已删除。这些方案的历史结果仅保留在`TODO_DETAIL.md`中；如果以后需要消融实验，再从Git历史恢复或重写。
 
 ### 2.3.3. 生成DAG
 
@@ -865,11 +773,11 @@ $$
     </tr>
     <tr>
       <td>qb的写出顺序</td>
-      <td>待验证</td>
+      <td>已固定</td>
       <td>
         目前的经验是：<br>
         对于标签，始终按照原始顺序，写出每个错误位置相对于上一个错误位置的编号差。<br>
-        对于数值，按照处理顺序写出。比如说按照原始顺序进行时间预测，那么就按照原始顺序写出；使用了时间预测+空间补偿，那么就按照DAG顺序写出。这样不仅快，而且压缩比高。
+        对于数值，固定按照处理顺序写出。按照原始顺序进行时间预测时，qb自然采用原始顺序；使用空间预测或时间预测＋空间修正时，qb采用DAG顺序。原本用于强制按原始点编号存储数值qb的命令行选项已经删除。
       </td>
       <td></td>
     </tr>
@@ -938,8 +846,8 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
     </tr>
     <tr>
       <td>压缩和解压时，可以使用不同处理顺序。</td>
-      <td>待验证</td>
-      <td>在已知DAG的情况下，以原始顺序和DAG顺序存储的qb可以相互转换。因此压缩和解压可以选择不同的处理/存储顺序。在katrina上尝试过压缩时使用DAG顺序记录标签，并按照原始顺序存储对预测的修正。解压时使用原始顺序恢复标签。总体上有加速效果。</td>
+      <td>数值qb方案已放弃</td>
+      <td>在已知DAG时，数值qb可以在原始顺序和DAG顺序之间转换，但转换没有稳定收益，现已固定按处理顺序存储。标签仍可根据具体时间流程选择原始顺序或DAG顺序处理，这与数值qb存储选项无关。</td>
       <td></td>
     </tr>
     <tr>
@@ -1127,60 +1035,60 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
       <td>否</td>
       <td>纯空间</td>
       <td>否</td>
-      <td>10</td>
+      <td>1</td>
       <td><code>64.90</code></td>
-      <td><code>1.054×</code></td>
-      <td><code>1.343×</code></td>
+      <td><code>1.053×</code></td>
+      <td>—</td>
     </tr>
     <tr>
       <td>Tsunami height</td>
       <td>否</td>
       <td>纯空间</td>
       <td>否</td>
-      <td>10</td>
+      <td>1</td>
       <td><code>65.46</code></td>
-      <td><code>0.974×</code></td>
-      <td><code>1.215×</code></td>
+      <td><code>0.988×</code></td>
+      <td>—</td>
     </tr>
     <tr>
       <td>Tsunami momentum_x</td>
       <td>否</td>
       <td>纯空间</td>
       <td>否</td>
-      <td>10</td>
+      <td>1</td>
       <td><code>66.49</code></td>
-      <td><code>1.399×</code></td>
-      <td><code>1.390×</code></td>
+      <td><code>1.394×</code></td>
+      <td>—</td>
     </tr>
     <tr>
       <td>Tsunami momentum_y</td>
       <td>否</td>
       <td>纯空间</td>
       <td>否</td>
-      <td>10</td>
+      <td>1</td>
       <td><code>66.48</code></td>
-      <td><code>1.345×</code></td>
-      <td><code>1.372×</code></td>
+      <td><code>1.316×</code></td>
+      <td>—</td>
     </tr>
     <tr>
       <td>Tsunami velocity_x</td>
       <td>否</td>
       <td>纯空间</td>
       <td>否</td>
-      <td>10</td>
+      <td>1</td>
       <td><code>67.03</code></td>
-      <td><code>1.456×</code></td>
-      <td><code>1.350×</code></td>
+      <td><code>1.522×</code></td>
+      <td>—</td>
     </tr>
     <tr>
       <td>Tsunami velocity_y</td>
       <td>否</td>
       <td>纯空间</td>
       <td>否</td>
-      <td>10</td>
+      <td>1</td>
       <td><code>67.16</code></td>
-      <td><code>1.359×</code></td>
-      <td><code>1.450×</code></td>
+      <td><code>1.449×</code></td>
+      <td>—</td>
     </tr>
     <tr>
       <td>Katrina attr0</td>
@@ -1194,6 +1102,8 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
     </tr>
   </tbody>
 </table>
+
+Tsunami的`CR/UMC`来自既有1点MSD五点曲线；切换正式配置后尚未统一复测五个REL EB的总时间，因此时间栏暂不填写。
 
 以下是所有实验通用的其他参数。如果发现其中有些参数在不同数据上有不同的最优值，并且有很大提升，应该移动到上表。
 
@@ -1258,7 +1168,6 @@ UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同�
 - [ ] 把`results/current`整理为与3.1及`configs/`中的task JSON一致的结果集；Tsunami最终使用16候选。
 - [ ] 优先优化仍未达到目标的field，包括Tsunami height、ADCIRC-Haiyan depth和Ocean-large垂直temperature；方案固定后再迁移到其他field验证泛化。
 - [ ] 测试一阶内插中“最后一个文件由第一个文件作零阶外插预测”，并实现“空间预测＋时间补偿”。
-- [ ] 在新数据或新预测器配置上验证参考数据辅助排序，不重复当前冻结field；主结果允许参考文件包含在完整压缩集合中，held-out只作为泛化消融。
 - [ ] 为E3SM-h4 AODDUST补测UMC-INP batch `1/2/5/10`，确认其巨大差异中有多少来自UMC每10步更新动态无效状态。
 - [ ] 研究DAG和RBF权重的紧凑持久化，明确公共metadata需要在多少field或time step之间摊销。
 - [ ] 确认UMC论文Ocean-large的`varnames_91.txt`，核实是否使用58个单高度cell变量及33个多高度cell变量的第0层，再把已经取得的12个月度NetCDF转换为91×12输入；单快照restart不能冒充论文月度输出。

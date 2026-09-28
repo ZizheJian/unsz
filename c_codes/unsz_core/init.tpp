@@ -6,7 +6,7 @@ namespace unsz
     void param_c<T_coord,T_data>::prepare_linear_interpolation_order()
     {
         bool use_linear_interpolation_order=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||label_flow=="endpoint_agreement";
-        if(!use_linear_interpolation_order||time_anchor_stride_experimental>0)
+        if(!use_linear_interpolation_order||time_anchor_stride>0)
             return;
         if(time_step_vec.size()<2)
             throw runtime_error("一阶内插流程至少需要两个time step");
@@ -77,7 +77,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_time_anchor_order()
     {
-        if(time_anchor_stride_experimental==0)
+        if(time_anchor_stride==0)
             return;
         if(time_step_vec.size()<2)
             throw runtime_error("固定步长锚点流程至少需要两个time step");
@@ -100,15 +100,15 @@ namespace unsz
                 throw runtime_error("固定步长锚点流程目前要求time step连续且不重复");
         time_anchor_first_step=sorted_time_step_vec.front();
         time_anchor_last_step=sorted_time_step_vec.back();
-        time_anchor_last_regular_step=time_anchor_first_step+(time_anchor_last_step-time_anchor_first_step)/time_anchor_stride_experimental*time_anchor_stride_experimental;
+        time_anchor_last_regular_step=time_anchor_first_step+(time_anchor_last_step-time_anchor_first_step)/time_anchor_stride*time_anchor_stride;
         vector<uint32_t> order;
-        for(uint64_t time_step=time_anchor_first_step;time_step<=time_anchor_last_regular_step;time_step+=time_anchor_stride_experimental)
+        for(uint64_t time_step=time_anchor_first_step;time_step<=time_anchor_last_regular_step;time_step+=time_anchor_stride)
             order.push_back((uint32_t)time_step);
         if(time_anchor_last_regular_step!=time_anchor_last_step)
             order.push_back(time_anchor_last_step);
         vector<pair<uint32_t,uint32_t>> interval_vec;
-        for(uint32_t left=time_anchor_first_step;left<time_anchor_last_regular_step;left+=time_anchor_stride_experimental)
-            interval_vec.push_back({left,left+time_anchor_stride_experimental});
+        for(uint32_t left=time_anchor_first_step;left<time_anchor_last_regular_step;left+=time_anchor_stride)
+            interval_vec.push_back({left,left+time_anchor_stride});
         if(time_anchor_last_regular_step!=time_anchor_last_step)
             interval_vec.push_back({time_anchor_last_regular_step,time_anchor_last_step});
         for(uint32_t interval_id=0;interval_id<interval_vec.size();interval_id++)
@@ -143,7 +143,7 @@ namespace unsz
             ordered_data_path_vec.push_back(sorted_data_path_vec[time_step-time_anchor_first_step]);
         time_step_vec=move(order);
         original_data_path_vec=move(ordered_data_path_vec);
-        printf("Time anchor stride=%u,regular last=%u,final endpoint=%u,processing order:",time_anchor_stride_experimental,time_anchor_last_regular_step,time_anchor_last_step);
+        printf("Time anchor stride=%u,regular last=%u,final endpoint=%u,processing order:",time_anchor_stride,time_anchor_last_regular_step,time_anchor_last_step);
         for(uint32_t time_step:time_step_vec)
             printf(" %u",time_step);
         printf("\n");
@@ -205,16 +205,6 @@ namespace unsz
         load_time_step_coordinates();
         prepare_linear_interpolation_order();
         prepare_time_anchor_order();
-        if (check_original_data_files)
-            for (auto &data_path:original_data_path_vec)
-            {
-                FILE *f_data=fopen(data_path.c_str(),"rb");
-                if (!f_data)
-                    throw runtime_error("找不到数据文件："+data_path);
-                if (fclose(f_data)!=0)
-                    throw runtime_error("关闭数据文件失败："+data_path);
-            }
-
         if (dim==0)
             throw runtime_error("坐标维数不能为0");
         FILE *f_coord=fopen(coord_path.c_str(),"rb");
@@ -240,6 +230,19 @@ namespace unsz
             throw runtime_error("点数超过uint32_t的表示范围");
         point_num=(uint32_t)point_num64;
         printf("point_num=%u\n",point_num);
+        if(check_original_data_files)
+        {
+            uint64_t expected_data_file_bytes=(uint64_t)point_num*sizeof(T_data);
+            for(auto &data_path:original_data_path_vec)
+            {
+                error_code error;
+                uint64_t data_file_bytes=filesystem::file_size(data_path,error);
+                if(error)
+                    throw runtime_error("无法读取数据文件大小："+data_path+"："+error.message());
+                if(data_file_bytes!=expected_data_file_bytes)
+                    throw runtime_error("数据文件大小不正确："+data_path+"，实际="+to_string(data_file_bytes)+" B，预期="+to_string(expected_data_file_bytes)+" B");
+            }
+        }
         coord_array.resize(point_num,dim);
         if (fseek(f_coord,0,SEEK_SET)!=0)
         {

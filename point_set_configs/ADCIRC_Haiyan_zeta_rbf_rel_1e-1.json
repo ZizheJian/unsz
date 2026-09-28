@@ -1,7 +1,7 @@
 {
-  "version":2,
+  "version":3,
   "labels":[
-    {"predictor":"rbf","eb_mode":"REL","eb_value":0.1,"condition":{"operator":"!=","value":-99999}},
-    {"predictor":"constant"}
+    {"method":"predict","eb_mode":"REL","eb_value":0.1,"condition":{"operator":"!=","value":-99999}},
+    {"method":"constant"}
   ]
 }

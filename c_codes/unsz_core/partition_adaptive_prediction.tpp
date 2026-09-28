@@ -101,8 +101,6 @@ namespace unsz
             return;
         if (point_set_point_num_vec.size()!=1)
             throw runtime_error("partition自适应预测器当前只支持单点集数据");
-        if (reorder_by_prediction_order)
-            throw runtime_error("partition自适应预测器暂不支持预测顺序内部重排");
         vector<partition_prediction_config_c> config_vec=get_partition_prediction_config_vec();
         partition_prediction_config_id_vec.assign(partition_point_ids_vec.size(),0);
         prepare_partition_adaptive_sample_mask();

@@ -49,6 +49,27 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
+    uint32_t param_c<T_coord,T_data>::predict_binary_label_configured(uint32_t pred_ref_id,array_view_c<int> ref_ids,const vector<uint8_t> &label_vec,bool use_majority)
+    {
+        if(point_set_predictor=="rbf")
+        {
+            if(pred_ref_rbf_weights.size()==pred_ref_ids.size())
+            {
+                uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
+                uint64_t begin=pred_ref_begin[pred_ref_id];
+                bool valid=ref_num>=prediction_min_ref_num;
+                for(uint32_t ref_index=0;valid&&ref_index<ref_num;ref_index++)
+                    valid=isfinite(pred_ref_rbf_weights[begin+ref_index]);
+                if(valid)
+                    return predict_binary_label(ref_ids,array_view_c<double>(pred_ref_rbf_weights.data()+begin,ref_num),label_vec,false);
+            }
+            if(rbf_fallback_nearest)
+                return ref_ids.empty()?0:label_vec[ref_ids[0]];
+        }
+        return predict_binary_label(ref_ids,get_pred_ref_weights(pred_ref_id,false,false),label_vec,use_majority);
+    }
+
+    template<typename T_coord,typename T_data>
     double param_c<T_coord,T_data>::predict_binary_label_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights,const vector<double> &label_value_vec)
     {
         if (ref_ids.empty())

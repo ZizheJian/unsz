@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 project(unsz)
 
-# set(CMAKE_CXX_STANDARD 11)
-# set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
 
 # 优化标志
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Ofast -march=native -mavx2 -mfma -Wno-dangling-else")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=native -mavx2 -mfma -Wno-dangling-else")
 
 # 寻找/添加依赖库
 add_subdirectory(third_party/zstd)

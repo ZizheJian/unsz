@@ -128,6 +128,8 @@ namespace unsz
             structure->original_id_to_block_vec_id[original_id]=structure->tree_id_to_block_vec_id[i];
             memcpy(structure->tree_order_coord_array[i],coord_array[original_id],dim*sizeof(T_coord));
         }
+        if(leaf_point_num<=64)
+            enable_leaf_valid_mask();
     }
 
     template<typename T_coord>
@@ -244,25 +246,17 @@ namespace unsz
 
     template<typename T_coord>
     void block_tree_c<T_coord>::find_original_nearest(nearest_queue_c<T_coord> &nearest_queue,Array2D<T_coord> &coord_array,
-        uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only,nearest_query_stats_c *stats)
+        uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only)
     {
         if(use_iterative_query&&block_id==0)
         {
-            find_original_nearest_iterative(nearest_queue,coord_array,nearest_num,block_id,query_coord,valid_only,stats);
+            find_original_nearest_iterative(nearest_queue,coord_array,nearest_num,block_id,query_coord,valid_only);
             return;
         }
-        if(stats)
-            stats->block_visit_num++;
         if ((valid_only) && (valid_num[block_id]==0))
-        {
-            if(stats)
-                stats->empty_block_prune_num++;
             return;
-        }
         if (structure->block_vec[block_id].left_child_id==-1 && structure->block_vec[block_id].right_child_id==-1)
         {
-            if(stats)
-                stats->leaf_visit_num++;
             if(valid_only&&use_leaf_valid_mask)
             {
                 uint32_t index_begin=structure->block_vec[block_id].index_begin;
@@ -272,25 +266,14 @@ namespace unsz
                     uint32_t point_offset=(uint32_t)__builtin_ctzll(mask);
                     uint32_t tree_id=index_begin+point_offset;
                     mask&=mask-1;
-                    if(stats)
-                    {
-                        stats->point_check_num++;
-                        stats->point_distance_num++;
-                    }
                     int original_id=structure->tree_id_to_original_id[tree_id];
                     T_coord dist=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
                     if(nearest_queue.size()<nearest_num)
-                    {
                         nearest_queue.push({dist,original_id});
-                        if(stats)
-                            stats->queue_push_num++;
-                    }
                     else if(dist<nearest_queue.top().first)
                     {
                         nearest_queue.pop();
                         nearest_queue.push({dist,original_id});
-                        if(stats)
-                            stats->queue_replace_num++;
                     }
                 }
             }
@@ -298,30 +281,16 @@ namespace unsz
             {
                 for (uint32_t tree_id=structure->block_vec[block_id].index_begin;tree_id<structure->block_vec[block_id].index_end;tree_id++)
                 {
-                    if(stats)
-                        stats->point_check_num++;
                     if (valid_only && !point_valid[tree_id])
-                    {
-                        if(stats)
-                            stats->invalid_point_skip_num++;
                         continue;
-                    }
                     int original_id=structure->tree_id_to_original_id[tree_id];
                     T_coord dist=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
-                    if(stats)
-                        stats->point_distance_num++;
                     if (nearest_queue.size()<nearest_num)
-                    {
                         nearest_queue.push({dist,original_id});
-                        if(stats)
-                            stats->queue_push_num++;
-                    }
                     else if (dist<nearest_queue.top().first)
                     {
                         nearest_queue.pop();
                         nearest_queue.push({dist,original_id});
-                        if(stats)
-                            stats->queue_replace_num++;
                     }
                 }
             }
@@ -332,34 +301,24 @@ namespace unsz
             int second_child_id=structure->block_vec[block_id].right_child_id;
             T_coord dist_first=numeric_limits<T_coord>::infinity(),dist_second=numeric_limits<T_coord>::infinity();
             if (first_child_id!=-1)
-            {
                 dist_first=get_dist_to_block(query_coord,get_block_min_coord(first_child_id),get_block_max_coord(first_child_id),dim);
-                if(stats)
-                    stats->block_distance_num++;
-            }
             if (second_child_id!=-1)
-            {
                 dist_second=get_dist_to_block(query_coord,get_block_min_coord(second_child_id),get_block_max_coord(second_child_id),dim);
-                if(stats)
-                    stats->block_distance_num++;
-            }
             if (dist_first>dist_second)
             {
                 swap(first_child_id,second_child_id);
                 swap(dist_first,dist_second);
             }
             if (first_child_id!=-1)
-                find_original_nearest(nearest_queue,coord_array,nearest_num,first_child_id,query_coord,valid_only,stats);
+                find_original_nearest(nearest_queue,coord_array,nearest_num,first_child_id,query_coord,valid_only);
             if ((second_child_id!=-1) && ((nearest_queue.size()<nearest_num) || (dist_second<nearest_queue.top().first)))
-                find_original_nearest(nearest_queue,coord_array,nearest_num,second_child_id,query_coord,valid_only,stats);
-            else if(second_child_id!=-1&&stats)
-                stats->far_child_prune_num++;
+                find_original_nearest(nearest_queue,coord_array,nearest_num,second_child_id,query_coord,valid_only);
         }
     }
 
     template<typename T_coord>
     void block_tree_c<T_coord>::find_original_nearest_iterative(nearest_queue_c<T_coord> &nearest_queue,Array2D<T_coord> &coord_array,
-        uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only,nearest_query_stats_c *stats)
+        uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only)
     {
         struct stack_entry_c
         {
@@ -374,25 +333,13 @@ namespace unsz
         {
             stack_entry_c entry=stack[--stack_size];
             if(entry.check_bound&&nearest_queue.size()>=nearest_num&&!(entry.lower_bound<nearest_queue.top().first))
-            {
-                if(stats)
-                    stats->far_child_prune_num++;
                 continue;
-            }
             int current_block_id=entry.block_id;
-            if(stats)
-                stats->block_visit_num++;
             if(valid_only&&valid_num[current_block_id]==0)
-            {
-                if(stats)
-                    stats->empty_block_prune_num++;
                 continue;
-            }
             const auto &block=structure->block_vec[current_block_id];
             if(block.left_child_id==-1&&block.right_child_id==-1)
             {
-                if(stats)
-                    stats->leaf_visit_num++;
                 if(valid_only&&use_leaf_valid_mask)
                 {
                     uint64_t mask=leaf_valid_mask[current_block_id];
@@ -401,25 +348,14 @@ namespace unsz
                         uint32_t point_offset=(uint32_t)__builtin_ctzll(mask);
                         uint32_t tree_id=block.index_begin+point_offset;
                         mask&=mask-1;
-                        if(stats)
-                        {
-                            stats->point_check_num++;
-                            stats->point_distance_num++;
-                        }
                         int original_id=structure->tree_id_to_original_id[tree_id];
                         T_coord dist=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
                         if(nearest_queue.size()<nearest_num)
-                        {
                             nearest_queue.push({dist,original_id});
-                            if(stats)
-                                stats->queue_push_num++;
-                        }
                         else if(dist<nearest_queue.top().first)
                         {
                             nearest_queue.pop();
                             nearest_queue.push({dist,original_id});
-                            if(stats)
-                                stats->queue_replace_num++;
                         }
                     }
                 }
@@ -427,30 +363,16 @@ namespace unsz
                 {
                     for(uint32_t tree_id=block.index_begin;tree_id<block.index_end;tree_id++)
                     {
-                        if(stats)
-                            stats->point_check_num++;
                         if(valid_only&&!point_valid[tree_id])
-                        {
-                            if(stats)
-                                stats->invalid_point_skip_num++;
                             continue;
-                        }
                         int original_id=structure->tree_id_to_original_id[tree_id];
                         T_coord dist=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
-                        if(stats)
-                            stats->point_distance_num++;
                         if(nearest_queue.size()<nearest_num)
-                        {
                             nearest_queue.push({dist,original_id});
-                            if(stats)
-                                stats->queue_push_num++;
-                        }
                         else if(dist<nearest_queue.top().first)
                         {
                             nearest_queue.pop();
                             nearest_queue.push({dist,original_id});
-                            if(stats)
-                                stats->queue_replace_num++;
                         }
                     }
                 }
@@ -459,17 +381,9 @@ namespace unsz
             int first_child_id=block.left_child_id,second_child_id=block.right_child_id;
             T_coord dist_first=numeric_limits<T_coord>::infinity(),dist_second=numeric_limits<T_coord>::infinity();
             if(first_child_id!=-1)
-            {
                 dist_first=get_dist_to_block(query_coord,get_block_min_coord(first_child_id),get_block_max_coord(first_child_id),dim);
-                if(stats)
-                    stats->block_distance_num++;
-            }
             if(second_child_id!=-1)
-            {
                 dist_second=get_dist_to_block(query_coord,get_block_min_coord(second_child_id),get_block_max_coord(second_child_id),dim);
-                if(stats)
-                    stats->block_distance_num++;
-            }
             if(dist_first>dist_second)
             {
                 swap(first_child_id,second_child_id);
@@ -491,7 +405,7 @@ namespace unsz
     }
 
     template<typename T_coord>
-    bool block_tree_c<T_coord>::find_original_nearest_other_iterative(T_coord *query_coord,int excluded_original_id,int block_id,T_coord &nearest_distance,int &nearest_original_id,bool valid_only,nearest_query_stats_c *stats)
+    bool block_tree_c<T_coord>::find_original_nearest_other_iterative(T_coord *query_coord,int excluded_original_id,int block_id,T_coord &nearest_distance,int &nearest_original_id,bool valid_only)
     {
         struct stack_entry_c
         {
@@ -508,25 +422,13 @@ namespace unsz
         {
             stack_entry_c entry=stack[--stack_size];
             if(entry.check_bound&&nearest_original_id>=0&&!(entry.lower_bound<nearest_distance))
-            {
-                if(stats)
-                    stats->far_child_prune_num++;
                 continue;
-            }
             int current_block_id=entry.block_id;
-            if(stats)
-                stats->block_visit_num++;
             if(valid_only&&valid_num[current_block_id]==0)
-            {
-                if(stats)
-                    stats->empty_block_prune_num++;
                 continue;
-            }
             const auto&block=structure->block_vec[current_block_id];
             if(block.left_child_id==-1&&block.right_child_id==-1)
             {
-                if(stats)
-                    stats->leaf_visit_num++;
                 if(valid_only&&use_leaf_valid_mask)
                 {
                     uint64_t mask=leaf_valid_mask[current_block_id];
@@ -535,26 +437,14 @@ namespace unsz
                         uint32_t point_offset=(uint32_t)__builtin_ctzll(mask);
                         uint32_t tree_id=block.index_begin+point_offset;
                         mask&=mask-1;
-                        if(stats)
-                            stats->point_check_num++;
                         int original_id=structure->tree_id_to_original_id[tree_id];
                         if(original_id==excluded_original_id)
                             continue;
                         T_coord distance=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
-                        if(stats)
-                            stats->point_distance_num++;
                         if(nearest_original_id<0||distance<nearest_distance)
                         {
-                            bool had_nearest=nearest_original_id>=0;
                             nearest_distance=distance;
                             nearest_original_id=original_id;
-                            if(stats)
-                            {
-                                if(had_nearest)
-                                    stats->queue_replace_num++;
-                                else
-                                    stats->queue_push_num++;
-                            }
                         }
                     }
                 }
@@ -562,32 +452,16 @@ namespace unsz
                 {
                     for(uint32_t tree_id=block.index_begin;tree_id<block.index_end;tree_id++)
                     {
-                        if(stats)
-                            stats->point_check_num++;
                         if(valid_only&&!point_valid[tree_id])
-                        {
-                            if(stats)
-                                stats->invalid_point_skip_num++;
                             continue;
-                        }
                         int original_id=structure->tree_id_to_original_id[tree_id];
                         if(original_id==excluded_original_id)
                             continue;
                         T_coord distance=get_dist_to_coord(query_coord,structure->tree_order_coord_array[tree_id],dim);
-                        if(stats)
-                            stats->point_distance_num++;
                         if(nearest_original_id<0||distance<nearest_distance)
                         {
-                            bool had_nearest=nearest_original_id>=0;
                             nearest_distance=distance;
                             nearest_original_id=original_id;
-                            if(stats)
-                            {
-                                if(had_nearest)
-                                    stats->queue_replace_num++;
-                                else
-                                    stats->queue_push_num++;
-                            }
                         }
                     }
                 }
@@ -596,17 +470,9 @@ namespace unsz
             int first_child_id=block.left_child_id,second_child_id=block.right_child_id;
             T_coord dist_first=numeric_limits<T_coord>::infinity(),dist_second=numeric_limits<T_coord>::infinity();
             if(first_child_id!=-1)
-            {
                 dist_first=get_dist_to_block(query_coord,get_block_min_coord(first_child_id),get_block_max_coord(first_child_id),dim);
-                if(stats)
-                    stats->block_distance_num++;
-            }
             if(second_child_id!=-1)
-            {
                 dist_second=get_dist_to_block(query_coord,get_block_min_coord(second_child_id),get_block_max_coord(second_child_id),dim);
-                if(stats)
-                    stats->block_distance_num++;
-            }
             if(dist_first>dist_second)
             {
                 swap(first_child_id,second_child_id);

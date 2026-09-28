@@ -72,9 +72,9 @@ def linear_interpolation_time_order(time_step_coordinates):
     return order
 
 def write_point_set_config(path,arguments,rel_eb):
-    labels=[{"predictor":arguments.predictor,"eb_mode":"REL","eb_value":rel_eb},{"predictor":"constant"}]
+    labels=[{"method":"predict","eb_mode":"REL","eb_value":rel_eb},{"method":"constant"}]
     labels[0]["condition"]={"operator":arguments.condition_operator,"value":arguments.condition_value}
-    config={"version":2,"labels":labels}
+    config={"version":3,"labels":labels}
     with path.open("w",encoding="utf-8") as file:
         json.dump(config,file,ensure_ascii=False)
 
@@ -127,15 +127,15 @@ def main():
         for value_flow,time_expression,extra_arguments in flow_vec:
             for rel_eb in rel_eb_vec:
                 compression_error_arguments=["-M","REL",rel_eb,"-predictor",arguments.predictor]
-                decompression_error_arguments=["-M","REL",rel_eb]
+                decompression_error_arguments=["-M","REL",rel_eb,"-predictor",arguments.predictor]
                 if arguments.condition_operator is not None:
                     point_set_config_path=temporary_dir/f"{value_flow}_{rel_eb:g}.json"
                     write_point_set_config(point_set_config_path,arguments,rel_eb)
-                    compression_error_arguments=["-point-set-config",point_set_config_path]
+                    compression_error_arguments=["-point-set-config",point_set_config_path,"-predictor",arguments.predictor]
                     decompression_error_arguments=compression_error_arguments
                 predictor_arguments=["-rbf-kernel",arguments.rbf_kernel,"-rbf-shape",arguments.rbf_shape,"-rbf-nugget",arguments.rbf_nugget] if arguments.predictor=="rbf" else []
                 prediction_min_ref_num=arguments.prediction_max_ref_num if arguments.predictor=="rbf" else 1
-                common_arguments=["-data-dir",test_dir,"-field",arguments.field,"-time-step",time_expression,"-coordinate-dim",arguments.coordinate_dim,"-dag-cache",dag_cache_path,"-prediction-round-num",arguments.prediction_round_num,"-prediction-min-ref-num",prediction_min_ref_num,"-prediction-max-ref-num",arguments.prediction_max_ref_num,"-idw-power",arguments.idw_power,"-kd-leaf-size",32,"-ordering-candidate-num",arguments.prediction_max_ref_num,"-ordering-score-max-ref-num",arguments.prediction_max_ref_num,"-ordering-score-min-ref-num",arguments.prediction_max_ref_num,"-eb-schedule","round_point_ratio",0.8,"-reverse-msd-order",*predictor_arguments,*matrix_arguments,*time_coordinate_arguments,*extra_arguments]
+                common_arguments=["-data-dir",test_dir,"-field",arguments.field,"-time-step",time_expression,"-coordinate-dim",arguments.coordinate_dim,"-dag-cache",dag_cache_path,"-prediction-round-num",arguments.prediction_round_num,"-prediction-min-ref-num",prediction_min_ref_num,"-prediction-max-ref-num",arguments.prediction_max_ref_num,"-idw-power",arguments.idw_power,"-kd-leaf-size",32,"-ordering-candidate-num",arguments.prediction_max_ref_num,"-ordering-score-max-ref-num",arguments.prediction_max_ref_num,"-ordering-score-min-ref-num",arguments.prediction_max_ref_num,"-eb-schedule","round_point_ratio",0.8,*predictor_arguments,*matrix_arguments,*time_coordinate_arguments,*extra_arguments]
                 compression_output=run_command([compressor,*compression_error_arguments,*common_arguments])
                 decompression_output=run_command([decompressor,*decompression_error_arguments,*common_arguments])
                 psnr=read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"压缩PSNR")

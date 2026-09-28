@@ -1,6 +1,6 @@
 import argparse,csv,math,os,tempfile
 from pathlib import Path
-from screen_field_geometric_order import calculate_average_br_change,cleanup,decompressor,project_root,read_float,run_command,write_results,compressor
+from spatial_benchmark_common import calculate_average_br_change,cleanup,decompressor,project_root,read_float,run_command,write_results,compressor
 
 default_rel_eb_vec=(1e-2,1e-3,1e-4)
 
@@ -38,14 +38,14 @@ def main():
             config=f"round_{round_num}_eb_ratio_{eb_ratio:g}"
             dag_cache_path=temporary_dir/f"round_{round_num}.dag"
             for rel_eb in rel_eb_vec:
-                common_arguments=["-data-dir",data_dir,"-field",arguments.field,"-time-step",f"{{{arguments.time_step}}}","-coordinate-dim",arguments.coordinate_dim,"-dag-cache",dag_cache_path,"-prediction-round-num",round_num,"-prediction-min-ref-num",arguments.prediction_max_ref_num,"-prediction-max-ref-num",arguments.prediction_max_ref_num,"-ordering-scope","local","-kd-leaf-size",32,"-ordering-candidate-num",arguments.prediction_max_ref_num,"-ordering-score-max-ref-num",arguments.prediction_max_ref_num,"-ordering-score-min-ref-num",arguments.prediction_max_ref_num,"-eb-schedule","round_point_ratio",eb_ratio,"-rbf-kernel",arguments.rbf_kernel,"-rbf-shape",arguments.rbf_shape,"-rbf-nugget",arguments.rbf_nugget,"-reverse-msd-order"]
+                common_arguments=["-data-dir",data_dir,"-field",arguments.field,"-time-step",f"{{{arguments.time_step}}}","-coordinate-dim",arguments.coordinate_dim,"-dag-cache",dag_cache_path,"-prediction-round-num",round_num,"-prediction-min-ref-num",arguments.prediction_max_ref_num,"-prediction-max-ref-num",arguments.prediction_max_ref_num,"-ordering-scope","local","-kd-leaf-size",32,"-ordering-candidate-num",arguments.prediction_max_ref_num,"-ordering-score-max-ref-num",arguments.prediction_max_ref_num,"-ordering-score-min-ref-num",arguments.prediction_max_ref_num,"-eb-schedule","round_point_ratio",eb_ratio,"-rbf-kernel",arguments.rbf_kernel,"-rbf-shape",arguments.rbf_shape,"-rbf-nugget",arguments.rbf_nugget]
                 compression_output=run_command([compressor,"-M","REL",rel_eb,"-predictor","rbf",*common_arguments])
                 decompression_output=run_command([decompressor,"-M","REL",rel_eb,*common_arguments])
                 psnr=read_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"压缩PSNR")
                 decompressed_psnr=read_float(r"^total decompressed psnr= ([^ ]+)$",decompression_output,"解压PSNR")
                 if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-6):
                     raise RuntimeError(f"压缩和解压PSNR不一致：{psnr}!={decompressed_psnr}")
-                row={"config":config,"prediction_round_num":round_num,"eb_schedule":"round_point_ratio","eb_ratio":eb_ratio,"round_size_growth_ratio":2,"ordering_scope":"local","ordering_construction":"reverse_elimination","ordering_score":"msd","prediction_max_ref_num":arguments.prediction_max_ref_num,"rbf_kernel":arguments.rbf_kernel,"rbf_shape":arguments.rbf_shape,"rbf_nugget":arguments.rbf_nugget,"rel_eb":rel_eb,"br":read_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR"),"psnr":psnr,"preprocessing_time":read_float(r"^preprocessing time excluding adjust coord= ([^ ]+) s$",compression_output,"预处理时间"),"compression_time":read_float(r"^total compression time= ([^ ]+) s$",compression_output,"压缩时间"),"decompression_time":read_float(r"^total decompression time= ([^ ]+) s$",decompression_output,"解压时间")}
+                row={"config":config,"prediction_round_num":round_num,"eb_schedule":"round_point_ratio","eb_ratio":eb_ratio,"round_size_growth_ratio":2,"ordering_scope":"local","prediction_max_ref_num":arguments.prediction_max_ref_num,"rbf_kernel":arguments.rbf_kernel,"rbf_shape":arguments.rbf_shape,"rbf_nugget":arguments.rbf_nugget,"rel_eb":rel_eb,"br":read_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR"),"psnr":psnr,"preprocessing_time":read_float(r"^preprocessing time excluding adjust coord= ([^ ]+) s$",compression_output,"预处理时间"),"compression_time":read_float(r"^total compression time= ([^ ]+) s$",compression_output,"压缩时间"),"decompression_time":read_float(r"^total decompression time= ([^ ]+) s$",decompression_output,"解压时间")}
                 result_vec.append(row)
                 write_results(arguments.result,result_vec)
                 print(f"{config} REL={rel_eb:g}:BR={row['br']:.6f},PSNR={psnr:.6f}",flush=True)

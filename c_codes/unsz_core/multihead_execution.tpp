@@ -13,8 +13,6 @@ namespace unsz
             throw runtime_error("多头执行数量必须在[2,64]内");
         if(point_set_config_vec.size()!=1||point_set_config_vec[0].codec!=point_set_codec_e::rbf||get_prediction_framework(1).value_mode!=time_dimension_mode_e::spatial)
             throw runtime_error("多头执行实验目前只支持单点集纯空间RBF");
-        if(reorder_by_prediction_order)
-            throw runtime_error("多头执行实验暂不支持按预测顺序重排输入");
         if(partition_size_experimental>0||partition_num_experimental>0)
             throw runtime_error("多头执行实验暂不支持partition");
 

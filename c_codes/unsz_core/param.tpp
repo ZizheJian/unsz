@@ -29,63 +29,30 @@ namespace unsz
         got_time_step=other.got_time_step;
         got_error_mode=other.got_error_mode;
         got_predictor=other.got_predictor;
-        no_prediction_dag_cache=other.no_prediction_dag_cache;
         point_set_rule_vec=other.point_set_rule_vec;
         point_set_config_vec=other.point_set_config_vec;
         check_original_data_files=other.check_original_data_files;
-        cross_time_compress=other.cross_time_compress;
         value_flow=other.value_flow;
         label_flow=other.label_flow;
         if_adjust_coord=other.if_adjust_coord;
         adjust_coord_matrix_parameter_vec=other.adjust_coord_matrix_parameter_vec;
-        print_round_statistics=other.print_round_statistics;
-        print_prediction_geometry_statistics=other.print_prediction_geometry_statistics;
-        print_label_compression_statistics=other.print_label_compression_statistics;
-        print_prediction_residual_statistics=other.print_prediction_residual_statistics;
         print_compression_stage_time=other.print_compression_stage_time;
         print_prediction_dag_statistics=other.print_prediction_dag_statistics;
-        print_pointwise_oracle_statistics_experimental=other.print_pointwise_oracle_statistics_experimental;
-        reorder_by_prediction_order=other.reorder_by_prediction_order;
-        qb_storage_order=other.qb_storage_order;
-        use_normalized_weight_experimental=other.use_normalized_weight_experimental;
         use_prediction_order_label_experimental=other.use_prediction_order_label_experimental;
         label_value_execution=other.label_value_execution;
         use_linear_previous_label_experimental=other.use_linear_previous_label_experimental;
-        use_predictability_order_experimental=other.use_predictability_order_experimental;
-        use_forward_msd_order=other.use_forward_msd_order;
-        use_forward_s2_only_order_experimental=other.use_forward_s2_only_order_experimental;
-        use_forward_direction_only_order_experimental=other.use_forward_direction_only_order_experimental;
-        use_forward_mean_distance_s2_order_experimental=other.use_forward_mean_distance_s2_order_experimental;
-        use_forward_mean_distance_direction_order_experimental=other.use_forward_mean_distance_direction_order_experimental;
-        use_reverse_predictability_order_experimental=other.use_reverse_predictability_order_experimental;
-        use_reverse_distribution_order_experimental=other.use_reverse_distribution_order_experimental;
-        use_reverse_msd_order=other.use_reverse_msd_order;
-        use_reverse_reference_reuse_order_experimental=other.use_reverse_reference_reuse_order_experimental;
-        use_reverse_s2_only_order_experimental=other.use_reverse_s2_only_order_experimental;
-        use_reverse_direction_only_order_experimental=other.use_reverse_direction_only_order_experimental;
-        use_reverse_direction_order_experimental=other.use_reverse_direction_order_experimental;
-        use_reverse_direction_distribution_order_experimental=other.use_reverse_direction_distribution_order_experimental;
-        reference_time_step_vec=other.reference_time_step_vec;
-        use_reference_data_rbf_score=other.use_reference_data_rbf_score;
         ordering_scope=other.ordering_scope;
-        cache_subpartition_num_experimental=other.cache_subpartition_num_experimental;
         ordering_score_min_ref_num=other.ordering_score_min_ref_num;
         ordering_candidate_num=other.ordering_candidate_num;
         ordering_score_max_ref_num=other.ordering_score_max_ref_num;
-        ordering_msd_neighbor_prefetch_num_experimental=other.ordering_msd_neighbor_prefetch_num_experimental;
-        use_msd_candidate_score_geometry_reuse_experimental=other.use_msd_candidate_score_geometry_reuse_experimental;
-        use_kd_query_diagnostics_experimental=other.use_kd_query_diagnostics_experimental;
-        use_kd_leaf_valid_mask_experimental=other.use_kd_leaf_valid_mask_experimental;
         use_kd_iterative_query_experimental=other.use_kd_iterative_query_experimental;
         use_kd_scalar_one_reference_query_experimental=other.use_kd_scalar_one_reference_query_experimental;
         use_rbf_ldlt=other.use_rbf_ldlt;
-        precomputed_neighbor_num_experimental=other.precomputed_neighbor_num_experimental;
         multihead_execution_head_num_experimental=other.multihead_execution_head_num_experimental;
-        time_anchor_stride_experimental=other.time_anchor_stride_experimental;
+        time_anchor_stride=other.time_anchor_stride;
         time_anchor_first_step=other.time_anchor_first_step;
         time_anchor_last_step=other.time_anchor_last_step;
         time_anchor_last_regular_step=other.time_anchor_last_regular_step;
-        cross_time_spatial_point_num_experimental=other.cross_time_spatial_point_num_experimental;
         kd_tree_leaf_size=other.kd_tree_leaf_size;
         partition_size_experimental=other.partition_size_experimental;
         partition_num_experimental=other.partition_num_experimental;
@@ -132,8 +99,6 @@ namespace unsz
         single_point_set_rbf10_fast_begin=other.single_point_set_rbf10_fast_begin;
         cached_pred_eb_multiplier_vec=other.cached_pred_eb_multiplier_vec;
         cached_pred_eb_inverse_multiplier_vec=other.cached_pred_eb_inverse_multiplier_vec;
-        prediction_id_to_original_id=other.prediction_id_to_original_id;
-        original_id_to_prediction_id=other.original_id_to_prediction_id;
         partition_point_ids_vec=other.partition_point_ids_vec;
         point_partition_id_vec=other.point_partition_id_vec;
         partition_root_block_ids=other.partition_root_block_ids;
@@ -171,31 +136,6 @@ namespace unsz
     template<typename T_coord,typename T_data>
     bool param_c<T_coord,T_data>::need_double_coord()
     {
-        if (!is_same<T_coord,float>::value)
-            return false;
-        double max_squared_distance=0;
-        for (uint32_t d=0;d<dim;d++)
-        {
-            double coord_range=(double)max_coord[d]-min_coord[d];
-            max_squared_distance+=coord_range*coord_range;
-        }
-        if(cross_time_spatial_point_num_experimental>0&&!time_step_vec.empty())
-        {
-            double minimum_time_coordinate=numeric_limits<double>::infinity(),maximum_time_coordinate=-numeric_limits<double>::infinity();
-            for(uint32_t time_step:time_step_vec)
-            {
-                double time_coordinate=time_step_coordinate_vec.empty()?time_step:time_step_coordinate_vec[time_step];
-                minimum_time_coordinate=min(minimum_time_coordinate,time_coordinate);
-                maximum_time_coordinate=max(maximum_time_coordinate,time_coordinate);
-            }
-            double time_coordinate_range=maximum_time_coordinate-minimum_time_coordinate;
-            max_squared_distance+=time_coordinate_range*time_coordinate_range;
-        }
-        if (!isfinite(max_squared_distance))
-            return true;
-        if (max_squared_distance==0)
-            return false;
-        double min_possible_weight=pow(max_squared_distance,-idw_power/2);
-        return min_possible_weight<numeric_limits<float>::min();
+        return false;
     }
 }

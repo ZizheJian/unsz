@@ -20,8 +20,6 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::load_or_generate_pred_refs_structure()
     {
-        if(cache_subpartition_num_experimental>0)
-            reorder_by_prediction_order=true;
         if (dag_cache_path.empty())
         {
             generate_pred_refs_structure();
@@ -38,68 +36,6 @@ namespace unsz
         }
         else
             generate_pred_refs_structure();
-    }
-
-    template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::print_prediction_geometry_statistics_result()
-    {
-        if (!print_prediction_geometry_statistics)
-            return;
-        double full_diagonal_squared=0;
-        for (uint32_t d=0;d<dim;d++)
-        {
-            double span=(double)max_coord[d]-min_coord[d];
-            full_diagonal_squared+=span*span;
-        }
-        double full_diagonal=sqrt(full_diagonal_squared);
-        uint32_t prediction_id=0;
-        for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
-        {
-            vector<double> round_min(dim,numeric_limits<double>::infinity()),round_max(dim,-numeric_limits<double>::infinity());
-            double reference_distance_sum=0,nearest_reference_distance_sum=0;
-            uint64_t reference_num=0,target_with_reference_num=0;
-            for (int target_id:round_target_ids[round_id])
-            {
-                if (prediction_id>=pred_target_ids.size() || pred_target_ids[prediction_id]!=target_id)
-                    throw runtime_error("几何统计发现预测目标顺序不一致");
-                for (uint32_t d=0;d<dim;d++)
-                {
-                    round_min[d]=min(round_min[d],(double)coord_array[target_id][d]);
-                    round_max[d]=max(round_max[d],(double)coord_array[target_id][d]);
-                }
-                uint64_t ref_begin=pred_ref_begin[prediction_id],ref_end=pred_ref_begin[prediction_id+1];
-                if (ref_begin<ref_end)
-                    target_with_reference_num++;
-                for (uint64_t ref_index=ref_begin;ref_index<ref_end;ref_index++)
-                {
-                    int ref_id=pred_ref_ids[ref_index];
-                    double squared_distance=0;
-                    for (uint32_t d=0;d<dim;d++)
-                    {
-                        double difference=(double)coord_array[target_id][d]-coord_array[ref_id][d];
-                        squared_distance+=difference*difference;
-                    }
-                    double distance=sqrt(squared_distance);
-                    reference_distance_sum+=distance;
-                    if (ref_index==ref_begin)
-                        nearest_reference_distance_sum+=distance;
-                    reference_num++;
-                }
-                prediction_id++;
-            }
-            printf("Prediction geometry: round=%u,target_num=%llu,span_ratio=[",round_id,(unsigned long long)round_target_ids[round_id].size());
-            for (uint32_t d=0;d<dim;d++)
-            {
-                double full_span=(double)max_coord[d]-min_coord[d];
-                double ratio=round_target_ids[round_id].empty() || full_span==0?0:(round_max[d]-round_min[d])/full_span;
-                printf("%s%.9f",d==0?"":",",ratio);
-            }
-            double mean_reference_distance=reference_num==0?0:reference_distance_sum/reference_num;
-            double mean_nearest_reference_distance=target_with_reference_num==0?0:nearest_reference_distance_sum/target_with_reference_num;
-            printf("],ref_num=%llu,mean_ref_distance=%.9g,mean_ref_distance_ratio=%.9g,mean_nearest_ref_distance=%.9g,mean_nearest_ref_distance_ratio=%.9g\n",(unsigned long long)reference_num,mean_reference_distance,full_diagonal==0?0:mean_reference_distance/full_diagonal,mean_nearest_reference_distance,full_diagonal==0?0:mean_nearest_reference_distance/full_diagonal);
-        }
-        if (prediction_id!=point_num)
-            throw runtime_error("几何统计没有覆盖全部预测目标");
     }
 
     template<typename T_coord,typename T_data>
@@ -231,7 +167,6 @@ namespace unsz
         }
         if (cursor!=end)
             throw runtime_error("DAG缓存文件末尾存在未解析数据");
-        print_prediction_geometry_statistics_result();
         prepare_pred_refs_structure();
         printf("Loaded DAG cache: %s, bytes=%llu, time=%f s\n",dag_cache_path.c_str(),(unsigned long long)bytes.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
     }
@@ -250,9 +185,10 @@ namespace unsz
         pred_ref_value_normalized_weights.clear();
         pred_ref_rbf_weights.clear();
         single_point_set_rbf10_fast_begin=0;
-        if (use_normalized_weight_experimental)
+        bool has_idw=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::idw;});
+        bool use_normalized_idw_weights=has_idw&&(point_set_config_vec.size()==1||label_value_execution=="fused");
+        if(use_normalized_idw_weights)
         {
-            bool normalize_label_weights=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
             auto normalize_weights=[&](vector<double> &normalized_weights,uint32_t ref_num_limit)
             {
                 normalized_weights.assign(pred_ref_weights.size(),0);
@@ -278,50 +214,11 @@ namespace unsz
                             normalized_weights[i]=pred_ref_weights[i]/weight_sum;
                 }
             };
-            if (normalize_label_weights)
-                normalize_weights(pred_ref_label_normalized_weights,prediction_max_ref_num);
             normalize_weights(pred_ref_value_normalized_weights,prediction_max_ref_num);
-            printf(normalize_label_weights?"Pre-normalized label and single-point-set value weights\n":"Pre-normalized single-point-set value weights\n");
+            printf("Pre-normalized IDW weights\n");
         }
-        prediction_id_to_original_id.clear();
-        original_id_to_prediction_id.clear();
-        if (reorder_by_prediction_order)
-        {
-            prediction_id_to_original_id.resize(point_num);
-            original_id_to_prediction_id.assign(point_num,numeric_limits<uint32_t>::max());
-            for (uint32_t prediction_id=0;prediction_id<point_num;prediction_id++)
-            {
-                int original_id=pred_target_ids[prediction_id];
-                if (original_id<0 || (uint32_t)original_id>=point_num || original_id_to_prediction_id[original_id]!=numeric_limits<uint32_t>::max())
-                    throw runtime_error("预测顺序包含无效或重复的原始点编号");
-                prediction_id_to_original_id[prediction_id]=original_id;
-                original_id_to_prediction_id[original_id]=prediction_id;
-            }
-            Array2D<T_coord> prediction_order_coord_array(point_num,dim);
-            for (uint32_t prediction_id=0;prediction_id<point_num;prediction_id++)
-                memcpy(prediction_order_coord_array[prediction_id],coord_array[prediction_id_to_original_id[prediction_id]],dim*sizeof(T_coord));
-            coord_array=move(prediction_order_coord_array);
-            for (vector<int> &target_ids:round_target_ids)
-                for (int &target_id:target_ids)
-                    target_id=original_id_to_prediction_id[target_id];
-            for (uint32_t prediction_id=0;prediction_id<point_num;prediction_id++)
-            {
-                pred_target_ids[prediction_id]=prediction_id;
-                for (uint64_t ref_index=pred_ref_begin[prediction_id];ref_index<pred_ref_begin[prediction_id+1];ref_index++)
-                {
-                    int &ref_id=pred_ref_ids[ref_index];
-                    ref_id=original_id_to_prediction_id[ref_id];
-                    if ((uint32_t)ref_id>=prediction_id)
-                        throw runtime_error("预测参考点没有位于目标点之前");
-                }
-            }
-            printf("Reordered internal coordinates and reference ids into prediction order\n");
-        }
-        bool expect_normalized_label_weights=use_normalized_weight_experimental && (point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect");
-        if (use_normalized_weight_experimental && pred_ref_value_normalized_weights.size()!=pred_ref_ids.size())
+        if(use_normalized_idw_weights&&pred_ref_value_normalized_weights.size()!=pred_ref_ids.size())
             throw runtime_error("归一化数值预测权重没有覆盖所有点");
-        if (expect_normalized_label_weights && pred_ref_label_normalized_weights.size()!=pred_ref_ids.size())
-            throw runtime_error("归一化预测权重没有覆盖所有点");
         partition_pred_ref_ids_vec.clear();
         if(!partition_point_ids_vec.empty())
         {
@@ -329,7 +226,7 @@ namespace unsz
             for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
             {
                 uint32_t pred_id=(uint32_t)pred_target_ids[pred_ref_id];
-                uint32_t original_id=reorder_by_prediction_order?prediction_id_to_original_id[pred_id]:pred_id;
+                uint32_t original_id=pred_id;
                 uint32_t partition_id=point_partition_id_vec[original_id];
                 if(partition_id>=partition_pred_ref_ids_vec.size())
                     throw runtime_error("预测目标的partition编号越界");

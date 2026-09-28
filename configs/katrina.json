@@ -33,7 +33,6 @@
       },
       "ordering_scope": "global",
       "prediction_round_num": 1,
-      "ordering_score": "msd",
       "prediction_min_ref_num": 10,
       "prediction_max_ref_num": 10,
       "ordering_candidate_num": 16,
@@ -66,7 +65,6 @@
         "point_set_configs/Katrina_attr0_rbf_rel_1e-4.json",
         "point_set_configs/Katrina_attr0_rbf_rel_1e-5.json"
       ],
-      "dag_cache_path": ".unsz_cache/katrina_attr0_global_msd1_rbf10.dag",
       "label_value_execution": "fused"
     },
     "umc": {
