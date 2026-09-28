@@ -26,6 +26,11 @@ namespace unsz
         for(uint32_t time_step:selected_time_step_vec)
             original_data_path_vec.push_back(data_dir+field_name+".dat."+to_string(time_step));
         time_step_vec=selected_time_step_vec;
+        if(time_step_vec.size()==1)
+        {
+            label_flow="none";
+            value_flow="none";
+        }
         if(got_error_mode&&error_mode=="REL")
         {
             rel_eb=error_bound;
@@ -37,6 +42,8 @@ namespace unsz
             got_abs_eb=true;
         }
         configure_point_sets();
+        if(label_flow=="anchor_interpolation_stride_8"&&point_set_config_vec.size()==1)
+            throw runtime_error("label锚点内插流程要求field包含两个点集");
         if(point_set_config_vec.size()==1)
             resolve_single_point_set_time_mode();
         load_adjust_coord_matrix_file();

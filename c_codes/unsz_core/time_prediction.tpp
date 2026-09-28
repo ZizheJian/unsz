@@ -8,7 +8,7 @@ namespace unsz
         linear_interpolation_left_history_id=-1;
         linear_interpolation_right_history_id=-1;
         linear_interpolation_right_weight=0;
-        if(value_flow=="constant_extrapolation_spatial_residual"||value_flow=="linear_interpolation_spatial_residual"||time_anchor_stride>0)
+        if(value_flow=="constant_extrapolation_spatial_residual"||value_flow=="linear_interpolation_spatial_residual"||uses_anchor_interpolation_stride_8_flow())
             current_time_spatial_residual_data.assign(point_num,0);
         const prediction_framework_c &framework=current_prediction_framework;
         if(framework.value_mode!=time_dimension_mode_e::linear_interpolation&&framework.value_mode!=time_dimension_mode_e::linear_interpolation_spatial_residual&&framework.label_mode!=time_dimension_mode_e::endpoint_agreement)
@@ -112,12 +112,12 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::save_time_reconstruction()
     {
-        if(value_flow!="linear_interpolation"&&value_flow!="linear_interpolation_spatial_residual"&&label_flow!="endpoint_agreement"&&time_anchor_stride==0)
+        if(value_flow!="linear_interpolation"&&value_flow!="linear_interpolation_spatial_residual"&&label_flow!="endpoint_agreement"&&!uses_anchor_interpolation_stride_8_flow())
             return;
         if (current_decompressed_data.size()!=point_num || point_set_id_vec.size()!=point_num)
             throw runtime_error("无法保存不完整的一阶内插重构数据");
         reconstructed_time_step_vec.push_back(current_time_step);
-        bool save_value_history=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||time_anchor_stride>0;
+        bool save_value_history=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||uses_anchor_interpolation_stride_8_flow();
         reconstructed_time_data_vec.push_back(save_value_history?current_decompressed_data:vector<T_data>());
         reconstructed_time_point_set_id_vec.push_back(point_set_id_vec);
     }

@@ -3,13 +3,20 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::prepare_linear_interpolation_order()
+    time_step_order_e param_c<T_coord,T_data>::get_time_step_order(const string &flow) const
     {
-        bool use_linear_interpolation_order=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||label_flow=="endpoint_agreement";
-        if(!use_linear_interpolation_order||time_anchor_stride>0)
-            return;
-        if(time_step_vec.size()<2)
-            throw runtime_error("一阶内插流程至少需要两个time step");
+        if(flow=="anchor_interpolation_stride_8"||flow=="anchor_interpolation_stride_8_spatial_residual")
+            return time_step_order_e::anchor_stride_8;
+        if(flow=="endpoint_agreement"||flow=="linear_interpolation"||flow=="linear_interpolation_spatial_residual")
+            return time_step_order_e::interpolation;
+        return time_step_order_e::chronological;
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::prepare_time_step_order(time_step_order_e order)
+    {
+        if(time_step_vec.empty())
+            throw runtime_error("至少需要一个time step");
         if(original_data_path_vec.size()!=time_step_vec.size())
             throw runtime_error("time step数量与数据文件数量不一致");
         vector<uint32_t> sorted_id_vec(time_step_vec.size());
@@ -26,37 +33,62 @@ namespace unsz
         }
         for(uint32_t i=1;i<sorted_time_step_vec.size();i++)
             if(sorted_time_step_vec[i]==sorted_time_step_vec[i-1])
-                throw runtime_error("一阶内插流程的time step不能重复");
-        vector<uint32_t> order_id_vec={0,(uint32_t)sorted_time_step_vec.size()-1};
-        vector<pair<uint32_t,uint32_t>> interval_vec={{0,(uint32_t)sorted_time_step_vec.size()-1}};
-        for(uint32_t interval_id=0;interval_id<interval_vec.size();interval_id++)
+                throw runtime_error("time step不能重复");
+        vector<uint32_t> order_id_vec;
+        if(order==time_step_order_e::chronological||sorted_time_step_vec.size()==1)
         {
-            auto [left_id,right_id]=interval_vec[interval_id];
-            if(right_id-left_id<=1)
-                continue;
-            uint32_t left_time_step=sorted_time_step_vec[left_id],right_time_step=sorted_time_step_vec[right_id];
-            double left_coordinate=time_step_coordinate_vec.empty()?left_time_step:time_step_coordinate_vec[left_time_step];
-            double right_coordinate=time_step_coordinate_vec.empty()?right_time_step:time_step_coordinate_vec[right_time_step];
-            double middle_coordinate=(left_coordinate+right_coordinate)/2;
-            uint32_t middle_id=left_id+1;
-            double minimum_distance=abs((time_step_coordinate_vec.empty()?sorted_time_step_vec[middle_id]:time_step_coordinate_vec[sorted_time_step_vec[middle_id]])-middle_coordinate);
-            for(uint32_t candidate_id=left_id+2;candidate_id<right_id;candidate_id++)
+            order_id_vec.resize(sorted_time_step_vec.size());
+            iota(order_id_vec.begin(),order_id_vec.end(),0);
+        }
+        else if(order==time_step_order_e::interpolation)
+        {
+            order_id_vec={0,(uint32_t)sorted_time_step_vec.size()-1};
+            vector<pair<uint32_t,uint32_t>> interval_vec={{0,(uint32_t)sorted_time_step_vec.size()-1}};
+            for(uint32_t interval_id=0;interval_id<interval_vec.size();interval_id++)
             {
-                uint32_t candidate_time_step=sorted_time_step_vec[candidate_id];
-                double candidate_coordinate=time_step_coordinate_vec.empty()?candidate_time_step:time_step_coordinate_vec[candidate_time_step];
-                double distance=abs(candidate_coordinate-middle_coordinate);
-                if(distance<minimum_distance)
+                auto [left_id,right_id]=interval_vec[interval_id];
+                if(right_id-left_id<=1)
+                    continue;
+                uint32_t left_time_step=sorted_time_step_vec[left_id],right_time_step=sorted_time_step_vec[right_id];
+                double left_coordinate=time_step_coordinate_vec.empty()?left_time_step:time_step_coordinate_vec[left_time_step];
+                double right_coordinate=time_step_coordinate_vec.empty()?right_time_step:time_step_coordinate_vec[right_time_step];
+                double middle_coordinate=(left_coordinate+right_coordinate)/2;
+                uint32_t middle_id=left_id+1;
+                double minimum_distance=abs((time_step_coordinate_vec.empty()?sorted_time_step_vec[middle_id]:time_step_coordinate_vec[sorted_time_step_vec[middle_id]])-middle_coordinate);
+                for(uint32_t candidate_id=left_id+2;candidate_id<right_id;candidate_id++)
                 {
-                    middle_id=candidate_id;
-                    minimum_distance=distance;
+                    uint32_t candidate_time_step=sorted_time_step_vec[candidate_id];
+                    double candidate_coordinate=time_step_coordinate_vec.empty()?candidate_time_step:time_step_coordinate_vec[candidate_time_step];
+                    double distance=abs(candidate_coordinate-middle_coordinate);
+                    if(distance<minimum_distance)
+                    {
+                        middle_id=candidate_id;
+                        minimum_distance=distance;
+                    }
                 }
+                order_id_vec.push_back(middle_id);
+                interval_vec.push_back({left_id,middle_id});
+                interval_vec.push_back({middle_id,right_id});
             }
-            order_id_vec.push_back(middle_id);
-            interval_vec.push_back({left_id,middle_id});
-            interval_vec.push_back({middle_id,right_id});
+        }
+        else
+        {
+            for(uint32_t i=1;i<sorted_time_step_vec.size();i++)
+                if(sorted_time_step_vec[i]!=sorted_time_step_vec[i-1]+1)
+                    throw runtime_error("anchor_stride_8顺序要求time step连续且不重复");
+            if(sorted_time_step_vec.front()!=0)
+                throw runtime_error("anchor_stride_8顺序要求time step从0开始");
+            uint32_t last_time_step=sorted_time_step_vec.back();
+            order_id_vec.push_back(0);
+            for(uint64_t time_step=8;time_step<=last_time_step;time_step+=8)
+                order_id_vec.push_back((uint32_t)time_step);
+            constexpr uint32_t layer_offset_vec[]={4,2,1};
+            for(uint32_t offset:layer_offset_vec)
+                for(uint64_t time_step=offset;time_step<=last_time_step;time_step+=offset*2)
+                    order_id_vec.push_back((uint32_t)time_step);
         }
         if(order_id_vec.size()!=time_step_vec.size())
-            throw runtime_error("一阶内插顺序没有覆盖全部time step");
+            throw runtime_error("时间顺序没有覆盖全部time step");
         vector<uint32_t> ordered_time_step_vec;
         vector<string> ordered_data_path_vec;
         ordered_time_step_vec.reserve(order_id_vec.size());
@@ -68,82 +100,8 @@ namespace unsz
         }
         time_step_vec=move(ordered_time_step_vec);
         original_data_path_vec=move(ordered_data_path_vec);
-        printf("Linear interpolation processing order:");
-        for(uint32_t time_step:time_step_vec)
-            printf(" %u",time_step);
-        printf("\n");
-    }
-
-    template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::prepare_time_anchor_order()
-    {
-        if(time_anchor_stride==0)
-            return;
-        if(time_step_vec.size()<2)
-            throw runtime_error("固定步长锚点流程至少需要两个time step");
-        if(original_data_path_vec.size()!=time_step_vec.size())
-            throw runtime_error("time step数量与数据文件数量不一致");
-        vector<uint32_t> sorted_id_vec(time_step_vec.size());
-        iota(sorted_id_vec.begin(),sorted_id_vec.end(),0);
-        sort(sorted_id_vec.begin(),sorted_id_vec.end(),[this](uint32_t a,uint32_t b){return time_step_vec[a]<time_step_vec[b];});
-        vector<uint32_t> sorted_time_step_vec;
-        vector<string> sorted_data_path_vec;
-        sorted_time_step_vec.reserve(time_step_vec.size());
-        sorted_data_path_vec.reserve(time_step_vec.size());
-        for(uint32_t id:sorted_id_vec)
-        {
-            sorted_time_step_vec.push_back(time_step_vec[id]);
-            sorted_data_path_vec.push_back(original_data_path_vec[id]);
-        }
-        for(uint32_t i=1;i<sorted_time_step_vec.size();i++)
-            if(sorted_time_step_vec[i]!=sorted_time_step_vec[i-1]+1)
-                throw runtime_error("固定步长锚点流程目前要求time step连续且不重复");
-        time_anchor_first_step=sorted_time_step_vec.front();
-        time_anchor_last_step=sorted_time_step_vec.back();
-        time_anchor_last_regular_step=time_anchor_first_step+(time_anchor_last_step-time_anchor_first_step)/time_anchor_stride*time_anchor_stride;
-        vector<uint32_t> order;
-        for(uint64_t time_step=time_anchor_first_step;time_step<=time_anchor_last_regular_step;time_step+=time_anchor_stride)
-            order.push_back((uint32_t)time_step);
-        if(time_anchor_last_regular_step!=time_anchor_last_step)
-            order.push_back(time_anchor_last_step);
-        vector<pair<uint32_t,uint32_t>> interval_vec;
-        for(uint32_t left=time_anchor_first_step;left<time_anchor_last_regular_step;left+=time_anchor_stride)
-            interval_vec.push_back({left,left+time_anchor_stride});
-        if(time_anchor_last_regular_step!=time_anchor_last_step)
-            interval_vec.push_back({time_anchor_last_regular_step,time_anchor_last_step});
-        for(uint32_t interval_id=0;interval_id<interval_vec.size();interval_id++)
-        {
-            auto [left,right]=interval_vec[interval_id];
-            if(right-left<=1)
-                continue;
-            double left_coordinate=time_step_coordinate_vec.empty()?left:time_step_coordinate_vec[left];
-            double right_coordinate=time_step_coordinate_vec.empty()?right:time_step_coordinate_vec[right];
-            double middle_coordinate=(left_coordinate+right_coordinate)/2;
-            uint32_t middle=left+1;
-            double minimum_distance=abs((time_step_coordinate_vec.empty()?middle:time_step_coordinate_vec[middle])-middle_coordinate);
-            for(uint32_t candidate=left+2;candidate<right;candidate++)
-            {
-                double candidate_coordinate=time_step_coordinate_vec.empty()?candidate:time_step_coordinate_vec[candidate];
-                double distance=abs(candidate_coordinate-middle_coordinate);
-                if(distance<minimum_distance)
-                {
-                    middle=candidate;
-                    minimum_distance=distance;
-                }
-            }
-            order.push_back(middle);
-            interval_vec.push_back({left,middle});
-            interval_vec.push_back({middle,right});
-        }
-        if(order.size()!=time_step_vec.size())
-            throw runtime_error("固定步长锚点顺序没有覆盖全部time step");
-        vector<string> ordered_data_path_vec;
-        ordered_data_path_vec.reserve(order.size());
-        for(uint32_t time_step:order)
-            ordered_data_path_vec.push_back(sorted_data_path_vec[time_step-time_anchor_first_step]);
-        time_step_vec=move(order);
-        original_data_path_vec=move(ordered_data_path_vec);
-        printf("Time anchor stride=%u,regular last=%u,final endpoint=%u,processing order:",time_anchor_stride,time_anchor_last_regular_step,time_anchor_last_step);
+        const char *order_name=order==time_step_order_e::chronological?"Chronological":order==time_step_order_e::interpolation?"Interpolation":"Anchor stride 8";
+        printf("%s processing order:",order_name);
         for(uint32_t time_step:time_step_vec)
             printf(" %u",time_step);
         printf("\n");
@@ -203,8 +161,11 @@ namespace unsz
     void param_c<T_coord,T_data>::init()
     {
         load_time_step_coordinates();
-        prepare_linear_interpolation_order();
-        prepare_time_anchor_order();
+        time_step_order_e label_order=get_time_step_order(label_flow),value_order=get_time_step_order(value_flow);
+        if(point_set_config_vec.size()==1)
+            prepare_time_step_order(value_order);
+        else
+            prepare_time_step_order(label_order==value_order?label_order:time_step_order_e::chronological);
         if (dim==0)
             throw runtime_error("坐标维数不能为0");
         FILE *f_coord=fopen(coord_path.c_str(),"rb");

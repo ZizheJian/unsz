@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --array=0-8
+#SBATCH --array=0-8%1
 #SBATCH --time=01:00:00
 #SBATCH --job-name=unsz_configs
 #SBATCH --output=/home/x-zjian1/unsz/results/current/logs/%A_%a.log

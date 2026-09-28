@@ -3,19 +3,15 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    uint32_t param_c<T_coord,T_data>::get_last_regular_time_anchor() const
+    bool param_c<T_coord,T_data>::uses_anchor_interpolation_stride_8_flow() const
     {
-        if(time_anchor_stride==0||time_step_vec.empty())
-            throw runtime_error("固定步长锚点流程尚未配置步长或time step");
-        return time_anchor_last_regular_step;
+        return label_flow=="anchor_interpolation_stride_8"||value_flow=="anchor_interpolation_stride_8"||value_flow=="anchor_interpolation_stride_8_spatial_residual";
     }
 
     template<typename T_coord,typename T_data>
     bool param_c<T_coord,T_data>::current_time_step_is_regular_anchor() const
     {
-        if(time_anchor_stride==0||time_step_vec.empty())
-            return false;
-        return current_time_step>=time_anchor_first_step&&current_time_step<=time_anchor_last_regular_step&&(current_time_step-time_anchor_first_step)%time_anchor_stride==0;
+        return uses_anchor_interpolation_stride_8_flow()&&current_time_step%8==0;
     }
 
     template<typename T_coord,typename T_data>
@@ -25,7 +21,8 @@ namespace unsz
             throw runtime_error("单点集时间流程选择要求field恰好配置一个点集");
         if(value_flow=="joint_spatiotemporal")
             return;
-        if(value_flow!="none"&&value_flow!="constant_extrapolation"&&value_flow!="linear_interpolation"&&value_flow!="constant_extrapolation_spatial_residual"&&value_flow!="linear_interpolation_spatial_residual")
+        bool value_uses_anchor_flow=value_flow=="anchor_interpolation_stride_8"||value_flow=="anchor_interpolation_stride_8_spatial_residual";
+        if(!value_uses_anchor_flow&&value_flow!="none"&&value_flow!="constant_extrapolation"&&value_flow!="linear_interpolation"&&value_flow!="constant_extrapolation_spatial_residual"&&value_flow!="linear_interpolation_spatial_residual")
             throw runtime_error("未知的单点集数值预测流程："+value_flow);
         if(time_step_vec.empty())
             throw runtime_error("单点集压缩或解压至少需要一个time step");
@@ -44,33 +41,6 @@ namespace unsz
             throw runtime_error("点集数量不能为0");
         prediction_framework_c framework;
         framework.has_label=point_set_num>1;
-        if(time_anchor_stride>0)
-        {
-            if(point_set_num!=2)
-                throw runtime_error("固定步长锚点流程目前只支持两个点集");
-            if(value_flow!="none"||label_flow!="none")
-                throw runtime_error("固定步长锚点流程不能再叠加其他时间预测流程");
-            bool first_anchor=current_time_step==time_anchor_first_step;
-            bool regular_anchor=current_time_step_is_regular_anchor();
-            bool trailing_endpoint=current_time_step==time_anchor_last_step&&time_anchor_last_step!=get_last_regular_time_anchor();
-            if(first_anchor)
-            {
-                framework.label_mode=time_dimension_mode_e::spatial;
-                framework.value_mode=time_dimension_mode_e::spatial;
-            }
-            else if(regular_anchor||trailing_endpoint)
-            {
-                framework.label_mode=time_dimension_mode_e::constant_extrapolation;
-                framework.value_mode=time_dimension_mode_e::constant_extrapolation_spatial_residual;
-            }
-            else
-            {
-                framework.label_mode=time_dimension_mode_e::endpoint_agreement;
-                framework.value_mode=time_dimension_mode_e::linear_interpolation_spatial_residual;
-            }
-            framework.execution=label_value_execution=="fused"?label_value_execution_e::fused:label_value_execution_e::staged;
-            return framework;
-        }
         bool use_joint_spatiotemporal=value_flow=="joint_spatiotemporal";
         if(use_joint_spatiotemporal&&label_flow!="none")
             throw runtime_error("联合时空数值流程不能再叠加标签时间预测流程");
@@ -82,7 +52,26 @@ namespace unsz
         }
         else
         {
-            if(value_flow=="none")
+            bool uses_anchor_flow=uses_anchor_interpolation_stride_8_flow();
+            bool first_anchor=uses_anchor_flow&&current_time_step==0;
+            bool regular_anchor=uses_anchor_flow&&current_time_step_is_regular_anchor();
+            bool has_left_endpoint=false,has_right_endpoint=false;
+            if(uses_anchor_flow)
+                for(uint32_t reconstructed_time_step:reconstructed_time_step_vec)
+                {
+                    has_left_endpoint|=reconstructed_time_step<current_time_step;
+                    has_right_endpoint|=reconstructed_time_step>current_time_step;
+                }
+            bool can_interpolate=has_left_endpoint&&has_right_endpoint;
+            bool value_uses_anchor_flow=value_flow=="anchor_interpolation_stride_8"||value_flow=="anchor_interpolation_stride_8_spatial_residual";
+            bool label_uses_anchor_flow=label_flow=="anchor_interpolation_stride_8";
+            if(value_uses_anchor_flow&&first_anchor)
+                framework.value_mode=time_dimension_mode_e::spatial;
+            else if(value_uses_anchor_flow&&(regular_anchor||!can_interpolate))
+                framework.value_mode=value_flow=="anchor_interpolation_stride_8_spatial_residual"?time_dimension_mode_e::constant_extrapolation_spatial_residual:time_dimension_mode_e::constant_extrapolation;
+            else if(value_uses_anchor_flow)
+                framework.value_mode=value_flow=="anchor_interpolation_stride_8_spatial_residual"?time_dimension_mode_e::linear_interpolation_spatial_residual:time_dimension_mode_e::linear_interpolation;
+            else if(value_flow=="none")
                 framework.value_mode=time_dimension_mode_e::spatial;
             else if(value_flow=="constant_extrapolation")
                 framework.value_mode=time_dimension_mode_e::constant_extrapolation;
@@ -96,7 +85,13 @@ namespace unsz
                 throw runtime_error("未知的数值时间预测方式："+value_flow);
             if(framework.has_label)
             {
-                if(label_flow=="none")
+                if(label_uses_anchor_flow&&first_anchor)
+                    framework.label_mode=time_dimension_mode_e::spatial;
+                else if(label_uses_anchor_flow&&(regular_anchor||!can_interpolate))
+                    framework.label_mode=time_dimension_mode_e::constant_extrapolation;
+                else if(label_uses_anchor_flow)
+                    framework.label_mode=time_dimension_mode_e::endpoint_agreement;
+                else if(label_flow=="none")
                     framework.label_mode=time_dimension_mode_e::spatial;
                 else if(label_flow=="constant_extrapolation")
                     framework.label_mode=time_dimension_mode_e::constant_extrapolation;
@@ -112,14 +107,6 @@ namespace unsz
             framework.execution=label_value_execution_e::fused;
         else
             framework.execution=label_value_execution_e::staged;
-        if(framework.execution==label_value_execution_e::fused)
-        {
-            bool constant_flow=framework.label_mode==time_dimension_mode_e::constant_extrapolation&&framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual;
-            bool interpolation_flow=framework.label_mode==time_dimension_mode_e::endpoint_agreement&&framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
-            bool legacy_spatial_flow=framework.value_mode==time_dimension_mode_e::spatial&&(framework.label_mode==time_dimension_mode_e::spatial||framework.label_mode==time_dimension_mode_e::constant_extrapolation);
-            if(!constant_flow&&!interpolation_flow&&!legacy_spatial_flow)
-                throw runtime_error("标签与数值融合执行只实现了选定的零阶、内插和既有空间流程");
-        }
         if(use_linear_previous_label_experimental && (framework.execution!=label_value_execution_e::fused || framework.label_mode!=time_dimension_mode_e::constant_extrapolation))
             throw runtime_error("线性上一时刻标签修正流要求启用融合两点集预测和previous标签预测");
         if(use_linear_previous_label_experimental && use_prediction_order_label_experimental)
@@ -131,7 +118,7 @@ namespace unsz
     void param_c<T_coord,T_data>::advance_time_prediction_buffers()
     {
         const prediction_framework_c &framework=current_prediction_framework;
-        bool first_time_anchor=time_anchor_stride>0&&current_time_step==time_anchor_first_step;
+        bool first_time_anchor=uses_anchor_interpolation_stride_8_flow()&&current_time_step==0;
         if(framework.value_mode==time_dimension_mode_e::constant_extrapolation || framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||first_time_anchor)
             previous_time_decompressed_data.swap(current_decompressed_data);
         bool use_causal_time_label=framework.label_mode==time_dimension_mode_e::constant_extrapolation;

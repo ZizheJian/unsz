@@ -133,9 +133,11 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
             throw runtime_error("单点集联合时空解压只支持IDW或RBF预测器");
         return;
     }
+    if(param.point_set_config_vec.size()==2&&param.label_value_execution=="staged")
+        param.prepare_staged_two_point_set_decompression();
     uint64_t total_point_num=0;
     uint32_t validated_file_num=0;
-    double total_squared_error=0,total_decompression_time=0,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
+    double total_squared_error=0,total_decompression_time=param.staged_label_decompression_time,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
     uint32_t max_error_point_id=0,max_error_point_set_id=0;
     string max_error_data_path;
     float total_min_data=numeric_limits<float>::infinity(),total_max_data=-numeric_limits<float>::infinity();
@@ -376,13 +378,13 @@ int decompress_main(int argc,char **argv)
         else if (option=="-value-flow")
         {
             param.value_flow=read_option_value(argc,argv,arg_id,option);
-            if(param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="joint_spatiotemporal")
+            if(param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="joint_spatiotemporal"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
                 throw runtime_error("未知的value flow："+param.value_flow);
         }
         else if (option=="-label-flow")
         {
             param.label_flow=read_option_value(argc,argv,arg_id,option);
-            if(param.label_flow!="constant_extrapolation"&&param.label_flow!="endpoint_agreement")
+            if(param.label_flow!="constant_extrapolation"&&param.label_flow!="endpoint_agreement"&&param.label_flow!="anchor_interpolation_stride_8")
                 throw runtime_error("未知的label flow："+param.label_flow);
         }
         else if (option=="-adjust-coord-matrix-file")

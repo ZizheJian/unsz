@@ -88,14 +88,25 @@ namespace unsz
         prediction_framework_c framework=get_prediction_framework(2);
         if(framework.execution==label_value_execution_e::staged)
         {
-            if(framework.label_mode==time_dimension_mode_e::spatial&&framework.value_mode==time_dimension_mode_e::spatial)
-                return compress_two_point_sets_fixed<time_dimension_mode_e::spatial,time_dimension_mode_e::spatial,label_value_execution_e::staged>();
-            if(framework.label_mode==time_dimension_mode_e::constant_extrapolation&&framework.value_mode==time_dimension_mode_e::spatial)
-                return compress_two_point_sets_fixed<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::spatial,label_value_execution_e::staged>();
-            if(framework.label_mode==time_dimension_mode_e::constant_extrapolation&&framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
-                return compress_two_point_sets_fixed<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::staged>();
-            if(framework.label_mode==time_dimension_mode_e::endpoint_agreement&&framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-                return compress_two_point_sets_fixed<time_dimension_mode_e::endpoint_agreement,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::staged>();
+            auto dispatch_value=[&](auto label_mode_constant)
+            {
+                constexpr time_dimension_mode_e label_mode=decltype(label_mode_constant)::value;
+                switch(framework.value_mode)
+                {
+                    case time_dimension_mode_e::spatial:return compress_two_point_sets_fixed<label_mode,time_dimension_mode_e::spatial,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::constant_extrapolation:return compress_two_point_sets_fixed<label_mode,time_dimension_mode_e::constant_extrapolation,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::linear_interpolation:return compress_two_point_sets_fixed<label_mode,time_dimension_mode_e::linear_interpolation,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::constant_extrapolation_spatial_residual:return compress_two_point_sets_fixed<label_mode,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::linear_interpolation_spatial_residual:return compress_two_point_sets_fixed<label_mode,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::staged>();
+                    default:throw runtime_error("分阶段两点集压缩不支持当前数值流程");
+                }
+            };
+            if(framework.label_mode==time_dimension_mode_e::spatial)
+                return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::spatial>());
+            if(framework.label_mode==time_dimension_mode_e::constant_extrapolation)
+                return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::constant_extrapolation>());
+            if(framework.label_mode==time_dimension_mode_e::endpoint_agreement)
+                return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::endpoint_agreement>());
         }
         else if(framework.execution==label_value_execution_e::fused)
         {
@@ -109,6 +120,35 @@ namespace unsz
                 return compress_two_point_sets_fixed<time_dimension_mode_e::endpoint_agreement,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::fused>();
         }
         throw runtime_error("两点集压缩尚未实现当前标签、数值和执行方式的组合");
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::compress_single_point_set()
+    {
+        if(point_set_config_vec.size()!=1)
+            throw runtime_error("单点集压缩要求field恰好配置一个点集");
+        prediction_framework_c framework=get_prediction_framework(1);
+        point_set_codec_e predictor=point_set_config_vec[0].codec;
+        auto dispatch_predictor=[&](auto mode_constant)
+        {
+            constexpr time_dimension_mode_e mode=decltype(mode_constant)::value;
+            if(predictor==point_set_codec_e::idw)
+                return compress_point_sets<false,mode,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::idw>();
+            if(predictor==point_set_codec_e::rbf)
+                return compress_point_sets<false,mode,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf>();
+            throw runtime_error("单点集压缩只支持IDW或RBF空间预测器");
+        };
+        if(framework.value_mode==time_dimension_mode_e::spatial)
+            return dispatch_predictor(integral_constant<time_dimension_mode_e,time_dimension_mode_e::spatial>());
+        if(framework.value_mode==time_dimension_mode_e::constant_extrapolation)
+            return dispatch_predictor(integral_constant<time_dimension_mode_e,time_dimension_mode_e::constant_extrapolation>());
+        if(framework.value_mode==time_dimension_mode_e::linear_interpolation)
+            return dispatch_predictor(integral_constant<time_dimension_mode_e,time_dimension_mode_e::linear_interpolation>());
+        if(framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
+            return dispatch_predictor(integral_constant<time_dimension_mode_e,time_dimension_mode_e::constant_extrapolation_spatial_residual>());
+        if(framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
+            return dispatch_predictor(integral_constant<time_dimension_mode_e,time_dimension_mode_e::linear_interpolation_spatial_residual>());
+        throw runtime_error("单点集压缩不支持当前锚点内插阶段");
     }
 
     template<typename T_coord,typename T_data>

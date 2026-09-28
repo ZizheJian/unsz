@@ -56,7 +56,8 @@ def main():
         umc=sorted((row for row in rows if row["compressor"]=="umc"),key=lambda row:float(row["psnr"]))
         if len(unsz)<2 or umc and len(umc)<2:
             raise RuntimeError(f"{path}没有可插值的完整曲线：UNSZ={len(unsz)},UMC={len(umc)}")
-        item={"field":unsz[0]["field"],"data_dir":unsz[0]["data_dir"],"time_step_num":unsz[0]["time_step_num"],"representative_psnr":"","representative_cr_ratio_vs_umc":"","representative_total_time_ratio_vs_umc":"","average_br_change_vs_umc":"","compression_ratio_vs_umc":"","total_time_ratio_vs_umc":"","compression_time_ratio_vs_umc":"","decompression_time_ratio_vs_umc":"","unsz_total_throughput_MB_s":geometric_mean([float(row["input_bytes"])/(float(row["compression_time"])+float(row["decompression_time"]))/1e6 for row in unsz]),"umc_total_throughput_MB_s":""}
+        data_dir=unsz[0].get("data_dir",unsz[0].get("dataset",""))
+        item={"field":unsz[0]["field"],"data_dir":data_dir,"time_step_num":unsz[0]["time_step_num"],"representative_psnr":"","representative_cr_ratio_vs_umc":"","representative_total_time_ratio_vs_umc":"","average_br_change_vs_umc":"","compression_ratio_vs_umc":"","total_time_ratio_vs_umc":"","compression_time_ratio_vs_umc":"","decompression_time_ratio_vs_umc":"","unsz_total_throughput_MB_s":geometric_mean([float(row["input_bytes"])/(float(row["compression_time"])+float(row["decompression_time"]))/1e6 for row in unsz]),"umc_total_throughput_MB_s":""}
         if umc:
             average_br_change=calculate_average_br_change(umc,unsz)
             representative_row=min(umc,key=lambda row:abs(float(row["rel_eb"])-1e-3))
@@ -67,8 +68,8 @@ def main():
             umc_total_time=interpolate_at_psnr(umc,representative_psnr,"compression_decompression_time")
             item.update({"representative_psnr":representative_psnr,"representative_cr_ratio_vs_umc":umc_br/unsz_br,"representative_total_time_ratio_vs_umc":unsz_total_time/umc_total_time,"average_br_change_vs_umc":average_br_change,"compression_ratio_vs_umc":1/(1+average_br_change/100),"total_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_decompression_time"),"compression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_time"),"decompression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"decompression_time"),"umc_total_throughput_MB_s":geometric_mean([float(row["input_bytes"])/(float(row["compression_time"])+float(row["decompression_time"]))/1e6 for row in umc])})
         summary.append(item)
-    if len(summary)!=32:
-        raise RuntimeError(f"当前结果应包含32个field，实际为{len(summary)}")
+    if not summary:
+        raise RuntimeError(f"{result_root/'fields'}中没有可汇总的field CSV")
     output=result_root/"summary.csv"
     with output.open("w",newline="") as file:
         writer=csv.DictWriter(file,fieldnames=summary[0].keys(),lineterminator="\n")

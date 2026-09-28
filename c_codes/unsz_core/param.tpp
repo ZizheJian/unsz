@@ -49,10 +49,6 @@ namespace unsz
         use_kd_scalar_one_reference_query_experimental=other.use_kd_scalar_one_reference_query_experimental;
         use_rbf_ldlt=other.use_rbf_ldlt;
         multihead_execution_head_num_experimental=other.multihead_execution_head_num_experimental;
-        time_anchor_stride=other.time_anchor_stride;
-        time_anchor_first_step=other.time_anchor_first_step;
-        time_anchor_last_step=other.time_anchor_last_step;
-        time_anchor_last_regular_step=other.time_anchor_last_regular_step;
         kd_tree_leaf_size=other.kd_tree_leaf_size;
         partition_size_experimental=other.partition_size_experimental;
         partition_num_experimental=other.partition_num_experimental;

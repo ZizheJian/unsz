@@ -142,6 +142,9 @@ def linear_interpolation_time_order(coordinates):
         raise RuntimeError("一阶内插顺序没有覆盖全部time step")
     return order
 
+def is_anchor_interpolation_stride_8_flow(flow):
+    return flow in ("anchor_interpolation_stride_8","anchor_interpolation_stride_8_spatial_residual")
+
 def build_predictor_arguments(predictor):
     predictor_name=predictor["name"]
     if predictor_name=="idw":
@@ -168,7 +171,7 @@ def build_eb_schedule_arguments(eb_schedule):
     return arguments
 
 def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expression):
-    _,predictor_arguments=build_predictor_arguments(config["predictor"])
+    predictor,predictor_arguments=build_predictor_arguments(config["predictor"])
     if config["prediction_min_ref_num"]>config["prediction_max_ref_num"]:
         raise ValueError("prediction_min_ref_num不能大于prediction_max_ref_num")
     if config["ordering_score_min_ref_num"]>config["ordering_score_max_ref_num"]:
@@ -201,7 +204,8 @@ def build_temporal_unsz_arguments(config,data_dir,dag_cache_path):
     coordinates=read_time_step_coordinates(config)
     value_flow=config["value_flow"]
     label_flow=config["label_flow"]
-    if value_flow in ("linear_interpolation","linear_interpolation_spatial_residual") or label_flow=="endpoint_agreement":
+    use_anchor_order=is_anchor_interpolation_stride_8_flow(value_flow) or label_flow=="anchor_interpolation_stride_8"
+    if not use_anchor_order and (value_flow in ("linear_interpolation","linear_interpolation_spatial_residual") or label_flow=="endpoint_agreement"):
         time_order=linear_interpolation_time_order(coordinates)
         time_expression="{"+",".join(str(value) for value in time_order)+"}"
     else:
@@ -215,6 +219,8 @@ def build_temporal_unsz_arguments(config,data_dir,dag_cache_path):
         arguments.extend(("-label-flow","constant_extrapolation"))
     elif label_flow=="endpoint_agreement":
         arguments.extend(("-label-flow","endpoint_agreement"))
+    elif label_flow=="anchor_interpolation_stride_8":
+        arguments.extend(("-label-flow",label_flow))
     elif label_flow not in (None,"spatial"):
         raise ValueError(f"未知标签流程：{label_flow}")
     return predictor,arguments

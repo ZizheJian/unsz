@@ -26,15 +26,16 @@ namespace unsz
             else
                 throw runtime_error("单点集解压只支持IDW或RBF空间预测器");
         };
-        if(value_flow=="none")
+        prediction_framework_c framework=get_prediction_framework(1);
+        if(framework.value_mode==time_dimension_mode_e::spatial)
             dispatch_predictor(integral_constant<time_dimension_mode_e,time_dimension_mode_e::spatial>());
-        else if(value_flow=="constant_extrapolation")
+        else if(framework.value_mode==time_dimension_mode_e::constant_extrapolation)
             dispatch_predictor(integral_constant<time_dimension_mode_e,time_dimension_mode_e::constant_extrapolation>());
-        else if(value_flow=="linear_interpolation")
+        else if(framework.value_mode==time_dimension_mode_e::linear_interpolation)
             dispatch_predictor(integral_constant<time_dimension_mode_e,time_dimension_mode_e::linear_interpolation>());
-        else if(value_flow=="constant_extrapolation_spatial_residual")
+        else if(framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
             dispatch_predictor(integral_constant<time_dimension_mode_e,time_dimension_mode_e::constant_extrapolation_spatial_residual>());
-        else if(value_flow=="linear_interpolation_spatial_residual")
+        else if(framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
             dispatch_predictor(integral_constant<time_dimension_mode_e,time_dimension_mode_e::linear_interpolation_spatial_residual>());
         else
             throw runtime_error("未知的单点集数值预测流程："+value_flow);
@@ -48,14 +49,25 @@ namespace unsz
         prediction_framework_c framework=get_prediction_framework(2);
         if(framework.execution==label_value_execution_e::staged)
         {
-            if(framework.label_mode==time_dimension_mode_e::spatial&&framework.value_mode==time_dimension_mode_e::spatial)
-                return decompress_two_point_sets_fixed<time_dimension_mode_e::spatial,time_dimension_mode_e::spatial,label_value_execution_e::staged>();
-            if(framework.label_mode==time_dimension_mode_e::constant_extrapolation&&framework.value_mode==time_dimension_mode_e::spatial)
-                return decompress_two_point_sets_fixed<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::spatial,label_value_execution_e::staged>();
-            if(framework.label_mode==time_dimension_mode_e::constant_extrapolation&&framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
-                return decompress_two_point_sets_fixed<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::staged>();
-            if(framework.label_mode==time_dimension_mode_e::endpoint_agreement&&framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-                return decompress_two_point_sets_fixed<time_dimension_mode_e::endpoint_agreement,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::staged>();
+            auto dispatch_value=[&](auto label_mode_constant)
+            {
+                constexpr time_dimension_mode_e label_mode=decltype(label_mode_constant)::value;
+                switch(framework.value_mode)
+                {
+                    case time_dimension_mode_e::spatial:return decompress_two_point_sets_fixed<label_mode,time_dimension_mode_e::spatial,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::constant_extrapolation:return decompress_two_point_sets_fixed<label_mode,time_dimension_mode_e::constant_extrapolation,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::linear_interpolation:return decompress_two_point_sets_fixed<label_mode,time_dimension_mode_e::linear_interpolation,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::constant_extrapolation_spatial_residual:return decompress_two_point_sets_fixed<label_mode,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::linear_interpolation_spatial_residual:return decompress_two_point_sets_fixed<label_mode,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::staged>();
+                    default:throw runtime_error("分阶段两点集解压不支持当前数值流程");
+                }
+            };
+            if(framework.label_mode==time_dimension_mode_e::spatial)
+                return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::spatial>());
+            if(framework.label_mode==time_dimension_mode_e::constant_extrapolation)
+                return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::constant_extrapolation>());
+            if(framework.label_mode==time_dimension_mode_e::endpoint_agreement)
+                return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::endpoint_agreement>());
         }
         else if(framework.execution==label_value_execution_e::fused)
         {
@@ -363,7 +375,7 @@ namespace unsz
                 return predict_value_fixed<point_set_codec_e::rbf>(pred_ref_id,pred_id,ref_ids,ref_weights,point_set_id,data);
         };
         constexpr bool use_fused_two_point_set_prediction=two_point_sets&&fixed_execution==label_value_execution_e::fused;
-        bool use_selected_fused_temporal_flow=use_fused_two_point_set_prediction&&(time_anchor_stride>0||(fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)||(fixed_label_mode==time_dimension_mode_e::endpoint_agreement&&value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual));
+        bool use_selected_fused_temporal_flow=use_fused_two_point_set_prediction&&(uses_anchor_interpolation_stride_8_flow()||(fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)||(fixed_label_mode==time_dimension_mode_e::endpoint_agreement&&value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual));
         bool use_linear_previous_label=use_linear_previous_label_experimental&&use_fused_two_point_set_prediction&&fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_point_set_id_vec.size()==point_num;
         bool use_original_order_constant_label_phase=use_selected_fused_temporal_flow&&fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual&&previous_time_point_set_id_vec.size()==point_num;
         if(use_fused_two_point_set_prediction)
@@ -395,21 +407,32 @@ namespace unsz
         if(use_fused_two_point_set_prediction)
             current_decompressed_data.assign(point_num,0);
 
-        point_set_id_vec.assign(point_num,point_set_num-1);
-        if (label_channel_num>0)
+        if(use_staged_point_set_ids)
         {
-            if(point_set_predictor!="idw"&&point_set_predictor!="rbf")
-                throw runtime_error("未知的点集标签预测器："+point_set_predictor);
-            bool continuous=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
-            bool use_majority=point_set_predictor=="majority";
-            bool use_normalized_label_weights=false;
-            prepare_linear_interpolation();
-            bool use_previous_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_point_set_id_vec.size()==point_num;
-            bool use_causal_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_point_set_id_vec.size()==point_num;
-            constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::endpoint_agreement;
-            bool use_direct_fused_label_stream=use_fused_two_point_set_prediction&&!use_prediction_order_label_experimental;
-            for (uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
+            auto point_set_id_iterator=staged_point_set_id_map.find(current_time_step);
+            if(point_set_id_iterator==staged_point_set_id_map.end())
+                throw runtime_error("staged解压缺少time step "+to_string(current_time_step)+"的标签");
+            point_set_id_vec=point_set_id_iterator->second;
+            if(point_set_id_vec.size()!=point_num)
+                throw runtime_error("staged解压的标签点数不正确");
+        }
+        else
+        {
+            point_set_id_vec.assign(point_num,point_set_num-1);
+            if(label_channel_num>0)
             {
+                if(point_set_predictor!="idw"&&point_set_predictor!="rbf")
+                    throw runtime_error("未知的点集标签预测器："+point_set_predictor);
+                bool continuous=point_set_predictor=="continuous_actual" || point_set_predictor=="continuous_reflect";
+                bool use_majority=point_set_predictor=="majority";
+                bool use_normalized_label_weights=false;
+                prepare_linear_interpolation();
+                bool use_previous_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_point_set_id_vec.size()==point_num;
+                bool use_causal_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_point_set_id_vec.size()==point_num;
+                constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::endpoint_agreement;
+                bool use_direct_fused_label_stream=use_fused_two_point_set_prediction&&!use_prediction_order_label_experimental;
+                for (uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
+                {
                 vector<uint8_t> label_symbol_internal_vec;
                 uint64_t label_symbol_id=0;
                 if(use_original_order_constant_label_phase||use_linear_previous_label)
@@ -784,6 +807,7 @@ namespace unsz
                 }
                 if (decoded_target_num!=label_channel_target_num_vec[label_channel_id] || label_symbol_id!=label_symbol_vec_vec[label_channel_id].size())
                     throw runtime_error("点集条件标签通道"+to_string(label_channel_id)+"的修正值数量不一致");
+                }
             }
         }
         vector<uint32_t> decoded_point_set_num(point_set_num,0);
@@ -792,6 +816,8 @@ namespace unsz
         if (decoded_point_set_num!=point_set_point_num_vec)
             throw runtime_error("解码后的点集数量与文件头不一致");
         label_decode_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_stage_start_time).count();
+        if(decode_labels_only)
+            return;
         decompression_stage_start_time=chrono::steady_clock::now();
 
         bool use_single_point_set_rbf_fast_path=!two_point_sets&&point_set_codec_vec[0]==point_set_codec_e::rbf&&value_mode==time_dimension_mode_e::spatial&&!use_partition_stream_format&&thread_num==1&&!use_partition_adaptive_predictor_experimental&&!use_linear_previous_label&&single_huffman_group&&pred_ref_rbf_weights.size()==pred_ref_ids.size();

@@ -1,8 +1,6 @@
 #pragma once
 
-namespace unsz
-{
-namespace two_point_sets::label::spatial::value::spatial
+namespace unsz::two_point_sets::fused::label::spatial::value::spatial
 {
 template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point preprocessing_start_time)
@@ -24,7 +22,7 @@ void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point pre
 }
 }
 
-namespace two_point_sets::label::spatial::value::constant_extrapolation
+namespace unsz::two_point_sets::fused::label::spatial::value::constant_extrapolation
 {
 template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point preprocessing_start_time)
@@ -42,7 +40,7 @@ void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point pre
 }
 }
 
-namespace two_point_sets::label::spatial::value::linear_interpolation
+namespace unsz::two_point_sets::fused::label::spatial::value::linear_interpolation
 {
 template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point preprocessing_start_time)
@@ -60,7 +58,7 @@ void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point pre
 }
 }
 
-namespace two_point_sets::label::spatial::value::constant_extrapolation_then_spatial
+namespace unsz::two_point_sets::fused::label::spatial::value::constant_extrapolation_then_spatial
 {
 template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point preprocessing_start_time)
@@ -78,7 +76,7 @@ void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point pre
 }
 }
 
-namespace two_point_sets::label::spatial::value::linear_interpolation_then_spatial
+namespace unsz::two_point_sets::fused::label::spatial::value::linear_interpolation_then_spatial
 {
 template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point preprocessing_start_time)
@@ -96,7 +94,7 @@ void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point pre
 }
 }
 
-namespace two_point_sets::label::spatial::value::joint_spatiotemporal
+namespace unsz::two_point_sets::fused::label::spatial::value::joint_spatiotemporal
 {
 template<typename T_coord,typename T_data>
 void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point preprocessing_start_time)
@@ -110,5 +108,40 @@ void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point pre
 }
 }
 
+namespace unsz::two_point_sets::fused::label::spatial::value::anchor_interpolation_stride_8
+{
+template<typename T_coord,typename T_data>
+void compress(param_c<T_coord,T_data>&,chrono::steady_clock::time_point){throw runtime_error("two_point_sets::fused::label::spatial::value::anchor_interpolation_stride_8尚未实现");}
+}
+
+namespace unsz::two_point_sets::fused::label::spatial::value::anchor_interpolation_stride_8_then_spatial
+{
+template<typename T_coord,typename T_data>
+void compress(param_c<T_coord,T_data>&,chrono::steady_clock::time_point){throw runtime_error("two_point_sets::fused::label::spatial::value::anchor_interpolation_stride_8_then_spatial尚未实现");}
+}
+
+namespace unsz::two_point_sets::fused::label::spatial
+{
+template<typename T_coord,typename T_data>
+void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point preprocessing_start_time)
+{
+    if(param.value_flow=="none")
+        return value::spatial::compress(param,preprocessing_start_time);
+    if(param.value_flow=="constant_extrapolation")
+        return value::constant_extrapolation::compress(param,preprocessing_start_time);
+    if(param.value_flow=="linear_interpolation")
+        return value::linear_interpolation::compress(param,preprocessing_start_time);
+    if(param.value_flow=="constant_extrapolation_spatial_residual")
+        return value::constant_extrapolation_then_spatial::compress(param,preprocessing_start_time);
+    if(param.value_flow=="linear_interpolation_spatial_residual")
+        return value::linear_interpolation_then_spatial::compress(param,preprocessing_start_time);
+    if(param.value_flow=="anchor_interpolation_stride_8")
+        return value::anchor_interpolation_stride_8::compress(param,preprocessing_start_time);
+    if(param.value_flow=="anchor_interpolation_stride_8_spatial_residual")
+        return value::anchor_interpolation_stride_8_then_spatial::compress(param,preprocessing_start_time);
+    if(param.value_flow=="joint_spatiotemporal")
+        return value::joint_spatiotemporal::compress(param,preprocessing_start_time);
+    throw runtime_error("未知的两点集数值流程："+param.value_flow);
+}
 }
 

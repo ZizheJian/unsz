@@ -38,6 +38,7 @@ namespace unsz
     enum class partition_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
     enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,endpoint_agreement=5,linear_interpolation=6,joint_spatiotemporal=7,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
     enum class label_value_execution_e:uint8_t{no_label=0,staged=1,fused=2};
+    enum class time_step_order_e:uint8_t{chronological=0,interpolation=1,anchor_stride_8=2};
 
     struct prediction_framework_c
     {
@@ -247,7 +248,7 @@ namespace unsz
             vector<point_set_config_c> point_set_config_vec;
             bool check_original_data_files=true;
             string value_flow="none";
-            string label_flow="none";//none / constant_extrapolation / endpoint_agreement
+            string label_flow="none";
             bool if_adjust_coord=false;
             vector<double> adjust_coord_matrix_parameter_vec;
             bool print_compression_stage_time=false;
@@ -263,8 +264,6 @@ namespace unsz
             bool use_kd_scalar_one_reference_query_experimental=false;//1点MSD用标量最近邻查询并排除目标自身
             bool use_rbf_ldlt=false;//常数趋势RBF用正定核矩阵的LDLT分解求权重
             uint32_t multihead_execution_head_num_experimental=0;//非0时按空间头轮转执行DAG，并按头连续存储qb
-            uint32_t time_anchor_stride=0;//完整flow使用的固定锚点步长
-            uint32_t time_anchor_first_step=0,time_anchor_last_step=0,time_anchor_last_regular_step=0;
             uint32_t kd_tree_leaf_size=32;
             uint32_t partition_size_experimental=0;//0表示不分区；非0时所有参考点必须来自同一partition
             uint32_t partition_num_experimental=0;//直接指定2、4、8等2的幂个partition
@@ -330,15 +329,22 @@ namespace unsz
             vector<int32_t> qb_vec;
             vector<unsigned char> current_zstd_bs_vec;
             vector<uint8_t> point_set_id_vec;
+            map<uint32_t,vector<uint8_t>> staged_point_set_id_map;
             vector<uint32_t> point_set_point_num_vec;
             vector<T_data> point_set_min_data_vec,point_set_max_data_vec,point_set_abs_eb_vec;
             vector<point_set_codec_e> point_set_codec_vec;
             uint32_t current_valid_node_num=0;
+            bool running_staged_file_pass=false;
+            bool decode_labels_only=false;
+            bool use_staged_point_set_ids=false;
+            bool suppress_compression_summary=false;
+            double last_total_psnr=0,last_total_compression_time=0,staged_label_decompression_time=0;
+            uint64_t last_total_original_bytes=0;
 
             void init();
             void load_time_step_coordinates();
-            void prepare_linear_interpolation_order();
-            void prepare_time_anchor_order();
+            time_step_order_e get_time_step_order(const string &flow) const;
+            void prepare_time_step_order(time_step_order_e order);
             void configure_point_sets();
             void prepare_cli_parameters(const vector<uint32_t>&selected_time_step_vec,T_data error_bound);
             void prepare_linear_interpolation();
@@ -351,10 +357,11 @@ namespace unsz
             bool predict_time_label_fixed(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction);
             void save_time_reconstruction();
             prediction_framework_c get_prediction_framework(uint32_t point_set_num) const;
-            uint32_t get_last_regular_time_anchor() const;
+            bool uses_anchor_interpolation_stride_8_flow() const;
             bool current_time_step_is_regular_anchor() const;
             void resolve_single_point_set_time_mode();
             void advance_time_prediction_buffers();
+            void compress_single_point_set();
             bool need_double_coord();
             void load_adjust_coord_matrix_file();
             void adjust_coord();
@@ -410,6 +417,8 @@ namespace unsz
             void prepare_compression_structure(chrono::steady_clock::time_point preprocessing_start_time);
             void prepare_joint_spatiotemporal_coordinates();
             void compress_files(void(param_c<T_coord,T_data>::*compress_current_file)());
+            void compress_staged_two_point_set_files();
+            void prepare_staged_two_point_set_decompression();
             void compress_joint_spatiotemporal_files(void(param_c<T_coord,T_data>::*compress_current_field)());
             void decompress_joint_spatiotemporal_files(void(param_c<T_coord,T_data>::*decompress_current_field)());
             void compress_two_point_sets();
@@ -450,6 +459,7 @@ namespace unsz
 #include "multi_huffman.tpp"
 #include "prediction_structure.tpp"
 #include "multihead_execution.tpp"
+#include "one_point_set_compress_entry.tpp"
 #include "two_point_sets_compress_entry.tpp"
 #include "compress_entry.tpp"
 #include "compress.tpp"
