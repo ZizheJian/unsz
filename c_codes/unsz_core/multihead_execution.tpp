@@ -123,6 +123,9 @@ namespace unsz
                     break;
                 }
         }
-        printf("Prepared %u-head dependency-safe execution order: head_size=[%u,%u], immediate_dependency=%llu/%u (%.6f%%)\n",head_num,min_head_size,max_head_size,(unsigned long long)immediate_dependency_num,point_num-1,point_num>1?100.0*immediate_dependency_num/(point_num-1):0);
+        double immediate_dependency_ratio=0;
+        if(point_num>1)
+            immediate_dependency_ratio=100.0*immediate_dependency_num/(point_num-1);
+        printf("Prepared %u-head dependency-safe execution order: head_size=[%u,%u], immediate_dependency=%llu/%u (%.6f%%)\n",head_num,min_head_size,max_head_size,(unsigned long long)immediate_dependency_num,point_num-1,immediate_dependency_ratio);
     }
 }

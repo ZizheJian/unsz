@@ -35,11 +35,7 @@
         "rbf_kernel": "matern32",
         "rbf_shape": 0.03,
         "rbf_nugget": 1e-06,
-        "rbf_solver": "ldlt",
-        "fallback": {
-          "name": "idw",
-          "idw_power": 2
-        }
+        "rbf_solver": "ldlt"
       },
       "ordering_scope": "global",
       "prediction_round_num": 1,

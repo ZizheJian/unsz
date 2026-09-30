@@ -113,7 +113,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     }
     param.load_or_generate_pred_refs_structure();
     if(param.rbf_parameter_specified||any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf;}))
-        param.prepare_rbf_weights();
+        param.prepare_rbf_prediction_weights();
     bool data_dependent_eb_schedule=param.eb_schedule=="round_point_ratio_dag" || param.eb_schedule=="round_point_ratio_dag_direct" || param.eb_schedule=="round_point_ratio_dag_variance_direct";
     if(!data_dependent_eb_schedule && param.cached_pred_eb_multiplier_vec.size()!=param.point_num)
         param.cached_pred_eb_multiplier_vec=param.generate_pred_eb_multiplier_vec();
@@ -144,7 +144,11 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     using param_type=unsz::param_c<T_coord,float>;
     if(param.point_set_config_vec.size()!=1&&param.point_set_config_vec.size()!=2)
         throw runtime_error("解压只支持一个或两个点集");
-    void(param_type::*decompress_field)()=param.point_set_config_vec.size()==1?&param_type::decompress_single_point_set:&param_type::decompress_two_point_sets;
+    void(param_type::*decompress_field)();
+    if(param.point_set_config_vec.size()==1)
+        decompress_field=&param_type::decompress_single_point_set;
+    else
+        decompress_field=&param_type::decompress_two_point_sets;
     for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
         param.current_time_step=param.time_step_vec[file_id];
@@ -194,7 +198,13 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
             squared_error+=error*error;
             uint32_t point_set_id=param.point_set_id_vec[i];
             double validation_abs_eb=param.point_set_abs_eb_vec[point_set_id];
-            double error_ratio=validation_abs_eb>0?abs(error)/validation_abs_eb:(error==0?0:numeric_limits<double>::infinity());
+            double error_ratio;
+            if(validation_abs_eb>0)
+                error_ratio=abs(error)/validation_abs_eb;
+            else if(error==0)
+                error_ratio=0;
+            else
+                error_ratio=numeric_limits<double>::infinity();
             if (error_ratio>max_error_ratio)
             {
                 max_error_ratio=error_ratio;
@@ -211,7 +221,11 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
             }
         }
         double mse=squared_error/param.point_num;
-        double psnr=mse==0?numeric_limits<double>::infinity():10*log10(pow((double)param.point_set_max_data_vec[primary_point_set_id]-param.point_set_min_data_vec[primary_point_set_id],2)/mse);
+        double psnr;
+        if(mse==0)
+            psnr=numeric_limits<double>::infinity();
+        else
+            psnr=10*log10(pow((double)param.point_set_max_data_vec[primary_point_set_id]-param.point_set_min_data_vec[primary_point_set_id],2)/mse);
         printf("Decompressed %s, psnr= %f\n",decompressed_path.c_str(),psnr);
         total_squared_error+=squared_error;
         total_point_num+=param.point_num;
@@ -313,12 +327,12 @@ int decompress_main(int argc,char **argv)
         }
         else if(option=="-round-size-growth-ratio-experimental")
         {
-            param.round_size_growth_ratio_experimental=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+            param.round_size_growth_ratio_experimental=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
             if(param.round_size_growth_ratio_experimental<1 || param.round_size_growth_ratio_experimental>16)
                 throw runtime_error("-round-size-growth-ratio-experimental必须在[1,16]内");
         }
         else if (option=="-idw-power")
-            param.idw_power=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+            param.idw_power=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-rbf-kernel")
         {
             param.rbf_parameter_specified=true;
@@ -329,12 +343,12 @@ int decompress_main(int argc,char **argv)
         else if(option=="-rbf-shape")
         {
             param.rbf_parameter_specified=true;
-            param.rbf_shape=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+            param.rbf_shape=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
         }
         else if(option=="-rbf-nugget")
         {
             param.rbf_parameter_specified=true;
-            param.rbf_nugget=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+            param.rbf_nugget=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
         }
         else if (option=="-ordering-candidate-num")
             param.ordering_candidate_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
@@ -356,7 +370,7 @@ int decompress_main(int argc,char **argv)
             param.partition_adaptive_sample_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-partition-adaptive-min-improvement-experimental")
         {
-            param.partition_adaptive_min_improvement_experimental=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+            param.partition_adaptive_min_improvement_experimental=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
             if (param.partition_adaptive_min_improvement_experimental>1)
                 throw runtime_error("-partition-adaptive-min-improvement-experimental不能大于1");
         }
@@ -401,13 +415,6 @@ int decompress_main(int argc,char **argv)
         }
         else if (option=="-linear-previous-label-experimental")
             param.use_linear_previous_label_experimental=true;
-        else if(option=="-rbf-fallback")
-        {
-            string fallback=read_option_value(argc,argv,arg_id,option);
-            if(fallback!="idw"&&fallback!="nearest")
-                throw runtime_error("-rbf-fallback必须是idw或nearest");
-            param.rbf_fallback_nearest=fallback=="nearest";
-        }
         else if(option=="-ordering-scope")
         {
             param.ordering_scope=read_option_value(argc,argv,arg_id,option);
@@ -417,16 +424,16 @@ int decompress_main(int argc,char **argv)
         else if (option=="-eb-schedule")
         {
             param.eb_schedule=read_option_value(argc,argv,arg_id,option);
-            param.eb_schedule_start_ratio=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+            param.eb_schedule_start_ratio=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
             if(param.eb_schedule!="none" && param.eb_schedule!="round" && param.eb_schedule!="point" && param.eb_schedule!="inverse_rank_log2" && param.eb_schedule!="round_point" && param.eb_schedule!="round_ratio" && param.eb_schedule!="round_point_ratio" && param.eb_schedule!="round_point_ratio_dag" && param.eb_schedule!="round_point_ratio_dag_direct" && param.eb_schedule!="round_point_ratio_dag_variance_direct")
                 throw runtime_error("未知的EB序列模式："+param.eb_schedule);
             if (param.eb_schedule_start_ratio>1)
                 throw runtime_error("-eb-schedule的起始倍率不能大于1");
         }
         else if(option=="-eb-schedule-log2-shift")
-            param.eb_schedule_log2_shift=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+            param.eb_schedule_log2_shift=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-eb-schedule-max-log2-exponent")
-            param.eb_schedule_max_log2_exponent=parse_positive_float(read_option_value(argc,argv,arg_id,option),option);
+            param.eb_schedule_max_log2_exponent=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
         else
             throw runtime_error("未知参数："+option);
     }

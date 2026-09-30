@@ -21,9 +21,15 @@ namespace unsz
         bool parameter_is_round_ratio=eb_schedule=="round_ratio" || eb_schedule=="round_point_ratio" || use_dag_influence;
         if(use_round_schedule && prediction_round_num>1)
         {
-            schedule_common_ratio=parameter_is_round_ratio?1/eb_schedule_start_ratio:pow(1/eb_schedule_start_ratio,1.0/(prediction_round_num-1));
+            if(parameter_is_round_ratio)
+                schedule_common_ratio=1/eb_schedule_start_ratio;
+            else
+                schedule_common_ratio=pow(1/eb_schedule_start_ratio,1.0/(prediction_round_num-1));
             for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
-                round_eb_multiplier_vec[round_id]=parameter_is_round_ratio?pow(eb_schedule_start_ratio,prediction_round_num-1-round_id):pow(eb_schedule_start_ratio,(double)(prediction_round_num-1-round_id)/(prediction_round_num-1));
+                if(parameter_is_round_ratio)
+                    round_eb_multiplier_vec[round_id]=pow(eb_schedule_start_ratio,prediction_round_num-1-round_id);
+                else
+                    round_eb_multiplier_vec[round_id]=pow(eb_schedule_start_ratio,(double)(prediction_round_num-1-round_id)/(prediction_round_num-1));
             if(use_round_point_schedule)
                 for(uint32_t round_id=0;round_id+1<prediction_round_num;round_id++)
                     if(round_target_ids[round_id].size()>1)
@@ -41,8 +47,17 @@ namespace unsz
             double round_point_eb_multiplier=round_eb_multiplier_vec[round_id];
             for(uint32_t i=0;i<round_target_ids[round_id].size();i++)
             {
-                double log2_exponent=use_inverse_rank_log2?clamp(log2((double)point_num/(pred_ref_id+1))-eb_schedule_log2_shift,0.0,eb_schedule_max_log2_exponent):0;
-                result[pred_ref_id]=use_inverse_rank_log2?pow(eb_schedule_start_ratio,log2_exponent):((eb_schedule=="round" || eb_schedule=="round_ratio")?round_eb_multiplier_vec[round_id]:(use_round_point_schedule?round_point_eb_multiplier:point_eb_multiplier));
+                if(use_inverse_rank_log2)
+                {
+                    double log2_exponent=clamp(log2((double)point_num/(pred_ref_id+1))-eb_schedule_log2_shift,0.0,eb_schedule_max_log2_exponent);
+                    result[pred_ref_id]=pow(eb_schedule_start_ratio,log2_exponent);
+                }
+                else if(eb_schedule=="round"||eb_schedule=="round_ratio")
+                    result[pred_ref_id]=round_eb_multiplier_vec[round_id];
+                else if(use_round_point_schedule)
+                    result[pred_ref_id]=round_point_eb_multiplier;
+                else
+                    result[pred_ref_id]=point_eb_multiplier;
                 pred_ref_id++;
                 if(eb_schedule=="point")
                     point_eb_multiplier=min(1.0,point_eb_multiplier*schedule_common_ratio);
@@ -79,12 +94,6 @@ namespace unsz
                 for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
                     if(point_set_id_vec[ref_ids[ref_index]]==point_set_id)
                     {
-                        if(isinf(ref_weights[ref_index]))
-                        {
-                            valid_ref_index_vec.clear();
-                            valid_ref_index_vec.push_back(ref_index);
-                            break;
-                        }
                         valid_ref_index_vec.push_back(ref_index);
                         if(valid_ref_index_vec.size()==prediction_max_ref_num)
                             break;
@@ -92,21 +101,25 @@ namespace unsz
                 if(valid_ref_index_vec.empty())
                     continue;
                 direct_edge_num+=valid_ref_index_vec.size();
-                if(isinf(ref_weights[valid_ref_index_vec[0]]))
-                    influence_vec[ref_ids[valid_ref_index_vec[0]]]+=influence_vec[target_id];
-                else
+                double weight_sum=0;
+                for(uint32_t ref_index:valid_ref_index_vec)
+                    weight_sum+=ref_weights[ref_index];
+                vector<T_calc> fallback_weights;
+                if(!(weight_sum>0))
                 {
-                    double weight_sum=0;
+                    vector<int> fallback_ref_ids;
+                    fallback_ref_ids.reserve(valid_ref_index_vec.size());
                     for(uint32_t ref_index:valid_ref_index_vec)
-                        weight_sum+=ref_weights[ref_index];
-                    if(!(weight_sum>0) || !isfinite(weight_sum))
-                        throw runtime_error("DAG影响力EB遇到无效的反比例预测权重和");
-                    for(uint32_t ref_index:valid_ref_index_vec)
-                    {
-                        double normalized_weight=ref_weights[ref_index]/weight_sum;
-                        double propagated_weight=use_dag_variance_direct?normalized_weight*normalized_weight:normalized_weight;
-                        influence_vec[ref_ids[ref_index]]+=propagated_weight*influence_vec[target_id];
-                    }
+                        fallback_ref_ids.push_back(ref_ids[ref_index]);
+                    append_normalized_idw_prediction_weights(target_id,array_view_c<int>(fallback_ref_ids.data(),fallback_ref_ids.size()),fallback_weights);
+                    weight_sum=1;
+                }
+                for(uint32_t valid_index=0;valid_index<valid_ref_index_vec.size();valid_index++)
+                {
+                    uint32_t ref_index=valid_ref_index_vec[valid_index];
+                    double normalized_weight=fallback_weights.empty()?ref_weights[ref_index]/weight_sum:fallback_weights[valid_index];
+                    double propagated_weight=use_dag_variance_direct?normalized_weight*normalized_weight:normalized_weight;
+                    influence_vec[ref_ids[ref_index]]+=propagated_weight*influence_vec[target_id];
                 }
             }
             uint32_t round_begin=0,changed_num=0,affected_point_num=0;
@@ -142,7 +155,9 @@ namespace unsz
                     double log_multiplier_range=log(max_multiplier/min_multiplier);
                     for(uint32_t i=0;i<round_size;i++)
                     {
-                        double normalized_influence=max_log_influence>min_log_influence?(log(influence_vec[pred_target_ids[round_begin+i]])-min_log_influence)/(max_log_influence-min_log_influence):0.5;
+                        double normalized_influence=0.5;
+                        if(max_log_influence>min_log_influence)
+                            normalized_influence=(log(influence_vec[pred_target_ids[round_begin+i]])-min_log_influence)/(max_log_influence-min_log_influence);
                         result[round_begin+i]=max_multiplier*exp(-normalized_influence*log_multiplier_range);
                     }
                 }
@@ -151,7 +166,11 @@ namespace unsz
                 round_begin+=round_size;
             }
             if(print_statistics)
-                printf("DAG influence EB: mapping=%s, propagation=%s, direct_edges=%llu, affected_points=%u, max_transitive_influence=%.9g, reassigned_points=%u, time=%.6f s\n",use_dag_rank?"rank":"direct",use_dag_variance_direct?"variance":"absolute",(unsigned long long)direct_edge_num,affected_point_num,max_influence,changed_num,chrono::duration<double>(chrono::steady_clock::now()-dag_start_time).count());
+            {
+                const char *mapping_name=use_dag_rank?"rank":"direct";
+                const char *propagation_name=use_dag_variance_direct?"variance":"absolute";
+                printf("DAG influence EB: mapping=%s, propagation=%s, direct_edges=%llu, affected_points=%u, max_transitive_influence=%.9g, reassigned_points=%u, time=%.6f s\n",mapping_name,propagation_name,(unsigned long long)direct_edge_num,affected_point_num,max_influence,changed_num,chrono::duration<double>(chrono::steady_clock::now()-dag_start_time).count());
+            }
         }
         if(print_statistics && eb_schedule!="none")
             printf("eb schedule: mode=%s, start_ratio=%.9g, log2_shift=%.9g, common_ratio=%.12g\n",eb_schedule.c_str(),eb_schedule_start_ratio,eb_schedule_log2_shift,schedule_common_ratio);

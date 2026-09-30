@@ -68,14 +68,20 @@ namespace unsz
 
         uint32_t effective_ordering_candidate_num=ordering_candidate_num;
         bool reuse_global_ordering_candidate_refs=ordering_scope=="global"&&effective_ordering_candidate_num>=prediction_max_ref_num;
+        bool generate_idw_weights=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::idw;});
+        bool generate_rbf_weights=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::rbf;});
+        if(generate_idw_weights&&generate_rbf_weights)
+            throw runtime_error("同一DAG不能同时生成IDW和RBF预测权重");
         vector<uint64_t> order_candidate_ref_begin;
         vector<uint8_t> order_candidate_ref_num;
         vector<int> order_candidate_ref_ids;
+        vector<T_coord> order_candidate_ref_squared_distances;
         if(reuse_global_ordering_candidate_refs)
         {
             order_candidate_ref_begin.assign(point_num,numeric_limits<uint64_t>::max());
             order_candidate_ref_num.assign(point_num,0);
             order_candidate_ref_ids.reserve((uint64_t)point_num*prediction_max_ref_num);
+            order_candidate_ref_squared_distances.reserve((uint64_t)point_num*prediction_max_ref_num);
         }
 
         auto sorting_start_time=chrono::steady_clock::now();
@@ -96,7 +102,7 @@ namespace unsz
         printf("Using reverse MSD elimination with %u local candidates and %u references\n",ordering_candidate_num,prediction_max_ref_num);
         uint32_t reverse_ref_query_num=min<uint64_t>((uint64_t)effective_ordering_score_max_ref_num+1,point_num);
         {
-            vector<double> ordering_score_cached_score;
+            vector<T_coord> ordering_score_cached_score;
             vector<uint32_t> ordering_score_cached_ref_num;
             vector<uint8_t> ordering_score_cache_initialized;
             vector<uint8_t> reference_valid;
@@ -155,6 +161,7 @@ namespace unsz
                         uint32_t keep_num=min<uint32_t>(prediction_max_ref_num,ref_queue.size());
                         uint64_t ref_begin=order_candidate_ref_ids.size();
                         order_candidate_ref_ids.resize(ref_begin+keep_num);
+                        order_candidate_ref_squared_distances.resize(ref_begin+keep_num);
                         while(ref_queue.size()>keep_num)
                         {
                             if(use_candidate_score_geometry_reuse)
@@ -166,6 +173,7 @@ namespace unsz
                             if(use_candidate_score_geometry_reuse)
                                 candidate_group.push_back(ref_queue.top());
                             order_candidate_ref_ids[ref_begin+ref_index-1]=ref_queue.top().second;
+                            order_candidate_ref_squared_distances[ref_begin+ref_index-1]=ref_queue.top().first;
                             ref_queue.pop();
                         }
                         order_candidate_ref_begin[previous_removed_id]=ref_begin;
@@ -190,7 +198,7 @@ namespace unsz
                     }
                     else
                     {
-                        double best_mean_target_ref_squared_dist=numeric_limits<double>::infinity();
+                        T_coord best_mean_target_ref_squared_dist=numeric_limits<T_coord>::infinity();
                         while (!nearest_queue.empty())
                         {
                             int candidate_id=nearest_queue.top().second;
@@ -215,16 +223,16 @@ namespace unsz
                             }
                             uint32_t required_cached_ref_num=min(ordering_score_min_ref_num,cached_ref_num);
                             bool cache_valid=ordering_score_cache_initialized[candidate_id] && cached_ref_num>0 && valid_cached_ref_num>=required_cached_ref_num;
-                            double mean_target_ref_squared_dist;
+                            T_coord mean_target_ref_squared_dist;
                             if (cache_valid)
                             {
                                 if (reference_list_unchanged)
                                     mean_target_ref_squared_dist=ordering_score_cached_score[candidate_id];
                                 else
                                 {
-                                    double target_ref_squared_dist_sum=0;
+                                    T_coord target_ref_squared_dist_sum=0;
                                     for(uint32_t ref_index=0;ref_index<valid_cached_ref_num;ref_index++)
-                                        target_ref_squared_dist_sum+=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[ordering_score_cached_ref_ids[cache_begin+ref_index]],dim);
+                                        target_ref_squared_dist_sum+=get_dist_to_coord(coord_array[candidate_id],coord_array[ordering_score_cached_ref_ids[cache_begin+ref_index]],dim);
                                     mean_target_ref_squared_dist=target_ref_squared_dist_sum/valid_cached_ref_num;
                                     ordering_score_cached_score[candidate_id]=mean_target_ref_squared_dist;
                                     ordering_score_cached_ref_num[candidate_id]=valid_cached_ref_num;
@@ -236,21 +244,21 @@ namespace unsz
                             {
                                 bool certified_nearest=false;
                                 int certified_ref_id=-1;
-                                double certified_squared_dist=numeric_limits<double>::infinity();
+                                T_coord certified_squared_dist=numeric_limits<T_coord>::infinity();
                                 if(use_candidate_score_geometry_reuse&&candidate_group.size()>1)
                                 {
                                     score_candidate_geometry_checked_num++;
-                                    double radius=sqrt((double)candidate_group.front().first),route_radius=sqrt((double)route_dist);
-                                    double margin=(radius-route_radius)*0.999;
+                                    T_coord radius=sqrt(candidate_group.front().first),route_radius=sqrt(route_dist);
+                                    T_coord margin=(radius-route_radius)*(T_coord)0.999;
                                     if(candidate_group.size()==target_ids.size()-removed_target_ids.size())
-                                        margin=numeric_limits<double>::infinity();
+                                        margin=numeric_limits<T_coord>::infinity();
                                     if(margin>0)
                                     {
                                         for(const auto&peer:candidate_group)
                                         {
                                             if(peer.second==candidate_id)
                                                 continue;
-                                            double squared_dist=(double)get_dist_to_coord(coord_array[candidate_id],coord_array[peer.second],dim);
+                                            T_coord squared_dist=get_dist_to_coord(coord_array[candidate_id],coord_array[peer.second],dim);
                                             if(squared_dist<certified_squared_dist)
                                             {
                                                 certified_squared_dist=squared_dist;
@@ -298,7 +306,7 @@ namespace unsz
                                         else
                                             reference_tree->find_original_nearest(ordering_score_ref_queue,coord_array,reverse_ref_query_num,0,coord_array[candidate_id],true);
                                     }
-                                    double target_ref_squared_dist_sum=0;
+                                    T_coord target_ref_squared_dist_sum=0;
                                     uint32_t ref_num=0;
                                     while (!ordering_score_ref_queue.empty())
                                     {
@@ -307,12 +315,12 @@ namespace unsz
                                         ordering_score_ref_queue.pop();
                                         if (ref_id!=candidate_id)
                                         {
-                                            target_ref_squared_dist_sum+=(double)squared_dist;
+                                            target_ref_squared_dist_sum+=squared_dist;
                                             ordering_score_cached_ref_ids[cache_begin+ref_num]=ref_id;
                                             ref_num++;
                                         }
                                     }
-                                    mean_target_ref_squared_dist=ref_num>0?target_ref_squared_dist_sum/ref_num:numeric_limits<double>::infinity();
+                                    mean_target_ref_squared_dist=ref_num>0?target_ref_squared_dist_sum/ref_num:numeric_limits<T_coord>::infinity();
                                     ordering_score_cached_score[candidate_id]=mean_target_ref_squared_dist;
                                     ordering_score_cached_ref_num[candidate_id]=ref_num;
                                     ordering_score_cache_initialized[candidate_id]=1;
@@ -342,7 +350,9 @@ namespace unsz
                 printf("Reverse-sorted round %u\n",round_id);
             }
             printf("MSD ordering score cache: %llu hits, %llu misses\n",(unsigned long long)ordering_score_cache_hit_num,(unsigned long long)ordering_score_cache_miss_num);
-            printf("MSD ordering KD query sample: candidate=%llu/%llu,mean=%.3f us; score=%llu/%llu,mean=%.3f us\n",(unsigned long long)candidate_kd_sample_num,(unsigned long long)candidate_kd_query_num,candidate_kd_sample_num?0.001*(double)candidate_kd_sample_ns/candidate_kd_sample_num:0,(unsigned long long)score_kd_sample_num,(unsigned long long)ordering_score_cache_miss_num,score_kd_sample_num?0.001*(double)score_kd_sample_ns/score_kd_sample_num:0);
+            double candidate_kd_mean_us=candidate_kd_sample_num?0.001*(double)candidate_kd_sample_ns/candidate_kd_sample_num:0;
+            double score_kd_mean_us=score_kd_sample_num?0.001*(double)score_kd_sample_ns/score_kd_sample_num:0;
+            printf("MSD ordering KD query sample: candidate=%llu/%llu,mean=%.3f us; score=%llu/%llu,mean=%.3f us\n",(unsigned long long)candidate_kd_sample_num,(unsigned long long)candidate_kd_query_num,candidate_kd_mean_us,(unsigned long long)score_kd_sample_num,(unsigned long long)ordering_score_cache_miss_num,score_kd_mean_us);
             if(use_candidate_score_geometry_reuse)
                 printf("MSD candidate-geometry score reuse: checked=%llu,certified=%llu,candidate_kd_queries=%llu,score_kd_queries=%llu,total_kd_queries=%llu\n",(unsigned long long)score_candidate_geometry_checked_num,(unsigned long long)score_candidate_geometry_certified_num,(unsigned long long)candidate_kd_query_num,(unsigned long long)ordering_score_cache_miss_num,(unsigned long long)(candidate_kd_query_num+ordering_score_cache_miss_num));
             printf("MSD ordering reduced-reference cache hits: %llu\n",(unsigned long long)ordering_score_cache_reduced_ref_hit_num);
@@ -386,22 +396,31 @@ namespace unsz
         pred_ref_begin.clear();
         pred_ref_begin.reserve((uint64_t)point_num+1);
         pred_ref_begin.push_back(0);
-        pred_ref_weights.clear();
-        pred_ref_weights.reserve((uint64_t)point_num*prediction_max_ref_num);
+        pred_ref_prediction_weights.clear();
+        if(generate_idw_weights||generate_rbf_weights)
+            pred_ref_prediction_weights.reserve((uint64_t)point_num*prediction_max_ref_num);
+        pred_ref_rbf_fallback_vec.clear();
+        if(generate_rbf_weights)
+            pred_ref_rbf_fallback_vec.assign(point_num,0);
         tree.clear_all_valid_num();
         uint64_t reused_reference_query_num=0;
+        uint64_t reused_distance_num=0;
+        vector<T_calc> rbf_weights;
         for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
             for (int pred_id:round_target_ids[round_id])
             {
                 pred_target_ids.push_back(pred_id);
                 vector<int> ref_ids;
+                vector<T_coord> target_ref_squared_distances;
                 uint64_t saved_ref_begin=reuse_global_ordering_candidate_refs?order_candidate_ref_begin[pred_id]:numeric_limits<uint64_t>::max();
                 if(saved_ref_begin!=numeric_limits<uint64_t>::max())
                 {
                     uint32_t saved_ref_num=order_candidate_ref_num[pred_id];
                     ref_ids.assign(order_candidate_ref_ids.begin()+saved_ref_begin,order_candidate_ref_ids.begin()+saved_ref_begin+saved_ref_num);
+                    target_ref_squared_distances.assign(order_candidate_ref_squared_distances.begin()+saved_ref_begin,order_candidate_ref_squared_distances.begin()+saved_ref_begin+saved_ref_num);
                     reused_reference_query_num++;
+                    reused_distance_num+=saved_ref_num;
                 }
                 else if(reuse_global_ordering_candidate_refs)
                 {
@@ -413,29 +432,45 @@ namespace unsz
                     nearest_queue_c<T_coord> nearest_queue;
                     tree.find_original_nearest(nearest_queue,coord_array,prediction_max_ref_num,0,coord_array[pred_id],true);
                     ref_ids.reserve(nearest_queue.size());
+                    target_ref_squared_distances.reserve(nearest_queue.size());
                     while(!nearest_queue.empty())
                     {
                         ref_ids.push_back(nearest_queue.top().second);
+                        target_ref_squared_distances.push_back(nearest_queue.top().first);
                         nearest_queue.pop();
                     }
                     reverse(ref_ids.begin(),ref_ids.end());
+                    reverse(target_ref_squared_distances.begin(),target_ref_squared_distances.end());
                 }
                 for(int ref_id:ref_ids)
-                {
-                    double dist=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
                     pred_ref_ids.push_back(ref_id);
-                    pred_ref_weights.push_back(dist==0?numeric_limits<double>::infinity():pow(dist,-idw_power/2));
-                }
                 pred_ref_begin.push_back(pred_ref_ids.size());
+                if(generate_idw_weights)
+                    append_normalized_idw_prediction_weights(pred_id,array_view_c<int>(ref_ids.data(),ref_ids.size()),pred_ref_prediction_weights,array_view_c<T_coord>(target_ref_squared_distances.data(),target_ref_squared_distances.size()));
+                else if(generate_rbf_weights)
+                {
+                    uint32_t pred_ref_id=(uint32_t)pred_target_ids.size()-1;
+                    uint64_t weight_begin=pred_ref_prediction_weights.size();
+                    pred_ref_prediction_weights.resize(weight_begin+ref_ids.size(),0);
+                    bool solved=ref_ids.size()>=prediction_min_ref_num&&calculate_rbf_prediction_weights(pred_id,array_view_c<int>(ref_ids.data(),ref_ids.size()),rbf_weights,array_view_c<T_coord>(target_ref_squared_distances.data(),target_ref_squared_distances.size()));
+                    if(solved)
+                        copy(rbf_weights.begin(),rbf_weights.end(),pred_ref_prediction_weights.begin()+weight_begin);
+                    else
+                    {
+                        pred_ref_rbf_fallback_vec[pred_ref_id]=1;
+                        if(!ref_ids.empty())
+                            pred_ref_prediction_weights[weight_begin]=1;
+                    }
+                }
 
                 tree.update_point_valid_num_to_root(pred_id,1);
             }
         }
 
-        if (pred_target_ids.size()!=point_num || pred_ref_begin.size()!=(uint64_t)point_num+1 || pred_ref_ids.size()!=pred_ref_weights.size())
+        if(pred_target_ids.size()!=point_num||pred_ref_begin.size()!=(uint64_t)point_num+1||((generate_idw_weights||generate_rbf_weights)&&pred_ref_ids.size()!=pred_ref_prediction_weights.size()))
             throw runtime_error("预测参考结构没有覆盖所有点");
         if(reuse_global_ordering_candidate_refs)
-            printf("Reused sorting candidate queries for prediction references: %llu targets, additional kd-tree queries: 0\n",(unsigned long long)reused_reference_query_num);
+            printf("Reused sorting candidate queries for prediction references: %llu targets, squared distances: %llu, additional kd-tree queries: 0\n",(unsigned long long)reused_reference_query_num,(unsigned long long)reused_distance_num);
         if (!dag_cache_path.empty())
             save_pred_refs_structure();
         prepare_pred_refs_structure();

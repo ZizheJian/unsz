@@ -35,7 +35,21 @@ namespace unsz
                 level=max(level,point_level[ref_id]+1);
                 uint32_t lag=prediction_order-ref_prediction_order;
                 depends_on_previous_target|=lag==1;
-                uint32_t lag_bucket=lag==1?0:(lag<=4?1:(lag<=16?2:(lag<=64?3:(lag<=256?4:(lag<=1024?5:6)))));
+                uint32_t lag_bucket;
+                if(lag==1)
+                    lag_bucket=0;
+                else if(lag<=4)
+                    lag_bucket=1;
+                else if(lag<=16)
+                    lag_bucket=2;
+                else if(lag<=64)
+                    lag_bucket=3;
+                else if(lag<=256)
+                    lag_bucket=4;
+                else if(lag<=1024)
+                    lag_bucket=5;
+                else
+                    lag_bucket=6;
                 edge_lag_count_vec[lag_bucket]++;
                 edge_num++;
             }
@@ -58,10 +72,16 @@ namespace unsz
         printf("Prediction DAG statistics:\n");
         printf("  nodes=%u, edges=%llu, levels=%llu, work/span parallelism=%.6f\n",point_num,(unsigned long long)edge_num,(unsigned long long)level_num,work_span_parallelism);
         printf("  level width min/median/p90/max=%llu/%llu/%llu/%llu\n",(unsigned long long)min_level_width,(unsigned long long)median_level_width,(unsigned long long)p90_level_width,(unsigned long long)max_level_width);
-        printf("  targets depending directly on previous target=%llu/%u (%.6f%%)\n",(unsigned long long)previous_target_dependency_num,point_num>0?point_num-1:0,previous_dependency_ratio*100);
+        uint32_t dependency_target_num=point_num>0?point_num-1:0;
+        printf("  targets depending directly on previous target=%llu/%u (%.6f%%)\n",(unsigned long long)previous_target_dependency_num,dependency_target_num,previous_dependency_ratio*100);
         const char *lag_bucket_name_vec[7]={"1","2-4","5-16","17-64","65-256","257-1024",">1024"};
         for (uint32_t bucket=0;bucket<7;bucket++)
-            printf("  edge lag %s: %llu (%.6f%%)\n",lag_bucket_name_vec[bucket],(unsigned long long)edge_lag_count_vec[bucket],edge_num>0?(double)edge_lag_count_vec[bucket]/edge_num*100:0);
+        {
+            double edge_ratio=0;
+            if(edge_num>0)
+                edge_ratio=(double)edge_lag_count_vec[bucket]/edge_num*100;
+            printf("  edge lag %s: %llu (%.6f%%)\n",lag_bucket_name_vec[bucket],(unsigned long long)edge_lag_count_vec[bucket],edge_ratio);
+        }
         uint32_t thread_num_vec[5]={2,4,8,16,32};
         for (uint32_t thread_num:thread_num_vec)
         {

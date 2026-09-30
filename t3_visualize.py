@@ -2,7 +2,9 @@ import argparse
 from pathlib import Path
 import numpy as np
 import pyvista as pv
+from py_codes.py_unsz_core.adjust_coord_matrix_file import read_adjust_coord_matrix
 
+project_root=Path(__file__).resolve().parent
 data_root_default="/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data"
 dataset_config={
     "katrina":{
@@ -16,8 +18,7 @@ dataset_config={
         "original_plot_scale":np.array([1,1,0.001],dtype=np.float64),
         "abnormal_upper_bound":-1000,
         "output_prefix":"Katrina_80",
-        # second_power、least_squares、第一次采样0.25、第二次采样0.1、新矩阵权重0.5、训练4轮
-        "transform_matrix":np.array([[1.3207279451534779,0,0],[-0.050022502016393564,1.119176596028389,0],[-0.0022639755300411725,0.00041386801901295816,0.02477688868808782]],dtype=np.float64),
+        "transform_matrix_file":"Katrina_attr0_spatial.txt",
     },
     "ocean-temperature":{
         "directory":"Ocean",
@@ -106,6 +107,11 @@ def render_tsunami(config,data_dir,output_dir,data,clim):
 
 def visualize(dataset_name,data_root,output_dir):
     config=dict(dataset_config[dataset_name])
+    if "transform_matrix_file" in config:
+        matrix_info=read_adjust_coord_matrix(project_root/"adjust_coord_matrices"/config["transform_matrix_file"])
+        if matrix_info["field"]!=config["field"]:
+            raise ValueError(f"坐标变换矩阵的field为{matrix_info['field']}，但当前field为{config['field']}")
+        config["transform_matrix"]=matrix_info["matrix"]
     data_dir=data_root/config["directory"]
     data=np.fromfile(data_dir/f"{config['field']}.dat.{config['time_step']}",dtype=np.float32)
     if config["abnormal_upper_bound"] is not None:

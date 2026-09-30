@@ -156,12 +156,6 @@ def build_predictor_arguments(predictor):
     if rbf_solver not in ("general","ldlt"):
         raise ValueError(f"未知RBF求解器：{rbf_solver}")
     arguments.extend(("-rbf-solver",rbf_solver))
-    fallback=predictor["fallback"]
-    arguments.extend(("-rbf-fallback",fallback["name"]))
-    if fallback["name"]=="idw":
-        arguments.extend(("-idw-power",fallback["idw_power"]))
-    elif fallback["name"]!="nearest":
-        raise ValueError(f"未知RBF回退预测器：{fallback['name']}")
     return predictor_name,arguments
 
 def build_eb_schedule_arguments(eb_schedule):

@@ -18,7 +18,11 @@ namespace unsz
         for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
             cumulative_weight+=round_weight_vec[round_id];
-            uint64_t current_end=round_id+1==prediction_round_num?local_point_num:(uint64_t)ceil((long double)local_point_num*cumulative_weight/total_weight);
+            uint64_t current_end;
+            if(round_id+1==prediction_round_num)
+                current_end=local_point_num;
+            else
+                current_end=(uint64_t)ceil((long double)local_point_num*cumulative_weight/total_weight);
             current_end=min<uint64_t>(max(current_end,previous_end),local_point_num);
             result[round_id]=(uint32_t)(current_end-previous_end);
             previous_end=current_end;

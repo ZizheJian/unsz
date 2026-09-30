@@ -29,11 +29,7 @@
         "rbf_kernel": "matern32",
         "rbf_shape": 0.01,
         "rbf_nugget": 1e-06,
-        "rbf_solver": "general",
-        "fallback": {
-          "name": "idw",
-          "idw_power": 2
-        }
+        "rbf_solver": "general"
       },
       "ordering_scope": "local",
       "prediction_round_num": 8,
@@ -71,11 +67,7 @@
         "rbf_kernel": "matern32",
         "rbf_shape": 0.01,
         "rbf_nugget": 1e-06,
-        "rbf_solver": "general",
-        "fallback": {
-          "name": "idw",
-          "idw_power": 2
-        }
+        "rbf_solver": "general"
       },
       "ordering_scope": "local",
       "prediction_round_num": 8,

@@ -286,7 +286,7 @@ void param_c<T_coord,T_data>::prepare_compression_structure(chrono::steady_clock
     }
     load_or_generate_pred_refs_structure();
     if(any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::rbf;}))
-        prepare_rbf_weights();
+        prepare_rbf_prediction_weights();
     bool data_dependent_eb_schedule=eb_schedule=="round_point_ratio_dag" || eb_schedule=="round_point_ratio_dag_direct" || eb_schedule=="round_point_ratio_dag_variance_direct";
     if(!data_dependent_eb_schedule && cached_pred_eb_multiplier_vec.size()!=point_num)
         cached_pred_eb_multiplier_vec=generate_pred_eb_multiplier_vec(true);
@@ -311,7 +311,10 @@ void param_c<T_coord,T_data>::prepare_compression_structure(chrono::steady_clock
             }
             target_with_cross_time_ref_num+=has_cross_time_ref;
         }
-        printf("cross_time_reference_targets=%llu, target_ratio=%f, reference_edges=%llu, edge_ratio=%f\n",(unsigned long long)target_with_cross_time_ref_num,(double)target_with_cross_time_ref_num/point_num,(unsigned long long)cross_time_ref_num,total_ref_num==0?0:(double)cross_time_ref_num/total_ref_num);
+        double cross_time_edge_ratio=0;
+        if(total_ref_num>0)
+            cross_time_edge_ratio=(double)cross_time_ref_num/total_ref_num;
+        printf("cross_time_reference_targets=%llu, target_ratio=%f, reference_edges=%llu, edge_ratio=%f\n",(unsigned long long)target_with_cross_time_ref_num,(double)target_with_cross_time_ref_num/point_num,(unsigned long long)cross_time_ref_num,cross_time_edge_ratio);
     }
     if (print_prediction_dag_statistics)
         print_prediction_dag_statistics_result();
@@ -408,7 +411,13 @@ void param_c<T_coord,T_data>::compress_files(void(param_c<T_coord,T_data>::*comp
             total_squared_error+=error*error;
             uint32_t point_set_id=point_set_id_vec[i];
             double validation_abs_eb=point_set_abs_eb_vec[point_set_id];
-            double error_ratio=validation_abs_eb>0?abs(error)/validation_abs_eb:(error==0?0:numeric_limits<double>::infinity());
+            double error_ratio;
+            if(validation_abs_eb>0)
+                error_ratio=abs(error)/validation_abs_eb;
+            else if(error==0)
+                error_ratio=0;
+            else
+                error_ratio=numeric_limits<double>::infinity();
             if (error_ratio>max_error_ratio)
             {
                 max_error_ratio=error_ratio;
@@ -501,7 +510,13 @@ void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T
         squared_error+=error*error;
         uint32_t point_set_id=point_set_id_vec[point_id];
         double validation_abs_eb=point_set_abs_eb_vec[point_set_id];
-        double error_ratio=validation_abs_eb>0?abs(error)/validation_abs_eb:(error==0?0:numeric_limits<double>::infinity());
+        double error_ratio;
+        if(validation_abs_eb>0)
+            error_ratio=abs(error)/validation_abs_eb;
+        else if(error==0)
+            error_ratio=0;
+        else
+            error_ratio=numeric_limits<double>::infinity();
         if(error_ratio>max_error_ratio)
         {
             max_error_ratio=error_ratio;
@@ -611,7 +626,13 @@ void param_c<T_coord,T_data>::decompress_joint_spatiotemporal_files(void(param_c
             squared_error+=error*error;
             uint32_t point_set_id=point_set_id_vec[joint_point_id];
             double validation_abs_eb=point_set_abs_eb_vec[point_set_id];
-            double error_ratio=validation_abs_eb>0?abs(error)/validation_abs_eb:(error==0?0:numeric_limits<double>::infinity());
+            double error_ratio;
+            if(validation_abs_eb>0)
+                error_ratio=abs(error)/validation_abs_eb;
+            else if(error==0)
+                error_ratio=0;
+            else
+                error_ratio=numeric_limits<double>::infinity();
             if(error_ratio>max_error_ratio)
             {
                 max_error_ratio=error_ratio;

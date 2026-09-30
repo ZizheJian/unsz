@@ -233,6 +233,8 @@ namespace unsz
     class param_c
     {
         public:
+            using T_calc=common_type_t<T_coord,T_data>;
+
             param_c()=default;
             template<typename T_coord2>
             param_c(const param_c<T_coord2,T_data> &other);
@@ -280,15 +282,14 @@ namespace unsz
             uint32_t prediction_round_num=8;
             double round_size_growth_ratio_experimental=2;
             uint32_t prediction_min_ref_num=1;//同点集参考点少于该值时使用fallback
-            uint32_t prediction_max_ref_num=4;//DAG保存的参考点数，也是预测器最多使用的同点集参考点数
+            uint32_t prediction_max_ref_num=4;//DAG保存的参考点数，也是主预测器最多使用的同点集参考点数
             double idw_power=2;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
             string rbf_kernel="gaussian";//gaussian / exponential / matern32 / matern52 / inverse_multiquadric
             double rbf_shape=1;
             double rbf_nugget=1e-8;
             bool rbf_parameter_specified=false;
-            bool rbf_fallback_nearest=false;
             int zstd_compression_level=3;
-            string point_set_predictor="idw";//idw / majority / continuous_actual / continuous_reflect
+            string point_set_predictor="idw";//idw / rbf
             string predictor;
 
             Array2D<T_coord> coord_array,coord_array_backup;
@@ -302,8 +303,9 @@ namespace unsz
             vector<int> pred_target_ids,pred_ref_ids;//预测目标与连续参考点数组，均使用原始点编号
             vector<uint32_t> multihead_execution_pred_ref_ids,multihead_qb_index_by_pred_ref_id;
             vector<uint64_t> pred_ref_begin;//第i个目标的参考点区间为[pred_ref_begin[i],pred_ref_begin[i+1])
-            vector<double> pred_ref_weights,pred_ref_label_normalized_weights,pred_ref_value_normalized_weights,pred_ref_rbf_weights;
-            uint32_t single_point_set_rbf10_fast_begin=0;
+            vector<T_calc> pred_ref_prediction_weights;
+            vector<uint8_t> pred_ref_rbf_fallback_vec;
+            uint32_t prediction_10_fast_begin=0;
             vector<double> cached_pred_eb_multiplier_vec;//不依赖当前field数据的EB调度只生成一次，由全部time step复用
             vector<double> cached_pred_eb_inverse_multiplier_vec;//对应EB倍率的倒数，避免每个time step重复执行逐点除法
             vector<vector<int>> partition_point_ids_vec;
@@ -316,14 +318,14 @@ namespace unsz
             vector<T_data> previous_time_decompressed_data;
             vector<uint8_t> previous_time_point_set_id_vec;
             vector<uint32_t> time_step_vec,reconstructed_time_step_vec;
-            vector<double> time_step_coordinate_vec;
+            vector<T_coord> time_step_coordinate_vec;
             vector<vector<T_data>> reconstructed_time_data_vec;
             vector<vector<uint8_t>> reconstructed_time_point_set_id_vec;
             vector<T_data> current_time_spatial_residual_data;
             uint32_t current_time_step=0;
             prediction_framework_c current_prediction_framework;
             int32_t linear_interpolation_left_history_id=-1,linear_interpolation_right_history_id=-1;
-            double linear_interpolation_right_weight=0;
+            T_calc linear_interpolation_right_weight=0;
             T_data current_min_data=0,current_max_data=0;
             T_data current_abs_eb=0;
             vector<int32_t> qb_vec;
@@ -375,15 +377,22 @@ namespace unsz
             void select_partition_prediction_configs();
             void prepare_partition_adaptive_sample_mask();
             array_view_c<int> get_pred_ref_ids(uint32_t pred_ref_id) const;
-            array_view_c<double> get_pred_ref_weights(uint32_t pred_ref_id,bool label_normalized=false,bool value_normalized=false) const;
+            array_view_c<T_calc> get_pred_ref_weights(uint32_t pred_ref_id) const;
+            void append_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
             T_data predict_partition_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,uint8_t config_id);
             T_data predict_partition_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,const partition_prediction_config_c &config);
+            T_data predict_partition_idw_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power);
+            bool predict_partition_idw_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error);
+            bool predict_partition_linear_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double weight_power=0,double ridge=0,bool normalize_coord=false);
+            bool predict_partition_linear_fitting_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power=0,double ridge=0,bool normalize_coord=true);
+            bool predict_partition_continuous_mix_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction);
+            bool predict_partition_idw_residual_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction);
             uint32_t get_multi_huffman_group_num();
             uint32_t get_multi_huffman_group_id(uint32_t round_id,int pred_id);
             void generate_pred_refs_structure();
             void prepare_pred_refs_structure();
             void prepare_multihead_execution_order();
-            void prepare_rbf_weights();
+            void prepare_rbf_prediction_weights();
             void save_pred_refs_structure();
             void load_pred_refs_structure();
             void print_prediction_dag_statistics_result();
@@ -394,26 +403,17 @@ namespace unsz
             void update_valid_num_to_root(int block_id,int change_value);
             void find_nearest(priority_queue<pair<T_coord,int>> &nearest_queue,int nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
 
-            uint32_t get_point_set_id(T_data val);
-            uint32_t predict_binary_label(array_view_c<int> ref_ids,array_view_c<double> ref_weights,const vector<uint8_t> &label_vec,bool use_majority);
-            uint32_t predict_binary_label_configured(uint32_t pred_ref_id,array_view_c<int> ref_ids,const vector<uint8_t> &label_vec,bool use_majority);
-            double predict_binary_label_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights,const vector<double> &label_value_vec);
-            double predict_binary_label_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights,const vector<double> &label_value_vec);
-            bool predict_binary_label_and_inverse_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights,array_view_c<double> normalized_ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,bool predict_value,uint32_t &predicted_label,T_data &predicted_value);
-            bool predict_known_point_set_inverse_value(array_view_c<int> ref_ids,array_view_c<double> ref_weights,array_view_c<double> normalized_ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,bool predict_value,T_data &predicted_value);
-            T_data predict_inverse_value_from_coords(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power=-1);
-            bool predict_inverse_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error);
-            bool predict_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double weight_power=0,double ridge=0,bool normalize_coord=false);
-            bool calculate_rbf_weights(int pred_id,array_view_c<int> ref_ids,vector<double> &weights);
-            bool predict_rbf_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction);
-            bool predict_fitting_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power=0,double ridge=0,bool normalize_coord=true);
-            bool predict_continuous_mix_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction);
-            bool predict_idw_residual_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction);
-            template<point_set_codec_e codec>
-            T_data predict_value_fixed(uint32_t pred_ref_id,int pred_id,array_view_c<int> ref_ids,array_view_c<double> ref_weights,uint32_t point_set_id,vector<T_data> &data);
-            T_data predict_single_point_set_rbf_value(uint32_t pred_ref_id,vector<T_data> &data);
-            T_data predict_single_point_set_rbf10_value(uint32_t pred_ref_id,uint64_t ref_begin,vector<T_data> &data);
-            T_data predict_value_normalized(array_view_c<int> ref_ids,array_view_c<double> ref_weights,vector<T_data> &data);
+            T_calc predict_value_from_weighted_sum(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data);
+            T_calc predict_value_from_weighted_average(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data);
+            T_data predict_value_one_point_set(uint32_t pred_ref_id,const vector<T_calc> &weights,const vector<T_data> &data);
+            T_data predict_value_one_point_set_10(uint64_t ref_begin,const vector<T_calc> &weights,const vector<T_data> &data);
+            uint32_t predict_label(uint32_t pred_ref_id,const vector<T_calc> &weights,const vector<uint8_t> &label_vec);
+            uint32_t predict_label_10(uint64_t ref_begin,const vector<T_calc> &weights,const vector<uint8_t> &label_vec);
+            T_data predict_value_two_point_sets_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id);
+            T_data predict_value_two_point_sets_rbf(uint32_t pred_ref_id,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id);
+            pair<uint32_t,T_data> predict_label_and_value_two_point_sets_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,bool value_requires_prediction);
+            pair<uint32_t,T_data> predict_label_and_value_two_point_sets_rbf(uint32_t pred_ref_id,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<uint8_t> &label_vec,const vector<T_data> &data,uint32_t value_point_set_id,bool value_requires_prediction);
+            bool calculate_rbf_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
             void prepare_compression_structure(chrono::steady_clock::time_point preprocessing_start_time);
             void prepare_joint_spatiotemporal_coordinates();
             void compress_files(void(param_c<T_coord,T_data>::*compress_current_file)());
@@ -433,8 +433,8 @@ namespace unsz
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
             void decompress_point_sets();
             
-            bool solve_4x4(double A_in[4][4],double b_in[4],double x[4]);
-            bool solve_linear_system(vector<vector<double>> &A,vector<double> &b,vector<double> &x);
+            template<typename T_system>
+            bool solve_linear_system(vector<vector<T_system>> &A,vector<T_system> &b,vector<T_system> &x);
     };
 }
 
@@ -452,7 +452,7 @@ namespace unsz
 #include "prediction_dag.tpp"
 #include "point_set_config.tpp"
 #include "cli_parameter.tpp"
-#include "point_set.tpp"
+#include "spatial_prediction.tpp"
 #include "time_prediction.tpp"
 #include "prediction_framework.tpp"
 #include "format.tpp"

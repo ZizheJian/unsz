@@ -161,7 +161,7 @@ namespace unsz
             {
                 if(arg_id+1>=argc)
                     throw runtime_error("-round-size-growth-ratio-experimental后面缺少参数值");
-                param.round_size_growth_ratio_experimental=parse_positive_float(argv[++arg_id],"-round-size-growth-ratio-experimental");
+                param.round_size_growth_ratio_experimental=parse_positive_double(argv[++arg_id],"-round-size-growth-ratio-experimental");
                 if(param.round_size_growth_ratio_experimental<1 || param.round_size_growth_ratio_experimental>16)
                     throw runtime_error("-round-size-growth-ratio-experimental必须在[1,16]内");
             }
@@ -169,7 +169,7 @@ namespace unsz
             {
                 if (arg_id+1>=argc)
                     throw runtime_error("-idw-power后面缺少参数值");
-                param.idw_power=parse_positive_float(argv[++arg_id],"-idw-power");
+                param.idw_power=parse_positive_double(argv[++arg_id],"-idw-power");
             }
             else if(strcmp(argv[arg_id],"-zstd-level")==0)
             {
@@ -193,14 +193,14 @@ namespace unsz
                 param.rbf_parameter_specified=true;
                 if(arg_id+1>=argc)
                     throw runtime_error("-rbf-shape后面缺少参数值");
-                param.rbf_shape=parse_positive_float(argv[++arg_id],"-rbf-shape");
+                param.rbf_shape=parse_positive_double(argv[++arg_id],"-rbf-shape");
             }
             else if(strcmp(argv[arg_id],"-rbf-nugget")==0)
             {
                 param.rbf_parameter_specified=true;
                 if(arg_id+1>=argc)
                     throw runtime_error("-rbf-nugget后面缺少参数值");
-                param.rbf_nugget=parse_positive_float(argv[++arg_id],"-rbf-nugget");
+                param.rbf_nugget=parse_positive_double(argv[++arg_id],"-rbf-nugget");
             }
             else if (strcmp(argv[arg_id],"-ordering-candidate-num")==0)
             {
@@ -250,7 +250,7 @@ namespace unsz
             {
                 if (arg_id+1>=argc)
                     throw runtime_error("-partition-adaptive-min-improvement-experimental后面缺少参数值");
-                param.partition_adaptive_min_improvement_experimental=parse_positive_float(argv[++arg_id],"-partition-adaptive-min-improvement-experimental");
+                param.partition_adaptive_min_improvement_experimental=parse_positive_double(argv[++arg_id],"-partition-adaptive-min-improvement-experimental");
                 if (param.partition_adaptive_min_improvement_experimental>1)
                     throw runtime_error("-partition-adaptive-min-improvement-experimental不能大于1");
             }
@@ -313,15 +313,6 @@ namespace unsz
             }
             else if (strcmp(argv[arg_id],"-linear-previous-label-experimental")==0)
                 param.use_linear_previous_label_experimental=true;
-            else if(strcmp(argv[arg_id],"-rbf-fallback")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-rbf-fallback后面缺少预测器名称");
-                string fallback=argv[++arg_id];
-                if(fallback!="idw"&&fallback!="nearest")
-                    throw runtime_error("-rbf-fallback必须是idw或nearest");
-                param.rbf_fallback_nearest=fallback=="nearest";
-            }
             else if(strcmp(argv[arg_id],"-ordering-scope")==0)
             {
                 if(arg_id+1>=argc)
@@ -335,7 +326,7 @@ namespace unsz
                 if (arg_id+2>=argc)
                     throw runtime_error("-eb-schedule后面需要模式和起始倍率");
                 param.eb_schedule=argv[++arg_id];
-                param.eb_schedule_start_ratio=parse_positive_float(argv[++arg_id],"-eb-schedule");
+                param.eb_schedule_start_ratio=parse_positive_double(argv[++arg_id],"-eb-schedule");
                 if(param.eb_schedule!="none" && param.eb_schedule!="round" && param.eb_schedule!="point" && param.eb_schedule!="inverse_rank_log2" && param.eb_schedule!="round_point" && param.eb_schedule!="round_ratio" && param.eb_schedule!="round_point_ratio" && param.eb_schedule!="round_point_ratio_dag" && param.eb_schedule!="round_point_ratio_dag_direct" && param.eb_schedule!="round_point_ratio_dag_variance_direct")
                     throw runtime_error("未知的EB序列模式："+param.eb_schedule);
                 if (param.eb_schedule_start_ratio>1)
@@ -345,13 +336,13 @@ namespace unsz
             {
                 if(arg_id+1>=argc)
                     throw runtime_error("-eb-schedule-log2-shift后面缺少参数值");
-                param.eb_schedule_log2_shift=parse_positive_float(argv[++arg_id],"-eb-schedule-log2-shift");
+                param.eb_schedule_log2_shift=parse_positive_double(argv[++arg_id],"-eb-schedule-log2-shift");
             }
             else if(strcmp(argv[arg_id],"-eb-schedule-max-log2-exponent")==0)
             {
                 if(arg_id+1>=argc)
                     throw runtime_error("-eb-schedule-max-log2-exponent后面缺少参数值");
-                param.eb_schedule_max_log2_exponent=parse_positive_float(argv[++arg_id],"-eb-schedule-max-log2-exponent");
+                param.eb_schedule_max_log2_exponent=parse_positive_double(argv[++arg_id],"-eb-schedule-max-log2-exponent");
             }
             else
                 throw runtime_error("未知参数："+string(argv[arg_id]));

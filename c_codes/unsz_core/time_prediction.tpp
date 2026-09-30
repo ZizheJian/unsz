@@ -25,11 +25,11 @@ namespace unsz
             return;
         uint32_t left_time_step=reconstructed_time_step_vec[linear_interpolation_left_history_id],right_time_step=reconstructed_time_step_vec[linear_interpolation_right_history_id];
         if(time_step_coordinate_vec.empty())
-            linear_interpolation_right_weight=(double)(current_time_step-left_time_step)/(right_time_step-left_time_step);
+            linear_interpolation_right_weight=(T_calc)(current_time_step-left_time_step)/(right_time_step-left_time_step);
         else
         {
-            double left_coordinate=time_step_coordinate_vec[left_time_step],right_coordinate=time_step_coordinate_vec[right_time_step],current_coordinate=time_step_coordinate_vec[current_time_step];
-            linear_interpolation_right_weight=(current_coordinate-left_coordinate)/(right_coordinate-left_coordinate);
+            T_coord left_coordinate=time_step_coordinate_vec[left_time_step],right_coordinate=time_step_coordinate_vec[right_time_step],current_coordinate=time_step_coordinate_vec[current_time_step];
+            linear_interpolation_right_weight=(T_calc)((current_coordinate-left_coordinate)/(right_coordinate-left_coordinate));
         }
     }
 
@@ -37,7 +37,12 @@ namespace unsz
     template<time_dimension_mode_e label_mode>
     bool param_c<T_coord,T_data>::predict_time_label_fixed(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction)
     {
-        auto get_binary_label=[label_channel_id,original_id](const vector<uint8_t> &point_set_ids){return point_set_ids[original_id]==label_channel_id?0:1;};
+        auto get_binary_label=[label_channel_id,original_id](const vector<uint8_t> &point_set_ids)
+        {
+            if(point_set_ids[original_id]==label_channel_id)
+                return 0;
+            return 1;
+        };
         if constexpr(label_mode==time_dimension_mode_e::endpoint_agreement)
         {
             if(linear_interpolation_left_history_id<0 || linear_interpolation_right_history_id<0)
@@ -76,7 +81,8 @@ namespace unsz
             throw runtime_error("时间插值历史数据的点数不正确");
         if (left_point_set_id_vec[original_id]!=point_set_id || right_point_set_id_vec[original_id]!=point_set_id)
             return false;
-        prediction=(T_data)((1-linear_interpolation_right_weight)*left_data[original_id]+linear_interpolation_right_weight*right_data[original_id]);
+        T_calc right_weight=linear_interpolation_right_weight;
+        prediction=(T_data)(((T_calc)1-right_weight)*(T_calc)left_data[original_id]+right_weight*(T_calc)right_data[original_id]);
         return true;
     }
 

@@ -3,6 +3,292 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
+    T_data param_c<T_coord,T_data>::predict_partition_idw_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power)
+    {
+        if(ref_ids.empty())
+            return 0;
+        T_calc total_weight=0,prediction=0;
+        for(int ref_id:ref_ids)
+        {
+            T_calc squared_distance=(T_calc)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
+            if(squared_distance==0)
+                return data[ref_id];
+            T_calc weight=pow(squared_distance,(T_calc)(-power/2));
+            if(isinf(weight))
+                return data[ref_id];
+            total_weight+=weight;
+            prediction+=weight*data[ref_id];
+        }
+        return total_weight>0?(T_data)(prediction/total_weight):(T_data)0;
+    }
+
+    template<typename T_coord,typename T_data>
+    bool param_c<T_coord,T_data>::predict_partition_idw_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error)
+    {
+        if(ref_ids.size()<2)
+            return false;
+        prediction=predict_partition_idw_value(pred_id,ref_ids,data,power);
+        if(!isfinite(prediction))
+            return false;
+        vector<int> loo_ref_ids;
+        loo_ref_ids.reserve(ref_ids.size()-1);
+        loo_error=0;
+        for(uint32_t held_id=0;held_id<ref_ids.size();held_id++)
+        {
+            loo_ref_ids.clear();
+            for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+                if(ref_index!=held_id)
+                    loo_ref_ids.push_back(ref_ids[ref_index]);
+            int held_ref_id=ref_ids[held_id];
+            T_data loo_prediction=predict_partition_idw_value(held_ref_id,loo_ref_ids,data,power);
+            loo_error+=abs((double)data[held_ref_id]-loo_prediction);
+        }
+        return isfinite(loo_error);
+    }
+
+    template<typename T_coord,typename T_data>
+    bool param_c<T_coord,T_data>::predict_partition_linear_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double weight_power,double ridge,bool normalize_coord)
+    {
+        if(ref_ids.size()<=dim)
+            return false;
+        uint32_t system_size=dim+1;
+        vector<vector<double>> A(system_size,vector<double>(system_size,0));
+        vector<double> b(system_size,0),x,scale(dim,normalize_coord?0:1),squared_distance_vec(ref_ids.size());
+        double min_squared_distance=numeric_limits<double>::infinity();
+        for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+        {
+            int ref_id=ref_ids[ref_index];
+            for(uint32_t d=0;d<dim;d++)
+            {
+                double coordinate_difference=(double)coord_array[ref_id][d]-coord_array[pred_id][d];
+                if(normalize_coord)
+                    scale[d]=max(scale[d],abs(coordinate_difference));
+                squared_distance_vec[ref_index]+=coordinate_difference*coordinate_difference;
+            }
+            if(squared_distance_vec[ref_index]==0)
+            {
+                prediction=data[ref_id];
+                return true;
+            }
+            min_squared_distance=min(min_squared_distance,squared_distance_vec[ref_index]);
+        }
+        if(normalize_coord)
+            for(double coordinate_scale:scale)
+                if(!(coordinate_scale>0))
+                    return false;
+        double weight_sum=0;
+        for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+        {
+            int ref_id=ref_ids[ref_index];
+            vector<double> coordinate_difference(dim);
+            for(uint32_t d=0;d<dim;d++)
+                coordinate_difference[d]=((double)coord_array[ref_id][d]-coord_array[pred_id][d])/scale[d];
+            double weight=weight_power>0?pow(squared_distance_vec[ref_index]/min_squared_distance,-weight_power/2):1;
+            if(!(weight>0)||!isfinite(weight))
+                return false;
+            weight_sum+=weight;
+            for(uint32_t row=0;row<dim;row++)
+            {
+                for(uint32_t col=0;col<dim;col++)
+                    A[row][col]+=weight*coordinate_difference[row]*coordinate_difference[col];
+                A[row][dim]+=weight*coordinate_difference[row];
+                A[dim][row]+=weight*coordinate_difference[row];
+                b[row]+=weight*coordinate_difference[row]*data[ref_id];
+            }
+            A[dim][dim]+=weight;
+            b[dim]+=weight*data[ref_id];
+        }
+        for(uint32_t d=0;d<dim;d++)
+            A[d][d]+=ridge*weight_sum;
+        if(!solve_linear_system(A,b,x)||!isfinite(x[dim]))
+            return false;
+        prediction=(T_data)x[dim];
+        return isfinite(prediction);
+    }
+
+    template<typename T_coord,typename T_data>
+    bool param_c<T_coord,T_data>::predict_partition_linear_fitting_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power,double ridge,bool normalize_coord)
+    {
+        uint32_t system_size=dim+1;
+        if(ref_ids.size()<=system_size)
+            return false;
+        vector<double> scale(dim,normalize_coord?0:1),squared_distance_vec(ref_ids.size());
+        double min_squared_distance=numeric_limits<double>::infinity();
+        for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+        {
+            int ref_id=ref_ids[ref_index];
+            for(uint32_t d=0;d<dim;d++)
+            {
+                double coordinate_difference=(double)coord_array[ref_id][d]-coord_array[pred_id][d];
+                if(normalize_coord)
+                    scale[d]=max(scale[d],abs(coordinate_difference));
+                squared_distance_vec[ref_index]+=coordinate_difference*coordinate_difference;
+            }
+            if(squared_distance_vec[ref_index]==0)
+                return false;
+            min_squared_distance=min(min_squared_distance,squared_distance_vec[ref_index]);
+        }
+        if(normalize_coord)
+            for(double coordinate_scale:scale)
+                if(!(coordinate_scale>0))
+                    return false;
+        vector<vector<double>> design(ref_ids.size(),vector<double>(system_size,1));
+        vector<double> weight_vec(ref_ids.size(),1);
+        for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+        {
+            for(uint32_t d=0;d<dim;d++)
+                design[ref_index][d]=((double)coord_array[ref_ids[ref_index]][d]-coord_array[pred_id][d])/scale[d];
+            if(weight_power>0)
+                weight_vec[ref_index]=pow(squared_distance_vec[ref_index]/min_squared_distance,-weight_power/2);
+            if(!(weight_vec[ref_index]>0)||!isfinite(weight_vec[ref_index]))
+                return false;
+        }
+        vector<vector<double>> augmented(system_size,vector<double>(system_size*2+1,0));
+        double weight_sum=accumulate(weight_vec.begin(),weight_vec.end(),0.0);
+        for(uint32_t row=0;row<system_size;row++)
+        {
+            for(uint32_t col=0;col<system_size;col++)
+                for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+                    augmented[row][col]+=weight_vec[ref_index]*design[ref_index][row]*design[ref_index][col];
+            for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+                augmented[row][system_size]+=weight_vec[ref_index]*design[ref_index][row]*data[ref_ids[ref_index]];
+            if(row<dim)
+                augmented[row][row]+=ridge*weight_sum;
+            augmented[row][system_size+1+row]=1;
+        }
+        for(uint32_t col=0;col<system_size;col++)
+        {
+            uint32_t pivot=col;
+            for(uint32_t row=col+1;row<system_size;row++)
+                if(abs(augmented[row][col])>abs(augmented[pivot][col]))
+                    pivot=row;
+            if(abs(augmented[pivot][col])<1e-12)
+                return false;
+            if(pivot!=col)
+                swap(augmented[pivot],augmented[col]);
+            double divisor=augmented[col][col];
+            for(uint32_t i=0;i<augmented[col].size();i++)
+                augmented[col][i]/=divisor;
+            for(uint32_t row=0;row<system_size;row++)
+            {
+                if(row==col)
+                    continue;
+                double factor=augmented[row][col];
+                for(uint32_t i=0;i<augmented[row].size();i++)
+                    augmented[row][i]-=factor*augmented[col][i];
+            }
+        }
+        vector<double> coefficient(system_size);
+        for(uint32_t row=0;row<system_size;row++)
+            coefficient[row]=augmented[row][system_size];
+        prediction=(T_data)coefficient[dim];
+        if(!isfinite(prediction))
+            return false;
+        loo_error=0;
+        for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+        {
+            double fitted_value=0,leverage=0;
+            for(uint32_t row=0;row<system_size;row++)
+            {
+                fitted_value+=design[ref_index][row]*coefficient[row];
+                for(uint32_t col=0;col<system_size;col++)
+                    leverage+=weight_vec[ref_index]*design[ref_index][row]*augmented[row][system_size+1+col]*design[ref_index][col];
+            }
+            double denominator=1-leverage;
+            if(!(denominator>1e-8)||!isfinite(denominator))
+                return false;
+            loo_error+=abs(((double)data[ref_ids[ref_index]]-fitted_value)/denominator);
+        }
+        return isfinite(loo_error);
+    }
+
+    template<typename T_coord,typename T_data>
+    bool param_c<T_coord,T_data>::predict_partition_continuous_mix_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction)
+    {
+        T_data idw_prediction,fitting_prediction;
+        double idw_loo_error,fitting_loo_error;
+        if(!predict_partition_idw_value_and_loo_error(pred_id,ref_ids,data,idw_power,idw_prediction,idw_loo_error))
+            return false;
+        if(!predict_partition_linear_fitting_value_and_loo_error(pred_id,ref_ids,data,fitting_prediction,fitting_loo_error,fitting_weight_power,0,true))
+            return false;
+        double error_sum=idw_loo_error+fitting_loo_error;
+        double fitting_ratio=error_sum>0?idw_loo_error/error_sum:0.5;
+        prediction=(T_data)((1-fitting_ratio)*idw_prediction+fitting_ratio*fitting_prediction);
+        return isfinite(prediction);
+    }
+
+    template<typename T_coord,typename T_data>
+    bool param_c<T_coord,T_data>::predict_partition_idw_residual_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction)
+    {
+        if(ref_ids.size()<=dim)
+            return false;
+        T_data idw_prediction=predict_partition_idw_value(pred_id,ref_ids,data,idw_power);
+        if(!isfinite(idw_prediction))
+            return false;
+        vector<double> residual_vec(ref_ids.size());
+        vector<int> loo_ref_ids;
+        loo_ref_ids.reserve(ref_ids.size()-1);
+        for(uint32_t held_id=0;held_id<ref_ids.size();held_id++)
+        {
+            loo_ref_ids.clear();
+            for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+                if(ref_index!=held_id)
+                    loo_ref_ids.push_back(ref_ids[ref_index]);
+            int held_ref_id=ref_ids[held_id];
+            T_data loo_prediction=predict_partition_idw_value(held_ref_id,loo_ref_ids,data,idw_power);
+            residual_vec[held_id]=(double)data[held_ref_id]-loo_prediction;
+        }
+        uint32_t system_size=dim+1;
+        vector<double> scale(dim,0),squared_distance_vec(ref_ids.size());
+        double min_squared_distance=numeric_limits<double>::infinity();
+        for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+        {
+            int ref_id=ref_ids[ref_index];
+            for(uint32_t d=0;d<dim;d++)
+            {
+                double dc=(double)coord_array[ref_id][d]-coord_array[pred_id][d];
+                scale[d]=max(scale[d],abs(dc));
+                squared_distance_vec[ref_index]+=dc*dc;
+            }
+            if(squared_distance_vec[ref_index]==0)
+            {
+                prediction=data[ref_id];
+                return true;
+            }
+            min_squared_distance=min(min_squared_distance,squared_distance_vec[ref_index]);
+        }
+        for(double value:scale)
+            if(!(value>0))
+                return false;
+        vector<vector<double>> A(system_size,vector<double>(system_size,0));
+        vector<double> b(system_size,0),x;
+        for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
+        {
+            int ref_id=ref_ids[ref_index];
+            vector<double> dc(dim);
+            for(uint32_t d=0;d<dim;d++)
+                dc[d]=((double)coord_array[ref_id][d]-coord_array[pred_id][d])/scale[d];
+            double weight=residual_weight_power>0?pow(squared_distance_vec[ref_index]/min_squared_distance,-residual_weight_power/2):1;
+            if(!(weight>0)||!isfinite(weight))
+                return false;
+            for(uint32_t row=0;row<dim;row++)
+            {
+                for(uint32_t col=0;col<dim;col++)
+                    A[row][col]+=weight*dc[row]*dc[col];
+                A[row][dim]+=weight*dc[row];
+                A[dim][row]+=weight*dc[row];
+                b[row]+=weight*dc[row]*residual_vec[ref_index];
+            }
+            A[dim][dim]+=weight;
+            b[dim]+=weight*residual_vec[ref_index];
+        }
+        if(!solve_linear_system(A,b,x)||!isfinite(x[dim]))
+            return false;
+        prediction=(T_data)((double)idw_prediction+x[dim]);
+        return isfinite(prediction);
+    }
+
+    template<typename T_coord,typename T_data>
     vector<partition_prediction_config_c> param_c<T_coord,T_data>::get_partition_prediction_config_vec()
     {
         vector<partition_prediction_config_c> config_vec;
@@ -71,27 +357,15 @@ namespace unsz
             T_data fitting_prediction;
             bool fitting_succeeded=false;
             if (config.fitting_method==partition_fitting_method_e::direct)
-                fitting_succeeded=predict_fitting_value(pred_id,selected_ref_ids,data,fitting_prediction,config.fitting_weight_power,config.fitting_ridge,config.normalize_fitting_coord);
+                fitting_succeeded=predict_partition_linear_fitting_value(pred_id,selected_ref_ids,data,fitting_prediction,config.fitting_weight_power,config.fitting_ridge,config.normalize_fitting_coord);
             else if (config.fitting_method==partition_fitting_method_e::continuous_mix)
-                fitting_succeeded=predict_continuous_mix_value(pred_id,selected_ref_ids,data,config.idw_power,config.fitting_weight_power,fitting_prediction);
+                fitting_succeeded=predict_partition_continuous_mix_value(pred_id,selected_ref_ids,data,config.idw_power,config.fitting_weight_power,fitting_prediction);
             else if (config.fitting_method==partition_fitting_method_e::idw_residual)
-                fitting_succeeded=predict_idw_residual_fitting_value(pred_id,selected_ref_ids,data,config.idw_power,config.fitting_weight_power,fitting_prediction);
+                fitting_succeeded=predict_partition_idw_residual_fitting_value(pred_id,selected_ref_ids,data,config.idw_power,config.fitting_weight_power,fitting_prediction);
             if (fitting_succeeded)
                 return fitting_prediction;
         }
-        double total_weight=0,prediction=0;
-        for (int ref_id:selected_ref_ids)
-        {
-            double squared_distance=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
-            if (squared_distance==0)
-                return data[ref_id];
-            double weight=pow(squared_distance,-config.idw_power/2);
-            if (isinf(weight))
-                return data[ref_id];
-            total_weight+=weight;
-            prediction+=weight*data[ref_id];
-        }
-        return total_weight>0?(T_data)(prediction/total_weight):(T_data)0;
+        return predict_partition_idw_value(pred_id,selected_ref_ids,data,config.idw_power);
     }
 
     template<typename T_coord,typename T_data>
@@ -151,10 +425,24 @@ namespace unsz
             uint32_t local_config_id=min_element(score_vec.begin(),score_vec.end())-score_vec.begin();
             double field_config_local_score=score_vec[field_config_id];
             double local_improvement=field_config_local_score>0?(field_config_local_score-score_vec[local_config_id])/field_config_local_score:0;
-            uint32_t selected_config_id=local_config_id!=field_config_id&&local_improvement<partition_adaptive_min_improvement_experimental?field_config_id:local_config_id;
+            uint32_t selected_config_id=local_config_id;
+            if(local_config_id!=field_config_id&&local_improvement<partition_adaptive_min_improvement_experimental)
+                selected_config_id=field_config_id;
             partition_prediction_config_id_vec[partition_id]=(uint8_t)selected_config_id;
             auto &selected_config=config_vec[selected_config_id];
-            const char *predictor_name=!selected_config.use_fitting?"idw":selected_config.fitting_method==partition_fitting_method_e::continuous_mix?"continuous_mix":selected_config.fitting_method==partition_fitting_method_e::idw_residual?"idw_residual_fitting":selected_config.fitting_weight_power>0?"weighted_fitting":selected_config.fitting_ridge>0?"ridge_fitting":"fitting";
+            const char *predictor_name;
+            if(!selected_config.use_fitting)
+                predictor_name="idw";
+            else if(selected_config.fitting_method==partition_fitting_method_e::continuous_mix)
+                predictor_name="continuous_mix";
+            else if(selected_config.fitting_method==partition_fitting_method_e::idw_residual)
+                predictor_name="idw_residual_fitting";
+            else if(selected_config.fitting_weight_power>0)
+                predictor_name="weighted_fitting";
+            else if(selected_config.fitting_ridge>0)
+                predictor_name="ridge_fitting";
+            else
+                predictor_name="fitting";
             printf("partition_adaptive_config: partition=%u,sample_num=%u,config=%u,local_config=%u,field_config=%u,local_improvement=%.6f,predictor=%s,ref_num=%u,power=%.6g,fitting_weight_power=%.6g,ridge=%.6g,normalize_coord=%u,score=%.6f\n",partition_id,partition_sample_num_vec[partition_id],selected_config_id,local_config_id,field_config_id,local_improvement,predictor_name,selected_config.ref_num,selected_config.idw_power,selected_config.fitting_weight_power,selected_config.fitting_ridge,selected_config.normalize_fitting_coord,score_vec[selected_config_id]);
         }
     }

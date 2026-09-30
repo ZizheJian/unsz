@@ -71,7 +71,6 @@ namespace unsz
         rbf_shape=other.rbf_shape;
         rbf_nugget=other.rbf_nugget;
         rbf_parameter_specified=other.rbf_parameter_specified;
-        rbf_fallback_nearest=other.rbf_fallback_nearest;
         zstd_compression_level=other.zstd_compression_level;
         point_set_predictor=other.point_set_predictor;
         predictor=other.predictor;
@@ -88,11 +87,9 @@ namespace unsz
         multihead_execution_pred_ref_ids=other.multihead_execution_pred_ref_ids;
         multihead_qb_index_by_pred_ref_id=other.multihead_qb_index_by_pred_ref_id;
         pred_ref_begin=other.pred_ref_begin;
-        pred_ref_weights=other.pred_ref_weights;
-        pred_ref_label_normalized_weights=other.pred_ref_label_normalized_weights;
-        pred_ref_value_normalized_weights=other.pred_ref_value_normalized_weights;
-        pred_ref_rbf_weights=other.pred_ref_rbf_weights;
-        single_point_set_rbf10_fast_begin=other.single_point_set_rbf10_fast_begin;
+        pred_ref_prediction_weights.assign(other.pred_ref_prediction_weights.begin(),other.pred_ref_prediction_weights.end());
+        pred_ref_rbf_fallback_vec=other.pred_ref_rbf_fallback_vec;
+        prediction_10_fast_begin=other.prediction_10_fast_begin;
         cached_pred_eb_multiplier_vec=other.cached_pred_eb_multiplier_vec;
         cached_pred_eb_inverse_multiplier_vec=other.cached_pred_eb_inverse_multiplier_vec;
         partition_point_ids_vec=other.partition_point_ids_vec;
@@ -107,7 +104,7 @@ namespace unsz
         previous_time_decompressed_data=other.previous_time_decompressed_data;
         previous_time_point_set_id_vec=other.previous_time_point_set_id_vec;
         time_step_vec=other.time_step_vec;
-        time_step_coordinate_vec=other.time_step_coordinate_vec;
+        time_step_coordinate_vec.assign(other.time_step_coordinate_vec.begin(),other.time_step_coordinate_vec.end());
         reconstructed_time_step_vec=other.reconstructed_time_step_vec;
         reconstructed_time_data_vec=other.reconstructed_time_data_vec;
         reconstructed_time_point_set_id_vec=other.reconstructed_time_point_set_id_vec;

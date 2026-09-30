@@ -236,7 +236,8 @@ namespace unsz
         printf("Independent partition MSD ordering reduced-reference cache hits: %llu\n",(unsigned long long)ordering_score_cache_reduced_ref_hit_num);
 
         vector<vector<vector<pair<int,vector<int>>>>> partition_round_entries(partition_point_ids_vec.size(),vector<vector<pair<int,vector<int>>>>(prediction_round_num));
-        vector<vector<vector<vector<double>>>> partition_round_weights(partition_point_ids_vec.size(),vector<vector<vector<double>>>(prediction_round_num));
+        vector<vector<vector<vector<T_calc>>>> partition_round_weights(partition_point_ids_vec.size(),vector<vector<vector<T_calc>>>(prediction_round_num));
+        bool generate_idw_weights=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::idw;});
         reference_tree.clear_all_valid_num();
         exception_ptr reference_exception;
 #pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(thread_num>1)
@@ -258,13 +259,9 @@ namespace unsz
                         reference_queue.pop();
                     }
                     reverse(ref_ids.begin(),ref_ids.end());
-                    vector<double> ref_weights;
-                    ref_weights.reserve(ref_ids.size());
-                    for (int ref_id:ref_ids)
-                    {
-                        double squared_distance=(double)get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
-                        ref_weights.push_back(squared_distance==0?numeric_limits<double>::infinity():pow(squared_distance,-idw_power/2));
-                    }
+                    vector<T_calc> ref_weights;
+                    if(generate_idw_weights)
+                        append_normalized_idw_prediction_weights(pred_id,array_view_c<int>(ref_ids.data(),ref_ids.size()),ref_weights);
                     partition_round_entries[partition_id][round_id].push_back({pred_id,move(ref_ids)});
                     partition_round_weights[partition_id][round_id].push_back(move(ref_weights));
                     reference_tree.update_point_valid_num_to_partition_root(pred_id,1,block_root_id);
@@ -284,10 +281,14 @@ namespace unsz
         pred_target_ids.clear();
         pred_target_ids.reserve(point_num);
         pred_ref_ids.clear();
+        pred_ref_ids.reserve((uint64_t)point_num*prediction_max_ref_num);
         pred_ref_begin.clear();
         pred_ref_begin.reserve((uint64_t)point_num+1);
         pred_ref_begin.push_back(0);
-        pred_ref_weights.clear();
+        pred_ref_prediction_weights.clear();
+        pred_ref_rbf_fallback_vec.clear();
+        if(generate_idw_weights)
+            pred_ref_prediction_weights.reserve((uint64_t)point_num*prediction_max_ref_num);
         for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
             for (uint32_t partition_id=0;partition_id<partition_point_ids_vec.size();partition_id++)
                 for (uint32_t entry_id=0;entry_id<partition_round_entries[partition_id][round_id].size();entry_id++)
@@ -297,7 +298,8 @@ namespace unsz
                     auto &weights=partition_round_weights[partition_id][round_id][entry_id];
                     pred_target_ids.push_back(entry.first);
                     pred_ref_ids.insert(pred_ref_ids.end(),entry.second.begin(),entry.second.end());
-                    pred_ref_weights.insert(pred_ref_weights.end(),weights.begin(),weights.end());
+                    if(generate_idw_weights)
+                        pred_ref_prediction_weights.insert(pred_ref_prediction_weights.end(),weights.begin(),weights.end());
                     pred_ref_begin.push_back(pred_ref_ids.size());
                 }
         if (pred_target_ids.size()!=point_num)

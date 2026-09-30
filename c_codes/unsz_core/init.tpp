@@ -34,6 +34,12 @@ namespace unsz
         for(uint32_t i=1;i<sorted_time_step_vec.size();i++)
             if(sorted_time_step_vec[i]==sorted_time_step_vec[i-1])
                 throw runtime_error("time step不能重复");
+        auto get_time_step_coordinate=[this](uint32_t time_step)
+        {
+            if(time_step_coordinate_vec.empty())
+                return (T_coord)time_step;
+            return time_step_coordinate_vec[time_step];
+        };
         vector<uint32_t> order_id_vec;
         if(order==time_step_order_e::chronological||sorted_time_step_vec.size()==1)
         {
@@ -50,16 +56,16 @@ namespace unsz
                 if(right_id-left_id<=1)
                     continue;
                 uint32_t left_time_step=sorted_time_step_vec[left_id],right_time_step=sorted_time_step_vec[right_id];
-                double left_coordinate=time_step_coordinate_vec.empty()?left_time_step:time_step_coordinate_vec[left_time_step];
-                double right_coordinate=time_step_coordinate_vec.empty()?right_time_step:time_step_coordinate_vec[right_time_step];
-                double middle_coordinate=(left_coordinate+right_coordinate)/2;
+                T_coord left_coordinate=get_time_step_coordinate(left_time_step);
+                T_coord right_coordinate=get_time_step_coordinate(right_time_step);
+                T_coord middle_coordinate=(left_coordinate+right_coordinate)/2;
                 uint32_t middle_id=left_id+1;
-                double minimum_distance=abs((time_step_coordinate_vec.empty()?sorted_time_step_vec[middle_id]:time_step_coordinate_vec[sorted_time_step_vec[middle_id]])-middle_coordinate);
+                T_coord minimum_distance=abs(get_time_step_coordinate(sorted_time_step_vec[middle_id])-middle_coordinate);
                 for(uint32_t candidate_id=left_id+2;candidate_id<right_id;candidate_id++)
                 {
                     uint32_t candidate_time_step=sorted_time_step_vec[candidate_id];
-                    double candidate_coordinate=time_step_coordinate_vec.empty()?candidate_time_step:time_step_coordinate_vec[candidate_time_step];
-                    double distance=abs(candidate_coordinate-middle_coordinate);
+                    T_coord candidate_coordinate=get_time_step_coordinate(candidate_time_step);
+                    T_coord distance=abs(candidate_coordinate-middle_coordinate);
                     if(distance<minimum_distance)
                     {
                         middle_id=candidate_id;
@@ -100,7 +106,13 @@ namespace unsz
         }
         time_step_vec=move(ordered_time_step_vec);
         original_data_path_vec=move(ordered_data_path_vec);
-        const char *order_name=order==time_step_order_e::chronological?"Chronological":order==time_step_order_e::interpolation?"Interpolation":"Anchor stride 8";
+        const char *order_name;
+        if(order==time_step_order_e::chronological)
+            order_name="Chronological";
+        else if(order==time_step_order_e::interpolation)
+            order_name="Interpolation";
+        else
+            order_name="Anchor stride 8";
         printf("%s processing order:",order_name);
         for(uint32_t time_step:time_step_vec)
             printf(" %u",time_step);
@@ -132,16 +144,19 @@ namespace unsz
             fclose(file);
             throw runtime_error("time step坐标文件必须是连续float64数组："+time_step_coordinate_path);
         }
-        time_step_coordinate_vec.resize((uint64_t)byte_num_signed/sizeof(double));
-        if(fseek(file,0,SEEK_SET)!=0||fread(time_step_coordinate_vec.data(),sizeof(double),time_step_coordinate_vec.size(),file)!=time_step_coordinate_vec.size())
+        vector<double> file_coordinate_vec((uint64_t)byte_num_signed/sizeof(double));
+        if(fseek(file,0,SEEK_SET)!=0||fread(file_coordinate_vec.data(),sizeof(double),file_coordinate_vec.size(),file)!=file_coordinate_vec.size())
         {
             fclose(file);
             throw runtime_error("读取time step坐标文件失败："+time_step_coordinate_path);
         }
         if(fclose(file)!=0)
             throw runtime_error("关闭time step坐标文件失败："+time_step_coordinate_path);
-        if(time_step_coordinate_vec.empty()||any_of(time_step_coordinate_vec.begin(),time_step_coordinate_vec.end(),[](double value){return !isfinite(value);}))
+        if(file_coordinate_vec.empty()||any_of(file_coordinate_vec.begin(),file_coordinate_vec.end(),[](double value){return !isfinite(value);}))
             throw runtime_error("time step坐标文件不能为空且只能包含有限值："+time_step_coordinate_path);
+        time_step_coordinate_vec.assign(file_coordinate_vec.begin(),file_coordinate_vec.end());
+        if(any_of(time_step_coordinate_vec.begin(),time_step_coordinate_vec.end(),[](T_coord value){return !isfinite(value);}))
+            throw runtime_error("time step坐标无法用当前坐标类型表示："+time_step_coordinate_path);
         uint32_t maximum_time_step=*max_element(time_step_vec.begin(),time_step_vec.end());
         if(maximum_time_step>=time_step_coordinate_vec.size())
             throw runtime_error("time step坐标文件没有覆盖time step "+to_string(maximum_time_step));

@@ -363,7 +363,14 @@ class huffman_encoder_class
                     node=node->p[(key>>bitNum)&1];
                     bitNum++;
                 }
-                decodeTable[key]={node,node->isLeaf()?(T)(node->c+offset):(T)0,node->isLeaf()?bitNum:(uint8_t)0};
+                T value=0;
+                uint8_t decoded_bit_num=0;
+                if(node->isLeaf())
+                {
+                    value=(T)(node->c+offset);
+                    decoded_bit_num=bitNum;
+                }
+                decodeTable[key]={node,value,decoded_bit_num};
             }
             uint64_t byteNum=(len+7)>>3;
             while(bitIndex<len)

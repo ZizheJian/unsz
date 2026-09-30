@@ -68,9 +68,15 @@ namespace unsz
             if(value_uses_anchor_flow&&first_anchor)
                 framework.value_mode=time_dimension_mode_e::spatial;
             else if(value_uses_anchor_flow&&(regular_anchor||!can_interpolate))
-                framework.value_mode=value_flow=="anchor_interpolation_stride_8_spatial_residual"?time_dimension_mode_e::constant_extrapolation_spatial_residual:time_dimension_mode_e::constant_extrapolation;
+                if(value_flow=="anchor_interpolation_stride_8_spatial_residual")
+                    framework.value_mode=time_dimension_mode_e::constant_extrapolation_spatial_residual;
+                else
+                    framework.value_mode=time_dimension_mode_e::constant_extrapolation;
             else if(value_uses_anchor_flow)
-                framework.value_mode=value_flow=="anchor_interpolation_stride_8_spatial_residual"?time_dimension_mode_e::linear_interpolation_spatial_residual:time_dimension_mode_e::linear_interpolation;
+                if(value_flow=="anchor_interpolation_stride_8_spatial_residual")
+                    framework.value_mode=time_dimension_mode_e::linear_interpolation_spatial_residual;
+                else
+                    framework.value_mode=time_dimension_mode_e::linear_interpolation;
             else if(value_flow=="none")
                 framework.value_mode=time_dimension_mode_e::spatial;
             else if(value_flow=="constant_extrapolation")
