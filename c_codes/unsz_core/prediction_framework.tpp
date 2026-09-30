@@ -115,8 +115,6 @@ namespace unsz
             framework.execution=label_value_execution_e::staged;
         if(use_linear_previous_label_experimental && (framework.execution!=label_value_execution_e::fused || framework.label_mode!=time_dimension_mode_e::constant_extrapolation))
             throw runtime_error("线性上一时刻标签修正流要求启用融合两点集预测和previous标签预测");
-        if(use_linear_previous_label_experimental && use_prediction_order_label_experimental)
-            throw runtime_error("线性上一时刻标签修正流不能使用预测顺序标签码流");
         return framework;
     }
 

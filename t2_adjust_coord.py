@@ -24,13 +24,7 @@ def get_predictor_config(config):
         raise ValueError(f"未知预测器：{predictor_name}")
     if predictor_name=="idw":
         return {"predictor_name":"idw","idw_power":predictor["idw_power"]}
-    fallback=predictor["fallback"]
-    predictor_config={"predictor_name":"rbf","rbf_kernel":predictor["rbf_kernel"],"rbf_shape":predictor["rbf_shape"],"rbf_nugget":predictor["rbf_nugget"],"rbf_fallback_name":fallback["name"]}
-    if fallback["name"]=="idw":
-        predictor_config["idw_power"]=fallback["idw_power"]
-    elif fallback["name"]!="nearest":
-        raise ValueError(f"未知RBF回退预测器：{fallback['name']}")
-    return predictor_config
+    return {"predictor_name":"rbf","rbf_kernel":predictor["rbf_kernel"],"rbf_shape":predictor["rbf_shape"],"rbf_nugget":predictor["rbf_nugget"]}
 
 def train_adjust_coord(config,matrix_output_path=None,rel_eb=None,prediction_max_ref_num=None,**training_arguments):
     if rel_eb is None:

@@ -134,15 +134,6 @@ namespace unsz
                 param.use_kd_iterative_query_experimental=true;
             else if(strcmp(argv[arg_id],"-kd-scalar-one-reference-query-experimental")==0)
                 param.use_kd_scalar_one_reference_query_experimental=true;
-            else if(strcmp(argv[arg_id],"-rbf-solver")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-rbf-solver后面缺少求解器名称");
-                string solver=argv[++arg_id];
-                if(solver!="general"&&solver!="ldlt")
-                    throw runtime_error("-rbf-solver必须是general或ldlt");
-                param.use_rbf_ldlt=solver=="ldlt";
-            }
             else if(strcmp(argv[arg_id],"-multihead-execution-head-num-experimental")==0)
             {
                 if(arg_id+1>=argc)

@@ -234,6 +234,11 @@ namespace unsz
         if (fclose(f_coord)!=0)
             throw runtime_error("关闭坐标文件失败："+coord_path);
 
+        for(uint32_t point_id=0;point_id<point_num;point_id++)
+            for(uint32_t dimension=0;dimension<dim;dimension++)
+                if(!isfinite(coord_array[point_id][dimension]))
+                    throw runtime_error("坐标文件包含非有限坐标：点"+to_string(point_id)+"，维度"+to_string(dimension));
+
         min_coord.resize(dim,numeric_limits<T_coord>::infinity());
         max_coord.resize(dim,-numeric_limits<T_coord>::infinity());
         for (uint32_t i=0;i<point_num;i++)

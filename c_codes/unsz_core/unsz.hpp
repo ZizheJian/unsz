@@ -255,7 +255,6 @@ namespace unsz
             vector<double> adjust_coord_matrix_parameter_vec;
             bool print_compression_stage_time=false;
             bool print_prediction_dag_statistics=false;
-            bool use_prediction_order_label_experimental=false;
             string label_value_execution="staged";//staged / fused
             bool use_linear_previous_label_experimental=false;
             string ordering_scope="local";//local / global
@@ -264,7 +263,6 @@ namespace unsz
             uint32_t ordering_score_max_ref_num=0;//必须显式设置；只控制反向MSD排序评分的参考点数量
             bool use_kd_iterative_query_experimental=false;//固定栈迭代遍历kd-tree，避免递归函数调用
             bool use_kd_scalar_one_reference_query_experimental=false;//1点MSD用标量最近邻查询并排除目标自身
-            bool use_rbf_ldlt=false;//常数趋势RBF用正定核矩阵的LDLT分解求权重
             uint32_t multihead_execution_head_num_experimental=0;//非0时按空间头轮转执行DAG，并按头连续存储qb
             uint32_t kd_tree_leaf_size=32;
             uint32_t partition_size_experimental=0;//0表示不分区；非0时所有参考点必须来自同一partition
@@ -274,7 +272,6 @@ namespace unsz
             uint32_t partition_adaptive_sample_num_experimental=256;
             double partition_adaptive_min_improvement_experimental=0;
             string partition_fitting_candidates_experimental="original";//original / weighted / ridge / mixed / residual / extended / all
-            string multi_huffman_mode_experimental="none";//none / round / partition / partition_round
             string eb_schedule="round_point_ratio";//none / round / point / inverse_rank_log2 / round_point / round_ratio / round_point_ratio / round_point_ratio_dag / round_point_ratio_dag_direct / round_point_ratio_dag_variance_direct
             double eb_schedule_start_ratio=0.8;
             double eb_schedule_log2_shift=0;//inverse_rank_log2的指数位移
@@ -294,11 +291,6 @@ namespace unsz
 
             Array2D<T_coord> coord_array,coord_array_backup;
             vector<T_coord> min_coord,max_coord;
-            vector<block_tree_c<T_coord>> block_vec;
-            vector<int> id_map1;//从原始id映射到block_tree上node的专用id（没有被使用）
-            vector<int> point_id_on_tree_to_original_id;//从block_tree上node的专用id映射到原始id
-            vector<int> id_map2;//从block_tree上node的专用id映射到leaf block在block_vec中的id
-            vector<int> id_map_reverse2;//从leaf block在block_vec中的id映射到block_tree上node的专用id（没有被使用）
             vector<vector<int>> round_target_ids;//每一轮的预测目标
             vector<int> pred_target_ids,pred_ref_ids;//预测目标与连续参考点数组，均使用原始点编号
             vector<uint32_t> multihead_execution_pred_ref_ids,multihead_qb_index_by_pred_ref_id;
@@ -387,8 +379,6 @@ namespace unsz
             bool predict_partition_linear_fitting_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power=0,double ridge=0,bool normalize_coord=true);
             bool predict_partition_continuous_mix_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction);
             bool predict_partition_idw_residual_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction);
-            uint32_t get_multi_huffman_group_num();
-            uint32_t get_multi_huffman_group_id(uint32_t round_id,int pred_id);
             void generate_pred_refs_structure();
             void prepare_pred_refs_structure();
             void prepare_multihead_execution_order();
@@ -397,7 +387,6 @@ namespace unsz
             void load_pred_refs_structure();
             void print_prediction_dag_statistics_result();
             void split_block(int block_id);
-            void generate_id_map2();
             void clear_all_valid_num();
             void update_all_valid_num(int block_id);
             void update_valid_num_to_root(int block_id,int change_value);
@@ -413,7 +402,8 @@ namespace unsz
             T_data predict_value_two_point_sets_rbf(uint32_t pred_ref_id,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id);
             pair<uint32_t,T_data> predict_label_and_value_two_point_sets_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,bool value_requires_prediction);
             pair<uint32_t,T_data> predict_label_and_value_two_point_sets_rbf(uint32_t pred_ref_id,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<uint8_t> &label_vec,const vector<T_data> &data,uint32_t value_point_set_id,bool value_requires_prediction);
-            bool calculate_rbf_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
+            bool calculate_scalar_rbf_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
+            void calculate_batched_rbf_prediction_weights(const vector<T_coord> &reference_coords,const vector<T_coord> &target_ref_squared_distances);
             void prepare_compression_structure(chrono::steady_clock::time_point preprocessing_start_time);
             void prepare_joint_spatiotemporal_coordinates();
             void compress_files(void(param_c<T_coord,T_data>::*compress_current_file)());
@@ -456,7 +446,6 @@ namespace unsz
 #include "time_prediction.tpp"
 #include "prediction_framework.tpp"
 #include "format.tpp"
-#include "multi_huffman.tpp"
 #include "prediction_structure.tpp"
 #include "multihead_execution.tpp"
 #include "one_point_set_compress_entry.tpp"

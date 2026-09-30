@@ -152,10 +152,6 @@ def build_predictor_arguments(predictor):
     if predictor_name!="rbf":
         raise ValueError(f"未知预测器：{predictor_name}")
     arguments=["-rbf-kernel",predictor["rbf_kernel"],"-rbf-shape",predictor["rbf_shape"],"-rbf-nugget",predictor["rbf_nugget"]]
-    rbf_solver=predictor["rbf_solver"]
-    if rbf_solver not in ("general","ldlt"):
-        raise ValueError(f"未知RBF求解器：{rbf_solver}")
-    arguments.extend(("-rbf-solver",rbf_solver))
     return predictor_name,arguments
 
 def build_eb_schedule_arguments(eb_schedule):

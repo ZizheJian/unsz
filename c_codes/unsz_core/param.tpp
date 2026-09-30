@@ -38,7 +38,6 @@ namespace unsz
         adjust_coord_matrix_parameter_vec=other.adjust_coord_matrix_parameter_vec;
         print_compression_stage_time=other.print_compression_stage_time;
         print_prediction_dag_statistics=other.print_prediction_dag_statistics;
-        use_prediction_order_label_experimental=other.use_prediction_order_label_experimental;
         label_value_execution=other.label_value_execution;
         use_linear_previous_label_experimental=other.use_linear_previous_label_experimental;
         ordering_scope=other.ordering_scope;
@@ -47,7 +46,6 @@ namespace unsz
         ordering_score_max_ref_num=other.ordering_score_max_ref_num;
         use_kd_iterative_query_experimental=other.use_kd_iterative_query_experimental;
         use_kd_scalar_one_reference_query_experimental=other.use_kd_scalar_one_reference_query_experimental;
-        use_rbf_ldlt=other.use_rbf_ldlt;
         multihead_execution_head_num_experimental=other.multihead_execution_head_num_experimental;
         kd_tree_leaf_size=other.kd_tree_leaf_size;
         partition_size_experimental=other.partition_size_experimental;
@@ -57,7 +55,6 @@ namespace unsz
         partition_adaptive_sample_num_experimental=other.partition_adaptive_sample_num_experimental;
         partition_adaptive_min_improvement_experimental=other.partition_adaptive_min_improvement_experimental;
         partition_fitting_candidates_experimental=other.partition_fitting_candidates_experimental;
-        multi_huffman_mode_experimental=other.multi_huffman_mode_experimental;
         eb_schedule=other.eb_schedule;
         eb_schedule_start_ratio=other.eb_schedule_start_ratio;
         eb_schedule_log2_shift=other.eb_schedule_log2_shift;

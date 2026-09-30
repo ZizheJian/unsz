@@ -310,13 +310,6 @@ int decompress_main(int argc,char **argv)
             param.use_kd_iterative_query_experimental=true;
         else if(option=="-kd-scalar-one-reference-query-experimental")
             param.use_kd_scalar_one_reference_query_experimental=true;
-        else if(option=="-rbf-solver")
-        {
-            string solver=read_option_value(argc,argv,arg_id,option);
-            if(solver!="general"&&solver!="ldlt")
-                throw runtime_error("-rbf-solver必须是general或ldlt");
-            param.use_rbf_ldlt=solver=="ldlt";
-        }
         else if(option=="-multihead-execution-head-num-experimental")
             param.multihead_execution_head_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-prediction-round-num")

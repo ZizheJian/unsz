@@ -147,7 +147,7 @@ JSON最外层是task list；同一个JSON可以包含不同数据目录的任务
     "coordinate_dim":2,
     "unsz":{
       "flow":{"value":["spatial"]},
-      "predictor":{"name":"rbf","rbf_kernel":"matern32","rbf_shape":0.03,"rbf_nugget":1e-6,"rbf_solver":"ldlt"},
+      "predictor":{"name":"rbf","rbf_kernel":"matern32","rbf_shape":0.03,"rbf_nugget":1e-6},
       "ordering_scope":"global",
       "prediction_round_num":1,
       "prediction_min_ref_num":10,
@@ -167,7 +167,7 @@ JSON最外层是task list；同一个JSON可以包含不同数据目录的任务
 ]
 ```
 
-`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`、`rbf_nugget`和`rbf_solver`。RBF在同点集参考点不足或权重求解失败时固定退化为最近的同点集参考点，不再提供IDW fallback。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数；同点集参考点少于`prediction_min_ref_num`时，RBF触发最近点fallback。当前正式RBF配置的上下限相同，IDW的下限为1。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope`只决定在全体点还是各轮内部排序，`prediction_round_num`独立记录轮数；两者都必须显式配置，程序不会根据其中一个推导另一个。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时空流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`，因此不再依赖预测轮数限制最小EB倍率。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`、`.unsz.bin`和联合时空`.joint.unsz`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
+`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF在同点集参考点不足或权重求解失败时固定退化为最近的同点集参考点，不再提供IDW fallback。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数；同点集参考点少于`prediction_min_ref_num`时，RBF触发最近点fallback。当前正式RBF配置的上下限相同，IDW的下限为1。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope`只决定在全体点还是各轮内部排序，`prediction_round_num`独立记录轮数；两者都必须显式配置，程序不会根据其中一个推导另一个。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时空流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`，因此不再依赖预测轮数限制最小EB倍率。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`、`.unsz.bin`和联合时空`.joint.unsz`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
 
 UMC任务默认比较压缩端与独立解压端报告的PSNR，但不逐点读取磁盘上的`.umc.out`。需要在更新UMC、修改输入转换或冻结最终结果时检查实际输出文件，可以在task中设置`"verify_umc_disk_output":true`；该检查使用NumPy分块计算，不计入UMC核心压缩或解压时间。
 
@@ -698,9 +698,9 @@ $$
     </tr>
     <tr>
       <td>批量向量化RBF权重生成</td>
-      <td>待实现</td>
-      <td>固定10个参考点时，绝大多数目标都需要独立生成大小相同的RBF系统。这些系统的矩阵并不相同，不能共用一次分解；但可以每次收集少量目标，按SoA布局同时计算距离、Matérn核、LDLT分解和两次三角求解，从而利用AVX2并行处理多个独立系统。开头参考点不足10个的目标仍使用现有标量路径。</td>
-      <td>先分别统计距离与核函数、LDLT求解和权重写回的耗时，再实现RBF10的小批量AVX2路径，并检查压缩文件SHA、BR和PSNR是否不变</td>
+      <td>已采纳</td>
+      <td>RBF现在只使用一种正式预处理流程：生成DAG时连续保存参考点坐标和目标距离，DAG完成后按32个目标一批，以SoA布局计算核矩阵、LDLT分解和Schur补。参考点数未达到固定批宽但仍满足RBF下限的少量边界目标使用标量LDLT；不再保留逐目标即时求解流程或general/ldlt配置开关。同节点交替测试中，Tsunami和Katrina的参考生成阶段相对旧逐目标流程分别缩短33.4%和30.0%，完整首次预处理分别缩短8.2%和6.4%。</td>
+      <td>批宽16/32/64的同节点中位权重时间分别为Tsunami 0.090815/0.079755/0.081280秒、Katrina 0.351170/0.316769/0.320254秒，因此固定为32。紧凑下三角矩阵使权重阶段反而慢约4%～6%，已回退。批量浮点运算会造成很小的码流变化，但独立解压误差界检查通过。</td>
     </tr>
     <tr>
       <td>提前计算归一化权重</td>

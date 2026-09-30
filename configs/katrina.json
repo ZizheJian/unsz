@@ -25,8 +25,7 @@
         "name": "rbf",
         "rbf_kernel": "matern32",
         "rbf_shape": 0.03,
-        "rbf_nugget": 1e-06,
-        "rbf_solver": "ldlt"
+        "rbf_nugget": 1e-06
       },
       "ordering_scope": "global",
       "prediction_round_num": 1,

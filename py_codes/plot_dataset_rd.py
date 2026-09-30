@@ -12,21 +12,16 @@ def read_csv_rows(csv_path):
         return list(csv.DictReader(csv_file))
 
 
-def read_rows(csv_path,time_step_num,reference_csv_path=None):
+def read_rows(csv_path,time_step_num,task,label_flow,value_flow,reference_csv_path=None,reference_task=None):
     source=read_csv_rows(csv_path)
     reference_source=read_csv_rows(reference_csv_path) if reference_csv_path is not None else source
-    if source and "compressor" in source[0]:
-        unsz_rows=[row for row in source if row["compressor"]=="unsz" and int(row["time_step_num"])==time_step_num]
-    elif source and "UNSZ_BR" in source[0]:
-        unsz_rows=[{"br":row["UNSZ_BR"],"psnr":row["UNSZ_PSNR"],"compression_MB_s":row["UNSZ_COMPRESSION_MB_S"],"decompression_MB_s":row["UNSZ_DECOMPRESSION_MB_S"]} for row in source if int(row["TIME_STEP_NUM"])==time_step_num and row.get("UNSZ_BR","")]
-    else:
-        unsz_rows=[row for row in source if int(row["time_step_num"])==time_step_num]
-    if reference_source and "compressor" in reference_source[0]:
-        umc_rows=[row for row in reference_source if row["compressor"]=="umc" and int(row["time_step_num"])==time_step_num]
-    elif reference_source and "UMC_BR" in reference_source[0]:
-        umc_rows=[{"br":row["UMC_BR"],"psnr":row["UMC_PSNR"],"compression_MB_s":row["UMC_COMPRESSION_MB_S"],"decompression_MB_s":row["UMC_DECOMPRESSION_MB_S"]} for row in reference_source if int(row["TIME_STEP_NUM"])==time_step_num and row.get("UMC_BR","")]
-    else:
-        umc_rows=[]
+    if not source or "compressor" not in source[0] or "task" not in source[0]:
+        raise ValueError(f"{csv_path}是没有task身份的旧格式CSV，不能用于正式绘图")
+    if not reference_source or "compressor" not in reference_source[0] or "task" not in reference_source[0]:
+        raise ValueError(f"{reference_csv_path or csv_path}是没有task身份的旧格式CSV，不能用于正式绘图")
+    unsz_rows=[row for row in source if row["compressor"]=="unsz" and int(row["time_step_num"])==time_step_num and row["task"]==task and row["label_flow"]==label_flow and row["value_flow"]==value_flow]
+    selected_reference_task=task if reference_task is None else reference_task
+    umc_rows=[row for row in reference_source if row["compressor"]=="umc" and int(row["time_step_num"])==time_step_num and row["task"]==selected_reference_task]
     if len(unsz_rows)<2 or len(umc_rows)<2:
         raise ValueError(f"{csv_path}没有可插值的完整UNSZ/UMC曲线")
     return unsz_rows,umc_rows
@@ -84,7 +79,7 @@ def resolve_field_csv(data_dir,dataset,field):
     raise FileNotFoundError(f"{data_dir}中找不到{field}的CSV")
 
 
-def plot(data_dir,dataset,fields,time_step_num,output_prefix,column_num,reference_data_dir):
+def plot(data_dir,dataset,fields,time_step_num,task,label_flow,value_flow,output_prefix,column_num,reference_data_dir,reference_task):
     column_num=min(column_num,len(fields))
     row_num=math.ceil(len(fields)/column_num)
     plt.rcParams.update({"font.size":10,"axes.labelsize":10,"axes.titlesize":11,"legend.fontsize":9,"pdf.fonttype":42,"ps.fonttype":42})
@@ -93,7 +88,7 @@ def plot(data_dir,dataset,fields,time_step_num,output_prefix,column_num,referenc
     for field,axis in zip(fields,axes.ravel()):
         csv_path=resolve_field_csv(data_dir,dataset,field)
         reference_csv_path=resolve_field_csv(reference_data_dir,dataset,field) if reference_data_dir is not None else None
-        unsz_rows,umc_rows=read_rows(csv_path,time_step_num,reference_csv_path)
+        unsz_rows,umc_rows=read_rows(csv_path,time_step_num,task,label_flow,value_flow,reference_csv_path,reference_task)
         unsz_br,unsz_psnr=read_curve(unsz_rows)
         umc_br,umc_psnr=read_curve(umc_rows)
         average_br_change=calculate_average_br_change(umc_br,umc_psnr,unsz_br,unsz_psnr)
@@ -116,7 +111,7 @@ def plot(data_dir,dataset,fields,time_step_num,output_prefix,column_num,referenc
     for field,axis in zip(fields,axes.ravel()):
         csv_path=resolve_field_csv(data_dir,dataset,field)
         reference_csv_path=resolve_field_csv(reference_data_dir,dataset,field) if reference_data_dir is not None else None
-        unsz_rows,umc_rows=read_rows(csv_path,time_step_num,reference_csv_path)
+        unsz_rows,umc_rows=read_rows(csv_path,time_step_num,task,label_flow,value_flow,reference_csv_path,reference_task)
         unsz_psnr,unsz_total=read_throughput_curve(unsz_rows)
         umc_psnr,umc_total=read_throughput_curve(umc_rows)
         total_time_ratio=calculate_total_time_ratio(unsz_rows,umc_rows)
@@ -143,11 +138,15 @@ def main():
     parser.add_argument("-dataset",required=True)
     parser.add_argument("-fields",nargs="+",required=True)
     parser.add_argument("-time-step-num",type=int,required=True)
+    parser.add_argument("-task",required=True)
+    parser.add_argument("-label-flow",required=True)
+    parser.add_argument("-value-flow",required=True)
     parser.add_argument("-output-prefix",type=Path,required=True)
     parser.add_argument("-column-num",type=int,default=6)
     parser.add_argument("-reference-data-dir",type=Path)
+    parser.add_argument("-reference-task")
     args=parser.parse_args()
-    plot(args.data_dir,args.dataset,args.fields,args.time_step_num,args.output_prefix,args.column_num,args.reference_data_dir)
+    plot(args.data_dir,args.dataset,args.fields,args.time_step_num,args.task,args.label_flow,args.value_flow,args.output_prefix,args.column_num,args.reference_data_dir,args.reference_task)
 
 
 if __name__=="__main__":

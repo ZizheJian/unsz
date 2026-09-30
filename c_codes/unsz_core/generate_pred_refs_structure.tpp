@@ -402,10 +402,15 @@ namespace unsz
         pred_ref_rbf_fallback_vec.clear();
         if(generate_rbf_weights)
             pred_ref_rbf_fallback_vec.assign(point_num,0);
+        vector<T_coord> rbf_reference_coords,rbf_target_ref_squared_distances;
+        if(generate_rbf_weights)
+        {
+            rbf_reference_coords.reserve((uint64_t)point_num*prediction_max_ref_num*dim);
+            rbf_target_ref_squared_distances.reserve((uint64_t)point_num*prediction_max_ref_num);
+        }
         tree.clear_all_valid_num();
         uint64_t reused_reference_query_num=0;
         uint64_t reused_distance_num=0;
-        vector<T_calc> rbf_weights;
         for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
             for (int pred_id:round_target_ids[round_id])
@@ -449,22 +454,26 @@ namespace unsz
                     append_normalized_idw_prediction_weights(pred_id,array_view_c<int>(ref_ids.data(),ref_ids.size()),pred_ref_prediction_weights,array_view_c<T_coord>(target_ref_squared_distances.data(),target_ref_squared_distances.size()));
                 else if(generate_rbf_weights)
                 {
-                    uint32_t pred_ref_id=(uint32_t)pred_target_ids.size()-1;
-                    uint64_t weight_begin=pred_ref_prediction_weights.size();
-                    pred_ref_prediction_weights.resize(weight_begin+ref_ids.size(),0);
-                    bool solved=ref_ids.size()>=prediction_min_ref_num&&calculate_rbf_prediction_weights(pred_id,array_view_c<int>(ref_ids.data(),ref_ids.size()),rbf_weights,array_view_c<T_coord>(target_ref_squared_distances.data(),target_ref_squared_distances.size()));
-                    if(solved)
-                        copy(rbf_weights.begin(),rbf_weights.end(),pred_ref_prediction_weights.begin()+weight_begin);
-                    else
+                    uint64_t coordinate_begin=rbf_reference_coords.size();
+                    rbf_reference_coords.resize(coordinate_begin+(uint64_t)ref_ids.size()*dim);
+                    for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
                     {
-                        pred_ref_rbf_fallback_vec[pred_ref_id]=1;
-                        if(!ref_ids.empty())
-                            pred_ref_prediction_weights[weight_begin]=1;
+                        int ref_id=ref_ids[ref_index];
+                        for(uint32_t dimension=0;dimension<dim;dimension++)
+                            rbf_reference_coords[coordinate_begin+(uint64_t)ref_index*dim+dimension]=coord_array[ref_id][dimension];
                     }
+                    rbf_target_ref_squared_distances.insert(rbf_target_ref_squared_distances.end(),target_ref_squared_distances.begin(),target_ref_squared_distances.end());
                 }
 
                 tree.update_point_valid_num_to_root(pred_id,1);
             }
+        }
+
+        if(generate_rbf_weights)
+        {
+            uint64_t geometry_bytes=(uint64_t)rbf_reference_coords.size()*sizeof(T_coord)+(uint64_t)rbf_target_ref_squared_distances.size()*sizeof(T_coord);
+            printf("Stored temporary RBF geometry: coordinates=%llu,distances=%llu,bytes=%llu\n",(unsigned long long)rbf_reference_coords.size(),(unsigned long long)rbf_target_ref_squared_distances.size(),(unsigned long long)geometry_bytes);
+            calculate_batched_rbf_prediction_weights(rbf_reference_coords,rbf_target_ref_squared_distances);
         }
 
         if(pred_target_ids.size()!=point_num||pred_ref_begin.size()!=(uint64_t)point_num+1||((generate_idw_weights||generate_rbf_weights)&&pred_ref_ids.size()!=pred_ref_prediction_weights.size()))

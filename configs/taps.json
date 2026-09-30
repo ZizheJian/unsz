@@ -28,8 +28,7 @@
         "name": "rbf",
         "rbf_kernel": "matern32",
         "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06,
-        "rbf_solver": "general"
+        "rbf_nugget": 1e-06
       },
       "ordering_scope": "local",
       "prediction_round_num": 8,
@@ -109,8 +108,7 @@
         "name": "rbf",
         "rbf_kernel": "matern32",
         "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06,
-        "rbf_solver": "general"
+        "rbf_nugget": 1e-06
       },
       "ordering_scope": "local",
       "prediction_round_num": 8,
@@ -151,8 +149,7 @@
         "name": "rbf",
         "rbf_kernel": "matern32",
         "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06,
-        "rbf_solver": "general"
+        "rbf_nugget": 1e-06
       },
       "ordering_scope": "local",
       "prediction_round_num": 8,
@@ -193,8 +190,7 @@
         "name": "rbf",
         "rbf_kernel": "matern32",
         "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06,
-        "rbf_solver": "general"
+        "rbf_nugget": 1e-06
       },
       "ordering_scope": "local",
       "prediction_round_num": 8,
@@ -235,8 +231,7 @@
         "name": "rbf",
         "rbf_kernel": "matern32",
         "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06,
-        "rbf_solver": "general"
+        "rbf_nugget": 1e-06
       },
       "ordering_scope": "local",
       "prediction_round_num": 8,
@@ -277,8 +272,7 @@
         "name": "rbf",
         "rbf_kernel": "matern32",
         "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06,
-        "rbf_solver": "general"
+        "rbf_nugget": 1e-06
       },
       "ordering_scope": "local",
       "prediction_round_num": 8,
