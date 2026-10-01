@@ -36,7 +36,7 @@ namespace unsz
     enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
     enum class partition_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
-    enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,endpoint_agreement=5,linear_interpolation=6,joint_spatiotemporal=7,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
+    enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,label_linear_interpolation_spatial_residual=5,linear_interpolation=6,joint_spatiotemporal=7,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
     enum class label_value_execution_e:uint8_t{no_label=0,staged=1,fused=2};
     enum class time_step_order_e:uint8_t{chronological=0,interpolation=1,anchor_stride_8=2};
 
@@ -205,7 +205,6 @@ namespace unsz
             vector<uint8_t> point_valid;//按tree_id保存逐点有效性，多点叶节点查询时使用
             vector<uint64_t> leaf_valid_mask;//按block保存叶节点中有效点的位图
             bool use_leaf_valid_mask=false;
-            bool use_iterative_query=false;
 
             inline T_coord*get_block_min_coord(int block_id){return structure->block_coord_bounds.data()+(uint64_t)block_id*dim*2;}
             inline T_coord*get_block_max_coord(int block_id){return get_block_min_coord(block_id)+dim;}
@@ -223,9 +222,6 @@ namespace unsz
             void update_point_valid_num_to_partition_root(int original_id,int change_value,int partition_root_block_id);
             void find_original_nearest(nearest_queue_c<T_coord> &nearest_queue,Array2D<T_coord> &coord_array,
                 uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
-            void find_original_nearest_iterative(nearest_queue_c<T_coord> &nearest_queue,Array2D<T_coord> &coord_array,
-                uint32_t nearest_num,int block_id,T_coord *query_coord,bool valid_only=false);
-            bool find_original_nearest_other_iterative(T_coord *query_coord,int excluded_original_id,int block_id,T_coord &nearest_distance,int &nearest_original_id,bool valid_only=false);
                 //寻找最近的点。如果query_coord是一个点的坐标，那么会找到自身
     };
 
@@ -245,7 +241,7 @@ namespace unsz
             uint32_t point_num=0;
             T_data rel_eb=0,abs_eb=0;
             bool got_rel_eb=false,got_abs_eb=false;
-            bool got_data_dir=false,got_field=false,got_time_step=false,got_error_mode=false,got_predictor=false;
+            bool got_data_dir=false,got_field=false,got_time_step=false,got_error_mode=false,got_predictor=false,got_prediction_round_num=false;
             vector<point_set_rule_c> point_set_rule_vec;
             vector<point_set_config_c> point_set_config_vec;
             bool check_original_data_files=true;
@@ -261,8 +257,6 @@ namespace unsz
             uint32_t ordering_score_min_ref_num=0;//必须显式设置；缓存中的有效评分参考点少于该值时重新查询
             uint32_t ordering_candidate_num=0;//必须显式设置
             uint32_t ordering_score_max_ref_num=0;//必须显式设置；只控制反向MSD排序评分的参考点数量
-            bool use_kd_iterative_query_experimental=false;//固定栈迭代遍历kd-tree，避免递归函数调用
-            bool use_kd_scalar_one_reference_query_experimental=false;//1点MSD用标量最近邻查询并排除目标自身
             uint32_t multihead_execution_head_num_experimental=0;//非0时按空间头轮转执行DAG，并按头连续存储qb
             uint32_t kd_tree_leaf_size=32;
             uint32_t partition_size_experimental=0;//0表示不分区；非0时所有参考点必须来自同一partition
@@ -272,7 +266,7 @@ namespace unsz
             uint32_t partition_adaptive_sample_num_experimental=256;
             double partition_adaptive_min_improvement_experimental=0;
             string partition_fitting_candidates_experimental="original";//original / weighted / ridge / mixed / residual / extended / all
-            string eb_schedule="round_point_ratio";//none / round / point / inverse_rank_log2 / round_point / round_ratio / round_point_ratio / round_point_ratio_dag / round_point_ratio_dag_direct / round_point_ratio_dag_variance_direct
+            string eb_schedule="round_point_ratio";//none / round / point / inverse_rank_log2 / round_point / round_ratio / round_point_ratio
             double eb_schedule_start_ratio=0.8;
             double eb_schedule_log2_shift=0;//inverse_rank_log2的指数位移
             double eb_schedule_max_log2_exponent=7;//inverse_rank_log2的最小EB倍率由该指数限制，不依赖预测轮数
@@ -291,13 +285,13 @@ namespace unsz
 
             Array2D<T_coord> coord_array,coord_array_backup;
             vector<T_coord> min_coord,max_coord;
-            vector<vector<int>> round_target_ids;//每一轮的预测目标
+            vector<vector<int>> prediction_target_id_groups;//global只有一个组，local每轮一个组
             vector<int> pred_target_ids,pred_ref_ids;//预测目标与连续参考点数组，均使用原始点编号
             vector<uint32_t> multihead_execution_pred_ref_ids,multihead_qb_index_by_pred_ref_id;
             vector<uint64_t> pred_ref_begin;//第i个目标的参考点区间为[pred_ref_begin[i],pred_ref_begin[i+1])
             vector<T_calc> pred_ref_prediction_weights;
             vector<uint8_t> pred_ref_rbf_fallback_vec;
-            uint32_t prediction_10_fast_begin=0;
+            inline bool has_ten_prediction_references(uint32_t pred_ref_id) const{return pred_ref_begin[pred_ref_id+1]-pred_ref_begin[pred_ref_id]==10;}
             vector<double> cached_pred_eb_multiplier_vec;//不依赖当前field数据的EB调度只生成一次，由全部time step复用
             vector<double> cached_pred_eb_inverse_multiplier_vec;//对应EB倍率的倒数，避免每个time step重复执行逐点除法
             vector<vector<int>> partition_point_ids_vec;
@@ -328,7 +322,6 @@ namespace unsz
             vector<T_data> point_set_min_data_vec,point_set_max_data_vec,point_set_abs_eb_vec;
             vector<point_set_codec_e> point_set_codec_vec;
             uint32_t current_valid_node_num=0;
-            bool running_staged_file_pass=false;
             bool decode_labels_only=false;
             bool use_staged_point_set_ids=false;
             bool suppress_compression_summary=false;
@@ -349,13 +342,12 @@ namespace unsz
             void update_time_spatial_residual_fixed(int pred_id,uint32_t original_id,uint32_t point_set_id);
             template<time_dimension_mode_e label_mode>
             bool predict_time_label_fixed(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction);
-            void save_time_reconstruction();
+            void update_time_prediction_state();
             prediction_framework_c get_prediction_framework(uint32_t point_set_num) const;
             bool uses_anchor_interpolation_stride_8_flow() const;
             bool current_time_step_is_regular_anchor() const;
             void resolve_single_point_set_time_mode();
-            void advance_time_prediction_buffers();
-            void compress_single_point_set();
+            void dispatch_single_point_set_compression();
             bool need_double_coord();
             void load_adjust_coord_matrix_file();
             void adjust_coord();
@@ -370,6 +362,7 @@ namespace unsz
             void prepare_partition_adaptive_sample_mask();
             array_view_c<int> get_pred_ref_ids(uint32_t pred_ref_id) const;
             array_view_c<T_calc> get_pred_ref_weights(uint32_t pred_ref_id) const;
+            void write_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,T_calc *weights,array_view_c<T_coord> target_ref_squared_distances={});
             void append_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
             T_data predict_partition_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,uint8_t config_id);
             T_data predict_partition_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,const partition_prediction_config_c &config);
@@ -380,6 +373,11 @@ namespace unsz
             bool predict_partition_continuous_mix_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction);
             bool predict_partition_idw_residual_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction);
             void generate_pred_refs_structure();
+            void generate_global_pred_refs_structure(block_tree_c<T_coord> &tree,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf);
+            void generate_local_pred_refs_structure(block_tree_c<T_coord> &tree,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf);
+            template<bool global_order>
+            void sort_targets_by_reverse_msd(block_tree_c<T_coord> &target_tree,block_tree_c<T_coord> &reference_tree,bool uses_idw,bool uses_rbf,vector<T_coord> &prediction_ref_coords,vector<T_coord> &prediction_ref_squared_distances);
+            void validate_pred_refs_structure() const;
             void prepare_pred_refs_structure();
             void prepare_multihead_execution_order();
             void prepare_rbf_prediction_weights();
@@ -411,17 +409,17 @@ namespace unsz
             void prepare_staged_two_point_set_decompression();
             void compress_joint_spatiotemporal_files(void(param_c<T_coord,T_data>::*compress_current_field)());
             void decompress_joint_spatiotemporal_files(void(param_c<T_coord,T_data>::*decompress_current_field)());
-            void compress_two_point_sets();
+            void dispatch_two_point_set_compression_by_mode();
             template<time_dimension_mode_e label_mode,time_dimension_mode_e value_mode,label_value_execution_e execution>
-            void compress_two_point_sets_fixed();
+            void dispatch_two_point_set_compression_by_predictor();
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
-            void compress_point_sets();
-            void decompress_single_point_set();
-            void decompress_two_point_sets();
+            void compress_current_file();
+            void dispatch_single_point_set_decompression();
+            void dispatch_two_point_set_decompression_by_mode();
             template<time_dimension_mode_e label_mode,time_dimension_mode_e value_mode,label_value_execution_e execution>
-            void decompress_two_point_sets_fixed();
+            void dispatch_two_point_set_decompression_by_predictor();
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
-            void decompress_point_sets();
+            void decompress_current_file();
             
             template<typename T_system>
             bool solve_linear_system(vector<vector<T_system>> &A,vector<T_system> &b,vector<T_system> &x);
@@ -450,6 +448,8 @@ namespace unsz
 #include "multihead_execution.tpp"
 #include "one_point_set_compress_entry.tpp"
 #include "two_point_sets_compress_entry.tpp"
+#include "staged_two_point_sets_entry.tpp"
+#include "joint_spatiotemporal_entry.tpp"
 #include "compress_entry.tpp"
 #include "compress.tpp"
 #include "decompress.tpp"

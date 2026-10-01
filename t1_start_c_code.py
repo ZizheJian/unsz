@@ -169,12 +169,15 @@ def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expre
     if config["ordering_scope"] not in ("local","global"):
         raise ValueError(f"未知排序规模：{config['ordering_scope']}")
     arguments=["-data-dir",data_dir,"-field",config["field"],"-time-step",time_expression,"-coordinate-dim",config["coordinate_dim"],
-               "-prediction-round-num",config["prediction_round_num"],
                "-prediction-min-ref-num",config["prediction_min_ref_num"],"-prediction-max-ref-num",config["prediction_max_ref_num"],
                "-ordering-scope",config["ordering_scope"],"-ordering-score-max-ref-num",config["ordering_score_max_ref_num"],
                "-ordering-score-min-ref-num",config["ordering_score_min_ref_num"],
                "-ordering-candidate-num",config["ordering_candidate_num"],*predictor_arguments,
                *build_eb_schedule_arguments(config["eb_schedule"])]
+    if config["ordering_scope"]=="local":
+        arguments.extend(("-prediction-round-num",config["prediction_round_num"]))
+    elif "prediction_round_num" in config:
+        raise ValueError("global排序不使用prediction_round_num")
     if dag_cache_path is not None:
         arguments.extend(("-dag-cache",dag_cache_path))
     if "adjust_coord_matrix_file" in config:
@@ -195,7 +198,7 @@ def build_temporal_unsz_arguments(config,data_dir,dag_cache_path):
     value_flow=config["value_flow"]
     label_flow=config["label_flow"]
     use_anchor_order=is_anchor_interpolation_stride_8_flow(value_flow) or label_flow=="anchor_interpolation_stride_8"
-    if not use_anchor_order and (value_flow in ("linear_interpolation","linear_interpolation_spatial_residual") or label_flow=="endpoint_agreement"):
+    if not use_anchor_order and (value_flow in ("linear_interpolation","linear_interpolation_spatial_residual") or label_flow=="linear_interpolation_spatial_residual"):
         time_order=linear_interpolation_time_order(coordinates)
         time_expression="{"+",".join(str(value) for value in time_order)+"}"
     else:
@@ -207,8 +210,8 @@ def build_temporal_unsz_arguments(config,data_dir,dag_cache_path):
         arguments.extend(("-value-flow",value_flow))
     if label_flow=="constant_extrapolation":
         arguments.extend(("-label-flow","constant_extrapolation"))
-    elif label_flow=="endpoint_agreement":
-        arguments.extend(("-label-flow","endpoint_agreement"))
+    elif label_flow=="linear_interpolation_spatial_residual":
+        arguments.extend(("-label-flow","linear_interpolation_spatial_residual"))
     elif label_flow=="anchor_interpolation_stride_8":
         arguments.extend(("-label-flow",label_flow))
     elif label_flow not in (None,"spatial"):

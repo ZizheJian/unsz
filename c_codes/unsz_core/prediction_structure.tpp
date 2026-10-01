@@ -27,14 +27,13 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::append_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances)
+    void param_c<T_coord,T_data>::write_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,T_calc *weights,array_view_c<T_coord> target_ref_squared_distances)
     {
         if(!target_ref_squared_distances.empty()&&target_ref_squared_distances.size()!=ref_ids.size())
             throw runtime_error("预计算距离数量与IDW参考点数量不一致");
-        uint64_t begin=weights.size();
-        weights.resize(begin+ref_ids.size(),0);
         if(ref_ids.empty())
             return;
+        fill(weights,weights+ref_ids.size(),0);
         T_calc weight_sum=0;
         for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
         {
@@ -45,28 +44,34 @@ namespace unsz
                 squared_distance=(T_calc)target_ref_squared_distances[ref_index];
             if(squared_distance==0)
             {
-                fill(weights.begin()+begin,weights.end(),0);
-                weights[begin+ref_index]=1;
+                weights[ref_index]=1;
                 return;
             }
             T_calc weight=pow(squared_distance,(T_calc)(-idw_power/2));
             if(!isfinite(weight))
             {
-                fill(weights.begin()+begin,weights.end(),0);
-                weights[begin+ref_index]=1;
+                weights[ref_index]=1;
                 return;
             }
-            weights[begin+ref_index]=weight;
+            weights[ref_index]=weight;
             weight_sum+=weight;
         }
         if(!(weight_sum>0)||!isfinite(weight_sum))
         {
-            fill(weights.begin()+begin,weights.end(),0);
-            weights[begin]=1;
+            fill(weights,weights+ref_ids.size(),0);
+            weights[0]=1;
             return;
         }
-        for(uint64_t weight_index=begin;weight_index<weights.size();weight_index++)
+        for(uint32_t weight_index=0;weight_index<ref_ids.size();weight_index++)
             weights[weight_index]/=weight_sum;
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::append_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances)
+    {
+        uint64_t begin=weights.size();
+        weights.resize(begin+ref_ids.size());
+        write_normalized_idw_prediction_weights(pred_id,ref_ids,ref_ids.empty()?nullptr:weights.data()+begin,target_ref_squared_distances);
     }
 
     template<typename T_coord,typename T_data>
@@ -100,10 +105,10 @@ namespace unsz
         append_binary(bytes,point_num);
         append_binary(bytes,dim);
         append_binary(bytes,prediction_round_num);
-        for (vector<int> &target_ids:round_target_ids)
+        for (vector<int> &target_ids:prediction_target_id_groups)
             append_binary(bytes,(uint32_t)target_ids.size());
         uint32_t prediction_id=0;
-        for (vector<int> &target_ids:round_target_ids)
+        for (vector<int> &target_ids:prediction_target_id_groups)
             for (int target_id:target_ids)
             {
                 if (prediction_id>=pred_target_ids.size() || pred_target_ids[prediction_id]!=target_id)
@@ -180,8 +185,8 @@ namespace unsz
         }
         if (target_num_sum!=point_num)
             throw runtime_error("DAG缓存文件中的目标数量与点数不一致");
-        round_target_ids.clear();
-        round_target_ids.resize(prediction_round_num);
+        prediction_target_id_groups.clear();
+        prediction_target_id_groups.resize(prediction_round_num);
         pred_target_ids.clear();
         pred_target_ids.reserve(point_num);
         pred_ref_ids.clear();
@@ -197,7 +202,7 @@ namespace unsz
         vector<uint8_t> available(point_num,0);
         for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
-            round_target_ids[round_id].reserve(round_target_num_vec[round_id]);
+            prediction_target_id_groups[round_id].reserve(round_target_num_vec[round_id]);
             for (uint32_t round_target_id=0;round_target_id<round_target_num_vec[round_id];round_target_id++)
             {
                 uint32_t target_id=read_binary<uint32_t>(cursor,end);
@@ -206,7 +211,7 @@ namespace unsz
                     throw runtime_error("DAG缓存文件包含越界或重复的目标编号");
                 if(ref_num>prediction_max_ref_num)
                     throw runtime_error("DAG缓存文件的单点参考点数量超过当前prediction_max_ref_num");
-                round_target_ids[round_id].push_back(target_id);
+                prediction_target_id_groups[round_id].push_back(target_id);
                 pred_target_ids.push_back((int)target_id);
                 for (uint32_t ref_index=0;ref_index<ref_num;ref_index++)
                 {
@@ -228,7 +233,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::prepare_pred_refs_structure()
+    void param_c<T_coord,T_data>::validate_pred_refs_structure() const
     {
         bool has_idw=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::idw;});
         bool has_rbf=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::rbf;});
@@ -247,17 +252,11 @@ namespace unsz
                         throw runtime_error("partition预测DAG包含跨partition参考点");
         if(!pred_ref_rbf_fallback_vec.empty()&&pred_ref_rbf_fallback_vec.size()!=point_num)
             throw runtime_error("RBF回退标记数量与点数不一致");
-        prediction_10_fast_begin=point_num;
-        if(prediction_max_ref_num==10)
-            for(uint32_t reverse_pred_ref_id=point_num;reverse_pred_ref_id>0;reverse_pred_ref_id--)
-            {
-                uint32_t pred_ref_id=reverse_pred_ref_id-1;
-                if(pred_ref_begin[pred_ref_id+1]-pred_ref_begin[pred_ref_id]!=10)
-                    break;
-                prediction_10_fast_begin=pred_ref_id;
-            }
-        if(has_idw)
-            printf("Pre-normalized IDW weights\n");
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::prepare_pred_refs_structure()
+    {
         partition_pred_ref_ids_vec.clear();
         if(!partition_point_ids_vec.empty())
         {

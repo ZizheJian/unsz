@@ -57,6 +57,14 @@ namespace unsz
             throw runtime_error("必须显式设置正数ordering_score_min_ref_num");
         if(ordering_score_min_ref_num>ordering_score_max_ref_num)
             throw runtime_error("ordering_score_min_ref_num不能大于ordering_score_max_ref_num");
+        if(ordering_scope=="global"&&got_prediction_round_num)
+            throw runtime_error("global排序不使用-prediction-round-num");
+        if(ordering_scope=="local"&&!got_prediction_round_num)
+            throw runtime_error("local排序必须显式设置-prediction-round-num");
+        if(ordering_scope=="global")
+            prediction_round_num=1;
+        if(ordering_scope=="global"&&eb_schedule.find("round")!=string::npos)
+            throw runtime_error("global排序不能使用逐轮EB序列");
         if(prediction_min_ref_num<2&&any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec==point_set_codec_e::rbf;}))
             throw runtime_error("RBF的prediction_min_ref_num不能小于2");
     }

@@ -96,13 +96,13 @@ namespace unsz
                 else if(label_uses_anchor_flow&&(regular_anchor||!can_interpolate))
                     framework.label_mode=time_dimension_mode_e::constant_extrapolation;
                 else if(label_uses_anchor_flow)
-                    framework.label_mode=time_dimension_mode_e::endpoint_agreement;
+                    framework.label_mode=time_dimension_mode_e::label_linear_interpolation_spatial_residual;
                 else if(label_flow=="none")
                     framework.label_mode=time_dimension_mode_e::spatial;
                 else if(label_flow=="constant_extrapolation")
                     framework.label_mode=time_dimension_mode_e::constant_extrapolation;
-                else if(label_flow=="endpoint_agreement")
-                    framework.label_mode=time_dimension_mode_e::endpoint_agreement;
+                else if(label_flow=="linear_interpolation_spatial_residual")
+                    framework.label_mode=time_dimension_mode_e::label_linear_interpolation_spatial_residual;
                 else
                     throw runtime_error("未知的标签时间预测方式："+label_flow);
             }
@@ -118,15 +118,4 @@ namespace unsz
         return framework;
     }
 
-    template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::advance_time_prediction_buffers()
-    {
-        const prediction_framework_c &framework=current_prediction_framework;
-        bool first_time_anchor=uses_anchor_interpolation_stride_8_flow()&&current_time_step==0;
-        if(framework.value_mode==time_dimension_mode_e::constant_extrapolation || framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||first_time_anchor)
-            previous_time_decompressed_data.swap(current_decompressed_data);
-        bool use_causal_time_label=framework.label_mode==time_dimension_mode_e::constant_extrapolation;
-        if(framework.value_mode==time_dimension_mode_e::constant_extrapolation || framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual || use_causal_time_label||first_time_anchor)
-            previous_time_point_set_id_vec.swap(point_set_id_vec);
-    }
 }

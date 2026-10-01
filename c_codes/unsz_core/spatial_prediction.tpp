@@ -200,7 +200,7 @@ namespace unsz
         if(!value_requires_prediction)
         {
             uint32_t predicted_label;
-            if(pred_ref_id>=prediction_10_fast_begin)
+            if(ref_ids.size()==10)
                 predicted_label=predict_label_10(pred_ref_begin[pred_ref_id],pred_ref_prediction_weights,label_vec);
             else
                 predicted_label=predict_label(pred_ref_id,pred_ref_prediction_weights,label_vec);

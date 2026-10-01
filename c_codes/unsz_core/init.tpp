@@ -7,7 +7,7 @@ namespace unsz
     {
         if(flow=="anchor_interpolation_stride_8"||flow=="anchor_interpolation_stride_8_spatial_residual")
             return time_step_order_e::anchor_stride_8;
-        if(flow=="endpoint_agreement"||flow=="linear_interpolation"||flow=="linear_interpolation_spatial_residual")
+        if(flow=="linear_interpolation"||flow=="linear_interpolation_spatial_residual")
             return time_step_order_e::interpolation;
         return time_step_order_e::chronological;
     }
@@ -181,6 +181,9 @@ namespace unsz
             prepare_time_step_order(value_order);
         else
             prepare_time_step_order(label_order==value_order?label_order:time_step_order_e::chronological);
+        reconstructed_time_step_vec.reserve(time_step_vec.size());
+        reconstructed_time_data_vec.reserve(time_step_vec.size());
+        reconstructed_time_point_set_id_vec.reserve(time_step_vec.size());
         if (dim==0)
             throw runtime_error("坐标维数不能为0");
         FILE *f_coord=fopen(coord_path.c_str(),"rb");

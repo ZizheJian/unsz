@@ -130,10 +130,6 @@ namespace unsz
                     throw runtime_error("-ordering-score-min-ref-num后面缺少参数值");
                 param.ordering_score_min_ref_num=parse_positive_uint32(argv[++arg_id],"-ordering-score-min-ref-num");
             }
-            else if(strcmp(argv[arg_id],"-kd-iterative-query-experimental")==0)
-                param.use_kd_iterative_query_experimental=true;
-            else if(strcmp(argv[arg_id],"-kd-scalar-one-reference-query-experimental")==0)
-                param.use_kd_scalar_one_reference_query_experimental=true;
             else if(strcmp(argv[arg_id],"-multihead-execution-head-num-experimental")==0)
             {
                 if(arg_id+1>=argc)
@@ -145,6 +141,7 @@ namespace unsz
                 if(arg_id+1>=argc)
                     throw runtime_error("-prediction-round-num后面缺少参数值");
                 param.prediction_round_num=parse_positive_uint32(argv[++arg_id],"-prediction-round-num");
+                param.got_prediction_round_num=true;
                 if(param.prediction_round_num>63)
                     throw runtime_error("-prediction-round-num必须在[1,63]内");
             }
@@ -272,7 +269,7 @@ namespace unsz
                 if (arg_id+1>=argc)
                     throw runtime_error("-label-flow后面缺少模式");
                 param.label_flow=argv[++arg_id];
-                if(param.label_flow!="constant_extrapolation"&&param.label_flow!="endpoint_agreement"&&param.label_flow!="anchor_interpolation_stride_8")
+                if(param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
                     throw runtime_error("未知的label flow："+param.label_flow);
             }
             else if (strcmp(argv[arg_id],"-predictor")==0)
@@ -318,7 +315,7 @@ namespace unsz
                     throw runtime_error("-eb-schedule后面需要模式和起始倍率");
                 param.eb_schedule=argv[++arg_id];
                 param.eb_schedule_start_ratio=parse_positive_double(argv[++arg_id],"-eb-schedule");
-                if(param.eb_schedule!="none" && param.eb_schedule!="round" && param.eb_schedule!="point" && param.eb_schedule!="inverse_rank_log2" && param.eb_schedule!="round_point" && param.eb_schedule!="round_ratio" && param.eb_schedule!="round_point_ratio" && param.eb_schedule!="round_point_ratio_dag" && param.eb_schedule!="round_point_ratio_dag_direct" && param.eb_schedule!="round_point_ratio_dag_variance_direct")
+                if(param.eb_schedule!="none"&&param.eb_schedule!="round"&&param.eb_schedule!="point"&&param.eb_schedule!="inverse_rank_log2"&&param.eb_schedule!="round_point"&&param.eb_schedule!="round_ratio"&&param.eb_schedule!="round_point_ratio")
                     throw runtime_error("未知的EB序列模式："+param.eb_schedule);
                 if (param.eb_schedule_start_ratio>1)
                     throw runtime_error("-eb-schedule的起始倍率不能大于1");

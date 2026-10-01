@@ -44,7 +44,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::compress_two_point_sets()
+    void param_c<T_coord,T_data>::dispatch_two_point_set_compression_by_mode()
     {
         if(point_set_config_vec.size()!=2)
             throw runtime_error("两点集压缩要求field恰好配置两个点集");
@@ -56,37 +56,43 @@ namespace unsz
                 constexpr time_dimension_mode_e label_mode=decltype(label_mode_constant)::value;
                 switch(framework.value_mode)
                 {
-                    case time_dimension_mode_e::spatial:return compress_two_point_sets_fixed<label_mode,time_dimension_mode_e::spatial,label_value_execution_e::staged>();
-                    case time_dimension_mode_e::constant_extrapolation:return compress_two_point_sets_fixed<label_mode,time_dimension_mode_e::constant_extrapolation,label_value_execution_e::staged>();
-                    case time_dimension_mode_e::linear_interpolation:return compress_two_point_sets_fixed<label_mode,time_dimension_mode_e::linear_interpolation,label_value_execution_e::staged>();
-                    case time_dimension_mode_e::constant_extrapolation_spatial_residual:return compress_two_point_sets_fixed<label_mode,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::staged>();
-                    case time_dimension_mode_e::linear_interpolation_spatial_residual:return compress_two_point_sets_fixed<label_mode,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::staged>();
-                    default:throw runtime_error("分阶段两点集压缩不支持当前数值流程");
+                    case time_dimension_mode_e::spatial:
+                        return dispatch_two_point_set_compression_by_predictor<label_mode,time_dimension_mode_e::spatial,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::constant_extrapolation:
+                        return dispatch_two_point_set_compression_by_predictor<label_mode,time_dimension_mode_e::constant_extrapolation,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::linear_interpolation:
+                        return dispatch_two_point_set_compression_by_predictor<label_mode,time_dimension_mode_e::linear_interpolation,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::constant_extrapolation_spatial_residual:
+                        return dispatch_two_point_set_compression_by_predictor<label_mode,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::linear_interpolation_spatial_residual:
+                        return dispatch_two_point_set_compression_by_predictor<label_mode,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::staged>();
+                    default:
+                        throw runtime_error("分阶段两点集压缩不支持当前数值流程");
                 }
             };
             if(framework.label_mode==time_dimension_mode_e::spatial)
                 return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::spatial>());
             if(framework.label_mode==time_dimension_mode_e::constant_extrapolation)
                 return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::constant_extrapolation>());
-            if(framework.label_mode==time_dimension_mode_e::endpoint_agreement)
-                return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::endpoint_agreement>());
+            if(framework.label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual)
+                return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::label_linear_interpolation_spatial_residual>());
         }
         else if(framework.execution==label_value_execution_e::fused)
         {
             if(framework.label_mode==time_dimension_mode_e::spatial&&framework.value_mode==time_dimension_mode_e::spatial)
-                return compress_two_point_sets_fixed<time_dimension_mode_e::spatial,time_dimension_mode_e::spatial,label_value_execution_e::fused>();
+                return dispatch_two_point_set_compression_by_predictor<time_dimension_mode_e::spatial,time_dimension_mode_e::spatial,label_value_execution_e::fused>();
             if(framework.label_mode==time_dimension_mode_e::constant_extrapolation&&framework.value_mode==time_dimension_mode_e::spatial)
-                return compress_two_point_sets_fixed<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::spatial,label_value_execution_e::fused>();
+                return dispatch_two_point_set_compression_by_predictor<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::spatial,label_value_execution_e::fused>();
             if(framework.label_mode==time_dimension_mode_e::constant_extrapolation&&framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
-                return compress_two_point_sets_fixed<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::fused>();
-            if(framework.label_mode==time_dimension_mode_e::endpoint_agreement&&framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-                return compress_two_point_sets_fixed<time_dimension_mode_e::endpoint_agreement,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::fused>();
+                return dispatch_two_point_set_compression_by_predictor<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::fused>();
+            if(framework.label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual&&framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
+                return dispatch_two_point_set_compression_by_predictor<time_dimension_mode_e::label_linear_interpolation_spatial_residual,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::fused>();
         }
         throw runtime_error("两点集压缩尚未实现当前标签、数值和执行方式的组合");
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::compress_single_point_set()
+    void param_c<T_coord,T_data>::dispatch_single_point_set_compression()
     {
         if(point_set_config_vec.size()!=1)
             throw runtime_error("单点集压缩要求field恰好配置一个点集");
@@ -96,9 +102,9 @@ namespace unsz
         {
             constexpr time_dimension_mode_e mode=decltype(mode_constant)::value;
             if(predictor==point_set_codec_e::idw)
-                return compress_point_sets<false,mode,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::idw>();
+                return compress_current_file<false,mode,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::idw>();
             if(predictor==point_set_codec_e::rbf)
-                return compress_point_sets<false,mode,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf>();
+                return compress_current_file<false,mode,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,point_set_codec_e::rbf>();
             throw runtime_error("单点集压缩只支持IDW或RBF空间预测器");
         };
         if(framework.value_mode==time_dimension_mode_e::spatial)
@@ -116,7 +122,7 @@ namespace unsz
 
     template<typename T_coord,typename T_data>
     template<time_dimension_mode_e label_mode,time_dimension_mode_e value_mode,label_value_execution_e execution>
-    void param_c<T_coord,T_data>::compress_two_point_sets_fixed()
+    void param_c<T_coord,T_data>::dispatch_two_point_set_compression_by_predictor()
     {
         point_set_codec_e predictor=point_set_codec_e::constant;
         for(const point_set_config_c &config:point_set_config_vec)
@@ -127,15 +133,15 @@ namespace unsz
                 predictor=config.codec;
             }
         if(predictor==point_set_codec_e::idw)
-            return compress_point_sets<true,value_mode,label_mode,execution,point_set_codec_e::idw>();
+            return compress_current_file<true,value_mode,label_mode,execution,point_set_codec_e::idw>();
         if(predictor==point_set_codec_e::rbf)
-            return compress_point_sets<true,value_mode,label_mode,execution,point_set_codec_e::rbf>();
+            return compress_current_file<true,value_mode,label_mode,execution,point_set_codec_e::rbf>();
         throw runtime_error("两点集压缩至少需要一个使用IDW或RBF的非常量点集");
     }
 
     template<typename T_coord,typename T_data>
     template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
-    void param_c<T_coord,T_data>::compress_point_sets()
+    void param_c<T_coord,T_data>::compress_current_file()
     {
         constexpr bool use_normalized_idw_weights=fixed_predictor==point_set_codec_e::idw;
         if constexpr(two_point_sets)
@@ -148,7 +154,7 @@ namespace unsz
             throw runtime_error("尚未配置点集");
         if(point_set_config_vec.size()!=point_set_rule_vec.size()+1)
             throw runtime_error("点集配置数量必须等于有序分类规则数量加1");
-        if(eb_schedule!="none" && eb_schedule!="round" && eb_schedule!="point" && eb_schedule!="inverse_rank_log2" && eb_schedule!="round_point" && eb_schedule!="round_ratio" && eb_schedule!="round_point_ratio" && eb_schedule!="round_point_ratio_dag" && eb_schedule!="round_point_ratio_dag_direct" && eb_schedule!="round_point_ratio_dag_variance_direct")
+        if(eb_schedule!="none"&&eb_schedule!="round"&&eb_schedule!="point"&&eb_schedule!="inverse_rank_log2"&&eb_schedule!="round_point"&&eb_schedule!="round_ratio"&&eb_schedule!="round_point_ratio")
             throw runtime_error("未知的EB序列模式："+eb_schedule);
         if (!(eb_schedule_start_ratio>0) || eb_schedule_start_ratio>1)
             throw runtime_error("EB序列起始倍率必须在(0,1]内");
@@ -196,13 +202,26 @@ namespace unsz
             double threshold=rule.value;
             switch(rule.operator_type)
             {
-                case point_set_rule_operator_e::less:classify_two_point_sets([threshold](double value){return value<threshold;});break;
-                case point_set_rule_operator_e::less_equal:classify_two_point_sets([threshold](double value){return value<=threshold;});break;
-                case point_set_rule_operator_e::greater:classify_two_point_sets([threshold](double value){return value>threshold;});break;
-                case point_set_rule_operator_e::greater_equal:classify_two_point_sets([threshold](double value){return value>=threshold;});break;
-                case point_set_rule_operator_e::equal:classify_two_point_sets([threshold](double value){return value==threshold;});break;
-                case point_set_rule_operator_e::not_equal:classify_two_point_sets([threshold](double value){return value!=threshold;});break;
-                default:throw runtime_error("未知的点集分类操作符");
+                case point_set_rule_operator_e::less:
+                    classify_two_point_sets([threshold](double value){return value<threshold;});
+                    break;
+                case point_set_rule_operator_e::less_equal:
+                    classify_two_point_sets([threshold](double value){return value<=threshold;});
+                    break;
+                case point_set_rule_operator_e::greater:
+                    classify_two_point_sets([threshold](double value){return value>threshold;});
+                    break;
+                case point_set_rule_operator_e::greater_equal:
+                    classify_two_point_sets([threshold](double value){return value>=threshold;});
+                    break;
+                case point_set_rule_operator_e::equal:
+                    classify_two_point_sets([threshold](double value){return value==threshold;});
+                    break;
+                case point_set_rule_operator_e::not_equal:
+                    classify_two_point_sets([threshold](double value){return value!=threshold;});
+                    break;
+                default:
+                    throw runtime_error("未知的点集分类操作符");
             }
         }
         else
@@ -279,19 +298,15 @@ namespace unsz
         auto predict_configured_label=[&](uint32_t pred_ref_id,const vector<uint8_t> &label_vec)
         {
             static_assert(fixed_predictor==point_set_codec_e::idw||fixed_predictor==point_set_codec_e::rbf,"固定标签预测器必须是IDW或RBF");
-            if(pred_ref_id>=prediction_10_fast_begin)
+            if(has_ten_prediction_references(pred_ref_id))
                 return predict_label_10(pred_ref_begin[pred_ref_id],pred_ref_prediction_weights,label_vec);
             return predict_label(pred_ref_id,pred_ref_prediction_weights,label_vec);
         };
         constexpr bool use_fused_two_point_set_prediction=two_point_sets&&fixed_execution==label_value_execution_e::fused;
-        constexpr bool use_selected_fused_temporal_flow=use_fused_two_point_set_prediction&&((fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)||(fixed_label_mode==time_dimension_mode_e::endpoint_agreement&&fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual));
-        bool data_dependent_eb_schedule=eb_schedule=="round_point_ratio_dag" || eb_schedule=="round_point_ratio_dag_direct" || eb_schedule=="round_point_ratio_dag_variance_direct";
-        if(data_dependent_eb_schedule || cached_pred_eb_multiplier_vec.size()!=point_num)
-        {
-            cached_pred_eb_multiplier_vec=generate_pred_eb_multiplier_vec(true);
-            cached_pred_eb_inverse_multiplier_vec.clear();
-        }
-        if(use_fused_two_point_set_prediction && !data_dependent_eb_schedule && cached_pred_eb_inverse_multiplier_vec.size()!=point_num)
+        constexpr bool use_selected_fused_temporal_flow=use_fused_two_point_set_prediction&&((fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)||(fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual&&fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual));
+        if(cached_pred_eb_multiplier_vec.size()!=point_num)
+            throw runtime_error("预处理没有生成完整的EB倍率");
+        if(use_fused_two_point_set_prediction&&cached_pred_eb_inverse_multiplier_vec.size()!=point_num)
         {
             cached_pred_eb_inverse_multiplier_vec.resize(point_num);
             for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
@@ -319,7 +334,7 @@ namespace unsz
         bool use_linear_previous_label=use_linear_previous_label_experimental && use_fused_two_point_set_prediction && use_previous_time_label;
         bool use_causal_time_label=prediction_framework.label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_point_set_id_vec.size()==point_num;
         bool use_original_order_constant_label_phase=use_selected_fused_temporal_flow&&prediction_framework.label_mode==time_dimension_mode_e::constant_extrapolation&&value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual&&use_previous_time_label;
-        constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::endpoint_agreement;
+        constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
         if(use_fused_two_point_set_prediction)
         {
             if(point_set_num!=2)
@@ -347,7 +362,7 @@ namespace unsz
                 if(point_set_codec_vec[point_set_id]!=point_set_codec_e::constant)
                     point_set_qb_vec[point_set_id].reserve(point_set_point_num_vec[point_set_id]);
         vector<double> point_set_inverse_double_abs_eb_vec(point_set_num,0);
-        if(use_fused_two_point_set_prediction && !data_dependent_eb_schedule)
+        if(use_fused_two_point_set_prediction)
             for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
                 if(point_set_codec_vec[point_set_id]!=point_set_codec_e::constant)
                     point_set_inverse_double_abs_eb_vec[point_set_id]=0.5/point_set_abs_eb_vec[point_set_id];
@@ -367,7 +382,7 @@ namespace unsz
             {
                 uint32_t pred_ref_id=0;
                 for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
-                    for(uint32_t round_target_id=0;round_target_id<round_target_ids[round_id].size();round_target_id++,pred_ref_id++)
+                    for(uint32_t round_target_id=0;round_target_id<prediction_target_id_groups[round_id].size();round_target_id++,pred_ref_id++)
                     {
                     int pred_id=pred_target_ids[pred_ref_id];
                     uint32_t actual_point_set_id=point_set_id_vec[pred_id];
@@ -453,7 +468,7 @@ namespace unsz
                 uint32_t pred_ref_id=0;
                 uint64_t ref_begin=pred_ref_begin[0];
                 for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
-                    for(uint32_t round_target_id=0;round_target_id<round_target_ids[round_id].size();round_target_id++,pred_ref_id++)
+                    for(uint32_t round_target_id=0;round_target_id<prediction_target_id_groups[round_id].size();round_target_id++,pred_ref_id++)
                     {
                         int pred_id=pred_target_ids[pred_ref_id];
                         uint32_t actual_point_set_id=point_set_id_vec[pred_id];
@@ -486,11 +501,7 @@ namespace unsz
                             if(!use_time_prediction)
                                 pred=predict_configured_value(pred_ref_id,pred_id,ref_ids,ref_weights,actual_point_set_id,current_decompressed_data);
                             double point_abs_eb=point_set_abs_eb_vec[actual_point_set_id]*pred_eb_multiplier_vec[pred_ref_id];
-                            double qb_double;
-                            if(data_dependent_eb_schedule)
-                                qb_double=round(((double)current_data[pred_id]-pred)/(2*point_abs_eb));
-                            else
-                                qb_double=round(((double)current_data[pred_id]-pred)*point_set_inverse_double_abs_eb_vec[actual_point_set_id]*pred_eb_inverse_multiplier_vec[pred_ref_id]);
+                            double qb_double=round(((double)current_data[pred_id]-pred)*point_set_inverse_double_abs_eb_vec[actual_point_set_id]*pred_eb_inverse_multiplier_vec[pred_ref_id]);
                             if(!isfinite(qb_double)||qb_double<numeric_limits<int32_t>::min()||qb_double>numeric_limits<int32_t>::max())
                                 throw runtime_error("量化索引超出int32_t范围，请增大误差上限");
                             int32_t qb=(int32_t)qb_double;
@@ -526,7 +537,7 @@ namespace unsz
                 uint32_t pred_ref_id=0;
                 uint64_t ref_begin=pred_ref_begin[0];
                 for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
-                    for(uint32_t round_target_id=0;round_target_id<round_target_ids[round_id].size();round_target_id++,pred_ref_id++)
+                    for(uint32_t round_target_id=0;round_target_id<prediction_target_id_groups[round_id].size();round_target_id++,pred_ref_id++)
                     {
                         int pred_id=pred_target_ids[pred_ref_id];
                         uint32_t actual_point_set_id=point_set_id_vec[pred_id];
@@ -581,11 +592,7 @@ namespace unsz
                         {
                             double point_abs_eb=point_set_abs_eb_vec[actual_point_set_id]*pred_eb_multiplier_vec[pred_ref_id];
                             T_data pred=predicted_value;
-                            double qb_double;
-                            if(data_dependent_eb_schedule)
-                                qb_double=round(((double)current_data[pred_id]-pred)/(2*point_abs_eb));
-                            else
-                                qb_double=round(((double)current_data[pred_id]-pred)*point_set_inverse_double_abs_eb_vec[actual_point_set_id]*pred_eb_inverse_multiplier_vec[pred_ref_id]);
+                            double qb_double=round(((double)current_data[pred_id]-pred)*point_set_inverse_double_abs_eb_vec[actual_point_set_id]*pred_eb_inverse_multiplier_vec[pred_ref_id]);
                             if(!isfinite(qb_double) || qb_double<numeric_limits<int32_t>::min() || qb_double>numeric_limits<int32_t>::max())
                                 throw runtime_error("量化索引超出int32_t范围，请增大误差上限");
                             int32_t qb=(int32_t)qb_double;
@@ -660,7 +667,7 @@ namespace unsz
         uint64_t cross_time_prediction_num=0;
         bool use_single_point_set_rbf_fast_path=!two_point_sets&&point_set_codec_vec[0]==point_set_codec_e::rbf&&value_mode==time_dimension_mode_e::spatial&&!use_partition_stream_format&&!use_partition_adaptive_predictor_experimental&&pred_ref_prediction_weights.size()==pred_ref_ids.size();
         constexpr bool supports_two_point_set_constant_residual_rbf_fast_path=two_point_sets&&fixed_execution==label_value_execution_e::fused&&fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual&&fixed_predictor==point_set_codec_e::rbf;
-        bool use_two_point_set_constant_residual_rbf_fast_path=supports_two_point_set_constant_residual_rbf_fast_path&&use_original_order_constant_label_phase&&point_set_codec_vec.size()==2&&point_set_codec_vec[0]==point_set_codec_e::rbf&&point_set_codec_vec[1]==point_set_codec_e::constant&&previous_time_decompressed_data.size()==point_num&&current_time_spatial_residual_data.size()==point_num&&!use_partition_stream_format&&!use_partition_adaptive_predictor_experimental&&!data_dependent_eb_schedule&&pred_ref_prediction_weights.size()==pred_ref_ids.size();
+        bool use_two_point_set_constant_residual_rbf_fast_path=supports_two_point_set_constant_residual_rbf_fast_path&&use_original_order_constant_label_phase&&point_set_codec_vec.size()==2&&point_set_codec_vec[0]==point_set_codec_e::rbf&&point_set_codec_vec[1]==point_set_codec_e::constant&&previous_time_decompressed_data.size()==point_num&&current_time_spatial_residual_data.size()==point_num&&!use_partition_stream_format&&!use_partition_adaptive_predictor_experimental&&pred_ref_prediction_weights.size()==pred_ref_ids.size();
         bool use_multihead_execution=!multihead_execution_pred_ref_ids.empty();
         if(use_multihead_execution&&!use_single_point_set_rbf_fast_path)
             throw runtime_error("多头执行要求单点集纯空间RBF快速路径");
@@ -733,20 +740,18 @@ namespace unsz
             {
                 for(uint32_t pred_ref_id:multihead_execution_pred_ref_ids)
                 {
-                    if(pred_ref_id<prediction_10_fast_begin)
-                        encode_prediction(pred_ref_id,predict_value_one_point_set(pred_ref_id,pred_ref_prediction_weights,current_decompressed_data));
-                    else
+                    if(has_ten_prediction_references(pred_ref_id))
                         encode_prediction(pred_ref_id,predict_value_one_point_set_10(pred_ref_begin[pred_ref_id],pred_ref_prediction_weights,current_decompressed_data));
+                    else
+                        encode_prediction(pred_ref_id,predict_value_one_point_set(pred_ref_id,pred_ref_prediction_weights,current_decompressed_data));
                 }
             }
             else
-            {
-                for(uint32_t pred_ref_id=0;pred_ref_id<prediction_10_fast_begin;pred_ref_id++)
-                    encode_prediction(pred_ref_id,predict_value_one_point_set(pred_ref_id,pred_ref_prediction_weights,current_decompressed_data));
-                uint64_t ref_begin=pred_ref_begin[prediction_10_fast_begin];
-                for(uint32_t pred_ref_id=prediction_10_fast_begin;pred_ref_id<point_num;pred_ref_id++,ref_begin+=10)
-                    encode_prediction(pred_ref_id,predict_value_one_point_set_10(ref_begin,pred_ref_prediction_weights,current_decompressed_data));
-            }
+                for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
+                    if(has_ten_prediction_references(pred_ref_id))
+                        encode_prediction(pred_ref_id,predict_value_one_point_set_10(pred_ref_begin[pred_ref_id],pred_ref_prediction_weights,current_decompressed_data));
+                    else
+                        encode_prediction(pred_ref_id,predict_value_one_point_set(pred_ref_id,pred_ref_prediction_weights,current_decompressed_data));
             point_set_qb_num_vec[0]=point_num;
             pred_ref_index=point_num;
         }
@@ -852,7 +857,7 @@ namespace unsz
         {
         for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
-            for (uint32_t i=0;i<round_target_ids[round_id].size();i++)
+            for (uint32_t i=0;i<prediction_target_id_groups[round_id].size();i++)
             {
                 uint32_t current_pred_ref_id=pred_ref_index++;
                 auto ref_ids=get_pred_ref_ids(current_pred_ref_id);

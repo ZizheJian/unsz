@@ -28,7 +28,6 @@
         "rbf_nugget": 1e-06
       },
       "ordering_scope": "global",
-      "prediction_round_num": 1,
       "prediction_min_ref_num": 10,
       "prediction_max_ref_num": 10,
       "ordering_candidate_num": 16,

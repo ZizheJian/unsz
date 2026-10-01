@@ -114,21 +114,21 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     param.load_or_generate_pred_refs_structure();
     if(param.rbf_parameter_specified||any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf;}))
         param.prepare_rbf_prediction_weights();
-    bool data_dependent_eb_schedule=param.eb_schedule=="round_point_ratio_dag" || param.eb_schedule=="round_point_ratio_dag_direct" || param.eb_schedule=="round_point_ratio_dag_variance_direct";
-    if(!data_dependent_eb_schedule && param.cached_pred_eb_multiplier_vec.size()!=param.point_num)
+    if(param.cached_pred_eb_multiplier_vec.size()!=param.point_num)
         param.cached_pred_eb_multiplier_vec=param.generate_pred_eb_multiplier_vec();
     if (param.print_prediction_dag_statistics)
         param.print_prediction_dag_statistics_result();
     double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time;
     printf("preprocessing time excluding adjust coord= %f s\n",preprocessing_time);
+    param.validate_pred_refs_structure();
     if(joint_spatiotemporal)
     {
         using param_type=unsz::param_c<T_coord,float>;
         auto codec=param.point_set_config_vec[0].codec;
         if(codec==unsz::point_set_codec_e::idw)
-            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_point_sets<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::idw>);
+            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_current_file<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::idw>);
         else if(codec==unsz::point_set_codec_e::rbf)
-            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_point_sets<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::rbf>);
+            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_current_file<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::rbf>);
         else
             throw runtime_error("单点集联合时空解压只支持IDW或RBF预测器");
         return;
@@ -137,7 +137,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         param.prepare_staged_two_point_set_decompression();
     uint64_t total_point_num=0;
     uint32_t validated_file_num=0;
-    double total_squared_error=0,total_decompression_time=param.staged_label_decompression_time,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
+    double total_squared_error=0,total_decompression_time=param.staged_label_decompression_time,total_time_prediction_state_update_time=0,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
     uint32_t max_error_point_id=0,max_error_point_set_id=0;
     string max_error_data_path;
     float total_min_data=numeric_limits<float>::infinity(),total_max_data=-numeric_limits<float>::infinity();
@@ -146,9 +146,9 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         throw runtime_error("解压只支持一个或两个点集");
     void(param_type::*decompress_field)();
     if(param.point_set_config_vec.size()==1)
-        decompress_field=&param_type::decompress_single_point_set;
+        decompress_field=&param_type::dispatch_single_point_set_decompression;
     else
-        decompress_field=&param_type::decompress_two_point_sets;
+        decompress_field=&param_type::dispatch_two_point_set_decompression_by_mode;
     for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
         param.current_time_step=param.time_step_vec[file_id];
@@ -158,10 +158,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
 
         auto decompression_start_time=chrono::steady_clock::now();
         (param.*decompress_field)();
-        param.save_time_reconstruction();
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
-        total_decompression_time+=decompression_time;
-        printf("file decompression time= %f s\n",decompression_time);
         FILE *f_decompressed=fopen(decompressed_path.c_str(),"wb");
         if (!f_decompressed)
             throw runtime_error("无法创建解压文件："+decompressed_path);
@@ -178,7 +175,14 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         if (!f_original)
         {
             printf("Decompressed %s（原始文件不存在，跳过误差验证）\n",decompressed_path.c_str());
-            param.advance_time_prediction_buffers();
+            auto time_state_update_start=chrono::steady_clock::now();
+            param.update_time_prediction_state();
+            double time_state_update_time=chrono::duration<double>(chrono::steady_clock::now()-time_state_update_start).count();
+            total_time_prediction_state_update_time+=time_state_update_time;
+            decompression_time+=time_state_update_time;
+            total_decompression_time+=decompression_time;
+            printf("time prediction state update time= %.9f s\n",time_state_update_time);
+            printf("file decompression time= %f s\n",decompression_time);
             continue;
         }
         if (fread(original_data.data(),sizeof(float),param.point_num,f_original)!=param.point_num)
@@ -230,11 +234,19 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         total_squared_error+=squared_error;
         total_point_num+=param.point_num;
         validated_file_num++;
-        param.advance_time_prediction_buffers();
+        auto time_state_update_start=chrono::steady_clock::now();
+        param.update_time_prediction_state();
+        double time_state_update_time=chrono::duration<double>(chrono::steady_clock::now()-time_state_update_start).count();
+        total_time_prediction_state_update_time+=time_state_update_time;
+        decompression_time+=time_state_update_time;
+        total_decompression_time+=decompression_time;
+        printf("time prediction state update time= %.9f s\n",time_state_update_time);
+        printf("file decompression time= %f s\n",decompression_time);
     }
     printf("全部文件最大误差/用户误差上限= %.9f\n",max_error_ratio);
     if (max_error_ratio>1.01)
         throw runtime_error("全部文件解压完成后误差检查失败：文件="+max_error_data_path+"，点="+to_string(max_error_point_id)+"，点集="+to_string(max_error_point_set_id)+"，误差="+to_string(max_error)+"，绝对误差上限="+to_string(max_error_abs_eb)+"，误差/上限="+to_string(max_error_ratio));
+    printf("total time prediction state update time= %.9f s\n",total_time_prediction_state_update_time);
     printf("total decompression time= %f s\n",total_decompression_time);
     if (validated_file_num>0)
     {
@@ -306,15 +318,12 @@ int decompress_main(int argc,char **argv)
             param.ordering_score_max_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-ordering-score-min-ref-num")
             param.ordering_score_min_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-kd-iterative-query-experimental")
-            param.use_kd_iterative_query_experimental=true;
-        else if(option=="-kd-scalar-one-reference-query-experimental")
-            param.use_kd_scalar_one_reference_query_experimental=true;
         else if(option=="-multihead-execution-head-num-experimental")
             param.multihead_execution_head_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-prediction-round-num")
         {
             param.prediction_round_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+            param.got_prediction_round_num=true;
             if(param.prediction_round_num>63)
                 throw runtime_error("-prediction-round-num必须在[1,63]内");
         }
@@ -391,7 +400,7 @@ int decompress_main(int argc,char **argv)
         else if (option=="-label-flow")
         {
             param.label_flow=read_option_value(argc,argv,arg_id,option);
-            if(param.label_flow!="constant_extrapolation"&&param.label_flow!="endpoint_agreement"&&param.label_flow!="anchor_interpolation_stride_8")
+            if(param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
                 throw runtime_error("未知的label flow："+param.label_flow);
         }
         else if (option=="-adjust-coord-matrix-file")
@@ -418,7 +427,7 @@ int decompress_main(int argc,char **argv)
         {
             param.eb_schedule=read_option_value(argc,argv,arg_id,option);
             param.eb_schedule_start_ratio=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-            if(param.eb_schedule!="none" && param.eb_schedule!="round" && param.eb_schedule!="point" && param.eb_schedule!="inverse_rank_log2" && param.eb_schedule!="round_point" && param.eb_schedule!="round_ratio" && param.eb_schedule!="round_point_ratio" && param.eb_schedule!="round_point_ratio_dag" && param.eb_schedule!="round_point_ratio_dag_direct" && param.eb_schedule!="round_point_ratio_dag_variance_direct")
+            if(param.eb_schedule!="none"&&param.eb_schedule!="round"&&param.eb_schedule!="point"&&param.eb_schedule!="inverse_rank_log2"&&param.eb_schedule!="round_point"&&param.eb_schedule!="round_ratio"&&param.eb_schedule!="round_point_ratio")
                 throw runtime_error("未知的EB序列模式："+param.eb_schedule);
             if (param.eb_schedule_start_ratio>1)
                 throw runtime_error("-eb-schedule的起始倍率不能大于1");

@@ -1,0 +1,7 @@
+task,field,point_num,trial,ordering_scope,br,psnr,preprocessing_time,sorting_time,reference_generation_time,compression_time
+e3sm_h4_mass_dst_srf,Mass_dst_srf,21600,0,local,0.786336,76.161029,0.626961,0.083066,0.020086,0.691403
+e3sm_h4_mass_dst_srf,Mass_dst_srf,21600,0,global,0.736887,76.18206,0.426114,0.074431,0.001215,0.682507
+tpost20_scalar,scalar,131072,0,local,0.954929,68.344742,1.201964,0.697437,0.381864,0.165983
+tpost20_scalar,scalar,131072,0,global,1.080997,66.977806,0.745221,0.619218,0.092816,0.149068
+ocean_temperature,temperature,235160,0,local,0.458667,67.525716,1.390354,0.978623,0.25149,0.31163
+ocean_temperature,temperature,235160,0,global,0.430347,67.271658,1.117829,0.895289,0.012496,0.307015

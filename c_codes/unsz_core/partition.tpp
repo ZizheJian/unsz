@@ -277,7 +277,7 @@ namespace unsz
         if(reference_exception)
             rethrow_exception(reference_exception);
 
-        round_target_ids.assign(prediction_round_num,vector<int>());
+        prediction_target_id_groups.assign(prediction_round_num,vector<int>());
         pred_target_ids.clear();
         pred_target_ids.reserve(point_num);
         pred_ref_ids.clear();
@@ -293,7 +293,7 @@ namespace unsz
             for (uint32_t partition_id=0;partition_id<partition_point_ids_vec.size();partition_id++)
                 for (uint32_t entry_id=0;entry_id<partition_round_entries[partition_id][round_id].size();entry_id++)
                 {
-                    round_target_ids[round_id].push_back(partition_round_entries[partition_id][round_id][entry_id].first);
+                    prediction_target_id_groups[round_id].push_back(partition_round_entries[partition_id][round_id][entry_id].first);
                     auto &entry=partition_round_entries[partition_id][round_id][entry_id];
                     auto &weights=partition_round_weights[partition_id][round_id][entry_id];
                     pred_target_ids.push_back(entry.first);

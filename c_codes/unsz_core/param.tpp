@@ -29,6 +29,7 @@ namespace unsz
         got_time_step=other.got_time_step;
         got_error_mode=other.got_error_mode;
         got_predictor=other.got_predictor;
+        got_prediction_round_num=other.got_prediction_round_num;
         point_set_rule_vec=other.point_set_rule_vec;
         point_set_config_vec=other.point_set_config_vec;
         check_original_data_files=other.check_original_data_files;
@@ -44,8 +45,6 @@ namespace unsz
         ordering_score_min_ref_num=other.ordering_score_min_ref_num;
         ordering_candidate_num=other.ordering_candidate_num;
         ordering_score_max_ref_num=other.ordering_score_max_ref_num;
-        use_kd_iterative_query_experimental=other.use_kd_iterative_query_experimental;
-        use_kd_scalar_one_reference_query_experimental=other.use_kd_scalar_one_reference_query_experimental;
         multihead_execution_head_num_experimental=other.multihead_execution_head_num_experimental;
         kd_tree_leaf_size=other.kd_tree_leaf_size;
         partition_size_experimental=other.partition_size_experimental;
@@ -78,7 +77,7 @@ namespace unsz
         coord_array_backup.data.assign(other.coord_array_backup.data.begin(),other.coord_array_backup.data.end());
         min_coord.assign(other.min_coord.begin(),other.min_coord.end());
         max_coord.assign(other.max_coord.begin(),other.max_coord.end());
-        round_target_ids=other.round_target_ids;
+        prediction_target_id_groups=other.prediction_target_id_groups;
         pred_target_ids=other.pred_target_ids;
         pred_ref_ids=other.pred_ref_ids;
         multihead_execution_pred_ref_ids=other.multihead_execution_pred_ref_ids;
@@ -86,7 +85,6 @@ namespace unsz
         pred_ref_begin=other.pred_ref_begin;
         pred_ref_prediction_weights.assign(other.pred_ref_prediction_weights.begin(),other.pred_ref_prediction_weights.end());
         pred_ref_rbf_fallback_vec=other.pred_ref_rbf_fallback_vec;
-        prediction_10_fast_begin=other.prediction_10_fast_begin;
         cached_pred_eb_multiplier_vec=other.cached_pred_eb_multiplier_vec;
         cached_pred_eb_inverse_multiplier_vec=other.cached_pred_eb_inverse_multiplier_vec;
         partition_point_ids_vec=other.partition_point_ids_vec;

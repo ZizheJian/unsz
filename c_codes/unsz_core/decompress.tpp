@@ -3,7 +3,7 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::decompress_single_point_set()
+    void param_c<T_coord,T_data>::dispatch_single_point_set_decompression()
     {
         if(point_set_config_vec.size()!=1)
             throw runtime_error("单点集解压要求field恰好配置一个点集");
@@ -15,7 +15,7 @@ namespace unsz
         {
             constexpr time_dimension_mode_e mode=decltype(mode_constant)::value;
             constexpr point_set_codec_e predictor=decltype(predictor_constant)::value;
-            decompress_point_sets<false,mode,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,predictor>();
+            decompress_current_file<false,mode,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,predictor>();
         };
         auto dispatch_predictor=[&](auto mode_constant)
         {
@@ -42,7 +42,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::decompress_two_point_sets()
+    void param_c<T_coord,T_data>::dispatch_two_point_set_decompression_by_mode()
     {
         if(point_set_config_vec.size()!=2)
             throw runtime_error("两点集解压要求field恰好配置两个点集");
@@ -54,38 +54,44 @@ namespace unsz
                 constexpr time_dimension_mode_e label_mode=decltype(label_mode_constant)::value;
                 switch(framework.value_mode)
                 {
-                    case time_dimension_mode_e::spatial:return decompress_two_point_sets_fixed<label_mode,time_dimension_mode_e::spatial,label_value_execution_e::staged>();
-                    case time_dimension_mode_e::constant_extrapolation:return decompress_two_point_sets_fixed<label_mode,time_dimension_mode_e::constant_extrapolation,label_value_execution_e::staged>();
-                    case time_dimension_mode_e::linear_interpolation:return decompress_two_point_sets_fixed<label_mode,time_dimension_mode_e::linear_interpolation,label_value_execution_e::staged>();
-                    case time_dimension_mode_e::constant_extrapolation_spatial_residual:return decompress_two_point_sets_fixed<label_mode,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::staged>();
-                    case time_dimension_mode_e::linear_interpolation_spatial_residual:return decompress_two_point_sets_fixed<label_mode,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::staged>();
-                    default:throw runtime_error("分阶段两点集解压不支持当前数值流程");
+                    case time_dimension_mode_e::spatial:
+                        return dispatch_two_point_set_decompression_by_predictor<label_mode,time_dimension_mode_e::spatial,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::constant_extrapolation:
+                        return dispatch_two_point_set_decompression_by_predictor<label_mode,time_dimension_mode_e::constant_extrapolation,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::linear_interpolation:
+                        return dispatch_two_point_set_decompression_by_predictor<label_mode,time_dimension_mode_e::linear_interpolation,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::constant_extrapolation_spatial_residual:
+                        return dispatch_two_point_set_decompression_by_predictor<label_mode,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::staged>();
+                    case time_dimension_mode_e::linear_interpolation_spatial_residual:
+                        return dispatch_two_point_set_decompression_by_predictor<label_mode,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::staged>();
+                    default:
+                        throw runtime_error("分阶段两点集解压不支持当前数值流程");
                 }
             };
             if(framework.label_mode==time_dimension_mode_e::spatial)
                 return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::spatial>());
             if(framework.label_mode==time_dimension_mode_e::constant_extrapolation)
                 return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::constant_extrapolation>());
-            if(framework.label_mode==time_dimension_mode_e::endpoint_agreement)
-                return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::endpoint_agreement>());
+            if(framework.label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual)
+                return dispatch_value(integral_constant<time_dimension_mode_e,time_dimension_mode_e::label_linear_interpolation_spatial_residual>());
         }
         else if(framework.execution==label_value_execution_e::fused)
         {
             if(framework.label_mode==time_dimension_mode_e::spatial&&framework.value_mode==time_dimension_mode_e::spatial)
-                return decompress_two_point_sets_fixed<time_dimension_mode_e::spatial,time_dimension_mode_e::spatial,label_value_execution_e::fused>();
+                return dispatch_two_point_set_decompression_by_predictor<time_dimension_mode_e::spatial,time_dimension_mode_e::spatial,label_value_execution_e::fused>();
             if(framework.label_mode==time_dimension_mode_e::constant_extrapolation&&framework.value_mode==time_dimension_mode_e::spatial)
-                return decompress_two_point_sets_fixed<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::spatial,label_value_execution_e::fused>();
+                return dispatch_two_point_set_decompression_by_predictor<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::spatial,label_value_execution_e::fused>();
             if(framework.label_mode==time_dimension_mode_e::constant_extrapolation&&framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
-                return decompress_two_point_sets_fixed<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::fused>();
-            if(framework.label_mode==time_dimension_mode_e::endpoint_agreement&&framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-                return decompress_two_point_sets_fixed<time_dimension_mode_e::endpoint_agreement,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::fused>();
+                return dispatch_two_point_set_decompression_by_predictor<time_dimension_mode_e::constant_extrapolation,time_dimension_mode_e::constant_extrapolation_spatial_residual,label_value_execution_e::fused>();
+            if(framework.label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual&&framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
+                return dispatch_two_point_set_decompression_by_predictor<time_dimension_mode_e::label_linear_interpolation_spatial_residual,time_dimension_mode_e::linear_interpolation_spatial_residual,label_value_execution_e::fused>();
         }
         throw runtime_error("两点集解压尚未实现当前标签、数值和执行方式的组合");
     }
 
     template<typename T_coord,typename T_data>
     template<time_dimension_mode_e label_mode,time_dimension_mode_e value_mode,label_value_execution_e execution>
-    void param_c<T_coord,T_data>::decompress_two_point_sets_fixed()
+    void param_c<T_coord,T_data>::dispatch_two_point_set_decompression_by_predictor()
     {
         point_set_codec_e predictor=point_set_codec_e::constant;
         for(const point_set_config_c &config:point_set_config_vec)
@@ -96,15 +102,15 @@ namespace unsz
                 predictor=config.codec;
             }
         if(predictor==point_set_codec_e::idw)
-            return decompress_point_sets<true,value_mode,label_mode,execution,point_set_codec_e::idw>();
+            return decompress_current_file<true,value_mode,label_mode,execution,point_set_codec_e::idw>();
         if(predictor==point_set_codec_e::rbf)
-            return decompress_point_sets<true,value_mode,label_mode,execution,point_set_codec_e::rbf>();
+            return decompress_current_file<true,value_mode,label_mode,execution,point_set_codec_e::rbf>();
         throw runtime_error("两点集解压至少需要一个使用IDW或RBF的非常量点集");
     }
 
     template<typename T_coord,typename T_data>
     template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
-    void param_c<T_coord,T_data>::decompress_point_sets()
+    void param_c<T_coord,T_data>::decompress_current_file()
     {
         constexpr bool use_normalized_idw_weights=fixed_predictor==point_set_codec_e::idw;
         if constexpr(two_point_sets)
@@ -113,7 +119,7 @@ namespace unsz
         double stream_decode_time=0,label_decode_time=0,value_decode_time=0;
         if(point_set_config_vec.empty())
             throw runtime_error("尚未配置点集");
-        if(eb_schedule!="none" && eb_schedule!="round" && eb_schedule!="point" && eb_schedule!="inverse_rank_log2" && eb_schedule!="round_point" && eb_schedule!="round_ratio" && eb_schedule!="round_point_ratio" && eb_schedule!="round_point_ratio_dag" && eb_schedule!="round_point_ratio_dag_direct" && eb_schedule!="round_point_ratio_dag_variance_direct")
+        if(eb_schedule!="none"&&eb_schedule!="round"&&eb_schedule!="point"&&eb_schedule!="inverse_rank_log2"&&eb_schedule!="round_point"&&eb_schedule!="round_ratio"&&eb_schedule!="round_point_ratio")
             throw runtime_error("未知的EB序列模式："+eb_schedule);
         if (!(eb_schedule_start_ratio>0) || eb_schedule_start_ratio>1)
             throw runtime_error("EB序列起始倍率必须在(0,1]内");
@@ -383,12 +389,12 @@ namespace unsz
         auto predict_configured_label=[&](uint32_t pred_ref_id,const vector<uint8_t> &label_vec)
         {
             static_assert(fixed_predictor==point_set_codec_e::idw||fixed_predictor==point_set_codec_e::rbf,"固定标签预测器必须是IDW或RBF");
-            if(pred_ref_id>=prediction_10_fast_begin)
+            if(has_ten_prediction_references(pred_ref_id))
                 return predict_label_10(pred_ref_begin[pred_ref_id],pred_ref_prediction_weights,label_vec);
             return predict_label(pred_ref_id,pred_ref_prediction_weights,label_vec);
         };
         constexpr bool use_fused_two_point_set_prediction=two_point_sets&&fixed_execution==label_value_execution_e::fused;
-        constexpr bool use_selected_fused_temporal_flow=use_fused_two_point_set_prediction&&((fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)||(fixed_label_mode==time_dimension_mode_e::endpoint_agreement&&fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual));
+        constexpr bool use_selected_fused_temporal_flow=use_fused_two_point_set_prediction&&((fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)||(fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual&&fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual));
         bool use_linear_previous_label=use_linear_previous_label_experimental&&use_fused_two_point_set_prediction&&fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_point_set_id_vec.size()==point_num;
         bool use_original_order_constant_label_phase=use_selected_fused_temporal_flow&&fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual&&previous_time_point_set_id_vec.size()==point_num;
         if(use_fused_two_point_set_prediction)
@@ -409,9 +415,8 @@ namespace unsz
                 if(codec!=point_set_codec_e::constant&&codec!=point_set_codec_e::idw&&codec!=point_set_codec_e::rbf)
                     throw runtime_error("融合两点集预测只支持constant、IDW或RBF预测器");
         }
-        bool data_dependent_eb_schedule=eb_schedule=="round_point_ratio_dag" || eb_schedule=="round_point_ratio_dag_direct" || eb_schedule=="round_point_ratio_dag_variance_direct";
-        if(data_dependent_eb_schedule || cached_pred_eb_multiplier_vec.size()!=point_num)
-            cached_pred_eb_multiplier_vec=generate_pred_eb_multiplier_vec();
+        if(cached_pred_eb_multiplier_vec.size()!=point_num)
+            throw runtime_error("预处理没有生成完整的EB倍率");
         const vector<double> &pred_eb_multiplier_vec=cached_pred_eb_multiplier_vec;
         vector<uint64_t> qb_index(point_set_num,0);
         if(use_fused_two_point_set_prediction)
@@ -436,7 +441,7 @@ namespace unsz
                 prepare_linear_interpolation();
                 bool use_previous_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_point_set_id_vec.size()==point_num;
                 bool use_causal_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_point_set_id_vec.size()==point_num;
-                constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::endpoint_agreement;
+                constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
                 bool use_direct_fused_label_stream=use_fused_two_point_set_prediction;
                 for (uint32_t label_channel_id=0;label_channel_id<label_channel_num;label_channel_id++)
                 {
@@ -593,7 +598,7 @@ namespace unsz
                     uint32_t pred_ref_id=0;
                     uint64_t ref_begin=pred_ref_begin[0];
                     for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
-                        for(uint32_t round_target_id=0;round_target_id<round_target_ids[round_id].size();round_target_id++,pred_ref_id++)
+                        for(uint32_t round_target_id=0;round_target_id<prediction_target_id_groups[round_id].size();round_target_id++,pred_ref_id++)
                         {
                             int pred_id=pred_target_ids[pred_ref_id];
                             uint32_t original_id=pred_id;
@@ -649,7 +654,7 @@ namespace unsz
                     uint32_t pred_ref_id=0;
                     uint64_t ref_begin=pred_ref_begin[0];
                     for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
-                        for(uint32_t round_target_id=0;round_target_id<round_target_ids[round_id].size();round_target_id++,pred_ref_id++)
+                        for(uint32_t round_target_id=0;round_target_id<prediction_target_id_groups[round_id].size();round_target_id++,pred_ref_id++)
                     {
                         int pred_id=pred_target_ids[pred_ref_id];
                         uint64_t ref_end=pred_ref_begin[pred_ref_id+1];
@@ -854,20 +859,18 @@ namespace unsz
             {
                 for(uint32_t pred_ref_id:multihead_execution_pred_ref_ids)
                 {
-                    if(pred_ref_id<prediction_10_fast_begin)
-                        decode_prediction(pred_ref_id,predict_value_one_point_set(pred_ref_id,pred_ref_prediction_weights,current_decompressed_data));
-                    else
+                    if(has_ten_prediction_references(pred_ref_id))
                         decode_prediction(pred_ref_id,predict_value_one_point_set_10(pred_ref_begin[pred_ref_id],pred_ref_prediction_weights,current_decompressed_data));
+                    else
+                        decode_prediction(pred_ref_id,predict_value_one_point_set(pred_ref_id,pred_ref_prediction_weights,current_decompressed_data));
                 }
             }
             else
-            {
-                for(uint32_t pred_ref_id=0;pred_ref_id<prediction_10_fast_begin;pred_ref_id++)
-                    decode_prediction(pred_ref_id,predict_value_one_point_set(pred_ref_id,pred_ref_prediction_weights,current_decompressed_data));
-                uint64_t ref_begin=pred_ref_begin[prediction_10_fast_begin];
-                for(uint32_t pred_ref_id=prediction_10_fast_begin;pred_ref_id<point_num;pred_ref_id++,ref_begin+=10)
-                    decode_prediction(pred_ref_id,predict_value_one_point_set_10(ref_begin,pred_ref_prediction_weights,current_decompressed_data));
-            }
+                for(uint32_t pred_ref_id=0;pred_ref_id<point_num;pred_ref_id++)
+                    if(has_ten_prediction_references(pred_ref_id))
+                        decode_prediction(pred_ref_id,predict_value_one_point_set_10(pred_ref_begin[pred_ref_id],pred_ref_prediction_weights,current_decompressed_data));
+                    else
+                        decode_prediction(pred_ref_id,predict_value_one_point_set(pred_ref_id,pred_ref_prediction_weights,current_decompressed_data));
             qb_index[0]=point_num;
             pred_ref_index=point_num;
         }
@@ -879,7 +882,7 @@ namespace unsz
             vector<uint8_t> parallel_has_qb_vec(use_partition_stream_format?0:point_num,0);
             for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
             {
-                for(uint32_t i=0;i<round_target_ids[round_id].size();i++)
+                for(uint32_t i=0;i<prediction_target_id_groups[round_id].size();i++)
                 {
                     uint32_t current_pred_ref_id=pred_ref_index++;
                     int pred_id=pred_target_ids[current_pred_ref_id];
@@ -984,7 +987,7 @@ namespace unsz
         {
         for (uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
-            for (uint32_t i=0;i<round_target_ids[round_id].size();i++)
+            for (uint32_t i=0;i<prediction_target_id_groups[round_id].size();i++)
             {
                 uint32_t current_pred_ref_id=pred_ref_index++;
                 auto ref_ids=get_pred_ref_ids(current_pred_ref_id);
