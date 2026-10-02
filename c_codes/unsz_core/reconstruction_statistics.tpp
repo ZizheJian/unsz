@@ -1,0 +1,69 @@
+#pragma once
+
+namespace unsz
+{
+    inline void merge_reconstruction_statistics(reconstruction_statistics_c&total,const reconstruction_statistics_c&part)
+    {
+        total.point_num+=part.point_num;
+        total.squared_error+=part.squared_error;
+        total.minimum=min(total.minimum,part.minimum);
+        total.maximum=max(total.maximum,part.maximum);
+        if(part.max_error_ratio>total.max_error_ratio)
+        {
+            total.max_error_ratio=part.max_error_ratio;
+            total.max_error=part.max_error;
+            total.max_error_abs_eb=part.max_error_abs_eb;
+            total.max_error_point_id=part.max_error_point_id;
+            total.max_error_point_set_id=part.max_error_point_set_id;
+        }
+    }
+
+    inline double reconstruction_psnr(const reconstruction_statistics_c&statistics)
+    {
+        if(statistics.point_num==0)
+            return numeric_limits<double>::quiet_NaN();
+        double mse=statistics.squared_error/statistics.point_num;
+        if(mse==0)
+            return numeric_limits<double>::infinity();
+        return 10*log10(pow(statistics.maximum-statistics.minimum,2)/mse);
+    }
+
+    template<typename T_coord,typename T_data>
+    reconstruction_statistics_c param_c<T_coord,T_data>::calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset) const
+    {
+        reconstruction_statistics_c result;
+        result.point_num=value_num;
+        uint32_t primary_point_set_id=0;
+        while(point_set_point_num_vec[primary_point_set_id]==0)
+            primary_point_set_id++;
+        for(uint32_t value_id=0;value_id<value_num;value_id++)
+        {
+            uint32_t point_id=point_offset+value_id;
+            double error=(double)original[value_id]-reconstructed[value_id];
+            result.squared_error+=error*error;
+            uint32_t point_set_id=point_set_id_vec.empty()?0:point_set_id_vec[point_id];
+            double abs_eb=point_set_abs_eb_vec[point_set_id];
+            double error_ratio;
+            if(abs_eb>0)
+                error_ratio=abs(error)/abs_eb;
+            else if(error==0)
+                error_ratio=0;
+            else
+                error_ratio=numeric_limits<double>::infinity();
+            if(error_ratio>result.max_error_ratio)
+            {
+                result.max_error_ratio=error_ratio;
+                result.max_error=error;
+                result.max_error_abs_eb=abs_eb;
+                result.max_error_point_id=point_id;
+                result.max_error_point_set_id=point_set_id;
+            }
+            if(point_set_id==primary_point_set_id)
+            {
+                result.minimum=min(result.minimum,(double)original[value_id]);
+                result.maximum=max(result.maximum,(double)original[value_id]);
+            }
+        }
+        return result;
+    }
+}

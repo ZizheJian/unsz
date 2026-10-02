@@ -98,6 +98,8 @@ namespace unsz
         reconstructed_time_step_vec=other.reconstructed_time_step_vec;
         reconstructed_time_data_vec=other.reconstructed_time_data_vec;
         reconstructed_time_point_set_id_vec=other.reconstructed_time_point_set_id_vec;
+        previous_time_value_history_id=other.previous_time_value_history_id;
+        previous_time_label_history_id=other.previous_time_label_history_id;
         current_time_spatial_residual_data=other.current_time_spatial_residual_data;
         current_time_spatial_residual_valid=other.current_time_spatial_residual_valid;
         current_time_step=other.current_time_step;

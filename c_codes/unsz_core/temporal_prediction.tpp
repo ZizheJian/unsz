@@ -7,8 +7,18 @@ namespace unsz
     {
         temporal_history_ids={{-1,-1}};
         temporal_weights={{0,0}};
-        previous_time_value_available=previous_time_decompressed_data.size()==point_num;
-        previous_time_label_available=previous_time_point_set_id_vec.size()==point_num;
+        previous_time_value_source=nullptr;
+        previous_time_label_source=nullptr;
+        if(previous_time_value_history_id>=0)
+            previous_time_value_source=&reconstructed_time_data_vec[previous_time_value_history_id];
+        else if(previous_time_decompressed_data.size()==point_num)
+            previous_time_value_source=&previous_time_decompressed_data;
+        if(previous_time_label_history_id>=0)
+            previous_time_label_source=&reconstructed_time_point_set_id_vec[previous_time_label_history_id];
+        else if(previous_time_point_set_id_vec.size()==point_num)
+            previous_time_label_source=&previous_time_point_set_id_vec;
+        previous_time_value_available=previous_time_value_source&&previous_time_value_source->size()==point_num;
+        previous_time_label_available=previous_time_label_source&&previous_time_label_source->size()==point_num;
         temporal_interpolation_available=false;
         if(value_flow=="constant_extrapolation_spatial_residual"||value_flow=="linear_interpolation_spatial_residual"||uses_anchor_interpolation_stride_8_flow())
         {
@@ -74,7 +84,7 @@ namespace unsz
         }
         if(!previous_time_label_available)
             return false;
-        uint32_t label1=get_binary_label(previous_time_point_set_id_vec);
+        uint32_t label1=get_binary_label(*previous_time_label_source);
         if constexpr(label_mode==time_dimension_mode_e::constant_extrapolation)
         {
             prediction=label1;
@@ -84,38 +94,32 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    bool param_c<T_coord,T_data>::predict_linear_interpolation(uint32_t original_id,uint32_t point_set_id,T_data &prediction)
-    {
-        if(!temporal_interpolation_available)
-            return false;
-        auto &left_data=reconstructed_time_data_vec[temporal_history_ids[0]];
-        auto &right_data=reconstructed_time_data_vec[temporal_history_ids[1]];
-        if(point_set_config_vec.size()>1)
-        {
-            auto &left_point_set_id_vec=reconstructed_time_point_set_id_vec[temporal_history_ids[0]];
-            auto &right_point_set_id_vec=reconstructed_time_point_set_id_vec[temporal_history_ids[1]];
-            if(left_point_set_id_vec[original_id]!=point_set_id||right_point_set_id_vec[original_id]!=point_set_id)
-                return false;
-        }
-        prediction=(T_data)(temporal_weights[0]*(T_calc)left_data[original_id]+temporal_weights[1]*(T_calc)right_data[original_id]);
-        return true;
-    }
-
-    template<typename T_coord,typename T_data>
     template<time_dimension_mode_e value_mode>
-    bool param_c<T_coord,T_data>::predict_temporal_value_baseline(uint32_t original_id,uint32_t point_set_id,T_data &prediction)
+    bool param_c<T_coord,T_data>::predict_temporal_value(uint32_t original_id,uint32_t point_set_id,T_data &prediction)
     {
-        if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
+        if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation||value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
         {
             if(!previous_time_value_available)
                 return false;
-            if(point_set_config_vec.size()>1&&(!previous_time_label_available||previous_time_point_set_id_vec[original_id]!=point_set_id))
+            if(point_set_config_vec.size()>1&&(!previous_time_label_available||(*previous_time_label_source)[original_id]!=point_set_id))
                 return false;
-            prediction=previous_time_decompressed_data[original_id];
+            prediction=(*previous_time_value_source)[original_id];
             return true;
         }
-        if constexpr(value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-            return predict_linear_interpolation(original_id,point_set_id,prediction);
+        if constexpr(value_mode==time_dimension_mode_e::linear_interpolation||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
+        {
+            if(!temporal_interpolation_available)
+                return false;
+            const vector<T_data>&left_data=reconstructed_time_data_vec[temporal_history_ids[0]],&right_data=reconstructed_time_data_vec[temporal_history_ids[1]];
+            if(point_set_config_vec.size()>1)
+            {
+                const vector<uint8_t>&left_point_set_ids=reconstructed_time_point_set_id_vec[temporal_history_ids[0]],&right_point_set_ids=reconstructed_time_point_set_id_vec[temporal_history_ids[1]];
+                if(left_point_set_ids[original_id]!=point_set_id||right_point_set_ids[original_id]!=point_set_id)
+                    return false;
+            }
+            prediction=(T_data)(temporal_weights[0]*(T_calc)left_data[original_id]+temporal_weights[1]*(T_calc)right_data[original_id]);
+            return true;
+        }
         return false;
     }
 
@@ -126,7 +130,7 @@ namespace unsz
         if constexpr(value_mode!=time_dimension_mode_e::constant_extrapolation_spatial_residual&&value_mode!=time_dimension_mode_e::linear_interpolation_spatial_residual)
             return;
         T_data baseline=0;
-        if(predict_temporal_value_baseline<value_mode>(original_id,point_set_id,baseline))
+        if(predict_temporal_value<value_mode>(original_id,point_set_id,baseline))
         {
             current_time_spatial_residual_data[pred_id]=current_decompressed_data[pred_id]-baseline;
             current_time_spatial_residual_valid[pred_id]=1;
@@ -134,44 +138,59 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::update_time_prediction_state()
+    int32_t param_c<T_coord,T_data>::save_current_interpolation_history()
+    {
+        bool save_interpolation_history=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||label_flow=="linear_interpolation_spatial_residual"||uses_anchor_interpolation_stride_8_flow();
+        if(!save_interpolation_history)
+            return -1;
+        bool save_value_history=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||uses_anchor_interpolation_stride_8_flow();
+        bool save_label_history=save_interpolation_history&&point_set_config_vec.size()>1;
+        if(save_value_history&&current_decompressed_data.size()!=point_num)
+            throw runtime_error("无法保存不完整的数值时间预测状态");
+        if(save_label_history&&point_set_id_vec.size()!=point_num)
+            throw runtime_error("无法保存不完整的标签时间预测状态");
+        int32_t history_id=(int32_t)reconstructed_time_step_vec.size();
+        reconstructed_time_step_vec.push_back(current_time_step);
+        if(save_value_history)
+            reconstructed_time_data_vec.push_back(move(current_decompressed_data));
+        else
+            reconstructed_time_data_vec.emplace_back();
+        if(save_label_history)
+            reconstructed_time_point_set_id_vec.push_back(move(point_set_id_vec));
+        else
+            reconstructed_time_point_set_id_vec.emplace_back();
+        return history_id;
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::update_constant_extrapolation_reference(int32_t history_id)
     {
         const prediction_framework_c &framework=current_prediction_framework;
         bool first_time_anchor=uses_anchor_interpolation_stride_8_flow()&&current_time_step==0;
-        bool save_interpolation_history=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||label_flow=="linear_interpolation_spatial_residual"||uses_anchor_interpolation_stride_8_flow();
-        bool save_value_history=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||uses_anchor_interpolation_stride_8_flow();
-        bool save_label_history=save_interpolation_history&&point_set_config_vec.size()>1;
         bool keep_previous_value=framework.value_mode==time_dimension_mode_e::constant_extrapolation||framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||first_time_anchor;
         bool keep_previous_label=point_set_config_vec.size()>1&&(keep_previous_value||framework.label_mode==time_dimension_mode_e::constant_extrapolation||first_time_anchor);
-        if(save_interpolation_history)
+        if(keep_previous_value&&history_id>=0&&!reconstructed_time_data_vec[history_id].empty())
+            previous_time_value_history_id=history_id;
+        else if(keep_previous_value)
         {
-            if(save_value_history&&current_decompressed_data.size()!=point_num)
-                throw runtime_error("无法保存不完整的数值时间预测状态");
-            if(save_label_history&&point_set_id_vec.size()!=point_num)
-                throw runtime_error("无法保存不完整的标签时间预测状态");
-            reconstructed_time_step_vec.push_back(current_time_step);
-            if(save_value_history)
-            {
-                if(keep_previous_value)
-                    reconstructed_time_data_vec.push_back(current_decompressed_data);
-                else
-                    reconstructed_time_data_vec.push_back(move(current_decompressed_data));
-            }
-            else
-                reconstructed_time_data_vec.emplace_back();
-            if(save_label_history)
-            {
-                if(keep_previous_label)
-                    reconstructed_time_point_set_id_vec.push_back(point_set_id_vec);
-                else
-                    reconstructed_time_point_set_id_vec.push_back(move(point_set_id_vec));
-            }
-            else
-                reconstructed_time_point_set_id_vec.emplace_back();
-        }
-        if(keep_previous_value)
+            previous_time_value_history_id=-1;
             previous_time_decompressed_data.swap(current_decompressed_data);
-        if(keep_previous_label)
+        }
+        if(keep_previous_label&&history_id>=0&&!reconstructed_time_point_set_id_vec[history_id].empty())
+            previous_time_label_history_id=history_id;
+        else if(keep_previous_label)
+        {
+            previous_time_label_history_id=-1;
             previous_time_point_set_id_vec.swap(point_set_id_vec);
+        }
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::update_time_prediction_state()
+    {
+        previous_time_value_source=nullptr;
+        previous_time_label_source=nullptr;
+        int32_t history_id=save_current_interpolation_history();
+        update_constant_extrapolation_reference(history_id);
     }
 }

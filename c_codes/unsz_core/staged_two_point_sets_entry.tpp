@@ -75,6 +75,10 @@ void param_c<T_coord,T_data>::compress_staged_two_point_sets_files()
         reconstructed_time_step_vec.clear();
         reconstructed_time_data_vec.clear();
         reconstructed_time_point_set_id_vec.clear();
+        previous_time_value_history_id=-1;
+        previous_time_label_history_id=-1;
+        previous_time_value_source=nullptr;
+        previous_time_label_source=nullptr;
         current_time_spatial_residual_data.clear();
         current_time_spatial_residual_valid.clear();
         point_set_id_vec.clear();

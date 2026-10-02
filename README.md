@@ -233,7 +233,7 @@ UNSZ目前实现了以下压缩流程：
     <tr>
       <td>联合时空压缩</td>
       <td>几乎放弃</td>
-      <td>C++读取一次空间坐标，在末尾增加时间坐标并为每个time step复制一份；全局点编号为<code>time_id×N+spatial_id</code>。随后把各文件的值按相同编号连接起来，作为一个高维单点集调用纯空间预测；解压单个联合码流后再按每步<code>N</code>个点拆回原文件。在所有已有的数据上，总能找到比它好的方案，而且预处理耗时较长，因此不进入常规自动选择。</td>
+      <td>C++读取一次空间坐标，在末尾增加时间坐标并为每个time step复制一份；全局点编号为<code>time_id×N+spatial_id</code>。随后把各文件的值按相同编号连接起来，作为一个高维点云调用对应的一点集或两点集纯空间预测；解压单个联合码流后再按每步<code>N</code>个点拆回原文件。在所有已有的数据上，总能找到比它好的方案，而且预处理耗时较长，因此不进入常规自动选择。</td>
     </tr>
     <tr>
       <td>时间一阶内插预测中，最后一个文件使用来自第一个文件零阶外插预测</td>
@@ -256,7 +256,7 @@ UNSZ目前实现了以下压缩流程：
 
 时间一阶内插可通过`-time-step-coordinate-file <path>`读取一维float64原始数组，第`i`个数是time step `i`的实际坐标。压缩和解压必须读取同一文件；不传该参数时保持原有的等间距假设。对应task使用`time_step_coordinate_file`记录文件名并同时传给两端，普通等时间间隔数据不需要记录这一项。
 
-联合时空流程使用`"value_flow":"joint_spatiotemporal"`。C++直接从`coords.dat`获得每个time step的空间点数，将空间坐标复制到各个time step并增加一个时间坐标维度，再把所有time step作为一个统一点云生成DAG；不再要求用户重复传入空间点数。输入仍是原始空间坐标和逐time step的field文件，不需要由Python预先生成升维坐标或拼接field；时间坐标由`time_step_coordinate_file`提供，不设置时使用time step编号。当前联合时空流程只支持单点集field，并且只接受显式ABS误差上限。普通非联合时空流程仍可使用REL：每个time step根据完整空间field的range换算一次ABS误差上限，该time step内的所有partition共享换算结果。
+联合时空流程使用`"value_flow":"joint_spatiotemporal"`。C++直接从`coords.dat`获得每个time step的空间点数，将空间坐标复制到各个time step并增加一个时间坐标维度，再把所有time step作为一个统一点云生成DAG；不再要求用户重复传入空间点数。输入仍是原始空间坐标和逐time step的field文件，不需要由Python预先生成升维坐标或拼接field；时间坐标由`time_step_coordinate_file`提供，不设置时使用time step编号。单点集和两点集都把升维后的数据交给普通纯空间压缩；两点集`fused`生成正式码流，`staged`只在内存中估计标签流与数值流的总大小。联合时空只接受显式ABS误差上限。启用partition时，程序在升维坐标上切分统一点云，每个partition独立生成DAG、权重和payload，最后只拼接payload与offset表。普通非联合时空流程仍可使用REL：每个time step根据完整空间field的range换算一次ABS误差上限，该time step内的所有partition共享换算结果。
 
 ## 2.2. 生成坐标变换矩阵
 
@@ -908,7 +908,7 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
 
 ## 2.7. 并行设计
 
-当前OpenMP实现已经支持adjust后的独立partition。程序先按坐标递归中位数切分，只生成顶层partition点集，不建立整场kd-tree；随后每个worker为自己的partition建立局部kd-tree，并独立生成预测顺序、参考关系、权重和EB倍率。每个partition只引用本partition内的数据，单点集以及fused双点集的标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。`global`和`local`表示每个partition内部是否分轮；partition本身始终互相独立。v10容器统一使用`payload_begin[P+1]`定位各预测结构的独立payload；不分区时P=1，分区时每个partition对应一个payload，最终只按结构编号串行拼接字节。普通REL模式先根据当前完整time step的field range换算统一ABS EB，再由该time step内所有partition共享；联合时空目前只接受ABS。DAG缓存与staged调试路径暂不支持partition。
+当前OpenMP实现已经支持adjust后的独立partition。程序先按坐标递归中位数切分，只生成顶层partition点集，不建立整场kd-tree；随后每个worker为自己的partition建立局部kd-tree，并独立生成预测顺序、参考关系、权重和EB倍率。每个partition只引用本partition内的数据，单点集以及fused双点集的标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。`global`和`local`表示每个partition内部是否分轮；partition本身始终互相独立。v11容器统一使用`payload_begin[P+1]`定位各预测结构的独立payload；不分区时P=1，分区时每个partition对应一个payload，最终只按结构编号串行拼接字节。普通REL模式先根据当前完整time step的field range换算统一ABS EB，再由该time step内所有partition共享；联合时空目前只接受ABS。DAG缓存与staged调试路径暂不支持partition。
 
 并行实验不使用“多线程UNSZ对串行UMC”作为主要速度结论。单线程实验始终比较一核UNSZ与一核UMC。高速版要求核心压缩与核心解压的耗时之和不超过UMC的`1.1倍`，高压缩比版要求该总和不超过`2倍`；在同一节点上交替运行双方的五个EB，并以逐EB总耗时倍率的几何平均作判断。压缩和解压分项继续报告以定位热点，但不分别设置门槛；暂不把可由全部time step复用的公共预处理计入该限制。对于包含多个独立time step的数据，使用相同数量的进程把不同文件分配给UNSZ和UMC，比较双方相同资源下的总吞吐率；独立进程也避免依赖UMC接口是否线程安全。对于单个大field，单独报告UNSZ从1线程到多线程的strong/weak scaling；UMC官方当前没有通用的单field并行入口，因此只列其官方串行结果，不把二者直接解释为并行算法优劣。如果论文需要同核数的单field比较，再为UMC增加与UNSZ相同partition数量的外部分区，并同时报告两种方法因partition边界造成的BR变化。
 

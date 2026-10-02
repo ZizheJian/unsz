@@ -314,7 +314,7 @@ namespace unsz
             state.encoded_payload_vec.front()=encode_compression_payload(label_symbols,false,empty_point_set_qbs,empty_unpredictable_values);
             return;
         }
-        bool use_causal_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_point_set_id_vec.size()==point_num;
+        bool use_causal_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_label_available;
         constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
         vector<uint8_t> label_symbol_by_point(point_num,0),binary_label_vec(point_num,1);
         for(uint32_t point_id=0;point_id<point_num;point_id++)
@@ -395,24 +395,12 @@ namespace unsz
             };
             T_data pred=0;
             bool use_cross_time_prediction=false;
-            if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation)
+            if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation||value_mode==time_dimension_mode_e::linear_interpolation||value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
             {
-                bool has_previous_time_data=previous_time_value_available;
-                if constexpr(two_point_sets)
-                    has_previous_time_data=has_previous_time_data&&previous_time_label_available&&previous_time_point_set_id_vec[pred_id]==point_set_id;
-                if(has_previous_time_data)
-                {
-                    pred=previous_time_decompressed_data[pred_id];
-                    use_cross_time_prediction=true;
-                }
-            }
-            else if constexpr(value_mode==time_dimension_mode_e::linear_interpolation)
-                use_cross_time_prediction=predict_linear_interpolation(pred_id,point_set_id,pred);
-            else if constexpr(value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual||value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
-            {
-                use_cross_time_prediction=predict_temporal_value_baseline<fixed_value_mode>(pred_id,point_set_id,pred);
-                if(use_cross_time_prediction)
-                    pred+=predict_spatial_value(current_time_spatial_residual_data,&current_time_spatial_residual_valid);
+                use_cross_time_prediction=predict_temporal_value<value_mode>(pred_id,point_set_id,pred);
+                if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
+                    if(use_cross_time_prediction)
+                        pred+=predict_spatial_value(current_time_spatial_residual_data,&current_time_spatial_residual_valid);
             }
             if(!use_cross_time_prediction)
                 pred=predict_spatial_value(current_decompressed_data);
@@ -525,20 +513,10 @@ namespace unsz
                         predicted_label=predict_configured_label();
                     if(value_requires_prediction)
                     {
-                        if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation)
-                        {
-                            use_time_prediction=previous_time_value_available&&previous_time_label_available&&previous_time_point_set_id_vec[pred_id]==actual_point_set_id;
-                            if(use_time_prediction)
-                                predicted_value=previous_time_decompressed_data[pred_id];
-                        }
-                        else if constexpr(fixed_value_mode==time_dimension_mode_e::linear_interpolation)
-                            use_time_prediction=predict_linear_interpolation(pred_id,actual_point_set_id,predicted_value);
-                        else if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-                        {
-                            use_time_prediction=predict_temporal_value_baseline<fixed_value_mode>(pred_id,actual_point_set_id,predicted_value);
+                        use_time_prediction=predict_temporal_value<fixed_value_mode>(pred_id,actual_point_set_id,predicted_value);
+                        if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
                             if(use_time_prediction)
                                 predicted_value+=predict_configured_value(current_time_spatial_residual_data,&current_time_spatial_residual_valid);
-                        }
                         if(!use_time_prediction)
                             predicted_value=predict_configured_value(current_decompressed_data);
                         local_cross_time_prediction_num+=use_time_prediction;

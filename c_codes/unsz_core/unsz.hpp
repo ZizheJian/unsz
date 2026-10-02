@@ -63,6 +63,14 @@ namespace unsz
         uint64_t label_target_num=0,label_error_num=0,cross_time_prediction_num=0;
     };
 
+    struct reconstruction_statistics_c
+    {
+        uint64_t point_num=0;
+        double squared_error=0,minimum=numeric_limits<double>::infinity(),maximum=-numeric_limits<double>::infinity();
+        double max_error_ratio=0,max_error=0,max_error_abs_eb=0;
+        uint32_t max_error_point_id=0,max_error_point_set_id=0;
+    };
+
     template<typename T_data>
     struct value_compression_result_c
     {
@@ -348,6 +356,9 @@ namespace unsz
             vector<T_coord> time_step_coordinate_vec;
             vector<vector<T_data>> reconstructed_time_data_vec;
             vector<vector<uint8_t>> reconstructed_time_point_set_id_vec;
+            int32_t previous_time_value_history_id=-1,previous_time_label_history_id=-1;
+            const vector<T_data>*previous_time_value_source=nullptr;
+            const vector<uint8_t>*previous_time_label_source=nullptr;
             vector<T_data> current_time_spatial_residual_data;
             vector<uint8_t> current_time_spatial_residual_valid;
             uint32_t current_time_step=0;
@@ -371,13 +382,14 @@ namespace unsz
             void configure_point_sets();
             void prepare_cli_parameters(const vector<uint32_t>&selected_time_step_vec,T_data error_bound);
             void prepare_temporal_prediction();
-            bool predict_linear_interpolation(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
             template<time_dimension_mode_e value_mode>
-            bool predict_temporal_value_baseline(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
+            bool predict_temporal_value(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
             template<time_dimension_mode_e value_mode>
             void update_temporal_residual(int pred_id,uint32_t original_id,uint32_t point_set_id);
             template<time_dimension_mode_e label_mode>
             bool predict_temporal_label(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction);
+            int32_t save_current_interpolation_history();
+            void update_constant_extrapolation_reference(int32_t history_id);
             void update_time_prediction_state();
             prediction_framework_c get_prediction_framework(uint32_t point_set_num) const;
             bool uses_anchor_interpolation_stride_8_flow() const;
@@ -430,6 +442,7 @@ namespace unsz
             void generate_batched_rbf_weights(const vector<T_coord>&reference_coords,const vector<T_coord>&target_ref_squared_distances,const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback);
             void preprocess_compression(chrono::steady_clock::time_point preprocessing_start_time);
             void prepare_joint_spatiotemporal_coordinates();
+            reconstruction_statistics_c calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset=0) const;
             void compress_files(void(param_c<T_coord,T_data>::*compress_file)(),bool write_output=true,vector<vector<unsigned char>> *compressed_stream_vec=nullptr,bool validate_reconstruction=true);
             template<point_set_codec_e predictor>
             void compress_staged_two_point_sets_files();
@@ -479,6 +492,7 @@ namespace unsz
 }
 
 #include "distance.tpp"
+#include "binary_file.tpp"
 #include "param.tpp"
 #include "tree.tpp"
 #include "init.tpp"
@@ -495,6 +509,7 @@ namespace unsz
 #include "temporal_prediction.tpp"
 #include "prediction_framework.tpp"
 #include "compression_format.tpp"
+#include "reconstruction_statistics.tpp"
 #include "prediction_weights.tpp"
 #include "prediction_structure_cache.tpp"
 #include "compression_flows.tpp"

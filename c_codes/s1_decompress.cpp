@@ -13,38 +13,6 @@
 
 using namespace std;
 
-vector<unsigned char> read_byte_file(string path)
-{
-    FILE *file=fopen(path.c_str(),"rb");
-    if (!file)
-        throw runtime_error("找不到文件："+path);
-    if (fseek(file,0,SEEK_END)!=0)
-    {
-        fclose(file);
-        throw runtime_error("无法定位到文件末尾："+path);
-    }
-    long byte_num_signed=ftell(file);
-    if (byte_num_signed<0)
-    {
-        fclose(file);
-        throw runtime_error("无法读取文件大小："+path);
-    }
-    if (fseek(file,0,SEEK_SET)!=0)
-    {
-        fclose(file);
-        throw runtime_error("无法定位到文件开头："+path);
-    }
-    vector<unsigned char> bytes((uint64_t)byte_num_signed);
-    if (fread(bytes.data(),1,bytes.size(),file)!=bytes.size())
-    {
-        fclose(file);
-        throw runtime_error("读取文件失败："+path);
-    }
-    if (fclose(file)!=0)
-        throw runtime_error("关闭文件失败："+path);
-    return bytes;
-}
-
 vector<uint32_t> parse_time_step_vec(string expression)
 {
     vector<uint32_t> result;
@@ -101,8 +69,10 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     bool joint_spatiotemporal=param.value_flow=="joint_spatiotemporal";
     if(joint_spatiotemporal)
     {
-        if(param.point_set_config_vec.size()!=1)
-            throw runtime_error("联合时空解压目前只支持一个点集");
+        if(param.point_set_config_vec.size()!=1&&param.point_set_config_vec.size()!=2)
+            throw runtime_error("联合时空解压只支持一个或两个点集");
+        if(param.point_set_config_vec.size()==2&&param.label_value_execution!="fused")
+            throw runtime_error("两点集联合时空解压只支持生成正式码流的fused模式");
         param.prepare_joint_spatiotemporal_coordinates();
     }
     if (param.if_adjust_coord)
@@ -123,23 +93,28 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     param.validate_prediction_structures();
     if(joint_spatiotemporal)
     {
-        auto codec=param.point_set_config_vec[0].codec;
+        unsz::point_set_codec_e codec=unsz::point_set_codec_e::constant;
+        for(const unsz::point_set_config_c&config:param.point_set_config_vec)
+            if(config.codec!=unsz::point_set_codec_e::constant)
+            {
+                if(codec!=unsz::point_set_codec_e::constant&&codec!=config.codec)
+                    throw runtime_error("同一次联合时空解压中的非常量点集必须使用同一种空间预测器");
+                codec=config.codec;
+            }
         if(codec==unsz::point_set_codec_e::idw)
             param.template decompress_joint_spatiotemporal_files<unsz::point_set_codec_e::idw>();
         else if(codec==unsz::point_set_codec_e::rbf)
             param.template decompress_joint_spatiotemporal_files<unsz::point_set_codec_e::rbf>();
         else
-            throw runtime_error("单点集联合时空解压只支持IDW或RBF预测器");
+            throw runtime_error("联合时空解压至少需要一个使用IDW或RBF的非常量点集");
         return;
     }
     if(param.point_set_config_vec.size()==2&&param.label_value_execution=="staged")
         throw runtime_error("staged模式只在内存中估计压缩效果，不生成可解压码流");
-    uint64_t total_point_num=0;
     uint32_t validated_file_num=0;
-    double total_squared_error=0,total_decompression_time=0,total_time_prediction_state_update_time=0,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
-    uint32_t max_error_point_id=0,max_error_point_set_id=0;
+    double total_decompression_time=0,total_time_prediction_state_update_time=0;
+    unsz::reconstruction_statistics_c total_statistics;
     string max_error_data_path;
-    float total_min_data=numeric_limits<float>::infinity(),total_max_data=-numeric_limits<float>::infinity();
     using param_type=unsz::param_c<T_coord,float>;
     if(param.point_set_config_vec.size()!=1&&param.point_set_config_vec.size()!=2)
         throw runtime_error("解压只支持一个或两个点集");
@@ -153,25 +128,15 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         param.current_time_step=param.time_step_vec[file_id];
         string compressed_path=param.original_data_path_vec[file_id]+".unsz";
         string decompressed_path=param.original_data_path_vec[file_id]+".unsz.bin";
-        param.current_compressed_bytes=read_byte_file(compressed_path);
+        param.current_compressed_bytes=unsz::read_byte_file(compressed_path);
 
         auto decompression_start_time=chrono::steady_clock::now();
         (param.*decompress_field)();
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
-        FILE *f_decompressed=fopen(decompressed_path.c_str(),"wb");
-        if (!f_decompressed)
-            throw runtime_error("无法创建解压文件："+decompressed_path);
-        if (fwrite(param.current_decompressed_data.data(),sizeof(float),param.point_num,f_decompressed)!=param.point_num)
-        {
-            fclose(f_decompressed);
-            throw runtime_error("写入解压文件失败："+decompressed_path);
-        }
-        if (fclose(f_decompressed)!=0)
-            throw runtime_error("关闭解压文件失败："+decompressed_path);
+        unsz::write_binary_file(decompressed_path,param.current_decompressed_data.data(),param.point_num);
 
         vector<float> original_data(param.point_num);
-        FILE *f_original=fopen(param.original_data_path_vec[file_id].c_str(),"rb");
-        if (!f_original)
+        if(!unsz::try_read_binary_file_exact(param.original_data_path_vec[file_id],original_data.data(),param.point_num))
         {
             printf("Decompressed %s（原始文件不存在，跳过误差验证）\n",decompressed_path.c_str());
             auto time_state_update_start=chrono::steady_clock::now();
@@ -184,54 +149,11 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
             printf("file decompression time= %f s\n",decompression_time);
             continue;
         }
-        if (fread(original_data.data(),sizeof(float),param.point_num,f_original)!=param.point_num)
-        {
-            fclose(f_original);
-            throw runtime_error("读取原始文件失败："+param.original_data_path_vec[file_id]);
-        }
-        if (fclose(f_original)!=0)
-            throw runtime_error("关闭原始文件失败："+param.original_data_path_vec[file_id]);
-        double squared_error=0;
-        uint32_t primary_point_set_id=0;
-        while (param.point_set_point_num_vec[primary_point_set_id]==0)
-            primary_point_set_id++;
-        for (uint32_t i=0;i<param.point_num;i++)
-        {
-            double error=(double)original_data[i]-param.current_decompressed_data[i];
-            squared_error+=error*error;
-            uint32_t point_set_id=param.point_set_id_vec.empty()?0:param.point_set_id_vec[i];
-            double validation_abs_eb=param.point_set_abs_eb_vec[point_set_id];
-            double error_ratio;
-            if(validation_abs_eb>0)
-                error_ratio=abs(error)/validation_abs_eb;
-            else if(error==0)
-                error_ratio=0;
-            else
-                error_ratio=numeric_limits<double>::infinity();
-            if (error_ratio>max_error_ratio)
-            {
-                max_error_ratio=error_ratio;
-                max_error=error;
-                max_error_abs_eb=validation_abs_eb;
-                max_error_point_id=i;
-                max_error_point_set_id=point_set_id;
-                max_error_data_path=param.original_data_path_vec[file_id];
-            }
-            if (point_set_id==primary_point_set_id)
-            {
-                total_min_data=min(total_min_data,original_data[i]);
-                total_max_data=max(total_max_data,original_data[i]);
-            }
-        }
-        double mse=squared_error/param.point_num;
-        double psnr;
-        if(mse==0)
-            psnr=numeric_limits<double>::infinity();
-        else
-            psnr=10*log10(pow((double)param.point_set_max_data_vec[primary_point_set_id]-param.point_set_min_data_vec[primary_point_set_id],2)/mse);
-        printf("Decompressed %s, psnr= %f\n",decompressed_path.c_str(),psnr);
-        total_squared_error+=squared_error;
-        total_point_num+=param.point_num;
+        unsz::reconstruction_statistics_c file_statistics=param.calculate_reconstruction_statistics(original_data.data(),param.current_decompressed_data.data(),param.point_num);
+        if(file_statistics.max_error_ratio>total_statistics.max_error_ratio)
+            max_error_data_path=param.original_data_path_vec[file_id];
+        unsz::merge_reconstruction_statistics(total_statistics,file_statistics);
+        printf("Decompressed %s, psnr= %f\n",decompressed_path.c_str(),unsz::reconstruction_psnr(file_statistics));
         validated_file_num++;
         auto time_state_update_start=chrono::steady_clock::now();
         param.update_time_prediction_state();
@@ -242,17 +164,13 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         printf("time prediction state update time= %.9f s\n",time_state_update_time);
         printf("file decompression time= %f s\n",decompression_time);
     }
-    printf("全部文件最大误差/用户误差上限= %.9f\n",max_error_ratio);
-    if (max_error_ratio>1.01)
-        throw runtime_error("全部文件解压完成后误差检查失败：文件="+max_error_data_path+"，点="+to_string(max_error_point_id)+"，点集="+to_string(max_error_point_set_id)+"，误差="+to_string(max_error)+"，绝对误差上限="+to_string(max_error_abs_eb)+"，误差/上限="+to_string(max_error_ratio));
+    printf("全部文件最大误差/用户误差上限= %.9f\n",total_statistics.max_error_ratio);
+    if(total_statistics.max_error_ratio>1.01)
+        throw runtime_error("全部文件解压完成后误差检查失败：文件="+max_error_data_path+"，点="+to_string(total_statistics.max_error_point_id)+"，点集="+to_string(total_statistics.max_error_point_set_id)+"，误差="+to_string(total_statistics.max_error)+"，绝对误差上限="+to_string(total_statistics.max_error_abs_eb)+"，误差/上限="+to_string(total_statistics.max_error_ratio));
     printf("total time prediction state update time= %.9f s\n",total_time_prediction_state_update_time);
     printf("total decompression time= %f s\n",total_decompression_time);
     if (validated_file_num>0)
-    {
-        double total_mse=total_squared_error/total_point_num;
-        double total_psnr=total_mse==0?numeric_limits<double>::infinity():10*log10(pow((double)total_max_data-total_min_data,2)/total_mse);
-        printf("total decompressed psnr= %f\n",total_psnr);
-    }
+        printf("total decompressed psnr= %f\n",unsz::reconstruction_psnr(total_statistics));
 }
 
 template<typename T_coord>
