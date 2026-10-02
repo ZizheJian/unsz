@@ -332,19 +332,10 @@ namespace unsz
     {
         param_c<float,float> param;
         parse_args(argc,argv,param);
-        auto preprocessing_start_time=chrono::steady_clock::now();
         param.init();
-        if(param.need_double_coord())
-        {
-            printf("坐标跨度较大，将坐标和距离计算从float升级为double\n");
-            param_c<double,float> typed_param(param);
-            unsz::compress(typed_param,preprocessing_start_time);
-        }
-        else
-        {
-            printf("使用float处理坐标和距离\n");
-            unsz::compress(param,preprocessing_start_time);
-        }
+        auto preprocessing_start_time=chrono::steady_clock::now();
+        printf("使用float处理坐标和距离\n");
+        unsz::compress(param,preprocessing_start_time);
         return 0;
     }
 }

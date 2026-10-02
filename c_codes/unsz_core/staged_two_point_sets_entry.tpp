@@ -70,14 +70,10 @@ void param_c<T_coord,T_data>::compress_staged_two_point_sets_files()
     {
         current_data.clear();
         current_decompressed_data.clear();
-        previous_time_decompressed_data.clear();
-        previous_time_point_set_id_vec.clear();
-        reconstructed_time_step_vec.clear();
         reconstructed_time_data_vec.clear();
         reconstructed_time_point_set_id_vec.clear();
-        previous_time_value_history_id=-1;
-        previous_time_label_history_id=-1;
         previous_time_value_source=nullptr;
+        previous_time_value_point_set_source=nullptr;
         previous_time_label_source=nullptr;
         current_time_spatial_residual_data.clear();
         current_time_spatial_residual_valid.clear();
@@ -95,37 +91,31 @@ void param_c<T_coord,T_data>::compress_staged_two_point_sets_files()
         prepare_time_step_order(get_time_step_order(selected_flow));
         reset_time_state();
     };
-    map<uint32_t,vector<unsigned char>> label_prefix_map;
-    vector<vector<unsigned char>> compressed_stream_vec;
+    map<uint32_t,uint64_t> label_prefix_byte_num_map;
     suppress_compression_summary=true;
     try
     {
         configure_order(original_label_flow,"none");
         printf("staged label pass: process all labels before values\n");
-        compress_files(&param_c<T_coord,T_data>::template dispatch_staged_label_compression<predictor>,false,&compressed_stream_vec,false);
-        double label_pass_time=last_total_compression_time;
-        for(uint32_t file_id=0;file_id<time_step_vec.size();file_id++)
+        compress_files(&param_c<T_coord,T_data>::template dispatch_staged_label_compression<predictor>,false,[&](uint32_t file_id,const vector<unsigned char>&bytes)
         {
-            vector<unsigned char> &bytes=compressed_stream_vec[file_id];
-            uint64_t value_offset=get_point_set_value_stream_offset(bytes,use_partition_adaptive_predictor_experimental);
-            label_prefix_map[time_step_vec[file_id]]=vector<unsigned char>(bytes.begin(),bytes.begin()+value_offset);
-        }
+            label_prefix_byte_num_map[time_step_vec[file_id]]=get_point_set_value_stream_offset(bytes,use_partition_adaptive_predictor_experimental);
+        },false);
+        double label_pass_time=last_total_compression_time;
 
         configure_order("none",original_value_flow);
         printf("staged value pass: process values after all labels\n");
-        compress_files(&param_c<T_coord,T_data>::template dispatch_staged_value_compression<predictor>,false,&compressed_stream_vec);
-        double value_pass_time=last_total_compression_time;
         uint64_t total_compressed_bytes=0;
-        for(uint32_t file_id=0;file_id<time_step_vec.size();file_id++)
+        compress_files(&param_c<T_coord,T_data>::template dispatch_staged_value_compression<predictor>,false,[&](uint32_t file_id,const vector<unsigned char>&value_file)
         {
             uint32_t time_step=time_step_vec[file_id];
-            auto prefix_iterator=label_prefix_map.find(time_step);
-            if(prefix_iterator==label_prefix_map.end())
+            auto prefix_iterator=label_prefix_byte_num_map.find(time_step);
+            if(prefix_iterator==label_prefix_byte_num_map.end())
                 throw runtime_error("staged标签遍缺少time step "+to_string(time_step));
-            vector<unsigned char> &value_file=compressed_stream_vec[file_id];
             uint64_t value_offset=get_point_set_value_stream_offset(value_file,use_partition_adaptive_predictor_experimental);
-            total_compressed_bytes+=prefix_iterator->second.size()+value_file.size()-value_offset;
-        }
+            total_compressed_bytes+=prefix_iterator->second+value_file.size()-value_offset;
+        });
+        double value_pass_time=last_total_compression_time;
         double total_cr=(double)last_total_original_bytes/total_compressed_bytes;
         double total_br=sizeof(T_data)*8/total_cr;
         printf("staged mode estimates compression effect in memory and does not write compressed files\n");

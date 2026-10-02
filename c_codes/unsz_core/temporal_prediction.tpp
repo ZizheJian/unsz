@@ -3,79 +3,175 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::prepare_temporal_dependencies()
+    {
+        uint32_t time_step_num=(uint32_t)time_step_vec.size();
+        temporal_value_dependency_vec.assign(time_step_num,{});
+        temporal_label_dependency_vec.assign(time_step_num,{});
+        temporal_value_remaining_outdegree_vec.assign(time_step_num,0);
+        temporal_label_remaining_outdegree_vec.assign(time_step_num,0);
+        reconstructed_time_data_vec.assign(time_step_num,{});
+        reconstructed_time_point_set_id_vec.assign(time_step_num,{});
+        previous_time_value_source=nullptr;
+        previous_time_value_point_set_source=nullptr;
+        previous_time_label_source=nullptr;
+        map<uint32_t,uint32_t> processed_time_step_indices;
+        int32_t previous_value_source=-1,previous_label_source=-1;
+        auto build_dependency=[](const string&flow,uint32_t time_step,uint32_t time_step_index,int32_t left_source,int32_t right_source,int32_t&previous_source)
+        {
+            temporal_dependency_c dependency;
+            bool anchor_flow=flow=="anchor_interpolation_stride_8"||flow=="anchor_interpolation_stride_8_spatial_residual";
+            bool constant_flow=flow=="constant_extrapolation"||flow=="constant_extrapolation_spatial_residual";
+            bool interpolation_flow=flow=="linear_interpolation"||flow=="linear_interpolation_spatial_residual";
+            if(anchor_flow)
+            {
+                bool first_anchor=time_step==0;
+                bool regular_anchor=time_step%8==0;
+                bool can_interpolate=left_source>=0&&right_source>=0;
+                if(first_anchor)
+                    previous_source=(int32_t)time_step_index;
+                else if(regular_anchor||!can_interpolate)
+                {
+                    if(previous_source>=0)
+                    {
+                        dependency.source_indices[0]=previous_source;
+                        dependency.source_num=1;
+                    }
+                    previous_source=(int32_t)time_step_index;
+                }
+                else
+                {
+                    dependency.source_indices={{left_source,right_source}};
+                    dependency.source_num=2;
+                }
+                return dependency;
+            }
+            if(constant_flow)
+            {
+                if(previous_source>=0)
+                {
+                    dependency.source_indices[0]=previous_source;
+                    dependency.source_num=1;
+                }
+                previous_source=(int32_t)time_step_index;
+                return dependency;
+            }
+            if(interpolation_flow&&left_source>=0&&right_source>=0)
+            {
+                dependency.source_indices={{left_source,right_source}};
+                dependency.source_num=2;
+            }
+            return dependency;
+        };
+        for(uint32_t time_step_index=0;time_step_index<time_step_num;time_step_index++)
+        {
+            uint32_t time_step=time_step_vec[time_step_index];
+            int32_t left_source=-1,right_source=-1;
+            auto right_iterator=processed_time_step_indices.lower_bound(time_step);
+            if(right_iterator!=processed_time_step_indices.end())
+                right_source=(int32_t)right_iterator->second;
+            if(right_iterator!=processed_time_step_indices.begin())
+            {
+                auto left_iterator=right_iterator;
+                --left_iterator;
+                left_source=(int32_t)left_iterator->second;
+            }
+            temporal_dependency_c&value_dependency=temporal_value_dependency_vec[time_step_index];
+            temporal_dependency_c&label_dependency=temporal_label_dependency_vec[time_step_index];
+            value_dependency=build_dependency(value_flow,time_step,time_step_index,left_source,right_source,previous_value_source);
+            label_dependency=build_dependency(label_flow,time_step,time_step_index,left_source,right_source,previous_label_source);
+            for(uint32_t source_index=0;source_index<value_dependency.source_num;source_index++)
+            {
+                uint32_t source_time_step_index=(uint32_t)value_dependency.source_indices[source_index];
+                temporal_value_remaining_outdegree_vec[source_time_step_index]++;
+                if(point_set_config_vec.size()>1)
+                    temporal_label_remaining_outdegree_vec[source_time_step_index]++;
+            }
+            for(uint32_t source_index=0;source_index<label_dependency.source_num;source_index++)
+                temporal_label_remaining_outdegree_vec[(uint32_t)label_dependency.source_indices[source_index]]++;
+            processed_time_step_indices.emplace(time_step,time_step_index);
+        }
+    }
+
+    template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_temporal_prediction()
     {
-        temporal_history_ids={{-1,-1}};
-        temporal_weights={{0,0}};
         previous_time_value_source=nullptr;
+        previous_time_value_point_set_source=nullptr;
         previous_time_label_source=nullptr;
-        if(previous_time_value_history_id>=0)
-            previous_time_value_source=&reconstructed_time_data_vec[previous_time_value_history_id];
-        else if(previous_time_decompressed_data.size()==point_num)
-            previous_time_value_source=&previous_time_decompressed_data;
-        if(previous_time_label_history_id>=0)
-            previous_time_label_source=&reconstructed_time_point_set_id_vec[previous_time_label_history_id];
-        else if(previous_time_point_set_id_vec.size()==point_num)
-            previous_time_label_source=&previous_time_point_set_id_vec;
-        previous_time_value_available=previous_time_value_source&&previous_time_value_source->size()==point_num;
-        previous_time_label_available=previous_time_label_source&&previous_time_label_source->size()==point_num;
-        temporal_interpolation_available=false;
-        if(value_flow=="constant_extrapolation_spatial_residual"||value_flow=="linear_interpolation_spatial_residual"||uses_anchor_interpolation_stride_8_flow())
+        previous_time_value_available=false;
+        previous_time_label_available=false;
+        temporal_value_interpolation_available=false;
+        temporal_label_interpolation_available=false;
+        temporal_weights={{0,0}};
+        const prediction_framework_c&framework=current_prediction_framework;
+        if(framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
         {
             current_time_spatial_residual_data.assign(point_num,0);
             current_time_spatial_residual_valid.assign(point_num,0);
         }
-        const prediction_framework_c &framework=current_prediction_framework;
-        if(framework.value_mode!=time_dimension_mode_e::linear_interpolation&&framework.value_mode!=time_dimension_mode_e::linear_interpolation_spatial_residual&&framework.label_mode!=time_dimension_mode_e::label_linear_interpolation_spatial_residual)
-            return;
-        for (uint32_t history_id=0;history_id<reconstructed_time_step_vec.size();history_id++)
+        const temporal_dependency_c&value_dependency=temporal_value_dependency_vec[current_time_step_index];
+        const temporal_dependency_c&label_dependency=temporal_label_dependency_vec[current_time_step_index];
+        if((framework.value_mode==time_dimension_mode_e::constant_extrapolation||framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)&&value_dependency.source_num==1)
         {
-            uint32_t history_time_step=reconstructed_time_step_vec[history_id];
-            if(history_time_step<current_time_step&&(temporal_history_ids[0]<0||history_time_step>reconstructed_time_step_vec[temporal_history_ids[0]]))
-                temporal_history_ids[0]=history_id;
-            if(history_time_step>current_time_step&&(temporal_history_ids[1]<0||history_time_step<reconstructed_time_step_vec[temporal_history_ids[1]]))
-                temporal_history_ids[1]=history_id;
+            uint32_t source_index=(uint32_t)value_dependency.source_indices[0];
+            previous_time_value_source=&reconstructed_time_data_vec[source_index];
+            previous_time_value_available=previous_time_value_source->size()==point_num;
+            if(point_set_config_vec.size()>1)
+            {
+                previous_time_value_point_set_source=&reconstructed_time_point_set_id_vec[source_index];
+                previous_time_value_available&=previous_time_value_point_set_source->size()==point_num;
+            }
         }
-        if(temporal_history_ids[0]<0||temporal_history_ids[1]<0)
-            return;
-        bool interpolate_value=framework.value_mode==time_dimension_mode_e::linear_interpolation||framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
-        bool interpolate_label=framework.label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
-        const vector<T_data>&left_data=reconstructed_time_data_vec[temporal_history_ids[0]],&right_data=reconstructed_time_data_vec[temporal_history_ids[1]];
-        if(interpolate_value&&(left_data.size()!=point_num||right_data.size()!=point_num))
-            throw runtime_error("时间插值历史数据的点数不正确");
-        const vector<uint8_t>&left_point_set_ids=reconstructed_time_point_set_id_vec[temporal_history_ids[0]],&right_point_set_ids=reconstructed_time_point_set_id_vec[temporal_history_ids[1]];
-        if((interpolate_label||(interpolate_value&&point_set_config_vec.size()>1))&&(left_point_set_ids.size()!=point_num||right_point_set_ids.size()!=point_num))
-            throw runtime_error("时间插值点集历史的点数不正确");
-        temporal_interpolation_available=true;
-        uint32_t left_time_step=reconstructed_time_step_vec[temporal_history_ids[0]],right_time_step=reconstructed_time_step_vec[temporal_history_ids[1]];
-        T_calc right_weight;
-        if(time_step_coordinate_vec.empty())
-            right_weight=(T_calc)(current_time_step-left_time_step)/(right_time_step-left_time_step);
-        else
+        if(framework.label_mode==time_dimension_mode_e::constant_extrapolation&&label_dependency.source_num==1)
         {
-            T_coord left_coordinate=time_step_coordinate_vec[left_time_step],right_coordinate=time_step_coordinate_vec[right_time_step],current_coordinate=time_step_coordinate_vec[current_time_step];
-            right_weight=(T_calc)((current_coordinate-left_coordinate)/(right_coordinate-left_coordinate));
+            uint32_t source_index=(uint32_t)label_dependency.source_indices[0];
+            previous_time_label_source=&reconstructed_time_point_set_id_vec[source_index];
+            previous_time_label_available=previous_time_label_source->size()==point_num;
         }
-        temporal_weights[0]=(T_calc)1-right_weight;
-        temporal_weights[1]=right_weight;
+        if((framework.value_mode==time_dimension_mode_e::linear_interpolation||framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)&&value_dependency.source_num==2)
+        {
+            uint32_t left_source=(uint32_t)value_dependency.source_indices[0],right_source=(uint32_t)value_dependency.source_indices[1];
+            const vector<T_data>&left_data=reconstructed_time_data_vec[left_source],&right_data=reconstructed_time_data_vec[right_source];
+            temporal_value_interpolation_available=left_data.size()==point_num&&right_data.size()==point_num;
+            if(point_set_config_vec.size()>1)
+            {
+                const vector<uint8_t>&left_point_set_ids=reconstructed_time_point_set_id_vec[left_source],&right_point_set_ids=reconstructed_time_point_set_id_vec[right_source];
+                temporal_value_interpolation_available&=left_point_set_ids.size()==point_num&&right_point_set_ids.size()==point_num;
+            }
+            uint32_t left_time_step=time_step_vec[left_source],right_time_step=time_step_vec[right_source];
+            T_calc right_weight;
+            if(time_step_coordinate_vec.empty())
+                right_weight=(T_calc)(current_time_step-left_time_step)/(right_time_step-left_time_step);
+            else
+            {
+                T_coord left_coordinate=time_step_coordinate_vec[left_time_step],right_coordinate=time_step_coordinate_vec[right_time_step],current_coordinate=time_step_coordinate_vec[current_time_step];
+                right_weight=(T_calc)((current_coordinate-left_coordinate)/(right_coordinate-left_coordinate));
+            }
+            temporal_weights[0]=(T_calc)1-right_weight;
+            temporal_weights[1]=right_weight;
+        }
+        if(framework.label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual&&label_dependency.source_num==2)
+        {
+            uint32_t left_source=(uint32_t)label_dependency.source_indices[0],right_source=(uint32_t)label_dependency.source_indices[1];
+            temporal_label_interpolation_available=reconstructed_time_point_set_id_vec[left_source].size()==point_num&&reconstructed_time_point_set_id_vec[right_source].size()==point_num;
+        }
     }
 
     template<typename T_coord,typename T_data>
     template<time_dimension_mode_e label_mode>
-    bool param_c<T_coord,T_data>::predict_temporal_label(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction)
+    bool param_c<T_coord,T_data>::predict_temporal_label(uint32_t original_id,uint32_t label_channel_id,uint32_t&prediction)
     {
-        auto get_binary_label=[label_channel_id,original_id](const vector<uint8_t> &point_set_ids)
+        auto get_binary_label=[label_channel_id,original_id](const vector<uint8_t>&point_set_ids)
         {
-            if(point_set_ids[original_id]==label_channel_id)
-                return 0;
-            return 1;
+            return point_set_ids[original_id]==label_channel_id?0U:1U;
         };
         if constexpr(label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual)
         {
-            if(!temporal_interpolation_available)
+            if(!temporal_label_interpolation_available)
                 return false;
-            const vector<uint8_t> &left_point_set_ids=reconstructed_time_point_set_id_vec[temporal_history_ids[0]];
-            const vector<uint8_t> &right_point_set_ids=reconstructed_time_point_set_id_vec[temporal_history_ids[1]];
+            const temporal_dependency_c&dependency=temporal_label_dependency_vec[current_time_step_index];
+            const vector<uint8_t>&left_point_set_ids=reconstructed_time_point_set_id_vec[(uint32_t)dependency.source_indices[0]],&right_point_set_ids=reconstructed_time_point_set_id_vec[(uint32_t)dependency.source_indices[1]];
             uint32_t left_label=get_binary_label(left_point_set_ids),right_label=get_binary_label(right_point_set_ids);
             if(left_label!=right_label)
                 return false;
@@ -84,10 +180,9 @@ namespace unsz
         }
         if(!previous_time_label_available)
             return false;
-        uint32_t label1=get_binary_label(*previous_time_label_source);
         if constexpr(label_mode==time_dimension_mode_e::constant_extrapolation)
         {
-            prediction=label1;
+            prediction=get_binary_label(*previous_time_label_source);
             return true;
         }
         return false;
@@ -95,25 +190,27 @@ namespace unsz
 
     template<typename T_coord,typename T_data>
     template<time_dimension_mode_e value_mode>
-    bool param_c<T_coord,T_data>::predict_temporal_value(uint32_t original_id,uint32_t point_set_id,T_data &prediction)
+    bool param_c<T_coord,T_data>::predict_temporal_value(uint32_t original_id,uint32_t point_set_id,T_data&prediction)
     {
         if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation||value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
         {
             if(!previous_time_value_available)
                 return false;
-            if(point_set_config_vec.size()>1&&(!previous_time_label_available||(*previous_time_label_source)[original_id]!=point_set_id))
+            if(point_set_config_vec.size()>1&&(*previous_time_value_point_set_source)[original_id]!=point_set_id)
                 return false;
             prediction=(*previous_time_value_source)[original_id];
             return true;
         }
         if constexpr(value_mode==time_dimension_mode_e::linear_interpolation||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
         {
-            if(!temporal_interpolation_available)
+            if(!temporal_value_interpolation_available)
                 return false;
-            const vector<T_data>&left_data=reconstructed_time_data_vec[temporal_history_ids[0]],&right_data=reconstructed_time_data_vec[temporal_history_ids[1]];
+            const temporal_dependency_c&dependency=temporal_value_dependency_vec[current_time_step_index];
+            uint32_t left_source=(uint32_t)dependency.source_indices[0],right_source=(uint32_t)dependency.source_indices[1];
+            const vector<T_data>&left_data=reconstructed_time_data_vec[left_source],&right_data=reconstructed_time_data_vec[right_source];
             if(point_set_config_vec.size()>1)
             {
-                const vector<uint8_t>&left_point_set_ids=reconstructed_time_point_set_id_vec[temporal_history_ids[0]],&right_point_set_ids=reconstructed_time_point_set_id_vec[temporal_history_ids[1]];
+                const vector<uint8_t>&left_point_set_ids=reconstructed_time_point_set_id_vec[left_source],&right_point_set_ids=reconstructed_time_point_set_id_vec[right_source];
                 if(left_point_set_ids[original_id]!=point_set_id||right_point_set_ids[original_id]!=point_set_id)
                     return false;
             }
@@ -138,59 +235,30 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    int32_t param_c<T_coord,T_data>::save_current_interpolation_history()
-    {
-        bool save_interpolation_history=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||label_flow=="linear_interpolation_spatial_residual"||uses_anchor_interpolation_stride_8_flow();
-        if(!save_interpolation_history)
-            return -1;
-        bool save_value_history=value_flow=="linear_interpolation"||value_flow=="linear_interpolation_spatial_residual"||uses_anchor_interpolation_stride_8_flow();
-        bool save_label_history=save_interpolation_history&&point_set_config_vec.size()>1;
-        if(save_value_history&&current_decompressed_data.size()!=point_num)
-            throw runtime_error("无法保存不完整的数值时间预测状态");
-        if(save_label_history&&point_set_id_vec.size()!=point_num)
-            throw runtime_error("无法保存不完整的标签时间预测状态");
-        int32_t history_id=(int32_t)reconstructed_time_step_vec.size();
-        reconstructed_time_step_vec.push_back(current_time_step);
-        if(save_value_history)
-            reconstructed_time_data_vec.push_back(move(current_decompressed_data));
-        else
-            reconstructed_time_data_vec.emplace_back();
-        if(save_label_history)
-            reconstructed_time_point_set_id_vec.push_back(move(point_set_id_vec));
-        else
-            reconstructed_time_point_set_id_vec.emplace_back();
-        return history_id;
-    }
-
-    template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::update_constant_extrapolation_reference(int32_t history_id)
-    {
-        const prediction_framework_c &framework=current_prediction_framework;
-        bool first_time_anchor=uses_anchor_interpolation_stride_8_flow()&&current_time_step==0;
-        bool keep_previous_value=framework.value_mode==time_dimension_mode_e::constant_extrapolation||framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||first_time_anchor;
-        bool keep_previous_label=point_set_config_vec.size()>1&&(keep_previous_value||framework.label_mode==time_dimension_mode_e::constant_extrapolation||first_time_anchor);
-        if(keep_previous_value&&history_id>=0&&!reconstructed_time_data_vec[history_id].empty())
-            previous_time_value_history_id=history_id;
-        else if(keep_previous_value)
-        {
-            previous_time_value_history_id=-1;
-            previous_time_decompressed_data.swap(current_decompressed_data);
-        }
-        if(keep_previous_label&&history_id>=0&&!reconstructed_time_point_set_id_vec[history_id].empty())
-            previous_time_label_history_id=history_id;
-        else if(keep_previous_label)
-        {
-            previous_time_label_history_id=-1;
-            previous_time_point_set_id_vec.swap(point_set_id_vec);
-        }
-    }
-
-    template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::update_time_prediction_state()
     {
         previous_time_value_source=nullptr;
+        previous_time_value_point_set_source=nullptr;
         previous_time_label_source=nullptr;
-        int32_t history_id=save_current_interpolation_history();
-        update_constant_extrapolation_reference(history_id);
+        if(temporal_value_remaining_outdegree_vec[current_time_step_index]>0)
+            reconstructed_time_data_vec[current_time_step_index]=move(current_decompressed_data);
+        if(temporal_label_remaining_outdegree_vec[current_time_step_index]>0)
+            reconstructed_time_point_set_id_vec[current_time_step_index]=move(point_set_id_vec);
+        const temporal_dependency_c&value_dependency=temporal_value_dependency_vec[current_time_step_index];
+        for(uint32_t source_index=0;source_index<value_dependency.source_num;source_index++)
+        {
+            uint32_t source_time_step_index=(uint32_t)value_dependency.source_indices[source_index];
+            if(--temporal_value_remaining_outdegree_vec[source_time_step_index]==0)
+                vector<T_data>().swap(reconstructed_time_data_vec[source_time_step_index]);
+            if(point_set_config_vec.size()>1&&--temporal_label_remaining_outdegree_vec[source_time_step_index]==0)
+                vector<uint8_t>().swap(reconstructed_time_point_set_id_vec[source_time_step_index]);
+        }
+        const temporal_dependency_c&label_dependency=temporal_label_dependency_vec[current_time_step_index];
+        for(uint32_t source_index=0;source_index<label_dependency.source_num;source_index++)
+        {
+            uint32_t source_time_step_index=(uint32_t)label_dependency.source_indices[source_index];
+            if(--temporal_label_remaining_outdegree_vec[source_time_step_index]==0)
+                vector<uint8_t>().swap(reconstructed_time_point_set_id_vec[source_time_step_index]);
+        }
     }
 }

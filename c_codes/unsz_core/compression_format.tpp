@@ -179,12 +179,13 @@ namespace unsz
             throw runtime_error("压缩文件点数与坐标点数不一致");
         if (data_type_bytes!=sizeof(T_data))
             throw runtime_error("压缩文件的数据类型大小与解压程序不一致");
-        if (point_set_num==0 || point_set_num>point_num)
-            throw runtime_error("压缩文件中的点集数量无效");
-        if(!two_point_sets&&point_set_num!=1)
-            throw runtime_error("多点集码流不能使用单点集field配置解压");
-        if (point_set_num>point_set_config_vec.size())
-            throw runtime_error("压缩文件的点集数量超过当前用户配置");
+        if constexpr(two_point_sets)
+        {
+            if(point_set_num!=2)
+                throw runtime_error("两点集field配置要求码流包含两个点集");
+        }
+        else if(point_set_num!=1)
+            throw runtime_error("单点集field配置要求码流包含一个点集");
         if (use_partition_adaptive_predictor_experimental)
         {
             uint32_t block_config_num=read_binary<uint32_t>(cursor,end);
@@ -210,6 +211,7 @@ namespace unsz
         point_set_codec_vec.resize(point_set_num);
         if(prediction_structure_vec.empty())
             throw runtime_error("UNSZ payload码流缺少预测结构");
+        uint64_t metadata_point_num=0;
         for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {
             uint8_t codec=read_binary<uint8_t>(cursor,end);
@@ -217,9 +219,12 @@ namespace unsz
                 throw runtime_error("压缩文件包含未知的点集编码方式");
             point_set_codec_vec[point_set_id]=(point_set_codec_e)codec;
             point_set_point_num_vec[point_set_id]=read_binary<uint32_t>(cursor,end);
+            metadata_point_num+=point_set_point_num_vec[point_set_id];
             point_set_min_data_vec[point_set_id]=read_binary<T_data>(cursor,end);
             point_set_max_data_vec[point_set_id]=read_binary<T_data>(cursor,end);
         }
+        if(metadata_point_num!=point_num)
+            throw runtime_error("压缩文件中的各点集点数之和与总点数不一致");
         uint32_t payload_num=read_binary<uint32_t>(cursor,end);
         if(payload_num!=prediction_structure_vec.size())
             throw runtime_error("压缩文件的payload数量与当前预测结构数量不一致");
@@ -249,7 +254,9 @@ namespace unsz
                 {
                     uint64_t target_num=read_binary<uint64_t>(payload_cursor,payload_end);
                     uint64_t zstd_byte_num=read_binary<uint64_t>(payload_cursor,payload_end);
-                    if(target_num>prediction_structure_vec[payload_id].target_ids.size()||(uint64_t)(payload_end-payload_cursor)<zstd_byte_num)
+                    if(target_num!=prediction_structure_vec[payload_id].target_ids.size())
+                        throw runtime_error("payload标签符号数量与预测目标数量不一致");
+                    if((uint64_t)(payload_end-payload_cursor)<zstd_byte_num)
                         throw runtime_error("payload标签流不完整");
                     if(target_num==0&&zstd_byte_num!=0)
                         throw runtime_error("空payload标签流具有非空Zstd字节流");
@@ -353,6 +360,12 @@ namespace unsz
             unpredictable_value_byte_num+=payload.unpredictable_value_byte_num;
         }
         vector<unsigned char> container;
+        uint64_t container_byte_num=8+4*sizeof(uint32_t)+(uint64_t)point_set_num*(sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data))+sizeof(uint32_t)+(uint64_t)(payload_num+1)*sizeof(uint64_t);
+        if(use_partition_adaptive_predictor_experimental)
+            container_byte_num+=sizeof(uint32_t)+partition_prediction_config_id_vec.size();
+        for(const encoded_compression_payload_c&payload:payload_vec)
+            container_byte_num+=payload.bytes.size();
+        container.reserve((size_t)container_byte_num);
         container.insert(container.end(),compression_file_magic,compression_file_magic+8);
         append_binary<uint32_t>(container,compression_file_version);
         append_binary<uint32_t>(container,point_num);

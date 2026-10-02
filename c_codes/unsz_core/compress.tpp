@@ -167,7 +167,7 @@ namespace unsz
                     point_set_min_data_vec[point_set_id]=minimum[point_set_id];
                     point_set_max_data_vec[point_set_id]=maximum[point_set_id];
                 }
-                point_set_num=point_num_per_set[1]>0?2:1;
+                point_set_num=2;
             };
             double threshold=rule.value;
             switch(rule.operator_type)
@@ -283,8 +283,6 @@ namespace unsz
     template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution>
     void param_c<T_coord,T_data>::prepare_current_compression(compression_file_state_c&state)
     {
-        if(current_data.size()!=point_num)
-            throw runtime_error("当前数据点数与坐标点数不一致");
         classify_current_point_sets<two_point_sets>(state);
         prepare_current_point_set_codecs_and_eb(state);
         prepare_current_prediction_state<two_point_sets,fixed_value_mode,fixed_label_mode,fixed_execution>(state);
@@ -296,13 +294,9 @@ namespace unsz
     void param_c<T_coord,T_data>::compress_labels(compression_file_state_c&state)
     {
         double &label_prediction_time=state.label_prediction_time;
-        if(prediction_structure_vec.size()!=1)
-            throw runtime_error("staged标签压缩要求单个预测结构");
         const prediction_structure_c<T_calc>&structure=prediction_structure_vec.front();
         auto predict_configured_label=[&](uint32_t prediction_index,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,const vector<T_calc>&weights,const vector<uint8_t>&label_vec)
         {
-            if(ref_begin[prediction_index+1]-ref_begin[prediction_index]==10)
-                return predict_label_10(ref_begin[prediction_index],ref_ids,weights,label_vec);
             return predict_label(prediction_index,ref_ids,ref_begin,weights,label_vec);
         };
         auto stage_start_time=chrono::steady_clock::now();
@@ -316,10 +310,7 @@ namespace unsz
         }
         bool use_causal_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_label_available;
         constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
-        vector<uint8_t> label_symbol_by_point(point_num,0),binary_label_vec(point_num,1);
-        for(uint32_t point_id=0;point_id<point_num;point_id++)
-            if(point_set_id_vec[point_id]==0)
-                binary_label_vec[point_id]=0;
+        vector<uint8_t> label_symbol_by_point(point_num,0);
         for(uint32_t prediction_index=0;prediction_index<structure.target_ids.size();prediction_index++)
         {
             int pred_id=structure.target_ids[prediction_index];
@@ -336,7 +327,7 @@ namespace unsz
                 if constexpr(try_time_label)
                     used_time_label=predict_temporal_label<fixed_label_mode>(pred_id,0,predicted_label);
                 if(!used_time_label)
-                    predicted_label=predict_configured_label(prediction_index,structure.reference_ids,structure.reference_offsets,structure.prediction_weights,binary_label_vec);
+                    predicted_label=predict_configured_label(prediction_index,structure.reference_ids,structure.reference_offsets,structure.prediction_weights,point_set_id_vec);
             }
             bool prediction_error=actual_label!=predicted_label;
             state.label_target_num++;
@@ -419,7 +410,7 @@ namespace unsz
         constexpr time_dimension_mode_e value_mode=fixed_value_mode;
         current_decompressed_data.resize(point_num);
         auto stage_start_time=chrono::steady_clock::now();
-        vector<value_compression_result_c<T_data>> structure_result_vec(prediction_structure_vec.size());
+        vector<uint64_t> cross_time_prediction_num_vec(prediction_structure_vec.size(),0);
         vector<double> prediction_duration_vec(prediction_structure_vec.size()),encoding_duration_vec(prediction_structure_vec.size());
         exception_ptr prediction_exception;
 #pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(prediction_structure_vec.size()>1&&thread_num>1)
@@ -428,13 +419,13 @@ namespace unsz
             try
             {
                 auto prediction_start_time=chrono::steady_clock::now();
-                structure_result_vec[structure_index]=compress_structure_values<two_point_sets,fixed_value_mode,fixed_predictor>(prediction_structure_vec[structure_index]);
+                value_compression_result_c<T_data> result=compress_structure_values<two_point_sets,fixed_value_mode,fixed_predictor>(prediction_structure_vec[structure_index]);
                 prediction_duration_vec[structure_index]=chrono::duration<double>(chrono::steady_clock::now()-prediction_start_time).count();
+                cross_time_prediction_num_vec[structure_index]=result.cross_time_prediction_num;
                 vector<uint8_t> empty_label_symbols;
                 auto encoding_start_time=chrono::steady_clock::now();
-                state.encoded_payload_vec[structure_index]=encode_compression_payload(empty_label_symbols,state.has_label,structure_result_vec[structure_index].point_set_qb_vec,structure_result_vec[structure_index].unpredictable_value_vec);
+                state.encoded_payload_vec[structure_index]=encode_compression_payload(empty_label_symbols,state.has_label,result.point_set_qb_vec,result.unpredictable_value_vec);
                 encoding_duration_vec[structure_index]=chrono::duration<double>(chrono::steady_clock::now()-encoding_start_time).count();
-                structure_result_vec[structure_index].point_set_qb_vec.clear();
             }
             catch(...)
             {
@@ -445,8 +436,7 @@ namespace unsz
         }
         if(prediction_exception)
             rethrow_exception(prediction_exception);
-        for(uint32_t structure_id=0;structure_id<structure_result_vec.size();structure_id++)
-            state.cross_time_prediction_num+=structure_result_vec[structure_id].cross_time_prediction_num;
+        state.cross_time_prediction_num=accumulate(cross_time_prediction_num_vec.begin(),cross_time_prediction_num_vec.end(),(uint64_t)0);
         if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation||value_mode==time_dimension_mode_e::linear_interpolation||value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
             printf("cross_time_prediction_num=%llu, ratio=%f\n",(unsigned long long)state.cross_time_prediction_num,(double)state.cross_time_prediction_num/point_num);
         double combined_wall_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
@@ -461,11 +451,9 @@ namespace unsz
     template<time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
     void param_c<T_coord,T_data>::compress_labels_and_values(compression_file_state_c&state)
     {
-        if(state.point_set_num!=2||!state.has_label)
-            throw runtime_error("融合压缩要求恰好两个点集和一个标签通道");
-        constexpr bool use_temporal_flow=fixed_label_mode!=time_dimension_mode_e::spatial||fixed_value_mode!=time_dimension_mode_e::spatial;
         constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
-        vector<uint8_t> binary_label_vec(point_num,1);
+        constexpr bool try_time_value=fixed_value_mode==time_dimension_mode_e::constant_extrapolation||fixed_value_mode==time_dimension_mode_e::linear_interpolation||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
+        constexpr bool use_spatial_residual=fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
         auto stage_start_time=chrono::steady_clock::now();
         auto compress_targets=[&](const prediction_structure_c<T_calc>&prediction_structure,vector<uint8_t>&label_symbols,vector<vector<int32_t>>&point_set_qbs,vector<T_data>&unpredictable_values)
         {
@@ -488,54 +476,48 @@ namespace unsz
                 bool has_rbf_weights=true;
                 if constexpr(fixed_predictor==point_set_codec_e::rbf)
                     has_rbf_weights=!rbf_fallback[prediction_index];
-                auto predict_configured_label=[&]()
-                {
-                    if(ref_num==10)
-                        return predict_label_10(ref_begin,ref_ids_vec,weights,binary_label_vec);
-                    return predict_label(prediction_index,ref_ids_vec,ref_begin_vec,weights,binary_label_vec);
-                };
-                auto predict_configured_value=[&](vector<T_data>&data,const vector<uint8_t>*valid_ref_mask=nullptr)
-                {
-                    if constexpr(fixed_predictor==point_set_codec_e::idw)
-                        return predict_value_two_point_sets_idw(ref_ids,ref_weights,data,actual_point_set_id,valid_ref_mask);
-                    return predict_value_two_point_sets_rbf(has_rbf_weights,ref_ids,ref_weights,data,actual_point_set_id,valid_ref_mask);
-                };
                 bool value_requires_prediction=point_set_codec_vec[actual_point_set_id]!=point_set_codec_e::constant;
-                uint32_t predicted_label;
+                uint32_t predicted_label=0;
                 T_data predicted_value=0;
-                bool use_time_prediction=false;
-                if constexpr(use_temporal_flow)
-                {
-                    bool used_time_label=false;
-                    if constexpr(try_time_label)
-                        used_time_label=predict_temporal_label<fixed_label_mode>(pred_id,0,predicted_label);
-                    if(!used_time_label)
-                        predicted_label=predict_configured_label();
+                bool used_time_label=false,used_time_value=false;
+                if constexpr(try_time_label)
+                    used_time_label=predict_temporal_label<fixed_label_mode>(pred_id,0,predicted_label);
+                if constexpr(try_time_value)
                     if(value_requires_prediction)
+                        used_time_value=predict_temporal_value<fixed_value_mode>(pred_id,actual_point_set_id,predicted_value);
+                array<spatial_value_source_c<T_data>,2> spatial_value_sources;
+                if(value_requires_prediction)
+                {
+                    if(used_time_value)
                     {
-                        use_time_prediction=predict_temporal_value<fixed_value_mode>(pred_id,actual_point_set_id,predicted_value);
-                        if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-                            if(use_time_prediction)
-                                predicted_value+=predict_configured_value(current_time_spatial_residual_data,&current_time_spatial_residual_valid);
-                        if(!use_time_prediction)
-                            predicted_value=predict_configured_value(current_decompressed_data);
-                        local_cross_time_prediction_num+=use_time_prediction;
+                        if constexpr(use_spatial_residual)
+                            spatial_value_sources[actual_point_set_id]={&current_time_spatial_residual_data,&current_time_spatial_residual_valid};
+                    }
+                    else
+                        spatial_value_sources[actual_point_set_id].data=&current_decompressed_data;
+                }
+                bool needs_spatial_value_prediction=spatial_value_sources[actual_point_set_id].data!=nullptr;
+                if(!used_time_label||needs_spatial_value_prediction)
+                {
+                    fused_spatial_prediction_c<T_data> spatial_prediction;
+                    if constexpr(fixed_predictor==point_set_codec_e::rbf)
+                        spatial_prediction=predict_fused_spatial_rbf(has_rbf_weights,ref_ids,ref_weights,!used_time_label,spatial_value_sources);
+                    else
+                        spatial_prediction=predict_fused_spatial_idw(ref_ids,ref_weights,!used_time_label,spatial_value_sources);
+                    if(!used_time_label)
+                        predicted_label=spatial_prediction.label;
+                    if(needs_spatial_value_prediction)
+                    {
+                        if(used_time_value)
+                            predicted_value+=spatial_prediction.values[actual_point_set_id];
+                        else
+                            predicted_value=spatial_prediction.values[actual_point_set_id];
                     }
                 }
-                else
-                {
-                    pair<uint32_t,T_data> prediction;
-                    if constexpr(fixed_predictor==point_set_codec_e::rbf)
-                        prediction=predict_label_and_value_two_point_sets_rbf(has_rbf_weights,ref_ids,ref_weights,binary_label_vec,current_decompressed_data,actual_point_set_id,value_requires_prediction);
-                    else
-                        prediction=predict_label_and_value_two_point_sets_idw(ref_ids,ref_weights,current_decompressed_data,actual_point_set_id,value_requires_prediction);
-                    predicted_label=prediction.first;
-                    predicted_value=prediction.second;
-                }
+                local_cross_time_prediction_num+=used_time_value;
                 bool prediction_error=actual_point_set_id!=predicted_label;
                 label_symbols.push_back(prediction_error?1:0);
                 local_label_error_num+=prediction_error;
-                binary_label_vec[pred_id]=(uint8_t)actual_point_set_id;
                 if(!value_requires_prediction)
                     current_decompressed_data[pred_id]=point_set_min_data_vec[actual_point_set_id];
                 else
@@ -548,9 +530,6 @@ namespace unsz
             return pair<uint64_t,uint64_t>(local_label_error_num,local_cross_time_prediction_num);
         };
         vector<pair<uint64_t,uint64_t>> counts(prediction_structure_vec.size());
-        vector<vector<uint8_t>> structure_label_symbols(prediction_structure_vec.size());
-        vector<vector<vector<int32_t>>> structure_point_set_qbs(prediction_structure_vec.size(),vector<vector<int32_t>>(state.point_set_num));
-        vector<vector<T_data>> structure_unpredictable_values(prediction_structure_vec.size());
         vector<double> prediction_duration_vec(prediction_structure_vec.size()),encoding_duration_vec(prediction_structure_vec.size());
         exception_ptr compression_exception;
 #pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(prediction_structure_vec.size()>1&&thread_num>1)
@@ -558,13 +537,15 @@ namespace unsz
         {
             try
             {
+                vector<uint8_t> label_symbols;
+                vector<vector<int32_t>> point_set_qbs(state.point_set_num);
+                vector<T_data> unpredictable_values;
                 auto prediction_start_time=chrono::steady_clock::now();
-                counts[structure_index]=compress_targets(prediction_structure_vec[structure_index],structure_label_symbols[structure_index],structure_point_set_qbs[structure_index],structure_unpredictable_values[structure_index]);
+                counts[structure_index]=compress_targets(prediction_structure_vec[structure_index],label_symbols,point_set_qbs,unpredictable_values);
                 prediction_duration_vec[structure_index]=chrono::duration<double>(chrono::steady_clock::now()-prediction_start_time).count();
                 auto encoding_start_time=chrono::steady_clock::now();
-                state.encoded_payload_vec[structure_index]=encode_compression_payload(structure_label_symbols[structure_index],true,structure_point_set_qbs[structure_index],structure_unpredictable_values[structure_index]);
+                state.encoded_payload_vec[structure_index]=encode_compression_payload(label_symbols,true,point_set_qbs,unpredictable_values);
                 encoding_duration_vec[structure_index]=chrono::duration<double>(chrono::steady_clock::now()-encoding_start_time).count();
-                structure_point_set_qbs[structure_index].clear();
             }
             catch(...)
             {

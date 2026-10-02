@@ -24,7 +24,7 @@ Ocean/
 └── temperature.dat.30
 ```
 
-所有field文件的点数必须与`coords.dat`一致。二维数据通过`-coordinate-dim 2`指定。程序读取float32坐标后会根据坐标跨度判断距离计算是否需要升级为double，但不会改变磁盘输入格式。
+所有field文件的点数必须与`coords.dat`一致。二维数据通过`-coordinate-dim 2`指定。程序使用float32坐标和距离计算，不会改变磁盘输入格式。
 
 ## 1.2. 安装
 
@@ -166,9 +166,9 @@ JSON最外层是task list；同一个JSON可以包含不同数据目录的任务
 ]
 ```
 
-`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF在同点集参考点不足或权重求解失败时固定退化为最近的同点集参考点，不再提供IDW fallback。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数；同点集参考点少于`prediction_min_ref_num`时，RBF触发最近点fallback。当前正式RBF配置的上下限相同，IDW的下限为1。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope="local"`时先把点分轮，再在各轮内部排序，并通过`prediction_round_num`明确记录轮数；`ordering_scope="global"`时只生成一条完整顺序，不接受`prediction_round_num`，也不能使用名称中含`round`的逐轮EB序列。global可以使用`none`、`point`或连续的`inverse_rank_log2`。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时空流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`、`.unsz.bin`和联合时空`.joint.unsz`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
+`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF在同点集参考点不足或权重求解失败时固定退化为最近的同点集参考点，不再提供IDW fallback。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数；同点集参考点少于`prediction_min_ref_num`时，RBF触发最近点fallback。当前正式RBF配置的上下限相同，IDW的下限为1。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope="local"`时先把点分轮，再在各轮内部排序，并通过`prediction_round_num`明确记录轮数；`ordering_scope="global"`时只生成一条完整顺序，不接受`prediction_round_num`，也不能使用名称中含`round`的逐轮EB序列。global可以使用`none`、`point`或连续的`inverse_rank_log2`。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时空流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、标签/数值执行方式、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`、`.unsz.bin`和联合时空`.joint.unsz`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
 
-UMC任务默认比较压缩端与独立解压端报告的PSNR，但不逐点读取磁盘上的`.umc.out`。需要在更新UMC、修改输入转换或冻结最终结果时检查实际输出文件，可以在task中设置`"verify_umc_disk_output":true`；该检查使用NumPy分块计算，不计入UMC核心压缩或解压时间。
+UMC任务在独立解压完成后始终逐点读取原始field和磁盘上的`.umc.out`。检查使用NumPy分块计算每个time step的数据范围、最大误差和总MSE，验证逐点REL误差界，并核对磁盘PSNR与UMC压缩端和解压端报告一致；该检查在UMC程序计时之外执行，不计入核心压缩或解压时间。
 
 统一可视化程序默认生成Katrina attr0与Ocean temperature的变换前后图像，以及Tsunami velocity_x和height的原网格图像，也可以只选择一个数据集：
 
@@ -252,7 +252,7 @@ UNSZ目前实现了以下压缩流程：
 
 固定步长锚点内插直接作为两个stride固定为8的flow记录。标签侧写成`anchor_interpolation_stride_8`；数值侧写成`anchor_interpolation_stride_8`或`anchor_interpolation_stride_8_spatial_residual`。例如标签、数值都使用空间补充或修正时，分别写成`"label":["anchor_interpolation_stride_8"]`和`"value":["anchor_interpolation_stride_8_spatial_residual"]`。处理顺序固定为：先处理`0`；再以8为步长处理`8,16,24,...`，建立anchor；随后依次处理偏移为4、2和1的三层，即`4,12,20,...`、`2,6,10,...`和`1,3,5,...`。首个time step使用纯空间，anchor使用零阶外插；其余位置在左右端点都已经重构时使用端点一致性标签预测或一阶数值内插。末尾位置缺少右端点时先使用左侧零阶外插，随后仍可作为更细一层内插的端点；末尾time step不提前作为anchor。只启用其中一侧的锚点flow时，另一侧可以选择普通flow。程序不从flow名称解析任意stride；以后若要尝试其他stride，应把它作为新的完整flow实现和测试。
 
-时间遍历顺序与标签、数值预测公式分开处理。程序统一提供顺序遍历、递归内插和anchor8三种time step顺序；标签flow和数值flow分别选择自己的顺序。`staged`依次应用两份顺序，允许二者不同。`fused`保留两份独立顺序：相同时使用现有同步实现，不同时进入专门的不同顺序fused入口；该入口目前明确报告尚未实现，以后可以在不改变配置结构的情况下加入交错调度。
+时间遍历顺序与标签、数值预测公式分开处理。程序统一提供顺序遍历、递归内插和anchor8三种time step顺序；标签flow和数值flow分别选择自己的顺序。每次遍历开始前会生成time step依赖DAG，直接记录各目标的标签和值参考节点以及各参考节点的剩余出度；目标处理完成后删除已消费的边，某类历史的剩余出度归零时立即释放对应的完整数组，不再扫描或永久保留全部既有time step。`staged`依次应用两份顺序并分别生成依赖DAG，允许二者不同。`fused`保留两份独立顺序：相同时使用现有同步实现，不同时进入专门的不同顺序fused入口；该入口目前明确报告尚未实现，以后可以在不改变配置结构的情况下加入交错调度。
 
 时间一阶内插可通过`-time-step-coordinate-file <path>`读取一维float64原始数组，第`i`个数是time step `i`的实际坐标。压缩和解压必须读取同一文件；不传该参数时保持原有的等间距假设。对应task使用`time_step_coordinate_file`记录文件名并同时传给两端，普通等时间间隔数据不需要记录这一项。
 
@@ -1160,7 +1160,7 @@ Tsunami的`CR/UMC`来自既有1点MSD五点曲线；切换正式配置后尚未�
 
 `configs/`中的task JSON是当前运行配置的权威记录，3.2节只汇总已经选定或正在调优的方案。主要baseline为UMC；SZ3和ZFP留到正式实验阶段补充。
 
-单点集RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点；多点集RD曲线由`point_set_config_path_list`中的完整误差配置构成，每个点集可以使用不同EB。UNSZ与UMC曲线不要求使用相同EB，而是在共同PSNR范围内直接对BR和耗时作分段线性插值后比较。UMC合并多个time step的MSE时所需的数据范围，在每个task的每个field开始实验前计算一次，并传给该field的全部UMC实验，不随REL EB重复读取输入。速度统计压缩与解压的程序内部核心时间之和；压缩端与解压端的预处理时间分别记录，其中包括各自的DAG加载或生成、RBF权重生成等操作，坐标变换时间仍按现有输出单独排除。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
+单点集RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点；多点集RD曲线由`point_set_config_path_list`中的完整误差配置构成，每个点集可以使用不同EB。UNSZ与UMC曲线不要求使用相同EB，而是在共同PSNR范围内对`log(BR)`和`log(time)`作分段线性插值后比较；BD-rate为`log(BR)`差的区间积分均值取指数，因而不受额外插入EB采样点影响。UMC合并多个time step的MSE时所需的数据范围，在每个task的每个field开始实验前计算一次，并传给该field的全部UMC实验，不随REL EB重复读取输入。速度统计压缩与解压的程序内部核心时间之和；压缩端与解压端的预处理时间分别记录，其中包括各自的DAG加载或生成、RBF权重生成等操作，输入正确性验证和坐标变换时间单独排除。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
 
 UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同一计时口径：压缩时间为field重排与核心压缩之和，解压时间为核心解压与恢复原始顺序之和；读取输入、写出结果、读取原始field进行误差验证和误差统计均不计入。ADCIRC-Haiyan-1.5km的connectivity包含两个连通分量，而UMC的DPFS只遍历0号点所在的连通分量，无法生成覆盖全部点的有效重排。我们不修改UMC算法，也不改用`reorder=0`；因此Haiyan汇报为UMC无法运行，不计算`CR/UMC`和`总时间/UMC`。
 
@@ -1174,7 +1174,7 @@ UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同�
 - [ ] 把`results/current`整理为与3.1及`configs/`中的task JSON一致的结果集；Tsunami最终使用16候选。
 - [ ] 优先优化仍未达到目标的field，包括Tsunami height、ADCIRC-Haiyan depth和Ocean-large垂直temperature；方案固定后再迁移到其他field验证泛化。
 - [ ] 测试一阶内插中“最后一个文件由第一个文件作零阶外插预测”，并实现“空间预测＋时间补偿”。
-- [ ] 为E3SM-h4 AODDUST补测UMC-INP batch `1/2/5/10`，确认其巨大差异中有多少来自UMC每10步更新动态无效状态。
+- UMC-INP的batch固定为README示例使用的10，不再作为task配置或实验维度。
 - [ ] 研究DAG和RBF权重的紧凑持久化，明确公共metadata需要在多少field或time step之间摊销。
 - [ ] 确认UMC论文Ocean-large的`varnames_91.txt`，核实是否使用58个单高度cell变量及33个多高度cell变量的第0层，再把已经取得的12个月度NetCDF转换为91×12输入；单快照restart不能冒充论文月度输出。
 - [ ] 完成single-core throughput、strong/weak scaling以及端到端压缩—传输—解压实验，再决定投稿路线。

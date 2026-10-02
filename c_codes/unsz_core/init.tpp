@@ -187,72 +187,33 @@ namespace unsz
             prepare_time_step_order(label_order);
         else
             prepare_time_step_order(time_step_order_e::chronological);
-        reconstructed_time_step_vec.reserve(time_step_vec.size());
-        reconstructed_time_data_vec.reserve(time_step_vec.size());
-        reconstructed_time_point_set_id_vec.reserve(time_step_vec.size());
         if (dim==0)
             throw runtime_error("坐标维数不能为0");
-        FILE *f_coord=fopen(coord_path.c_str(),"rb");
-        if (!f_coord)
-            throw runtime_error("找不到坐标文件："+coord_path);
-        if (fseek(f_coord,0,SEEK_END)!=0)
-        {
-            fclose(f_coord);
-            throw runtime_error("无法定位到坐标文件末尾："+coord_path);
-        }
-        long coord_file_bytes_signed=ftell(f_coord);
-        if (coord_file_bytes_signed<0)
-        {
-            fclose(f_coord);
-            throw runtime_error("无法读取坐标文件大小："+coord_path);
-        }
-        uint64_t coord_file_bytes=coord_file_bytes_signed;
+        error_code coord_file_error;
+        uint64_t coord_file_bytes=filesystem::file_size(coord_path,coord_file_error);
+        if(coord_file_error)
+            throw runtime_error("无法读取坐标文件大小："+coord_path+"："+coord_file_error.message());
         uint64_t point_bytes=(uint64_t)dim*sizeof(T_coord);
         if (coord_file_bytes%point_bytes!=0)
             throw runtime_error("坐标文件大小不能被单个点的坐标大小整除");
         uint64_t point_num64=coord_file_bytes/point_bytes;
+        if(point_num64==0)
+            throw runtime_error("坐标文件不能为空："+coord_path);
         if (point_num64>numeric_limits<uint32_t>::max())
             throw runtime_error("点数超过uint32_t的表示范围");
         point_num=(uint32_t)point_num64;
         printf("point_num=%u\n",point_num);
-        if(check_original_data_files)
-        {
-            uint64_t expected_data_file_bytes=(uint64_t)point_num*sizeof(T_data);
-            for(auto &data_path:original_data_path_vec)
-            {
-                error_code error;
-                uint64_t data_file_bytes=filesystem::file_size(data_path,error);
-                if(error)
-                    throw runtime_error("无法读取数据文件大小："+data_path+"："+error.message());
-                if(data_file_bytes!=expected_data_file_bytes)
-                    throw runtime_error("数据文件大小不正确："+data_path+"，实际="+to_string(data_file_bytes)+" B，预期="+to_string(expected_data_file_bytes)+" B");
-            }
-        }
         coord_array.resize(point_num,dim);
-        if (fseek(f_coord,0,SEEK_SET)!=0)
-        {
-            fclose(f_coord);
-            throw runtime_error("无法定位到坐标文件开头："+coord_path);
-        }
         uint64_t coord_value_num=(uint64_t)point_num*dim;
-        if (fread(coord_array.data.data(),sizeof(T_coord),coord_value_num,f_coord)!=coord_value_num)
-        {
-            fclose(f_coord);
-            throw runtime_error("读取坐标文件失败："+coord_path);
-        }
-        if (fclose(f_coord)!=0)
-            throw runtime_error("关闭坐标文件失败："+coord_path);
-
-        for(uint32_t point_id=0;point_id<point_num;point_id++)
-            for(uint32_t dimension=0;dimension<dim;dimension++)
-                if(!isfinite(coord_array[point_id][dimension]))
-                    throw runtime_error("坐标文件包含非有限坐标：点"+to_string(point_id)+"，维度"+to_string(dimension));
+        read_binary_file_exact(coord_path,coord_array.data.data(),coord_value_num);
 
         min_coord.resize(dim,numeric_limits<T_coord>::infinity());
         max_coord.resize(dim,-numeric_limits<T_coord>::infinity());
         for (uint32_t i=0;i<point_num;i++)
             for (uint32_t d=0;d<dim;d++)
             {
+                if(!isfinite(coord_array[i][d]))
+                    throw runtime_error("坐标文件包含非有限坐标：点"+to_string(i)+"，维度"+to_string(d));
                 max_coord[d]=max(max_coord[d],coord_array[i][d]);
                 min_coord[d]=min(min_coord[d],coord_array[i][d]);
             }

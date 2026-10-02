@@ -53,22 +53,22 @@ namespace unsz
             printf("cross_time_reference_targets=%llu, target_ratio=%f, reference_edges=%llu, edge_ratio=%f\n",(unsigned long long)target_with_cross_time_ref_num,(double)target_with_cross_time_ref_num/point_num,(unsigned long long)cross_time_ref_num,cross_time_edge_ratio);
         }
         double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time;
-        printf("preprocessing time excluding adjust coord= %f s\n",preprocessing_time);
+        printf("preprocessing time excluding coordinate input and adjust coord= %f s\n",preprocessing_time);
         if(load_existing_dag_cache)
             validate_prediction_structures();
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::compress_files(void(param_c<T_coord,T_data>::*compress_file)(),bool write_output,vector<vector<unsigned char>> *compressed_stream_vec,bool validate_reconstruction)
+    void param_c<T_coord,T_data>::compress_files(void(param_c<T_coord,T_data>::*compress_file)(),bool write_output,const function<void(uint32_t,const vector<unsigned char>&)>&compressed_stream_consumer,bool validate_reconstruction)
     {
-        if(compressed_stream_vec)
-            compressed_stream_vec->clear();
+        prepare_temporal_dependencies();
         uint64_t total_original_bytes=0,total_compressed_bytes=0;
         double total_compression_time=0,total_time_prediction_state_update_time=0;
         reconstruction_statistics_c total_statistics;
         string max_error_data_path;
         for(uint32_t file_id=0;file_id<original_data_path_vec.size();file_id++)
         {
+            current_time_step_index=file_id;
             current_time_step=time_step_vec[file_id];
             auto &original_data_path=original_data_path_vec[file_id];
             printf("Compressing %s\n",original_data_path.c_str());
@@ -102,8 +102,8 @@ namespace unsz
             total_compression_time+=compression_time;
             printf("time prediction state update time= %.9f s\n",time_state_update_time);
             printf("file compression time= %f s\n",compression_time);
-            if(compressed_stream_vec)
-                compressed_stream_vec->push_back(current_compressed_bytes);
+            if(compressed_stream_consumer)
+                compressed_stream_consumer(file_id,current_compressed_bytes);
             if(write_output)
                 write_binary_file(compressed_data_path_vec.back(),current_compressed_bytes.data(),current_compressed_bytes.size());
         }

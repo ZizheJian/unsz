@@ -112,6 +112,7 @@ namespace unsz
         else
             throw runtime_error("联合时空解压只支持一个点集或fused两个点集");
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
+        validate_decoded_point_set_counts();
 
         reconstruction_statistics_c total_statistics;
         string max_error_data_path;

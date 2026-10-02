@@ -80,19 +80,13 @@ namespace unsz
             bool uses_anchor_flow=uses_anchor_interpolation_stride_8_flow();
             bool first_anchor=uses_anchor_flow&&current_time_step==0;
             bool regular_anchor=uses_anchor_flow&&current_time_step_is_regular_anchor();
-            bool has_left_endpoint=false,has_right_endpoint=false;
-            if(uses_anchor_flow)
-                for(uint32_t reconstructed_time_step:reconstructed_time_step_vec)
-                {
-                    has_left_endpoint|=reconstructed_time_step<current_time_step;
-                    has_right_endpoint|=reconstructed_time_step>current_time_step;
-                }
-            bool can_interpolate=has_left_endpoint&&has_right_endpoint;
             bool value_uses_anchor_flow=value_flow=="anchor_interpolation_stride_8"||value_flow=="anchor_interpolation_stride_8_spatial_residual";
             bool label_uses_anchor_flow=label_flow=="anchor_interpolation_stride_8";
+            uint8_t value_time_ref_num=temporal_value_dependency_vec[current_time_step_index].source_num;
+            uint8_t label_time_ref_num=temporal_label_dependency_vec[current_time_step_index].source_num;
             if(value_uses_anchor_flow&&first_anchor)
                 framework.value_mode=time_dimension_mode_e::spatial;
-            else if(value_uses_anchor_flow&&(regular_anchor||!can_interpolate))
+            else if(value_uses_anchor_flow&&(regular_anchor||value_time_ref_num<2))
                 if(value_flow=="anchor_interpolation_stride_8_spatial_residual")
                     framework.value_mode=time_dimension_mode_e::constant_extrapolation_spatial_residual;
                 else
@@ -118,7 +112,7 @@ namespace unsz
             {
                 if(label_uses_anchor_flow&&first_anchor)
                     framework.label_mode=time_dimension_mode_e::spatial;
-                else if(label_uses_anchor_flow&&(regular_anchor||!can_interpolate))
+                else if(label_uses_anchor_flow&&(regular_anchor||label_time_ref_num<2))
                     framework.label_mode=time_dimension_mode_e::constant_extrapolation;
                 else if(label_uses_anchor_flow)
                     framework.label_mode=time_dimension_mode_e::label_linear_interpolation_spatial_residual;

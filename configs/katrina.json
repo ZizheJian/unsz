@@ -66,8 +66,7 @@
       "from_edge": 0,
       "reorder": 1,
       "method": "NBP-IDW-INP",
-      "neighbor_num": 4,
-      "batch": 10
+      "neighbor_num": 4
     }
   }
 ]

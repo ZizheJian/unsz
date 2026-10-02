@@ -23,6 +23,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include "../huffman.hpp"
 #include "../third_party/zstd/lib/zstd.h"
 
@@ -46,6 +47,12 @@ namespace unsz
         time_dimension_mode_e label_mode=time_dimension_mode_e::not_applicable;
         time_dimension_mode_e value_mode=time_dimension_mode_e::spatial;
         label_value_execution_e execution=label_value_execution_e::no_label;
+    };
+
+    struct temporal_dependency_c
+    {
+        array<int32_t,2> source_indices{{-1,-1}};
+        uint8_t source_num=0;
     };
 
     struct encoded_compression_payload_c
@@ -77,6 +84,20 @@ namespace unsz
         uint64_t cross_time_prediction_num=0;
         vector<vector<int32_t>> point_set_qb_vec;
         vector<T_data> unpredictable_value_vec;
+    };
+
+    template<typename T_data>
+    struct spatial_value_source_c
+    {
+        const vector<T_data>*data=nullptr;
+        const vector<uint8_t>*valid_ref_mask=nullptr;
+    };
+
+    template<typename T_data>
+    struct fused_spatial_prediction_c
+    {
+        uint32_t label=0;
+        array<T_data,2> values{{0,0}};
     };
 
     template<typename T_data>
@@ -295,8 +316,6 @@ namespace unsz
             using T_calc=common_type_t<T_coord,T_data>;
 
             param_c()=default;
-            template<typename T_coord2>
-            param_c(const param_c<T_coord2,T_data> &other);
 
             string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,dag_cache_path,adjust_coord_matrix_file,adjust_coord_training_type,point_set_config_path;
             vector<string> original_data_path_vec,compressed_data_path_vec,decompressed_data_path_vec;
@@ -307,7 +326,6 @@ namespace unsz
             bool got_data_dir=false,got_field=false,got_time_step=false,got_error_mode=false,got_predictor=false,got_prediction_round_num=false;
             vector<point_set_rule_c> point_set_rule_vec;
             vector<point_set_config_c> point_set_config_vec;
-            bool check_original_data_files=true;
             string value_flow="none";
             string label_flow="none";
             bool if_adjust_coord=false;
@@ -350,22 +368,20 @@ namespace unsz
             vector<uint8_t> partition_prediction_config_id_vec,partition_adaptive_sample_mask;
 
             vector<T_data> current_data,current_decompressed_data;
-            vector<T_data> previous_time_decompressed_data;
-            vector<uint8_t> previous_time_point_set_id_vec;
-            vector<uint32_t> time_step_vec,reconstructed_time_step_vec;
+            vector<uint32_t> time_step_vec;
             vector<T_coord> time_step_coordinate_vec;
             vector<vector<T_data>> reconstructed_time_data_vec;
             vector<vector<uint8_t>> reconstructed_time_point_set_id_vec;
-            int32_t previous_time_value_history_id=-1,previous_time_label_history_id=-1;
+            vector<temporal_dependency_c> temporal_value_dependency_vec,temporal_label_dependency_vec;
+            vector<uint32_t> temporal_value_remaining_outdegree_vec,temporal_label_remaining_outdegree_vec;
             const vector<T_data>*previous_time_value_source=nullptr;
-            const vector<uint8_t>*previous_time_label_source=nullptr;
+            const vector<uint8_t>*previous_time_value_point_set_source=nullptr,*previous_time_label_source=nullptr;
             vector<T_data> current_time_spatial_residual_data;
             vector<uint8_t> current_time_spatial_residual_valid;
-            uint32_t current_time_step=0;
+            uint32_t current_time_step=0,current_time_step_index=0;
             prediction_framework_c current_prediction_framework;
-            array<int32_t,2> temporal_history_ids{{-1,-1}};
             array<T_calc,2> temporal_weights{{0,0}};
-            bool previous_time_value_available=false,previous_time_label_available=false,temporal_interpolation_available=false;
+            bool previous_time_value_available=false,previous_time_label_available=false,temporal_value_interpolation_available=false,temporal_label_interpolation_available=false;
             vector<unsigned char> current_compressed_bytes;
             vector<uint8_t> point_set_id_vec;
             vector<uint32_t> point_set_point_num_vec;
@@ -381,6 +397,7 @@ namespace unsz
             void prepare_time_step_order(time_step_order_e order);
             void configure_point_sets();
             void prepare_cli_parameters(const vector<uint32_t>&selected_time_step_vec,T_data error_bound);
+            void prepare_temporal_dependencies();
             void prepare_temporal_prediction();
             template<time_dimension_mode_e value_mode>
             bool predict_temporal_value(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
@@ -388,8 +405,6 @@ namespace unsz
             void update_temporal_residual(int pred_id,uint32_t original_id,uint32_t point_set_id);
             template<time_dimension_mode_e label_mode>
             bool predict_temporal_label(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction);
-            int32_t save_current_interpolation_history();
-            void update_constant_extrapolation_reference(int32_t history_id);
             void update_time_prediction_state();
             prediction_framework_c get_prediction_framework(uint32_t point_set_num) const;
             bool uses_anchor_interpolation_stride_8_flow() const;
@@ -397,7 +412,6 @@ namespace unsz
             void resolve_single_point_set_time_mode();
             template<point_set_codec_e predictor>
             void dispatch_single_point_set_compression();
-            bool need_double_coord();
             void load_adjust_coord_matrix_file();
             void adjust_coord();
             void load_or_generate_prediction_structures();
@@ -431,19 +445,21 @@ namespace unsz
             void save_prediction_structure_cache();
             void load_prediction_structure_cache();
             T_data predict_value_one_point_set(uint32_t prediction_index,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,const vector<T_calc>&weights,const vector<T_data>&data);
+            T_data predict_value_one_point_set_4(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
             T_data predict_value_one_point_set_10(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
             uint32_t predict_label(uint32_t prediction_index,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
+            uint32_t predict_label_4(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
             uint32_t predict_label_10(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
             T_data predict_value_two_point_sets_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask=nullptr);
             T_data predict_value_two_point_sets_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask=nullptr);
-            pair<uint32_t,T_data> predict_label_and_value_two_point_sets_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,bool value_requires_prediction);
-            pair<uint32_t,T_data> predict_label_and_value_two_point_sets_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<uint8_t> &label_vec,const vector<T_data> &data,uint32_t value_point_set_id,bool value_requires_prediction);
+            fused_spatial_prediction_c<T_data> predict_fused_spatial_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
+            fused_spatial_prediction_c<T_data> predict_fused_spatial_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
             bool solve_scalar_rbf_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
             void generate_batched_rbf_weights(const vector<T_coord>&reference_coords,const vector<T_coord>&target_ref_squared_distances,const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback);
             void preprocess_compression(chrono::steady_clock::time_point preprocessing_start_time);
             void prepare_joint_spatiotemporal_coordinates();
             reconstruction_statistics_c calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset=0) const;
-            void compress_files(void(param_c<T_coord,T_data>::*compress_file)(),bool write_output=true,vector<vector<unsigned char>> *compressed_stream_vec=nullptr,bool validate_reconstruction=true);
+            void compress_files(void(param_c<T_coord,T_data>::*compress_file)(),bool write_output=true,const function<void(uint32_t,const vector<unsigned char>&)>&compressed_stream_consumer={},bool validate_reconstruction=true);
             template<point_set_codec_e predictor>
             void compress_staged_two_point_sets_files();
             template<point_set_codec_e predictor>
@@ -479,6 +495,7 @@ namespace unsz
             void decode_current_compression_streams(decompression_file_state_c<T_data>&state);
             void dispatch_single_point_set_decompression();
             void dispatch_two_point_sets_decompression_by_mode();
+            void validate_decoded_point_set_counts() const;
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
             void decompress_current_file();
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
@@ -493,7 +510,6 @@ namespace unsz
 
 #include "distance.tpp"
 #include "binary_file.tpp"
-#include "param.tpp"
 #include "tree.tpp"
 #include "init.tpp"
 #include "adjust_coord_matrix_file.tpp"

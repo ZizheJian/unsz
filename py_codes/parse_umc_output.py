@@ -3,7 +3,7 @@ import numpy as np
 
 # UMC命令由t1执行，这里只解析和核对输出
 
-def calculate_umc_disk_error(data_paths,chunk_point_num=1<<20):
+def calculate_umc_disk_error(data_paths,rel_eb,chunk_point_num=1<<20):
     total_squared_error=0
     total_point_num=0
     max_error=0
@@ -13,6 +13,11 @@ def calculate_umc_disk_error(data_paths,chunk_point_num=1<<20):
         recovered_bytes=os.path.getsize(output_path)
         if original_bytes!=recovered_bytes or original_bytes%4:
             raise RuntimeError(f"UMC解压输出大小错误：{output_path}有{recovered_bytes}B，原文件有{original_bytes}B")
+        file_min=math.inf
+        file_max=-math.inf
+        file_max_error=0
+        file_max_error_point_id=0
+        file_point_offset=0
         with open(path,"rb") as original_file,open(output_path,"rb") as recovered_file:
             while True:
                 original=np.fromfile(original_file,dtype=np.float32,count=chunk_point_num)
@@ -21,11 +26,26 @@ def calculate_umc_disk_error(data_paths,chunk_point_num=1<<20):
                 recovered=np.fromfile(recovered_file,dtype=np.float32,count=original.size)
                 if recovered.size!=original.size:
                     raise RuntimeError(f"UMC解压输出提前结束：{output_path}")
+                valid=original!=-99999.0
+                if np.any(valid):
+                    file_min=min(file_min,float(np.min(original[valid])))
+                    file_max=max(file_max,float(np.max(original[valid])))
                 difference=original.astype(np.float64)
                 difference-=recovered
+                absolute_difference=np.abs(difference)
+                chunk_max_error_index=int(np.argmax(absolute_difference))
+                chunk_max_error=float(absolute_difference[chunk_max_error_index])
+                if chunk_max_error>file_max_error:
+                    file_max_error=chunk_max_error
+                    file_max_error_point_id=file_point_offset+chunk_max_error_index
                 total_squared_error+=float(np.dot(difference,difference))
-                max_error=max(max_error,float(np.max(np.abs(difference))))
+                max_error=max(max_error,chunk_max_error)
                 total_point_num+=original.size
+                file_point_offset+=original.size
+        file_abs_eb=0 if file_min==math.inf else rel_eb*(file_max-file_min)
+        if file_max_error>1.01*file_abs_eb:
+            ratio=math.inf if file_abs_eb==0 else file_max_error/file_abs_eb
+            raise RuntimeError(f"UMC逐点误差检查失败：文件={path}，点={file_max_error_point_id}，误差={file_max_error}，绝对误差上限={file_abs_eb}，误差/上限={ratio}")
     if total_point_num==0:
         raise RuntimeError("UMC磁盘输出检查没有读到数据")
     return total_squared_error/total_point_num,max_error

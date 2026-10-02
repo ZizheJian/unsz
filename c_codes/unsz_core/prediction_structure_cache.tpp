@@ -103,7 +103,7 @@ namespace unsz
         uint32_t file_point_num=read_binary<uint32_t>(cursor,end);
         uint32_t file_dim=read_binary<uint32_t>(cursor,end);
         uint32_t file_round_num=read_binary<uint32_t>(cursor,end);
-        if (magic!=expected_magic || version!=expected_version)
+        if(magic!=expected_magic||version!=expected_version)
             throw runtime_error("DAG缓存文件格式或版本不正确："+dag_cache_path);
         if (file_point_num!=point_num || file_dim!=dim || file_round_num!=prediction_round_num)
             throw runtime_error("DAG缓存文件的点数、维数或轮数与当前参数不一致");

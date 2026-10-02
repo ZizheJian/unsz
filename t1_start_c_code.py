@@ -9,6 +9,7 @@ from third_party.run_command.run_command import run_command
 project_root=Path(__file__).resolve().parent
 config_directory=project_root/"configs"
 umc_root=Path("/home/x-zjian1/umc")
+umc_inp_batch=10
 build_max_cpus=get_max_cpus(8)
 silent_build=False
 
@@ -57,9 +58,12 @@ def calculate_data_range(data_paths):
     minimum=math.inf
     maximum=-math.inf
     for path in data_paths:
+        byte_num=os.path.getsize(path)
+        if byte_num%4:
+            raise RuntimeError(f"输入文件不是完整的float32数组：{path}，字节数={byte_num}")
         values=array.array("f")
         with open(path,"rb") as file:
-            values.fromfile(file,os.path.getsize(path)//values.itemsize)
+            values.fromfile(file,byte_num//values.itemsize)
         valid_values=(value for value in values if value!=-99999.0)
         try:
             first=next(valid_values)
@@ -75,6 +79,11 @@ def calculate_data_range(data_paths):
     if not minimum<=maximum:
         raise RuntimeError("无法从输入float32文件计算数据范围")
     return minimum,maximum
+
+def calculate_throughput(byte_num,elapsed_time,name):
+    if not math.isfinite(elapsed_time) or elapsed_time<=0:
+        raise RuntimeError(f"{name}必须是有限正数，实际为{elapsed_time}；测试规模可能过小，无法用六位小数计时")
+    return byte_num/elapsed_time/1e6
 
 def remove_file_if_exists(path):
     path=Path(path)
@@ -274,13 +283,16 @@ def run_unsz(config):
     compression_output=run_command(compression_command,silent=True)
     staged=config.get("label_value_execution")=="staged"
     if staged:
-        result={**parse_unsz_compression_output(compression_output),"decompression_preprocessing_time":0,"decompression_time":0}
+        result={**parse_unsz_compression_output(compression_output),"decompression_preprocessing_time":0,"decompression_time":0,"staged":True}
     else:
         decompression_output=run_command(decompression_command,silent=True)
-        result=parse_unsz_output(compression_output,decompression_output)
+        result={**parse_unsz_output(compression_output,decompression_output),"staged":False}
     error_configuration=config["point_set_config_path"] if "point_set_config_path" in config else f"REL {config['rel_eb']}"
     print(f"总结果：compressor=unsz,task={config['name']},data_dir={config['data_dir']},field={config['field']},error_configuration={error_configuration},br={result['br']},psnr={result['psnr']}")
-    print(f"计时：compression_preprocessing={result['compression_preprocessing_time']} s,decompression_preprocessing={result['decompression_preprocessing_time']} s,compression={result['compression_time']} s,decompression={result['decompression_time']} s,compression+decompression={result['compression_time']+result['decompression_time']} s")
+    if staged:
+        print("staged只估计压缩效果，不记录或比较速度")
+    else:
+        print(f"计时：compression_preprocessing={result['compression_preprocessing_time']} s,decompression_preprocessing={result['decompression_preprocessing_time']} s,compression={result['compression_time']} s,decompression={result['decompression_time']} s,compression+decompression={result['compression_time']+result['decompression_time']} s")
     command="compression: "+shlex.join(str(value) for value in compression_command)
     if not staged:
         command+="; decompression: "+shlex.join(str(value) for value in decompression_command)
@@ -309,9 +321,8 @@ def run_umc(config,rel_eb,data_range):
         compression_command=[umc_root/"build/test/test_compress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,2,reorder,time_step_num,0,rel_eb,neighbor_num]
         decompression_command=[umc_root/"build/test/test_decompress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,2,reorder,time_step_num]
     elif method=="NBP-IDW-INP":
-        batch=umc["batch"]
-        compression_command=[umc_root/"build/test/test_compress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,4,reorder,time_step_num,0,rel_eb,neighbor_num,batch]
-        decompression_command=[umc_root/"build/test/test_decompress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,4,reorder,time_step_num,batch]
+        compression_command=[umc_root/"build/test/test_compress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,4,reorder,time_step_num,0,rel_eb,neighbor_num,umc_inp_batch]
+        decompression_command=[umc_root/"build/test/test_decompress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,4,reorder,time_step_num,umc_inp_batch]
     else:
         raise ValueError(f"未知UMC压缩方法：{method}")
     compression_output=run_command(compression_command,silent=True)
@@ -321,14 +332,13 @@ def run_umc(config,rel_eb,data_range):
     if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-5):
         raise RuntimeError(f"UMC压缩端和独立解压端总PSNR不一致：{psnr} != {decompressed_psnr}")
     print(f"UMC独立解压检查通过：total psnr={decompressed_psnr},max error={decompressed_max_error}")
-    if config.get("verify_umc_disk_output",False):
-        disk_mse,disk_max_error=calculate_umc_disk_error(data_paths)
-        disk_psnr=math.inf if disk_mse==0 else 10*math.log10((data_range[1]-data_range[0])**2/disk_mse)
-        if not math.isclose(psnr,disk_psnr,rel_tol=1e-6,abs_tol=1e-5):
-            raise RuntimeError(f"UMC压缩端和磁盘输出总PSNR不一致：{psnr} != {disk_psnr}")
-        if not math.isclose(decompressed_max_error,disk_max_error,rel_tol=1e-5,abs_tol=1e-5):
-            raise RuntimeError(f"UMC独立解压和磁盘输出最大误差不一致：{decompressed_max_error} != {disk_max_error}")
-        print(f"UMC磁盘输出检查通过：total psnr={disk_psnr},max error={disk_max_error}")
+    disk_mse,disk_max_error=calculate_umc_disk_error(data_paths,rel_eb)
+    disk_psnr=math.inf if disk_mse==0 else 10*math.log10((data_range[1]-data_range[0])**2/disk_mse)
+    if not math.isclose(psnr,disk_psnr,rel_tol=1e-6,abs_tol=1e-5):
+        raise RuntimeError(f"UMC压缩端和磁盘输出总PSNR不一致：{psnr} != {disk_psnr}")
+    if not math.isclose(decompressed_max_error,disk_max_error,rel_tol=1e-5,abs_tol=1e-5):
+        raise RuntimeError(f"UMC独立解压和磁盘输出最大误差不一致：{decompressed_max_error} != {disk_max_error}")
+    print(f"UMC逐点磁盘输出与误差界检查通过：total psnr={disk_psnr},max error={disk_max_error}")
     print(f"总结果：compressor=umc,task={config['name']},data_dir={config['data_dir']},field={field},rel_eb={rel_eb},br={br},psnr={psnr}")
     print(f"计时：compression_preprocessing={compression_preprocessing_time} s,decompression_preprocessing={decompression_preprocessing_time} s,compression={compression_time} s,decompression={decompression_time} s,compression+decompression={compression_time+decompression_time} s")
     return {"compressor":"umc","rel_eb":rel_eb,"br":br,"psnr":psnr,"compression_preprocessing_time":compression_preprocessing_time,"decompression_preprocessing_time":decompression_preprocessing_time,"compression_time":compression_time,"decompression_time":decompression_time,"command":"compression: "+shlex.join(str(value) for value in compression_command)+"; decompression: "+shlex.join(str(value) for value in decompression_command)}
@@ -376,10 +386,21 @@ def run_task(task):
                 result=run_unsz(config)
             else:
                 result=run_umc(config,rel_eb,data_range)
-            item={"task":task["name"],"compressor":compressor,"label_flow":label_flow or "not_applicable","value_flow":value_flow or "not_applicable","rel_eb":rel_eb if rel_eb is not None else "not_applicable","point_set_config":point_set_config_path or "not_applicable"}
-            for column_name in ("br","psnr","compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time","command"):
+            label_value_execution=config.get("label_value_execution","not_applicable") if compressor=="unsz" else "not_applicable"
+            item={"task":task["name"],"compressor":compressor,"label_flow":label_flow or "not_applicable","value_flow":value_flow or "not_applicable","label_value_execution":label_value_execution,"rel_eb":rel_eb if rel_eb is not None else "not_applicable","point_set_config":point_set_config_path or "not_applicable"}
+            for column_name in ("br","psnr","command"):
                 write_csv_item(str(result_path),item,column_name,result[column_name])
-            for column_name,value in (("field",field),("data_dir",task["data_dir"]),("time_step_num",task["time_step_num"]),("input_bytes",total_bytes),("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("compression_preprocessing_MB_s",total_bytes/result["compression_preprocessing_time"]/1e6),("decompression_preprocessing_MB_s",total_bytes/result["decompression_preprocessing_time"]/1e6),("compression_MB_s",total_bytes/result["compression_time"]/1e6),("decompression_MB_s",total_bytes/result["decompression_time"]/1e6)):
+            staged=compressor=="unsz" and result.get("staged",False)
+            timing_columns=("compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time","compression_decompression_time","compression_preprocessing_MB_s","decompression_preprocessing_MB_s","compression_MB_s","decompression_MB_s")
+            if staged:
+                for column_name in timing_columns:
+                    write_csv_item(str(result_path),item,column_name,"not_applicable")
+            else:
+                for column_name in ("compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time"):
+                    write_csv_item(str(result_path),item,column_name,result[column_name])
+                for column_name,value in (("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("compression_preprocessing_MB_s",calculate_throughput(total_bytes,result["compression_preprocessing_time"],"压缩预处理时间")),("decompression_preprocessing_MB_s",calculate_throughput(total_bytes,result["decompression_preprocessing_time"],"解压预处理时间")),("compression_MB_s",calculate_throughput(total_bytes,result["compression_time"],"压缩时间")),("decompression_MB_s",calculate_throughput(total_bytes,result["decompression_time"],"解压时间"))):
+                    write_csv_item(str(result_path),item,column_name,value)
+            for column_name,value in (("field",field),("data_dir",task["data_dir"]),("time_step_num",task["time_step_num"]),("input_bytes",total_bytes)):
                 write_csv_item(str(result_path),item,column_name,value)
             if task.get("cleanup_after_each_test",False):
                 cleanup_test_outputs(field_config,compressor)

@@ -89,8 +89,9 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         if(structure.eb_multiplier.size()!=structure.target_ids.size())
             structure.eb_multiplier=param.generate_pred_eb_multiplier_vec(structure.target_id_groups,(uint32_t)structure.target_ids.size());
     double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time;
-    printf("preprocessing time excluding adjust coord= %f s\n",preprocessing_time);
-    param.validate_prediction_structures();
+    printf("preprocessing time excluding coordinate input and adjust coord= %f s\n",preprocessing_time);
+    if(loaded_dag_cache)
+        param.validate_prediction_structures();
     if(joint_spatiotemporal)
     {
         unsz::point_set_codec_e codec=unsz::point_set_codec_e::constant;
@@ -123,8 +124,11 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         decompress_field=&param_type::dispatch_single_point_set_decompression;
     else
         decompress_field=&param_type::dispatch_two_point_sets_decompression_by_mode;
+    param.prepare_temporal_dependencies();
+    vector<float> original_data(param.point_num);
     for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
+        param.current_time_step_index=file_id;
         param.current_time_step=param.time_step_vec[file_id];
         string compressed_path=param.original_data_path_vec[file_id]+".unsz";
         string decompressed_path=param.original_data_path_vec[file_id]+".unsz.bin";
@@ -133,9 +137,9 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         auto decompression_start_time=chrono::steady_clock::now();
         (param.*decompress_field)();
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
+        param.validate_decoded_point_set_counts();
         unsz::write_binary_file(decompressed_path,param.current_decompressed_data.data(),param.point_num);
 
-        vector<float> original_data(param.point_num);
         if(!unsz::try_read_binary_file_exact(param.original_data_path_vec[file_id],original_data.data(),param.point_num))
         {
             printf("Decompressed %s（原始文件不存在，跳过误差验证）\n",decompressed_path.c_str());
@@ -171,20 +175,6 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     printf("total decompression time= %f s\n",total_decompression_time);
     if (validated_file_num>0)
         printf("total decompressed psnr= %f\n",unsz::reconstruction_psnr(total_statistics));
-}
-
-template<typename T_coord>
-void general_run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::time_point preprocessing_start_time)
-{
-    if constexpr (is_same<T_coord,double>::value)
-        run_decompression(param,preprocessing_start_time);
-    else if (!param.need_double_coord())
-        run_decompression(param,preprocessing_start_time);
-    else
-    {
-        unsz::param_c<double,float> double_param(param);
-        general_run_decompression(double_param,preprocessing_start_time);
-    }
 }
 
 namespace unsz
@@ -351,10 +341,9 @@ int decompress_main(int argc,char **argv)
             throw runtime_error("未知参数："+option);
     }
     param.prepare_cli_parameters(time_step_vec,error_bound);
-    param.check_original_data_files=false;
-    auto preprocessing_start_time=chrono::steady_clock::now();
     param.init();
-    general_run_decompression(param,preprocessing_start_time);
+    auto preprocessing_start_time=chrono::steady_clock::now();
+    run_decompression(param,preprocessing_start_time);
     return 0;
 }
 }

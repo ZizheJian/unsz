@@ -156,6 +156,8 @@ namespace unsz::two_point_sets::fused
         prediction_framework_c framework=param.get_prediction_framework(2);
         if(framework.execution!=label_value_execution_e::fused)
             throw runtime_error("staged模式只在内存中估计压缩效果，不生成可解压码流");
+        if(param.label_flow!="none"&&param.value_flow!="none"&&param.get_time_step_order(param.label_flow)!=param.get_time_step_order(param.value_flow))
+            throw runtime_error("fused模式尚未实现label和value使用不同time step顺序");
         point_set_codec_e predictor=point_set_codec_e::constant;
         for(const point_set_config_c&config:param.point_set_config_vec)
             if(config.codec!=point_set_codec_e::constant)
