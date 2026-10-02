@@ -3,6 +3,60 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
+    template<typename T_system>
+    bool param_c<T_coord,T_data>::solve_linear_system(vector<vector<T_system>>&A,vector<T_system>&b,vector<T_system>&x)
+    {
+        uint32_t n=A.size();
+        if(n==0||b.size()!=n)
+            return false;
+        for(auto&row:A)
+            if(row.size()!=n)
+                return false;
+        for(uint32_t col=0;col<n;col++)
+        {
+            uint32_t pivot=col;
+            for(uint32_t row=col+1;row<n;row++)
+                if(abs(A[row][col])>abs(A[pivot][col]))
+                    pivot=row;
+            if(abs(A[pivot][col])<(T_system)1e-12)
+                return false;
+            if(pivot!=col)
+            {
+                swap(A[col],A[pivot]);
+                swap(b[col],b[pivot]);
+            }
+            T_system divisor=A[col][col];
+            for(uint32_t i=col;i<n;i++)
+                A[col][i]/=divisor;
+            b[col]/=divisor;
+            for(uint32_t row=0;row<n;row++)
+            {
+                if(row==col)
+                    continue;
+                T_system factor=A[row][col];
+                for(uint32_t i=col;i<n;i++)
+                    A[row][i]-=factor*A[col][i];
+                b[row]-=factor*b[col];
+            }
+        }
+        x.assign(b.begin(),b.end());
+        return true;
+    }
+
+    template<typename T_coord,typename T_data>
+    bool param_c<T_coord,T_data>::should_use_selected_adaptive_prediction(int pred_id) const
+    {
+        return use_partition_adaptive_predictor_experimental&&!partition_adaptive_sample_mask[pred_id];
+    }
+
+    template<typename T_coord,typename T_data>
+    T_data param_c<T_coord,T_data>::predict_selected_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data>&data)
+    {
+        uint32_t group_id=point_partition_id_vec[pred_id];
+        return predict_partition_adaptive_value(pred_id,ref_ids,data,partition_prediction_config_id_vec[group_id]);
+    }
+
+    template<typename T_coord,typename T_data>
     T_data param_c<T_coord,T_data>::predict_partition_idw_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power)
     {
         if(ref_ids.empty())

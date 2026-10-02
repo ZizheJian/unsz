@@ -40,7 +40,8 @@ void param_c<T_coord,T_data>::prepare_joint_spatiotemporal_coordinates()
 }
 
 template<typename T_coord,typename T_data>
-void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T_coord,T_data>::*compress_current_field)())
+template<point_set_codec_e predictor>
+void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files()
 {
     if(original_data_path_vec.empty()||point_num%original_data_path_vec.size()!=0)
         throw runtime_error("联合时空点数与time step文件数量不一致");
@@ -65,7 +66,7 @@ void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T
     compressed_data_path_vec.push_back(compressed_path);
     printf("Compressing %llu files as one joint spatiotemporal field: %s\n",(unsigned long long)original_data_path_vec.size(),compressed_path.c_str());
     auto compression_start_time=chrono::steady_clock::now();
-    (this->*compress_current_field)();
+    one_point_set::spatial::compress<predictor>(*this);
     double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count();
     uint32_t primary_point_set_id=0;
     while(point_set_point_num_vec[primary_point_set_id]==0)
@@ -109,14 +110,14 @@ void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T
     FILE *file=fopen(compressed_path.c_str(),"wb");
     if(!file)
         throw runtime_error("无法创建联合时空压缩文件："+compressed_path);
-    if(fwrite(current_zstd_bs_vec.data(),1,current_zstd_bs_vec.size(),file)!=current_zstd_bs_vec.size())
+    if(fwrite(current_compressed_bytes.data(),1,current_compressed_bytes.size(),file)!=current_compressed_bytes.size())
     {
         fclose(file);
         throw runtime_error("写入联合时空压缩文件失败："+compressed_path);
     }
     if(fclose(file)!=0)
         throw runtime_error("关闭联合时空压缩文件失败："+compressed_path);
-    double cr=(double)point_num*sizeof(T_data)/current_zstd_bs_vec.size();
+    double cr=(double)point_num*sizeof(T_data)/current_compressed_bytes.size();
     double mse=squared_error/point_num;
     double psnr=mse==0?numeric_limits<double>::infinity():10*log10(pow((double)maximum-minimum,2)/mse);
     printf("total cr= %f, total br= %f, total psnr= %f\n",cr,sizeof(T_data)*8/cr,psnr);
@@ -124,7 +125,8 @@ void param_c<T_coord,T_data>::compress_joint_spatiotemporal_files(void(param_c<T
 }
 
 template<typename T_coord,typename T_data>
-void param_c<T_coord,T_data>::decompress_joint_spatiotemporal_files(void(param_c<T_coord,T_data>::*decompress_current_field)())
+template<point_set_codec_e predictor>
+void param_c<T_coord,T_data>::decompress_joint_spatiotemporal_files()
 {
     if(original_data_path_vec.empty()||point_num%original_data_path_vec.size()!=0)
         throw runtime_error("联合时空点数与time step文件数量不一致");
@@ -144,8 +146,8 @@ void param_c<T_coord,T_data>::decompress_joint_spatiotemporal_files(void(param_c
         fclose(compressed_file);
         throw runtime_error("无法读取联合时空压缩文件大小："+compressed_path);
     }
-    current_zstd_bs_vec.resize((uint64_t)compressed_byte_num_signed);
-    if(fseek(compressed_file,0,SEEK_SET)!=0||fread(current_zstd_bs_vec.data(),1,current_zstd_bs_vec.size(),compressed_file)!=current_zstd_bs_vec.size())
+    current_compressed_bytes.resize((uint64_t)compressed_byte_num_signed);
+    if(fseek(compressed_file,0,SEEK_SET)!=0||fread(current_compressed_bytes.data(),1,current_compressed_bytes.size(),compressed_file)!=current_compressed_bytes.size())
     {
         fclose(compressed_file);
         throw runtime_error("读取联合时空压缩文件失败："+compressed_path);
@@ -153,7 +155,7 @@ void param_c<T_coord,T_data>::decompress_joint_spatiotemporal_files(void(param_c
     if(fclose(compressed_file)!=0)
         throw runtime_error("关闭联合时空压缩文件失败："+compressed_path);
     auto decompression_start_time=chrono::steady_clock::now();
-    (this->*decompress_current_field)();
+    decompress_current_file<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,predictor>();
     double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
     double squared_error=0,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
     uint64_t validated_point_num=0;

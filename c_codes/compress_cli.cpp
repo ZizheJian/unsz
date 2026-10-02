@@ -130,12 +130,6 @@ namespace unsz
                     throw runtime_error("-ordering-score-min-ref-num后面缺少参数值");
                 param.ordering_score_min_ref_num=parse_positive_uint32(argv[++arg_id],"-ordering-score-min-ref-num");
             }
-            else if(strcmp(argv[arg_id],"-multihead-execution-head-num-experimental")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-multihead-execution-head-num-experimental后面缺少参数值");
-                param.multihead_execution_head_num_experimental=parse_positive_uint32(argv[++arg_id],"-multihead-execution-head-num-experimental");
-            }
             else if(strcmp(argv[arg_id],"-prediction-round-num")==0)
             {
                 if(arg_id+1>=argc)
@@ -212,13 +206,13 @@ namespace unsz
             {
                 if (arg_id+1>=argc)
                     throw runtime_error("-partition-size后面缺少参数值");
-                param.partition_size_experimental=parse_positive_uint32(argv[++arg_id],"-partition-size");
+                param.partition_size=parse_positive_uint32(argv[++arg_id],"-partition-size");
             }
             else if (strcmp(argv[arg_id],"-partition-num")==0)
             {
                 if (arg_id+1>=argc)
                     throw runtime_error("-partition-num后面缺少参数值");
-                param.partition_num_experimental=parse_positive_uint32(argv[++arg_id],"-partition-num");
+                param.partition_num=parse_positive_uint32(argv[++arg_id],"-partition-num");
             }
             else if (strcmp(argv[arg_id],"-thread-num")==0)
             {
@@ -289,8 +283,6 @@ namespace unsz
             }
             else if (strcmp(argv[arg_id],"-compression-stage-time")==0)
                 param.print_compression_stage_time=true;
-            else if (strcmp(argv[arg_id],"-parallelism-stats")==0)
-                param.print_prediction_dag_statistics=true;
             else if(strcmp(argv[arg_id],"-label-value-execution")==0)
             {
                 if(arg_id+1>=argc)
@@ -299,8 +291,6 @@ namespace unsz
                 if(param.label_value_execution!="staged"&&param.label_value_execution!="fused")
                     throw runtime_error("-label-value-execution必须是staged或fused");
             }
-            else if (strcmp(argv[arg_id],"-linear-previous-label-experimental")==0)
-                param.use_linear_previous_label_experimental=true;
             else if(strcmp(argv[arg_id],"-ordering-scope")==0)
             {
                 if(arg_id+1>=argc)

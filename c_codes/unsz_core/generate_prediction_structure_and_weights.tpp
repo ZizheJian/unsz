@@ -4,15 +4,8 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::generate_pred_refs_structure()
+    void param_c<T_coord,T_data>::generate_prediction_structures_and_weights()
     {
-        if(ordering_scope=="global"&&(partition_size_experimental>0||partition_num_experimental>0))
-            throw runtime_error("global排序目前不能和partition同时使用");
-        if(partition_size_experimental>0||partition_num_experimental>0)
-        {
-            generate_partition_pred_refs_structure();
-            return;
-        }
         if(point_num==0)
             throw runtime_error("point_num必须是正数");
         if(prediction_round_num==0||prediction_round_num>63)
@@ -23,47 +16,72 @@ namespace unsz
             throw runtime_error("MSD排序缓存重查阈值不能大于MSD评分参考点数");
         if(ordering_scope!="global"&&ordering_scope!="local")
             throw runtime_error("ordering_scope必须是global或local");
+        bool uses_idw=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec==point_set_codec_e::idw;});
+        bool uses_rbf=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec==point_set_codec_e::rbf;});
+        if(uses_idw&&uses_rbf)
+            throw runtime_error("同一DAG不能同时生成IDW和RBF预测权重");
+        if(partition_size>0||partition_num>0)
+        {
+            generate_partition_prediction_structures(uses_idw,uses_rbf);
+            return;
+        }
+        prediction_structure_vec.clear();
+        prediction_structure_vec.resize(1);
         printf("Building kd-tree\n");
         auto generation_start_time=chrono::steady_clock::now();
+        vector<int> point_ids(point_num);
+        iota(point_ids.begin(),point_ids.end(),0);
         block_tree_c<T_coord> tree(coord_array,min_coord,max_coord,kd_tree_leaf_size);
         auto tree_end_time=chrono::steady_clock::now();
         printf("KD-tree blocks: %llu, time: %f s\n",(unsigned long long)tree.get_block_num(),chrono::duration<double>(tree_end_time-generation_start_time).count());
-        bool uses_idw=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::idw;});
-        bool uses_rbf=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::rbf;});
-        if(uses_idw&&uses_rbf)
-            throw runtime_error("同一DAG不能同时生成IDW和RBF预测权重");
-        if(ordering_scope=="global")
-            generate_global_pred_refs_structure(tree,generation_start_time,uses_idw,uses_rbf);
-        else
-            generate_local_pred_refs_structure(tree,generation_start_time,uses_idw,uses_rbf);
+        generate_prediction_structure_and_weights(tree,point_ids,min_coord,max_coord,prediction_structure_vec.front(),generation_start_time,uses_idw,uses_rbf);
+        if(!dag_cache_path.empty())
+            save_prediction_structure_cache();
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::generate_global_pred_refs_structure(block_tree_c<T_coord> &tree,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf)
+    void param_c<T_coord,T_data>::generate_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf)
     {
+        if(point_ids.empty())
+            throw runtime_error("预测点集不能为空");
+        if(ordering_scope=="global")
+            generate_global_prediction_structure_and_weights(tree,point_ids,active_min_coord,active_max_coord,structure,generation_start_time,uses_idw,uses_rbf);
+        else
+            generate_local_prediction_structure_and_weights(tree,point_ids,active_min_coord,active_max_coord,structure,generation_start_time,uses_idw,uses_rbf);
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::generate_global_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf)
+    {
+        auto&prediction_target_id_groups=structure.target_id_groups;
+        auto&target_ids=structure.target_ids;
+        auto&reference_ids=structure.reference_ids;
+        auto&reference_offsets=structure.reference_offsets;
+        auto&prediction_weights=structure.prediction_weights;
+        auto&rbf_fallback_flags=structure.rbf_fallback_flags;
+        uint32_t active_point_num=point_ids.size();
         printf("Arranging global prediction order\n");
-        prediction_target_id_groups.assign(1,vector<int>(point_num));
-        iota(prediction_target_id_groups.front().begin(),prediction_target_id_groups.front().end(),0);
+        prediction_target_id_groups.assign(1,point_ids);
 
         // global排序会倒序写入参考关系，因此先为每个预测位置确定固定的连续数组区间。
-        pred_ref_begin.resize((uint64_t)point_num+1);
-        pred_ref_begin[0]=0;
-        for(uint32_t prediction_index=0;prediction_index<point_num;prediction_index++)
-            pred_ref_begin[prediction_index+1]=pred_ref_begin[prediction_index]+min<uint32_t>(prediction_index,prediction_max_ref_num);
-        pred_ref_ids.resize(pred_ref_begin.back());
-        pred_ref_prediction_weights.clear();
+        reference_offsets.resize((uint64_t)active_point_num+1);
+        reference_offsets[0]=0;
+        for(uint32_t prediction_index=0;prediction_index<active_point_num;prediction_index++)
+            reference_offsets[prediction_index+1]=reference_offsets[prediction_index]+min<uint32_t>(prediction_index,prediction_max_ref_num);
+        reference_ids.resize(reference_offsets.back());
+        prediction_weights.clear();
         if(uses_idw)
-            pred_ref_prediction_weights.resize(pred_ref_ids.size());
-        pred_ref_rbf_fallback_vec.clear();
+            prediction_weights.resize(reference_ids.size());
+        rbf_fallback_flags.clear();
         vector<T_coord> prediction_ref_squared_distances;
         if(uses_rbf)
-            prediction_ref_squared_distances.resize(pred_ref_ids.size());
+            prediction_ref_squared_distances.resize(reference_ids.size());
         vector<T_coord> prediction_ref_coords;
         if(uses_rbf)
-            prediction_ref_coords.resize((uint64_t)pred_ref_ids.size()*dim);
+            prediction_ref_coords.resize((uint64_t)reference_ids.size()*dim);
 
-        sort_targets_by_reverse_msd<true>(tree,tree,uses_idw,uses_rbf,prediction_ref_coords,prediction_ref_squared_distances);
-        pred_target_ids=prediction_target_id_groups.front();
+        sort_targets_by_reverse_msd<true>(tree,tree,active_min_coord,active_max_coord,structure,uses_idw,uses_rbf,prediction_ref_coords,prediction_ref_squared_distances);
+        target_ids=prediction_target_id_groups.front();
 
         auto reference_generation_start_time=chrono::steady_clock::now();
         printf("Preparing prediction weights from sorting geometry\n");
@@ -71,28 +89,31 @@ namespace unsz
         {
             uint64_t geometry_bytes=(uint64_t)prediction_ref_coords.size()*sizeof(T_coord)+(uint64_t)prediction_ref_squared_distances.size()*sizeof(T_coord);
             printf("Stored temporary RBF geometry: coordinates=%llu,distances=%llu,bytes=%llu\n",(unsigned long long)prediction_ref_coords.size(),(unsigned long long)prediction_ref_squared_distances.size(),(unsigned long long)geometry_bytes);
-            calculate_batched_rbf_prediction_weights(prediction_ref_coords,prediction_ref_squared_distances);
+            generate_batched_rbf_weights(prediction_ref_coords,prediction_ref_squared_distances,target_ids,reference_ids,reference_offsets,prediction_weights,rbf_fallback_flags);
         }
-        printf("Reused sorting candidate queries for prediction references: %llu targets, squared distances: %llu, additional kd-tree queries: 0\n",(unsigned long long)(point_num>0?point_num-1:0),(unsigned long long)pred_ref_ids.size());
-        if(!dag_cache_path.empty())
-            save_pred_refs_structure();
-        prepare_pred_refs_structure();
+        printf("Reused sorting candidate queries for prediction references: %llu targets, squared distances: %llu, additional kd-tree queries: 0\n",(unsigned long long)(active_point_num-1),(unsigned long long)reference_ids.size());
         auto end_time=chrono::steady_clock::now();
         printf("Prediction reference generation time: %f s\n",chrono::duration<double>(end_time-reference_generation_start_time).count());
-        printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)pred_target_ids.size(),chrono::duration<double>(end_time-generation_start_time).count());
+        printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)target_ids.size(),chrono::duration<double>(end_time-generation_start_time).count());
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::generate_local_pred_refs_structure(block_tree_c<T_coord> &tree,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf)
+    void param_c<T_coord,T_data>::generate_local_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf)
     {
+        auto&prediction_target_id_groups=structure.target_id_groups;
+        auto&target_ids=structure.target_ids;
+        auto&reference_ids=structure.reference_ids;
+        auto&reference_offsets=structure.reference_offsets;
+        auto&prediction_weights=structure.prediction_weights;
+        auto&rbf_fallback_flags=structure.rbf_fallback_flags;
+        uint32_t active_point_num=point_ids.size();
         printf("Arranging local prediction rounds\n");
         prediction_target_id_groups.assign(prediction_round_num,vector<int>());
-        vector<int> shuffled_ids(point_num);
-        iota(shuffled_ids.begin(),shuffled_ids.end(),0);
+        vector<int> shuffled_ids=point_ids;
         mt19937 rng(0);
         shuffle(shuffled_ids.begin(),shuffled_ids.end(),rng);
         uint64_t previous_end=0;
-        vector<uint32_t> round_target_num_vec=get_round_target_num_vec(point_num);
+        vector<uint32_t> round_target_num_vec=get_round_target_num_vec(active_point_num);
         printf("Round size growth ratio: %.9g\n",round_size_growth_ratio_experimental);
         for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
@@ -101,29 +122,29 @@ namespace unsz
             previous_end=current_end;
             printf("Round %u target num: %llu\n",round_id,(unsigned long long)prediction_target_id_groups[round_id].size());
         }
-        if(previous_end!=point_num)
+        if(previous_end!=active_point_num)
             throw runtime_error("预测轮次没有覆盖所有点");
 
-        pred_target_ids.clear();
-        pred_ref_ids.clear();
-        pred_ref_begin.clear();
-        pred_ref_begin.push_back(0);
-        pred_ref_prediction_weights.clear();
-        pred_ref_rbf_fallback_vec.clear();
-        pred_target_ids.reserve(point_num);
-        pred_ref_ids.reserve((uint64_t)point_num*prediction_max_ref_num);
-        pred_ref_begin.reserve((uint64_t)point_num+1);
+        target_ids.clear();
+        reference_ids.clear();
+        reference_offsets.clear();
+        reference_offsets.push_back(0);
+        prediction_weights.clear();
+        rbf_fallback_flags.clear();
+        target_ids.reserve(active_point_num);
+        reference_ids.reserve((uint64_t)active_point_num*prediction_max_ref_num);
+        reference_offsets.reserve((uint64_t)active_point_num+1);
         if(uses_idw||uses_rbf)
-            pred_ref_prediction_weights.reserve((uint64_t)point_num*prediction_max_ref_num);
+            prediction_weights.reserve((uint64_t)active_point_num*prediction_max_ref_num);
         vector<T_coord> prediction_ref_coords,prediction_ref_squared_distances;
         if(uses_rbf)
         {
-            prediction_ref_coords.reserve((uint64_t)point_num*prediction_max_ref_num*dim);
-            prediction_ref_squared_distances.reserve((uint64_t)point_num*prediction_max_ref_num);
+            prediction_ref_coords.reserve((uint64_t)active_point_num*prediction_max_ref_num*dim);
+            prediction_ref_squared_distances.reserve((uint64_t)active_point_num*prediction_max_ref_num);
         }
 
         block_tree_c<T_coord> reference_tree(tree);
-        sort_targets_by_reverse_msd<false>(tree,reference_tree,uses_idw,uses_rbf,prediction_ref_coords,prediction_ref_squared_distances);
+        sort_targets_by_reverse_msd<false>(tree,reference_tree,active_min_coord,active_max_coord,structure,uses_idw,uses_rbf,prediction_ref_coords,prediction_ref_squared_distances);
 
         // local排序阶段只确定目标顺序；按照正向轮次重新遍历，才能得到真正已经可用的参考点。
         auto reference_generation_start_time=chrono::steady_clock::now();
@@ -132,7 +153,7 @@ namespace unsz
         for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
             for(int pred_id:prediction_target_id_groups[round_id])
             {
-                pred_target_ids.push_back(pred_id);
+                target_ids.push_back(pred_id);
                 vector<int> ref_ids;
                 vector<T_coord> current_target_ref_squared_distances;
                 nearest_queue_c<T_coord> nearest_queue;
@@ -147,10 +168,10 @@ namespace unsz
                 }
                 reverse(ref_ids.begin(),ref_ids.end());
                 reverse(current_target_ref_squared_distances.begin(),current_target_ref_squared_distances.end());
-                pred_ref_ids.insert(pred_ref_ids.end(),ref_ids.begin(),ref_ids.end());
-                pred_ref_begin.push_back(pred_ref_ids.size());
+                reference_ids.insert(reference_ids.end(),ref_ids.begin(),ref_ids.end());
+                reference_offsets.push_back(reference_ids.size());
                 if(uses_idw)
-                    append_normalized_idw_prediction_weights(pred_id,array_view_c<int>(ref_ids.data(),ref_ids.size()),pred_ref_prediction_weights,array_view_c<T_coord>(current_target_ref_squared_distances.data(),current_target_ref_squared_distances.size()));
+                    append_normalized_idw_prediction_weights(pred_id,array_view_c<int>(ref_ids.data(),ref_ids.size()),prediction_weights,array_view_c<T_coord>(current_target_ref_squared_distances.data(),current_target_ref_squared_distances.size()));
                 else if(uses_rbf)
                 {
                     uint64_t coordinate_begin=prediction_ref_coords.size();
@@ -169,26 +190,28 @@ namespace unsz
         {
             uint64_t geometry_bytes=(uint64_t)prediction_ref_coords.size()*sizeof(T_coord)+(uint64_t)prediction_ref_squared_distances.size()*sizeof(T_coord);
             printf("Stored temporary RBF geometry: coordinates=%llu,distances=%llu,bytes=%llu\n",(unsigned long long)prediction_ref_coords.size(),(unsigned long long)prediction_ref_squared_distances.size(),(unsigned long long)geometry_bytes);
-            calculate_batched_rbf_prediction_weights(prediction_ref_coords,prediction_ref_squared_distances);
+            generate_batched_rbf_weights(prediction_ref_coords,prediction_ref_squared_distances,target_ids,reference_ids,reference_offsets,prediction_weights,rbf_fallback_flags);
         }
-        if(!dag_cache_path.empty())
-            save_pred_refs_structure();
-        prepare_pred_refs_structure();
         auto end_time=chrono::steady_clock::now();
         printf("Prediction reference generation time: %f s\n",chrono::duration<double>(end_time-reference_generation_start_time).count());
-        printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)pred_target_ids.size(),chrono::duration<double>(end_time-generation_start_time).count());
+        printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)target_ids.size(),chrono::duration<double>(end_time-generation_start_time).count());
     }
 
     template<typename T_coord,typename T_data>
     template<bool global_order>
-    void param_c<T_coord,T_data>::sort_targets_by_reverse_msd(block_tree_c<T_coord> &target_tree,block_tree_c<T_coord> &reference_tree,bool uses_idw,bool uses_rbf,vector<T_coord> &prediction_ref_coords,vector<T_coord> &prediction_ref_squared_distances)
+    void param_c<T_coord,T_data>::sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,bool uses_idw,bool uses_rbf,vector<T_coord>&prediction_ref_coords,vector<T_coord>&prediction_ref_squared_distances)
     {
+        auto&prediction_target_id_groups=structure.target_id_groups;
+        auto&reference_ids=structure.reference_ids;
+        auto&reference_offsets=structure.reference_offsets;
+        auto&prediction_weights=structure.prediction_weights;
+        uint32_t active_point_num=target_tree.structure->tree_id_to_original_id.size();
         uint32_t ordering_neighbor_query_num=max(ordering_candidate_num,prediction_max_ref_num);
         bool use_candidate_score_geometry_reuse=global_order&&ordering_score_max_ref_num==1&&ordering_score_min_ref_num==1&&ordering_neighbor_query_num>=2;
         bool share_validity_tree=&reference_tree==&target_tree;
         vector<T_coord> center_coord(dim);
         for(uint32_t dimension=0;dimension<dim;dimension++)
-            center_coord[dimension]=(min_coord[dimension]+max_coord[dimension])/2;
+            center_coord[dimension]=(active_min_coord[dimension]+active_max_coord[dimension])/2;
         auto sorting_start_time=chrono::steady_clock::now();
         if constexpr(global_order)
             printf("Sorting global prediction targets\n");
@@ -197,7 +220,7 @@ namespace unsz
         if(share_validity_tree)
             printf("Global MSD: target and scoring queries share one kd-tree validity state\n");
         printf("Using reverse MSD elimination with %u nearby candidates and %u references\n",ordering_candidate_num,prediction_max_ref_num);
-        uint32_t score_query_neighbor_num=min<uint64_t>((uint64_t)ordering_score_max_ref_num+1,point_num);
+        uint32_t score_query_neighbor_num=min<uint64_t>((uint64_t)ordering_score_max_ref_num+1,active_point_num);
         {
             vector<T_coord> cached_msd_scores;
             vector<uint32_t> cached_ref_counts;
@@ -208,11 +231,11 @@ namespace unsz
             uint64_t candidate_kd_query_num=0;
             uint64_t score_candidate_geometry_certified_num=0,score_candidate_geometry_checked_num=0;
             uint64_t candidate_kd_sample_ns=0,candidate_kd_sample_num=0,score_kd_sample_ns=0,score_kd_sample_num=0;
-            cached_msd_scores.resize(point_num);
-            cached_ref_counts.resize(point_num);
-            score_cache_initialized.assign(point_num,0);
-            reference_is_valid.assign(point_num,1);
-            cached_score_ref_ids.resize((uint64_t)point_num*score_query_neighbor_num);
+            cached_msd_scores.resize(active_point_num);
+            cached_ref_counts.resize(active_point_num);
+            score_cache_initialized.assign(active_point_num,0);
+            reference_is_valid.assign(active_point_num,1);
+            cached_score_ref_ids.resize((uint64_t)active_point_num*score_query_neighbor_num);
             printf("MSD ordering candidates: %u, queried neighbors: %u, scoring references: %u, cache refill threshold: %u\n",ordering_candidate_num,ordering_neighbor_query_num,ordering_score_max_ref_num,ordering_score_min_ref_num);
             bool has_selected_initial_target=false;
             // local必须先排序后面的轮次，使评分参考集合包含所有更早的轮次。
@@ -286,8 +309,8 @@ namespace unsz
                                 ref_queue.pop();
                             }
                             uint32_t prediction_index=remaining_target_num;
-                            uint64_t ref_begin=pred_ref_begin[prediction_index];
-                            if(pred_ref_begin[prediction_index+1]-ref_begin!=keep_num)
+                            uint64_t ref_begin=reference_offsets[prediction_index];
+                            if(reference_offsets[prediction_index+1]-ref_begin!=keep_num)
                                 throw runtime_error("全局排序参考点数量与最终DAG位置不一致");
                             if(uses_idw)
                                 current_target_ref_squared_distances.resize(keep_num);
@@ -297,7 +320,7 @@ namespace unsz
                                     queried_neighbor_group.push_back(ref_queue.top());
                                 uint64_t ref_offset=ref_begin+ref_index-1;
                                 int ref_id=ref_queue.top().second;
-                                pred_ref_ids[ref_offset]=ref_id;
+                                reference_ids[ref_offset]=ref_id;
                                 if(uses_idw)
                                     current_target_ref_squared_distances[ref_index-1]=ref_queue.top().first;
                                 if(uses_rbf)
@@ -308,7 +331,7 @@ namespace unsz
                                 ref_queue.pop();
                             }
                             if(uses_idw)
-                                write_normalized_idw_prediction_weights(previous_selected_target_id,array_view_c<int>(pred_ref_ids.data()+ref_begin,keep_num),pred_ref_prediction_weights.data()+ref_begin,array_view_c<T_coord>(current_target_ref_squared_distances));
+                                write_normalized_idw_prediction_weights(previous_selected_target_id,array_view_c<int>(reference_ids.data()+ref_begin,keep_num),prediction_weights.data()+ref_begin,array_view_c<T_coord>(current_target_ref_squared_distances));
                         }
                     }
                     while(candidate_queue.size()>ordering_candidate_num)
@@ -339,16 +362,20 @@ namespace unsz
                             int candidate_id=candidate_queue.top().second;
                             T_coord path_squared_distance=candidate_queue.top().first;
                             candidate_queue.pop();
-                            uint64_t cache_begin=(uint64_t)candidate_id*score_query_neighbor_num;
-                            uint32_t cached_ref_num=cached_ref_counts[candidate_id],valid_cached_ref_num=0;
-                            bool cache_was_initialized=score_cache_initialized[candidate_id];
+                            int candidate_tree_id=target_tree.structure->original_id_to_tree_id[candidate_id];
+                            if(candidate_tree_id<0)
+                                throw runtime_error("MSD候选点不属于当前点集");
+                            uint64_t cache_begin=(uint64_t)candidate_tree_id*score_query_neighbor_num;
+                            uint32_t cached_ref_num=cached_ref_counts[candidate_tree_id],valid_cached_ref_num=0;
+                            bool cache_was_initialized=score_cache_initialized[candidate_tree_id];
                             bool reference_list_unchanged=false;
                             if(cache_was_initialized)
                             {
                                 for(uint32_t ref_index=0;ref_index<cached_ref_num;ref_index++)
                                 {
                                     int cached_ref_id=cached_score_ref_ids[cache_begin+ref_index];
-                                    if(reference_is_valid[cached_ref_id])
+                                    int cached_ref_tree_id=reference_tree.structure->original_id_to_tree_id[cached_ref_id];
+                                    if(cached_ref_tree_id>=0&&reference_is_valid[cached_ref_tree_id])
                                     {
                                         cached_score_ref_ids[cache_begin+valid_cached_ref_num]=cached_ref_id;
                                         valid_cached_ref_num++;
@@ -357,21 +384,21 @@ namespace unsz
                                 reference_list_unchanged=valid_cached_ref_num==cached_ref_num;
                             }
                             uint32_t required_cached_ref_num=min(ordering_score_min_ref_num,cached_ref_num);
-                            bool cache_valid=score_cache_initialized[candidate_id]&&cached_ref_num>0&&valid_cached_ref_num>=required_cached_ref_num;
+                            bool cache_valid=score_cache_initialized[candidate_tree_id]&&cached_ref_num>0&&valid_cached_ref_num>=required_cached_ref_num;
                             T_coord candidate_msd;
                             // 优先复用仍然有效的评分参考点，避免再次查询kd-tree。
                             if(cache_valid)
                             {
                                 if(reference_list_unchanged)
-                                    candidate_msd=cached_msd_scores[candidate_id];
+                                    candidate_msd=cached_msd_scores[candidate_tree_id];
                                 else
                                 {
                                     T_coord squared_distance_sum=0;
                                     for(uint32_t ref_index=0;ref_index<valid_cached_ref_num;ref_index++)
                                         squared_distance_sum+=get_dist_to_coord(coord_array[candidate_id],coord_array[cached_score_ref_ids[cache_begin+ref_index]],dim);
                                     candidate_msd=squared_distance_sum/valid_cached_ref_num;
-                                    cached_msd_scores[candidate_id]=candidate_msd;
-                                    cached_ref_counts[candidate_id]=valid_cached_ref_num;
+                                    cached_msd_scores[candidate_tree_id]=candidate_msd;
+                                    cached_ref_counts[candidate_tree_id]=valid_cached_ref_num;
                                     score_cache_reduced_ref_hit_num++;
                                 }
                                 score_cache_hit_num++;
@@ -409,10 +436,10 @@ namespace unsz
                                 if(certified_nearest)
                                 {
                                     candidate_msd=certified_squared_dist;
-                                    cached_msd_scores[candidate_id]=certified_squared_dist;
+                                    cached_msd_scores[candidate_tree_id]=certified_squared_dist;
                                     cached_score_ref_ids[cache_begin]=certified_ref_id;
-                                    cached_ref_counts[candidate_id]=1;
-                                    score_cache_initialized[candidate_id]=1;
+                                    cached_ref_counts[candidate_tree_id]=1;
+                                    score_cache_initialized[candidate_tree_id]=1;
                                     score_candidate_geometry_certified_num++;
                                 }
                                 else
@@ -433,9 +460,9 @@ namespace unsz
                                         }
                                     }
                                     candidate_msd=ref_num>0?squared_distance_sum/ref_num:numeric_limits<T_coord>::infinity();
-                                    cached_msd_scores[candidate_id]=candidate_msd;
-                                    cached_ref_counts[candidate_id]=ref_num;
-                                    score_cache_initialized[candidate_id]=1;
+                                    cached_msd_scores[candidate_tree_id]=candidate_msd;
+                                    cached_ref_counts[candidate_tree_id]=ref_num;
+                                    score_cache_initialized[candidate_tree_id]=1;
                                     score_cache_miss_num++;
                                 }
                             }
@@ -453,7 +480,10 @@ namespace unsz
                     target_tree.update_point_valid_num_to_root(selected_target_id,-1);
                     if(!share_validity_tree)
                         reference_tree.update_point_valid_num_to_root(selected_target_id,-1);
-                    reference_is_valid[selected_target_id]=0;
+                    int selected_reference_tree_id=reference_tree.structure->original_id_to_tree_id[selected_target_id];
+                    if(selected_reference_tree_id<0)
+                        throw runtime_error("MSD选中的目标不属于参考点集");
+                    reference_is_valid[selected_reference_tree_id]=0;
                     previous_selected_target_id=selected_target_id;
                     candidate_query_coord=coord_array[selected_target_id];
                 }

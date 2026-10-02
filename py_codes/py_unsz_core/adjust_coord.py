@@ -9,12 +9,6 @@ def select_file_ids(file_num,sample_file_num):
     file_position_float=(np.arange(sample_file_num)+0.5)*(file_num-1)/sample_file_num
     return np.round(file_position_float).astype(np.int64)
 
-def initial_constant_parameter(dim):
-    parameter=np.zeros(dim*(dim+1)//2,dtype=np.float64)
-    for d in range(dim):
-        parameter[d*(d+3)//2]=1
-    return parameter
-
 def constant_lower_triangular_matrix(parameter,dim):
     matrix=np.zeros((dim,dim),dtype=np.float64)
     for row in range(dim):
@@ -467,7 +461,7 @@ def separate_transform_scale(transform_matrix):
         raise RuntimeError("坐标变换矩阵倍率必须是有限正数")
     return transform_matrix/scale,scale
 
-def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",iteration_num=4,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.1,new_matrix_weight=0.5,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=1,optimizer_name="least_squares",matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=10000,predictor_name="idw",idw_power=2,rbf_kernel="matern32",rbf_shape=0.01,rbf_nugget=1e-6): # 访问多个文件来决定公共变换矩阵，但这个矩阵只会应用到每个文件的坐标上，而不会跨时间步使用
+def adjust_coord(param,loss_function_name="prediction_ggd_bit",iteration_num=4,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.1,new_matrix_weight=0.5,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=1,optimizer_name="least_squares",matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=10000,predictor_name="idw",idw_power=2,rbf_kernel="matern32",rbf_shape=0.01,rbf_nugget=1e-6):
     generalized_gaussian_shape=0.5
     random_seed=0
     if matrix_scale_mode not in ["discard","separate"]:
@@ -500,7 +494,6 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
     elapsed_time_history=[]
     pair_num_history=[]
     first_sample_num_history=[]
-    first_sample_spatial_nearest_distance_history=[]
     transform_scale_history=[]
     fitted_scale_history=[]
     transform_matrix=np.eye(param.dim,dtype=np.float64)
@@ -510,7 +503,6 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
         print(f"Iteration {iteration+1}/{iteration_num}",flush=True)
         stage_start_time=time.perf_counter()
         param.first_sample_ids=np.sort(rng.choice(param.point_num,size=first_sample_num,replace=False))
-        first_sample_spatial_nearest_distance=np.nan
         original_sampled_coord=param.coord_array[param.first_sample_ids]
         sampled_coord=original_sampled_coord@transform_matrix
         sampled_data=full_sampled_data[:,param.first_sample_ids]
@@ -657,13 +649,12 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
             elapsed_time_history.append(time.perf_counter()-time_dict["adjust_coord总耗时"])
             pair_num_history.append(pair_coord_diff.shape[0])
             first_sample_num_history.append(first_sample_num)
-            first_sample_spatial_nearest_distance_history.append(first_sample_spatial_nearest_distance)
             transform_scale_history.append(transform_scale)
             fitted_scale_history.append(fitted_scale)
         if matrix_history_path and ((iteration+1)%matrix_save_interval==0 or iteration+1==iteration_num):
             history_path=Path(matrix_history_path)
             history_path.parent.mkdir(parents=True,exist_ok=True)
-            np.savez(history_path,loss_function_name=loss_function_name,optimizer_name=optimizer_name,predictor_name=predictor_name,rbf_kernel=rbf_kernel,rbf_shape=rbf_shape,rbf_nugget=rbf_nugget,rbf_fallback_name="nearest",iteration=np.asarray(iteration_history),matrix=np.asarray(matrix_history),loss=np.asarray(loss_history),scaled_loss=np.asarray(scaled_loss_history),nfev=np.asarray(nfev_history),njev=np.asarray(njev_history),optimality=np.asarray(optimality_history),elapsed_time=np.asarray(elapsed_time_history),pair_num=np.asarray(pair_num_history),first_sample_num=np.asarray(first_sample_num_history),first_sample_spatial_nearest_distance=np.asarray(first_sample_spatial_nearest_distance_history),transform_scale=np.asarray(transform_scale_history),fitted_scale=np.asarray(fitted_scale_history),first_sample_ratio=first_sample_ratio,second_sample_ratio=second_sample_ratio,second_sample_num=second_sample_num,new_matrix_weight=new_matrix_weight,new_matrix_scale_weight=new_matrix_scale_weight,matrix_scale_mode=matrix_scale_mode,adjust_max_nfev=adjust_max_nfev,sample_file_num=sample_file_num,prediction_max_ref_num=param.prediction_max_ref_num,idw_power=idw_power,generalized_gaussian_shape=generalized_gaussian_shape,matrix_save_interval=matrix_save_interval)
+            np.savez(history_path,loss_function_name=loss_function_name,optimizer_name=optimizer_name,predictor_name=predictor_name,rbf_kernel=rbf_kernel,rbf_shape=rbf_shape,rbf_nugget=rbf_nugget,rbf_fallback_name="nearest",iteration=np.asarray(iteration_history),matrix=np.asarray(matrix_history),loss=np.asarray(loss_history),scaled_loss=np.asarray(scaled_loss_history),nfev=np.asarray(nfev_history),njev=np.asarray(njev_history),optimality=np.asarray(optimality_history),elapsed_time=np.asarray(elapsed_time_history),pair_num=np.asarray(pair_num_history),first_sample_num=np.asarray(first_sample_num_history),transform_scale=np.asarray(transform_scale_history),fitted_scale=np.asarray(fitted_scale_history),first_sample_ratio=first_sample_ratio,second_sample_ratio=second_sample_ratio,second_sample_num=second_sample_num,new_matrix_weight=new_matrix_weight,new_matrix_scale_weight=new_matrix_scale_weight,matrix_scale_mode=matrix_scale_mode,adjust_max_nfev=adjust_max_nfev,sample_file_num=sample_file_num,prediction_max_ref_num=param.prediction_max_ref_num,idw_power=idw_power,generalized_gaussian_shape=generalized_gaussian_shape,matrix_save_interval=matrix_save_interval)
         if (iteration+1)%10==0 and iteration+1<iteration_num:
             stage_start_time=time.perf_counter()
             iteration_transformed_coord=param.coord_array@transform_matrix
@@ -673,7 +664,6 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
             print(f"transform matrix:\n{transform_matrix}")
     
     time_dict["最终变换全部坐标"]=time.perf_counter()
-    param.coord_transform_parameter=transform_matrix[np.tril_indices(param.dim)]
     param.coord_transform_matrix=transform_matrix
     transformed_coord=param.coord_array@transform_matrix
     time_dict["最终变换全部坐标"]=time.perf_counter()-time_dict["最终变换全部坐标"]
@@ -689,10 +679,3 @@ def adjust_coord_no_cross_time(param,loss_function_name="prediction_ggd_bit",ite
         if name!="adjust_coord总耗时":
             print(f"  {name}：{value:.6f} s")
     print(f"  adjust_coord总耗时：{time_dict['adjust_coord总耗时']:.6f} s")
-
-def adjust_coord(param,loss_function_name="prediction_ggd_bit",iteration_num=4,matrix_history_path=None,first_sample_ratio=0.25,second_sample_ratio=0.1,new_matrix_weight=0.5,adjust_max_nfev=100,sample_file_num=3,matrix_save_interval=1,optimizer_name="least_squares",matrix_scale_mode="separate",new_matrix_scale_weight=0.9,second_sample_num=10000,predictor_name="idw",idw_power=2,rbf_kernel="matern32",rbf_shape=0.01,rbf_nugget=1e-6)->None:
-    if param.cross_time_compress:
-        raise ValueError("联合时空adjust coord已弃用")
-    adjust_coord_no_cross_time(param,loss_function_name,iteration_num,matrix_history_path,first_sample_ratio,second_sample_ratio,new_matrix_weight,adjust_max_nfev,sample_file_num,matrix_save_interval,optimizer_name,matrix_scale_mode=matrix_scale_mode,new_matrix_scale_weight=new_matrix_scale_weight,second_sample_num=second_sample_num,predictor_name=predictor_name,idw_power=idw_power,rbf_kernel=rbf_kernel,rbf_shape=rbf_shape,rbf_nugget=rbf_nugget)
-
-    

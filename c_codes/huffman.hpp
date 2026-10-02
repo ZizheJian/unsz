@@ -242,8 +242,6 @@ class huffman_encoder_class
             }
             tree.offset=__minval;
             tree.maxval=(uint64_t)((int64_t)__maxval-(int64_t)__minval)+1;
-            if (tree.maxval-1>(uint64_t)numeric_limits<T>::max())
-                throw runtime_error("Huffman符号跨度超出当前类型范围");
             // bin的值密集时使用vector存储频次，稀疏时使用map存储频次
             if ((tree.maxval>=(1llu<<12) and num_bin<2*tree.maxval) || tree.maxval>=(1llu<<28))
                 tree.usemp=1;
@@ -305,8 +303,9 @@ class huffman_encoder_class
                 for (uint64_t i=0;i<num_bin;i++)
                 {
                     const T& it=bins[i];
-                    const unsigned char& len_i=tree.mplen[it-tree.offset];
-                    const int& code_i=tree.mpcode[it-tree.offset];
+                    uint64_t symbol=(uint64_t)((int64_t)it-(int64_t)tree.offset);
+                    const unsigned char& len_i=tree.mplen[symbol];
+                    const int& code_i=tree.mpcode[symbol];
                     len+=len_i;
                     writeBytes(bytes,code_i,len_i,mask,index);
                 }
@@ -314,8 +313,9 @@ class huffman_encoder_class
                 for (uint64_t i=0;i<num_bin;i++) 
                 {
                     const T& it=bins[i];
-                    const unsigned char& len_i=tree.veclen[it-tree.offset];
-                    const int& code_i=tree.veccode[it-tree.offset];
+                    uint64_t symbol=(uint64_t)((int64_t)it-(int64_t)tree.offset);
+                    const unsigned char& len_i=tree.veclen[symbol];
+                    const int& code_i=tree.veccode[symbol];
                     len+=len_i;
                     writeBytes(bytes,code_i,len_i,mask,index);
                 }
@@ -367,7 +367,7 @@ class huffman_encoder_class
                 uint8_t decoded_bit_num=0;
                 if(node->isLeaf())
                 {
-                    value=(T)(node->c+offset);
+                    value=(T)((int64_t)offset+(int64_t)node->c);
                     decoded_bit_num=bitNum;
                 }
                 decodeTable[key]={node,value,decoded_bit_num};
@@ -401,7 +401,7 @@ class huffman_encoder_class
                     throw runtime_error("Huffman字节流在符号中间结束");
                 if(outLen>=targetLength)
                     throw runtime_error("Huffman解码结果超过预期长度");
-                out[outLen++]=node->c+offset;
+                out[outLen++]=(T)((int64_t)offset+(int64_t)node->c);
             }
 
             bytes+=byteNum;

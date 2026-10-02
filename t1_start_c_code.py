@@ -1,7 +1,7 @@
 import argparse,array,json,math,os,shlex
 from pathlib import Path
 from py_codes.parse_umc_output import calculate_umc_disk_error,parse_umc_compression_result,parse_umc_decompression_result
-from py_codes.parse_unsz_output import parse_unsz_output
+from py_codes.parse_unsz_output import parse_unsz_compression_output,parse_unsz_output
 from third_party.csv_tools.py_codes.write_csv_item import write_csv_item
 from third_party.get_max_cpus.py_codes.get_max_cpus import get_max_cpus
 from third_party.run_command.run_command import run_command
@@ -182,6 +182,21 @@ def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expre
         arguments.extend(("-dag-cache",dag_cache_path))
     if "adjust_coord_matrix_file" in config:
         arguments.extend(("-adjust-coord-matrix-file",project_root/"adjust_coord_matrices"/config["adjust_coord_matrix_file"]))
+    has_partition_num="partition_num" in config
+    has_partition_size="partition_size" in config
+    if has_partition_num and has_partition_size:
+        raise ValueError("partition_num和partition_size不能同时设置")
+    if has_partition_num or has_partition_size:
+        if "thread_num" not in config:
+            raise ValueError("启用partition时必须显式设置thread_num")
+        partition_name="partition_num" if has_partition_num else "partition_size"
+        if not isinstance(config[partition_name],int) or config[partition_name]<=0:
+            raise ValueError(f"{partition_name}必须是正整数")
+        if not isinstance(config["thread_num"],int) or config["thread_num"]<=0:
+            raise ValueError("thread_num必须是正整数")
+        arguments.extend(("-"+partition_name.replace("_","-"),config[partition_name],"-thread-num",config["thread_num"]))
+    elif "thread_num" in config:
+        raise ValueError("thread_num只能和partition_num或partition_size一起设置")
     if config["label_flow"] is not None:
         if config["label_value_execution"] not in ("staged","fused"):
             raise ValueError(f"未知标签与数值执行方式：{config['label_value_execution']}")
@@ -257,12 +272,19 @@ def run_unsz(config):
         dag_cache_path.parent.mkdir(parents=True,exist_ok=True)
     compression_command,decompression_command=build_unsz_commands(config,source_data_dir,dag_cache_path)
     compression_output=run_command(compression_command,silent=True)
-    decompression_output=run_command(decompression_command,silent=True)
-    result=parse_unsz_output(compression_output,decompression_output)
+    staged=config.get("label_value_execution")=="staged"
+    if staged:
+        result={**parse_unsz_compression_output(compression_output),"decompression_preprocessing_time":0,"decompression_time":0}
+    else:
+        decompression_output=run_command(decompression_command,silent=True)
+        result=parse_unsz_output(compression_output,decompression_output)
     error_configuration=config["point_set_config_path"] if "point_set_config_path" in config else f"REL {config['rel_eb']}"
     print(f"总结果：compressor=unsz,task={config['name']},data_dir={config['data_dir']},field={config['field']},error_configuration={error_configuration},br={result['br']},psnr={result['psnr']}")
     print(f"计时：compression_preprocessing={result['compression_preprocessing_time']} s,decompression_preprocessing={result['decompression_preprocessing_time']} s,compression={result['compression_time']} s,decompression={result['decompression_time']} s,compression+decompression={result['compression_time']+result['decompression_time']} s")
-    return {"compressor":"unsz",**result,"command":"compression: "+shlex.join(str(value) for value in compression_command)+"; decompression: "+shlex.join(str(value) for value in decompression_command)}
+    command="compression: "+shlex.join(str(value) for value in compression_command)
+    if not staged:
+        command+="; decompression: "+shlex.join(str(value) for value in decompression_command)
+    return {"compressor":"unsz",**result,"command":command}
 
 def run_umc(config,rel_eb,data_range):
     source_data_dir=Path(config["data_dir"])

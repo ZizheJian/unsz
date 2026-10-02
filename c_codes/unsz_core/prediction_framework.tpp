@@ -1,5 +1,30 @@
 #pragma once
 
+namespace unsz::time_flow
+{
+    template<uint32_t time_ref_num>
+    constexpr time_dimension_mode_e label_mode()
+    {
+        if constexpr(time_ref_num==1)
+            return time_dimension_mode_e::constant_extrapolation;
+        return time_dimension_mode_e::label_linear_interpolation_spatial_residual;
+    }
+
+    template<uint32_t time_ref_num,bool use_spatial_residual>
+    constexpr time_dimension_mode_e value_mode()
+    {
+        if constexpr(time_ref_num==1)
+        {
+            if constexpr(use_spatial_residual)
+                return time_dimension_mode_e::constant_extrapolation_spatial_residual;
+            return time_dimension_mode_e::constant_extrapolation;
+        }
+        if constexpr(use_spatial_residual)
+            return time_dimension_mode_e::linear_interpolation_spatial_residual;
+        return time_dimension_mode_e::linear_interpolation;
+    }
+}
+
 namespace unsz
 {
     template<typename T_coord,typename T_data>
@@ -113,8 +138,6 @@ namespace unsz
             framework.execution=label_value_execution_e::fused;
         else
             framework.execution=label_value_execution_e::staged;
-        if(use_linear_previous_label_experimental && (framework.execution!=label_value_execution_e::fused || framework.label_mode!=time_dimension_mode_e::constant_extrapolation))
-            throw runtime_error("线性上一时刻标签修正流要求启用融合两点集预测和previous标签预测");
         return framework;
     }
 

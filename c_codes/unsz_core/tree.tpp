@@ -87,23 +87,39 @@ namespace unsz
     template<typename T_coord>
     block_tree_c<T_coord>::block_tree_c(Array2D<T_coord> &coord_array,vector<T_coord> &min_coord,vector<T_coord> &max_coord,uint32_t leaf_point_num)
     {
+        vector<int> original_ids(coord_array.n0);
+        iota(original_ids.begin(),original_ids.end(),0);
+        initialize(coord_array,min_coord,max_coord,original_ids,leaf_point_num);
+    }
+
+    template<typename T_coord>
+    block_tree_c<T_coord>::block_tree_c(Array2D<T_coord> &coord_array,vector<T_coord> &min_coord,vector<T_coord> &max_coord,const vector<int>&original_ids,uint32_t leaf_point_num)
+    {
+        initialize(coord_array,min_coord,max_coord,original_ids,leaf_point_num);
+    }
+
+    template<typename T_coord>
+    void block_tree_c<T_coord>::initialize(Array2D<T_coord> &coord_array,vector<T_coord> &min_coord,vector<T_coord> &max_coord,const vector<int>&original_ids,uint32_t leaf_point_num)
+    {
         if (coord_array.n0==0 || coord_array.n1==0)
             throw runtime_error("kd-tree的点数和维数必须是正数");
+        if(original_ids.empty())
+            throw runtime_error("kd-tree的点集不能为空");
         if (leaf_point_num==0)
             throw runtime_error("kd-tree叶节点点数必须是正数");
         dim=coord_array.n1;
         structure=make_shared<block_tree_structure_c<T_coord>>();
         structure->dim=dim;
         structure->leaf_point_num=leaf_point_num;
-        uint64_t max_block_num=(uint64_t)coord_array.n0*2-1;
+        uint64_t max_block_num=(uint64_t)original_ids.size()*2-1;
         structure->block_vec.reserve(max_block_num);
         structure->block_coord_bounds.reserve(max_block_num*dim*2);
-        structure->tree_id_to_original_id.resize(coord_array.n0);
-        structure->tree_id_to_block_vec_id.resize(coord_array.n0);
-        for (uint32_t i=0;i<coord_array.n0;i++)
+        structure->tree_id_to_original_id=original_ids;
+        structure->tree_id_to_block_vec_id.resize(original_ids.size());
+        for(int original_id:original_ids)
         {
-            structure->tree_id_to_original_id[i]=i;
-            structure->tree_id_to_block_vec_id[i]=0;
+            if(original_id<0||(uint32_t)original_id>=coord_array.n0)
+                throw runtime_error("kd-tree点编号越界");
         }
         structure->block_vec.emplace_back();
         valid_num.push_back(0);
@@ -114,14 +130,14 @@ namespace unsz
         memcpy(get_block_min_coord(0),min_coord.data(),dim*sizeof(T_coord));
         memcpy(get_block_max_coord(0),max_coord.data(),dim*sizeof(T_coord));
         structure->block_vec[0].index_begin=0;
-        structure->block_vec[0].index_end=coord_array.n0;
+        structure->block_vec[0].index_end=original_ids.size();
         split_block(coord_array,0);
-        valid_num[0]=coord_array.n0;
-        point_valid.assign(coord_array.n0,1);
-        structure->original_id_to_tree_id.resize(coord_array.n0);
-        structure->original_id_to_block_vec_id.resize(coord_array.n0);
-        structure->tree_order_coord_array.resize(coord_array.n0,dim);
-        for (uint32_t i=0;i<coord_array.n0;i++)
+        valid_num[0]=original_ids.size();
+        point_valid.assign(original_ids.size(),1);
+        structure->original_id_to_tree_id.assign(coord_array.n0,-1);
+        structure->original_id_to_block_vec_id.assign(coord_array.n0,-1);
+        structure->tree_order_coord_array.resize(original_ids.size(),dim);
+        for (uint32_t i=0;i<original_ids.size();i++)
         {
             int original_id=structure->tree_id_to_original_id[i];
             structure->original_id_to_tree_id[original_id]=i;
@@ -212,12 +228,6 @@ namespace unsz
     template<typename T_coord>
     void block_tree_c<T_coord>::update_point_valid_num_to_root(int original_id,int change_value)
     {
-        update_point_valid_num_to_partition_root(original_id,change_value,0);
-    }
-
-    template<typename T_coord>
-    void block_tree_c<T_coord>::update_point_valid_num_to_partition_root(int original_id,int change_value,int partition_root_block_id)
-    {
         int tree_id=structure->original_id_to_tree_id[original_id];
         int new_value=(int)point_valid[tree_id]+change_value;
         if (new_value<0 || new_value>1)
@@ -236,11 +246,11 @@ namespace unsz
         while (true)
         {
             valid_num[block_id]+=change_value;
-            if (block_id==partition_root_block_id)
+            if(block_id==0)
                 break;
             block_id=structure->block_vec[block_id].parent_id;
             if (block_id==-1)
-                throw runtime_error("指定的partition根不是目标点叶节点的祖先");
+                throw runtime_error("kd-tree目标点无法追溯到根节点");
         }
     }
 

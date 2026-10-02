@@ -38,17 +38,14 @@ namespace unsz
         if_adjust_coord=other.if_adjust_coord;
         adjust_coord_matrix_parameter_vec=other.adjust_coord_matrix_parameter_vec;
         print_compression_stage_time=other.print_compression_stage_time;
-        print_prediction_dag_statistics=other.print_prediction_dag_statistics;
         label_value_execution=other.label_value_execution;
-        use_linear_previous_label_experimental=other.use_linear_previous_label_experimental;
         ordering_scope=other.ordering_scope;
         ordering_score_min_ref_num=other.ordering_score_min_ref_num;
         ordering_candidate_num=other.ordering_candidate_num;
         ordering_score_max_ref_num=other.ordering_score_max_ref_num;
-        multihead_execution_head_num_experimental=other.multihead_execution_head_num_experimental;
         kd_tree_leaf_size=other.kd_tree_leaf_size;
-        partition_size_experimental=other.partition_size_experimental;
-        partition_num_experimental=other.partition_num_experimental;
+        partition_size=other.partition_size;
+        partition_num=other.partition_num;
         thread_num=other.thread_num;
         use_partition_adaptive_predictor_experimental=other.use_partition_adaptive_predictor_experimental;
         partition_adaptive_sample_num_experimental=other.partition_adaptive_sample_num_experimental;
@@ -68,29 +65,27 @@ namespace unsz
         rbf_nugget=other.rbf_nugget;
         rbf_parameter_specified=other.rbf_parameter_specified;
         zstd_compression_level=other.zstd_compression_level;
-        point_set_predictor=other.point_set_predictor;
         predictor=other.predictor;
 
         coord_array.resize(other.coord_array.n0,other.coord_array.n1);
         coord_array.data.assign(other.coord_array.data.begin(),other.coord_array.data.end());
-        coord_array_backup.resize(other.coord_array_backup.n0,other.coord_array_backup.n1);
-        coord_array_backup.data.assign(other.coord_array_backup.data.begin(),other.coord_array_backup.data.end());
         min_coord.assign(other.min_coord.begin(),other.min_coord.end());
         max_coord.assign(other.max_coord.begin(),other.max_coord.end());
-        prediction_target_id_groups=other.prediction_target_id_groups;
-        pred_target_ids=other.pred_target_ids;
-        pred_ref_ids=other.pred_ref_ids;
-        multihead_execution_pred_ref_ids=other.multihead_execution_pred_ref_ids;
-        multihead_qb_index_by_pred_ref_id=other.multihead_qb_index_by_pred_ref_id;
-        pred_ref_begin=other.pred_ref_begin;
-        pred_ref_prediction_weights.assign(other.pred_ref_prediction_weights.begin(),other.pred_ref_prediction_weights.end());
-        pred_ref_rbf_fallback_vec=other.pred_ref_rbf_fallback_vec;
-        cached_pred_eb_multiplier_vec=other.cached_pred_eb_multiplier_vec;
-        cached_pred_eb_inverse_multiplier_vec=other.cached_pred_eb_inverse_multiplier_vec;
         partition_point_ids_vec=other.partition_point_ids_vec;
         point_partition_id_vec=other.point_partition_id_vec;
-        partition_root_block_ids=other.partition_root_block_ids;
-        partition_pred_ref_ids_vec=other.partition_pred_ref_ids_vec;
+        prediction_structure_vec.resize(other.prediction_structure_vec.size());
+        for(uint32_t structure_id=0;structure_id<prediction_structure_vec.size();structure_id++)
+        {
+            auto&structure=prediction_structure_vec[structure_id];
+            const auto&other_structure=other.prediction_structure_vec[structure_id];
+            structure.target_id_groups=other_structure.target_id_groups;
+            structure.target_ids=other_structure.target_ids;
+            structure.reference_ids=other_structure.reference_ids;
+            structure.reference_offsets=other_structure.reference_offsets;
+            structure.prediction_weights.assign(other_structure.prediction_weights.begin(),other_structure.prediction_weights.end());
+            structure.rbf_fallback_flags=other_structure.rbf_fallback_flags;
+            structure.eb_multiplier=other_structure.eb_multiplier;
+        }
         partition_prediction_config_id_vec=other.partition_prediction_config_id_vec;
         partition_adaptive_sample_mask=other.partition_adaptive_sample_mask;
 
@@ -103,22 +98,22 @@ namespace unsz
         reconstructed_time_step_vec=other.reconstructed_time_step_vec;
         reconstructed_time_data_vec=other.reconstructed_time_data_vec;
         reconstructed_time_point_set_id_vec=other.reconstructed_time_point_set_id_vec;
+        current_time_spatial_residual_data=other.current_time_spatial_residual_data;
+        current_time_spatial_residual_valid=other.current_time_spatial_residual_valid;
         current_time_step=other.current_time_step;
-        linear_interpolation_left_history_id=other.linear_interpolation_left_history_id;
-        linear_interpolation_right_history_id=other.linear_interpolation_right_history_id;
-        linear_interpolation_right_weight=other.linear_interpolation_right_weight;
-        current_min_data=other.current_min_data;
-        current_max_data=other.current_max_data;
-        current_abs_eb=other.current_abs_eb;
-        qb_vec=other.qb_vec;
-        current_zstd_bs_vec=other.current_zstd_bs_vec;
+        temporal_history_ids=other.temporal_history_ids;
+        temporal_weights[0]=(T_calc)other.temporal_weights[0];
+        temporal_weights[1]=(T_calc)other.temporal_weights[1];
+        previous_time_value_available=other.previous_time_value_available;
+        previous_time_label_available=other.previous_time_label_available;
+        temporal_interpolation_available=other.temporal_interpolation_available;
+        current_compressed_bytes=other.current_compressed_bytes;
         point_set_id_vec=other.point_set_id_vec;
         point_set_point_num_vec=other.point_set_point_num_vec;
         point_set_min_data_vec=other.point_set_min_data_vec;
         point_set_max_data_vec=other.point_set_max_data_vec;
         point_set_abs_eb_vec=other.point_set_abs_eb_vec;
         point_set_codec_vec=other.point_set_codec_vec;
-        current_valid_node_num=other.current_valid_node_num;
     }
 
     template<typename T_coord,typename T_data>

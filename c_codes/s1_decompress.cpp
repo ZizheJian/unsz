@@ -111,33 +111,32 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         param.adjust_coord();
         adjust_coord_time=chrono::duration<double>(chrono::steady_clock::now()-adjust_coord_start_time).count();
     }
-    param.load_or_generate_pred_refs_structure();
-    if(param.rbf_parameter_specified||any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf;}))
-        param.prepare_rbf_prediction_weights();
-    if(param.cached_pred_eb_multiplier_vec.size()!=param.point_num)
-        param.cached_pred_eb_multiplier_vec=param.generate_pred_eb_multiplier_vec();
-    if (param.print_prediction_dag_statistics)
-        param.print_prediction_dag_statistics_result();
+    bool loaded_dag_cache=!param.dag_cache_path.empty()&&filesystem::exists(param.dag_cache_path);
+    param.load_or_generate_prediction_structures();
+    if(loaded_dag_cache&&(param.rbf_parameter_specified||any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf;})))
+        param.generate_rbf_weights_from_loaded_dag();
+    for(auto&structure:param.prediction_structure_vec)
+        if(structure.eb_multiplier.size()!=structure.target_ids.size())
+            structure.eb_multiplier=param.generate_pred_eb_multiplier_vec(structure.target_id_groups,(uint32_t)structure.target_ids.size());
     double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time;
     printf("preprocessing time excluding adjust coord= %f s\n",preprocessing_time);
-    param.validate_pred_refs_structure();
+    param.validate_prediction_structures();
     if(joint_spatiotemporal)
     {
-        using param_type=unsz::param_c<T_coord,float>;
         auto codec=param.point_set_config_vec[0].codec;
         if(codec==unsz::point_set_codec_e::idw)
-            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_current_file<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::idw>);
+            param.template decompress_joint_spatiotemporal_files<unsz::point_set_codec_e::idw>();
         else if(codec==unsz::point_set_codec_e::rbf)
-            param.decompress_joint_spatiotemporal_files(&param_type::template decompress_current_file<false,unsz::time_dimension_mode_e::spatial,unsz::time_dimension_mode_e::not_applicable,unsz::label_value_execution_e::no_label,unsz::point_set_codec_e::rbf>);
+            param.template decompress_joint_spatiotemporal_files<unsz::point_set_codec_e::rbf>();
         else
             throw runtime_error("单点集联合时空解压只支持IDW或RBF预测器");
         return;
     }
     if(param.point_set_config_vec.size()==2&&param.label_value_execution=="staged")
-        param.prepare_staged_two_point_set_decompression();
+        throw runtime_error("staged模式只在内存中估计压缩效果，不生成可解压码流");
     uint64_t total_point_num=0;
     uint32_t validated_file_num=0;
-    double total_squared_error=0,total_decompression_time=param.staged_label_decompression_time,total_time_prediction_state_update_time=0,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
+    double total_squared_error=0,total_decompression_time=0,total_time_prediction_state_update_time=0,max_error_ratio=0,max_error=0,max_error_abs_eb=0;
     uint32_t max_error_point_id=0,max_error_point_set_id=0;
     string max_error_data_path;
     float total_min_data=numeric_limits<float>::infinity(),total_max_data=-numeric_limits<float>::infinity();
@@ -148,13 +147,13 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     if(param.point_set_config_vec.size()==1)
         decompress_field=&param_type::dispatch_single_point_set_decompression;
     else
-        decompress_field=&param_type::dispatch_two_point_set_decompression_by_mode;
+        decompress_field=&param_type::dispatch_two_point_sets_decompression_by_mode;
     for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
         param.current_time_step=param.time_step_vec[file_id];
         string compressed_path=param.original_data_path_vec[file_id]+".unsz";
         string decompressed_path=param.original_data_path_vec[file_id]+".unsz.bin";
-        param.current_zstd_bs_vec=read_byte_file(compressed_path);
+        param.current_compressed_bytes=read_byte_file(compressed_path);
 
         auto decompression_start_time=chrono::steady_clock::now();
         (param.*decompress_field)();
@@ -200,7 +199,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         {
             double error=(double)original_data[i]-param.current_decompressed_data[i];
             squared_error+=error*error;
-            uint32_t point_set_id=param.point_set_id_vec[i];
+            uint32_t point_set_id=param.point_set_id_vec.empty()?0:param.point_set_id_vec[i];
             double validation_abs_eb=param.point_set_abs_eb_vec[point_set_id];
             double error_ratio;
             if(validation_abs_eb>0)
@@ -318,8 +317,6 @@ int decompress_main(int argc,char **argv)
             param.ordering_score_max_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-ordering-score-min-ref-num")
             param.ordering_score_min_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-multihead-execution-head-num-experimental")
-            param.multihead_execution_head_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-prediction-round-num")
         {
             param.prediction_round_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
@@ -361,9 +358,9 @@ int decompress_main(int argc,char **argv)
         else if (option=="-kd-leaf-size")
             param.kd_tree_leaf_size=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-partition-size")
-            param.partition_size_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+            param.partition_size=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-partition-num")
-            param.partition_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+            param.partition_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-thread-num")
             param.thread_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-partition-adaptive-predictor-experimental")
@@ -405,8 +402,6 @@ int decompress_main(int argc,char **argv)
         }
         else if (option=="-adjust-coord-matrix-file")
             param.adjust_coord_matrix_file=read_option_value(argc,argv,arg_id,option);
-        else if (option=="-parallelism-stats")
-            param.print_prediction_dag_statistics=true;
         else if(option=="-decompression-stage-time")
             param.print_compression_stage_time=true;
         else if(option=="-label-value-execution")
@@ -415,8 +410,6 @@ int decompress_main(int argc,char **argv)
             if(param.label_value_execution!="staged"&&param.label_value_execution!="fused")
                 throw runtime_error("-label-value-execution必须是staged或fused");
         }
-        else if (option=="-linear-previous-label-experimental")
-            param.use_linear_previous_label_experimental=true;
         else if(option=="-ordering-scope")
         {
             param.ordering_scope=read_option_value(argc,argv,arg_id,option);

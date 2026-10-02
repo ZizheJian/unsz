@@ -38,8 +38,6 @@ def train_adjust_coord(config,matrix_output_path=None,rel_eb=None,prediction_max
     param.dim=config["coordinate_dim"]
     param.rel_eb=rel_eb
     param.prediction_max_ref_num=prediction_max_ref_num
-    param.cross_time_compress=False
-    param.if_adjust_coord=True
     init(param)
     configured_training_arguments={"loss_function_name":config["adjust_coord_loss"],"iteration_num":config["adjust_coord_iteration_num"],"first_sample_ratio":config["adjust_coord_first_sample_ratio"],"second_sample_ratio":config["adjust_coord_second_sample_ratio"],"new_matrix_weight":config["adjust_coord_new_matrix_weight"],"adjust_max_nfev":config["adjust_coord_max_nfev"],"sample_file_num":config["adjust_coord_sample_file_num"],"matrix_save_interval":config["adjust_coord_matrix_save_interval"],"optimizer_name":config["adjust_coord_optimizer"],"matrix_scale_mode":config["adjust_coord_matrix_scale_mode"],"new_matrix_scale_weight":config["adjust_coord_new_matrix_scale_weight"],"second_sample_num":config["adjust_coord_second_sample_num"],**get_predictor_config(config)}
     optimize_adjust_coord(param,**(configured_training_arguments|training_arguments))

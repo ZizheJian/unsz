@@ -179,8 +179,14 @@ namespace unsz
         time_step_order_e label_order=get_time_step_order(label_flow),value_order=get_time_step_order(value_flow);
         if(point_set_config_vec.size()==1)
             prepare_time_step_order(value_order);
+        else if(label_order==value_order)
+            prepare_time_step_order(label_order);
+        else if(label_flow=="none")
+            prepare_time_step_order(value_order);
+        else if(value_flow=="none")
+            prepare_time_step_order(label_order);
         else
-            prepare_time_step_order(label_order==value_order?label_order:time_step_order_e::chronological);
+            prepare_time_step_order(time_step_order_e::chronological);
         reconstructed_time_step_vec.reserve(time_step_vec.size());
         reconstructed_time_data_vec.reserve(time_step_vec.size());
         reconstructed_time_point_set_id_vec.reserve(time_step_vec.size());
