@@ -342,7 +342,7 @@ namespace unsz
             string label_flow="none";
             bool if_adjust_coord=false;
             vector<double> adjust_coord_matrix_parameter_vec;
-            bool print_compression_stage_time=false,spatial_references_use_prediction_order=false;
+            bool print_compression_stage_time=false,prediction_data_uses_prediction_order=false;
             string label_value_execution="staged";//staged / fused
             string ordering_scope="local";//local / global
             uint32_t ordering_score_min_ref_num=0;//必须显式设置；缓存中的有效评分参考点少于该值时重新查询
@@ -390,7 +390,7 @@ namespace unsz
             array<T_calc,2> temporal_weights{{0,0}};
             bool previous_time_value_available=false,previous_time_label_available=false,temporal_value_interpolation_available=false,temporal_label_interpolation_available=false;
             vector<unsigned char> current_compressed_bytes;
-            vector<uint8_t> point_set_id_vec;
+            vector<uint8_t> point_set_id_vec,prediction_order_point_set_id_vec;
             vector<uint32_t> point_set_point_num_vec;
             vector<T_data> point_set_min_data_vec,point_set_max_data_vec,point_set_abs_eb_vec;
             vector<point_set_codec_e> point_set_codec_vec;
@@ -407,11 +407,11 @@ namespace unsz
             void prepare_temporal_dependencies();
             void prepare_temporal_prediction();
             template<time_dimension_mode_e value_mode>
-            bool predict_temporal_value(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
+            bool predict_temporal_value(uint32_t storage_id,uint32_t point_set_id,T_data &prediction);
             template<time_dimension_mode_e value_mode>
-            void store_temporal_residual(int pred_id,bool used_temporal_prediction,T_data temporal_prediction);
+            void store_temporal_residual(uint32_t storage_id,bool used_temporal_prediction,T_data temporal_prediction);
             template<time_dimension_mode_e label_mode>
-            bool predict_temporal_label(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction);
+            bool predict_temporal_label(uint32_t storage_id,uint32_t label_channel_id,uint32_t &prediction);
             void update_time_prediction_state();
             prediction_framework_c get_prediction_framework(uint32_t point_set_num) const;
             bool uses_anchor_interpolation_stride_8_flow() const;
@@ -422,7 +422,7 @@ namespace unsz
             void load_adjust_coord_matrix_file();
             void adjust_coord();
             void load_or_generate_prediction_structures();
-            void remap_single_point_set_spatial_references_to_prediction_order();
+            void remap_prediction_data_to_prediction_order(bool for_decompression=false);
             void build_partitions();
             vector<uint32_t> get_round_target_num_vec(uint32_t local_point_num) const;
             void generate_partition_prediction_structures(bool uses_idw,bool uses_rbf);
@@ -453,6 +453,7 @@ namespace unsz
             void generate_batched_rbf_weights(const vector<T_coord>&reference_coords,const vector<T_coord>&target_ref_squared_distances,const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback);
             void preprocess_compression(chrono::steady_clock::time_point preprocessing_start_time);
             reconstruction_statistics_c calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset=0) const;
+            reconstruction_statistics_c calculate_prediction_order_reconstruction_statistics() const;
             void compress_files(void(param_c<T_coord,T_data>::*compress_file)(),bool write_output=true,const function<void(uint32_t,const vector<unsigned char>&)>&compressed_stream_consumer={},bool validate_reconstruction=true);
             template<point_set_codec_e predictor>
             void compress_staged_two_point_sets_files();

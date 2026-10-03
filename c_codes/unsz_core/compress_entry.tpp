@@ -32,7 +32,7 @@ namespace unsz
             validate_prediction_structures();
             validation_time=chrono::duration<double>(chrono::steady_clock::now()-validation_start_time).count();
         }
-        remap_single_point_set_spatial_references_to_prediction_order();
+        remap_prediction_data_to_prediction_order();
         double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time-validation_time;
         printf("preprocessing time excluding coordinate input and adjust coord= %f s\n",preprocessing_time);
     }
@@ -61,17 +61,11 @@ namespace unsz
             auto compression_start_time=chrono::steady_clock::now();
             (this->*compress_file)();
             double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count();
-            if(spatial_references_use_prediction_order)
-            {
-                const vector<int>&target_ids=prediction_structure_vec.front().target_ids;
-                for(uint32_t prediction_index=0;prediction_index<point_num;prediction_index++)
-                    current_decompressed_data[target_ids[prediction_index]]=prediction_order_decompressed_data[prediction_index];
-            }
             total_original_bytes+=(uint64_t)point_num*sizeof(T_data);
             total_compressed_bytes+=current_compressed_bytes.size();
             if(validate_reconstruction)
             {
-                reconstruction_statistics_c file_statistics=calculate_reconstruction_statistics(current_data.data(),current_decompressed_data.data(),point_num);
+                reconstruction_statistics_c file_statistics=prediction_data_uses_prediction_order?calculate_prediction_order_reconstruction_statistics():calculate_reconstruction_statistics(current_data.data(),current_decompressed_data.data(),point_num);
                 if(file_statistics.max_error_ratio>total_statistics.max_error_ratio)
                     max_error_data_path=original_data_path;
                 merge_reconstruction_statistics(total_statistics,file_statistics);

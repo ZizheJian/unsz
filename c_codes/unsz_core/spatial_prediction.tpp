@@ -75,6 +75,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     T_data param_c<T_coord,T_data>::predict_value_two_point_sets_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask)
     {
+        const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
         uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
         bool all_value_refs_match=ref_num>0;
         T_calc value_ref_weight_sum=0,weighted_value_sum=0;
@@ -82,7 +83,7 @@ namespace unsz
         for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
         {
             int ref_id=ref_ids[ref_index];
-            if(point_set_id_vec[ref_id]!=value_point_set_id||(valid_ref_mask&&!(*valid_ref_mask)[ref_id]))
+            if(prediction_point_set_ids[ref_id]!=value_point_set_id||(valid_ref_mask&&!(*valid_ref_mask)[ref_id]))
             {
                 if(ref_index<ref_num)
                     all_value_refs_match=false;
@@ -105,13 +106,14 @@ namespace unsz
     template<typename T_coord,typename T_data>
     T_data param_c<T_coord,T_data>::predict_value_two_point_sets_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask)
     {
+        const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
         uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
         if(!has_rbf_weights)
         {
             for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
             {
                 int ref_id=ref_ids[ref_index];
-                if(point_set_id_vec[ref_id]==value_point_set_id&&(!valid_ref_mask||(*valid_ref_mask)[ref_id]))
+                if(prediction_point_set_ids[ref_id]==value_point_set_id&&(!valid_ref_mask||(*valid_ref_mask)[ref_id]))
                     return data[ref_id];
             }
             return 0;
@@ -124,7 +126,7 @@ namespace unsz
         for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
         {
             int ref_id=ref_ids[ref_index];
-            if(point_set_id_vec[ref_id]!=value_point_set_id||(valid_ref_mask&&!(*valid_ref_mask)[ref_id]))
+            if(prediction_point_set_ids[ref_id]!=value_point_set_id||(valid_ref_mask&&!(*valid_ref_mask)[ref_id]))
             {
                 if(any_missing_ref_forces_nearest)
                 {
@@ -133,7 +135,7 @@ namespace unsz
                     for(uint32_t fallback_ref_index=ref_index+1;fallback_ref_index<ref_num;fallback_ref_index++)
                     {
                         int fallback_ref_id=ref_ids[fallback_ref_index];
-                        if(point_set_id_vec[fallback_ref_id]==value_point_set_id&&(!valid_ref_mask||(*valid_ref_mask)[fallback_ref_id]))
+                        if(prediction_point_set_ids[fallback_ref_id]==value_point_set_id&&(!valid_ref_mask||(*valid_ref_mask)[fallback_ref_id]))
                             return data[fallback_ref_id];
                     }
                     return 0;
@@ -163,6 +165,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     fused_spatial_prediction_c<T_data> param_c<T_coord,T_data>::predict_fused_spatial_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources)
     {
+        const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
         fused_spatial_prediction_c<T_data> result;
         uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
         T_calc label_weight_sum[2]={0,0},value_weight_sum[2]={0,0},weighted_value_sum[2]={0,0};
@@ -171,7 +174,7 @@ namespace unsz
         for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
         {
             int ref_id=ref_ids[ref_index];
-            uint32_t point_set_id=point_set_id_vec[ref_id];
+            uint32_t point_set_id=prediction_point_set_ids[ref_id];
             T_calc weight=ref_weights[ref_index];
             if(predict_label&&ref_index<ref_num)
                 label_weight_sum[point_set_id]+=weight;
@@ -214,6 +217,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     fused_spatial_prediction_c<T_data> param_c<T_coord,T_data>::predict_fused_spatial_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources)
     {
+        const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
         fused_spatial_prediction_c<T_data> result;
         uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
         T_calc label_prediction=0,value_weight_sum[2]={0,0},weighted_value_sum[2]={0,0};
@@ -223,7 +227,7 @@ namespace unsz
         for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
         {
             int ref_id=ref_ids[ref_index];
-            uint32_t point_set_id=point_set_id_vec[ref_id];
+            uint32_t point_set_id=prediction_point_set_ids[ref_id];
             T_calc weight=ref_weights[ref_index];
             if(predict_label)
                 label_prediction+=weight*point_set_id;

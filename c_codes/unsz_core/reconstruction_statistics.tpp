@@ -66,4 +66,44 @@ namespace unsz
         }
         return result;
     }
+
+    template<typename T_coord,typename T_data>
+    reconstruction_statistics_c param_c<T_coord,T_data>::calculate_prediction_order_reconstruction_statistics() const
+    {
+        reconstruction_statistics_c result;
+        result.point_num=point_num;
+        uint32_t primary_point_set_id=0;
+        while(point_set_point_num_vec[primary_point_set_id]==0)
+            primary_point_set_id++;
+        const vector<int>&target_ids=prediction_structure_vec.front().target_ids;
+        for(uint32_t prediction_index=0;prediction_index<point_num;prediction_index++)
+        {
+            uint32_t point_id=(uint32_t)target_ids[prediction_index];
+            double error=(double)current_data[point_id]-prediction_order_decompressed_data[prediction_index];
+            result.squared_error+=error*error;
+            uint32_t point_set_id=point_set_id_vec.empty()?0:point_set_id_vec[point_id];
+            double abs_eb=point_set_abs_eb_vec[point_set_id];
+            double error_ratio;
+            if(abs_eb>0)
+                error_ratio=abs(error)/abs_eb;
+            else if(error==0)
+                error_ratio=0;
+            else
+                error_ratio=numeric_limits<double>::infinity();
+            if(error_ratio>result.max_error_ratio)
+            {
+                result.max_error_ratio=error_ratio;
+                result.max_error=error;
+                result.max_error_abs_eb=abs_eb;
+                result.max_error_point_id=point_id;
+                result.max_error_point_set_id=point_set_id;
+            }
+            if(point_set_id==primary_point_set_id)
+            {
+                result.minimum=min(result.minimum,(double)current_data[point_id]);
+                result.maximum=max(result.maximum,(double)current_data[point_id]);
+            }
+        }
+        return result;
+    }
 }

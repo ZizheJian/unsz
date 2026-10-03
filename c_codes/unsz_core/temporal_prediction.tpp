@@ -160,11 +160,11 @@ namespace unsz
 
     template<typename T_coord,typename T_data>
     template<time_dimension_mode_e label_mode>
-    bool param_c<T_coord,T_data>::predict_temporal_label(uint32_t original_id,uint32_t label_channel_id,uint32_t&prediction)
+    bool param_c<T_coord,T_data>::predict_temporal_label(uint32_t storage_id,uint32_t label_channel_id,uint32_t&prediction)
     {
-        auto get_binary_label=[label_channel_id,original_id](const vector<uint8_t>&point_set_ids)
+        auto get_binary_label=[label_channel_id,storage_id](const vector<uint8_t>&point_set_ids)
         {
-            return point_set_ids[original_id]==label_channel_id?0U:1U;
+            return point_set_ids[storage_id]==label_channel_id?0U:1U;
         };
         if constexpr(label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual)
         {
@@ -190,15 +190,15 @@ namespace unsz
 
     template<typename T_coord,typename T_data>
     template<time_dimension_mode_e value_mode>
-    bool param_c<T_coord,T_data>::predict_temporal_value(uint32_t original_id,uint32_t point_set_id,T_data&prediction)
+    bool param_c<T_coord,T_data>::predict_temporal_value(uint32_t storage_id,uint32_t point_set_id,T_data&prediction)
     {
         if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation||value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
         {
             if(!previous_time_value_available)
                 return false;
-            if(point_set_config_vec.size()>1&&(*previous_time_value_point_set_source)[original_id]!=point_set_id)
+            if(point_set_config_vec.size()>1&&(*previous_time_value_point_set_source)[storage_id]!=point_set_id)
                 return false;
-            prediction=(*previous_time_value_source)[original_id];
+            prediction=(*previous_time_value_source)[storage_id];
             return true;
         }
         if constexpr(value_mode==time_dimension_mode_e::linear_interpolation||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
@@ -211,10 +211,10 @@ namespace unsz
             if(point_set_config_vec.size()>1)
             {
                 const vector<uint8_t>&left_point_set_ids=reconstructed_time_point_set_id_vec[left_source],&right_point_set_ids=reconstructed_time_point_set_id_vec[right_source];
-                if(left_point_set_ids[original_id]!=point_set_id||right_point_set_ids[original_id]!=point_set_id)
+                if(left_point_set_ids[storage_id]!=point_set_id||right_point_set_ids[storage_id]!=point_set_id)
                     return false;
             }
-            prediction=(T_data)(temporal_weights[0]*(T_calc)left_data[original_id]+temporal_weights[1]*(T_calc)right_data[original_id]);
+            prediction=(T_data)(temporal_weights[0]*(T_calc)left_data[storage_id]+temporal_weights[1]*(T_calc)right_data[storage_id]);
             return true;
         }
         return false;
@@ -222,14 +222,15 @@ namespace unsz
 
     template<typename T_coord,typename T_data>
     template<time_dimension_mode_e value_mode>
-    void param_c<T_coord,T_data>::store_temporal_residual(int pred_id,bool used_temporal_prediction,T_data temporal_prediction)
+    void param_c<T_coord,T_data>::store_temporal_residual(uint32_t storage_id,bool used_temporal_prediction,T_data temporal_prediction)
     {
         if constexpr(value_mode!=time_dimension_mode_e::constant_extrapolation_spatial_residual&&value_mode!=time_dimension_mode_e::linear_interpolation_spatial_residual)
             return;
         if(used_temporal_prediction)
         {
-            current_time_spatial_residual_data[pred_id]=current_decompressed_data[pred_id]-temporal_prediction;
-            current_time_spatial_residual_valid[pred_id]=1;
+            const vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
+            current_time_spatial_residual_data[storage_id]=reconstructed_data[storage_id]-temporal_prediction;
+            current_time_spatial_residual_valid[storage_id]=1;
         }
     }
 
@@ -240,9 +241,19 @@ namespace unsz
         previous_time_value_point_set_source=nullptr;
         previous_time_label_source=nullptr;
         if(temporal_value_remaining_outdegree_vec[current_time_step_index]>0)
-            reconstructed_time_data_vec[current_time_step_index]=move(current_decompressed_data);
+        {
+            if(prediction_data_uses_prediction_order)
+                reconstructed_time_data_vec[current_time_step_index]=move(prediction_order_decompressed_data);
+            else
+                reconstructed_time_data_vec[current_time_step_index]=move(current_decompressed_data);
+        }
         if(temporal_label_remaining_outdegree_vec[current_time_step_index]>0)
-            reconstructed_time_point_set_id_vec[current_time_step_index]=move(point_set_id_vec);
+        {
+            if(prediction_data_uses_prediction_order)
+                reconstructed_time_point_set_id_vec[current_time_step_index]=move(prediction_order_point_set_id_vec);
+            else
+                reconstructed_time_point_set_id_vec[current_time_step_index]=move(point_set_id_vec);
+        }
         const temporal_dependency_c&value_dependency=temporal_value_dependency_vec[current_time_step_index];
         for(uint32_t source_index=0;source_index<value_dependency.source_num;source_index++)
         {

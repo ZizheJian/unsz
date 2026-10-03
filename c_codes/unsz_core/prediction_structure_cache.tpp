@@ -202,10 +202,12 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::remap_single_point_set_spatial_references_to_prediction_order()
+    void param_c<T_coord,T_data>::remap_prediction_data_to_prediction_order(bool for_decompression)
     {
-        spatial_references_use_prediction_order=false;
-        if(point_set_config_vec.size()!=1||point_set_config_vec.front().codec==point_set_codec_e::constant||time_step_vec.size()!=1||value_flow!="none"||prediction_structure_vec.size()!=1)
+        prediction_data_uses_prediction_order=false;
+        if(prediction_structure_vec.size()!=1)
+            return;
+        if(for_decompression&&(point_set_config_vec.size()!=1||point_set_config_vec.front().codec==point_set_codec_e::constant||time_step_vec.size()!=1||value_flow!="none"))
             return;
         prediction_structure_c<T_calc>&structure=prediction_structure_vec.front();
         if(structure.target_ids.size()!=point_num)
@@ -220,7 +222,7 @@ namespace unsz
                 throw runtime_error("无法将空间参考点映射到预测顺序");
             reference_id=prediction_index;
         }
-        spatial_references_use_prediction_order=true;
+        prediction_data_uses_prediction_order=true;
     }
 
 }

@@ -3,7 +3,7 @@
 namespace unsz
 {
     inline constexpr unsigned char compression_file_magic[8]={'U','N','S','Z','P','S','1','1'};
-    inline constexpr uint32_t compression_file_version=11;
+    inline constexpr uint32_t compression_file_version=12;
 
     template<typename T>
     void append_binary(vector<unsigned char> &bytes,const T &value)

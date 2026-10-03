@@ -63,6 +63,7 @@ void param_c<T_coord,T_data>::compress_staged_two_point_sets_files()
     {
         current_data.clear();
         current_decompressed_data.clear();
+        prediction_order_decompressed_data.clear();
         reconstructed_time_data_vec.clear();
         reconstructed_time_point_set_id_vec.clear();
         previous_time_value_source=nullptr;
@@ -71,6 +72,7 @@ void param_c<T_coord,T_data>::compress_staged_two_point_sets_files()
         current_time_spatial_residual_data.clear();
         current_time_spatial_residual_valid.clear();
         point_set_id_vec.clear();
+        prediction_order_point_set_id_vec.clear();
         compressed_data_path_vec.clear();
         decompressed_data_path_vec.clear();
     };

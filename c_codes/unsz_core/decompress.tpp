@@ -62,10 +62,15 @@ namespace unsz
         current_prediction_framework=prediction_framework;
         prepare_temporal_prediction();
         if constexpr(two_point_sets)
+        {
             point_set_id_vec.assign(point_num,point_set_num-1);
+            if(prediction_data_uses_prediction_order)
+                prediction_order_point_set_id_vec.assign(point_num,point_set_num-1);
+        }
         else
         {
             point_set_id_vec.clear();
+            prediction_order_point_set_id_vec.clear();
         }
         if constexpr(two_point_sets&&fixed_execution==label_value_execution_e::fused)
         {
@@ -91,6 +96,9 @@ namespace unsz
         constexpr bool try_time_value=fixed_value_mode==time_dimension_mode_e::constant_extrapolation||fixed_value_mode==time_dimension_mode_e::linear_interpolation||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
         constexpr bool use_spatial_residual=fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
         current_decompressed_data.assign(point_num,0);
+        if(prediction_data_uses_prediction_order)
+            prediction_order_decompressed_data.assign(point_num,0);
+        vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
         auto stage_start_time=chrono::steady_clock::now();
         auto decompress_targets=[&](const prediction_structure_c<T_calc>&prediction_structure,const vector<uint8_t>&label_symbols,const vector<vector<int32_t>>&point_set_qbs,vector<uint64_t>&qb_indices,const unsigned char*&unpredictable_value_cursor,const unsigned char*unpredictable_value_end)
         {
@@ -103,11 +111,12 @@ namespace unsz
             for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
             {
                 int pred_id=target_ids[prediction_index];
+                uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)pred_id;
                 uint32_t predicted_label=0;
                 bool used_time_label=false;
                 if constexpr(try_time_label)
-                    used_time_label=predict_temporal_label<fixed_label_mode>(pred_id,0,predicted_label);
-                uint32_t symbol=label_symbols[prediction_index];
+                    used_time_label=predict_temporal_label<fixed_label_mode>(storage_id,0,predicted_label);
+                uint32_t symbol=label_symbols[prediction_structure_vec.size()==1?(uint32_t)pred_id:prediction_index];
                 uint32_t point_set_id;
                 T_data predicted_value=0,temporal_prediction=0;
                 bool used_time_value=false;
@@ -115,9 +124,11 @@ namespace unsz
                 {
                     point_set_id=symbol==0?predicted_label:1-predicted_label;
                     point_set_id_vec[pred_id]=(uint8_t)point_set_id;
+                    if(prediction_data_uses_prediction_order)
+                        prediction_order_point_set_id_vec[storage_id]=(uint8_t)point_set_id;
                     if(point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
                     {
-                        current_decompressed_data[pred_id]=point_set_min_data_vec[point_set_id];
+                        reconstructed_data[storage_id]=point_set_min_data_vec[point_set_id];
                         continue;
                     }
                     bool has_rbf_weights=true;
@@ -134,7 +145,7 @@ namespace unsz
                             return predict_value_two_point_sets_idw(ref_ids,ref_weights,data,point_set_id,valid_ref_mask);
                     };
                     if constexpr(try_time_value)
-                        used_time_value=predict_temporal_value<fixed_value_mode>(pred_id,point_set_id,temporal_prediction);
+                        used_time_value=predict_temporal_value<fixed_value_mode>(storage_id,point_set_id,temporal_prediction);
                     predicted_value=temporal_prediction;
                     if(used_time_value)
                     {
@@ -142,7 +153,7 @@ namespace unsz
                             predicted_value+=predict_spatial_value(current_time_spatial_residual_data,&current_time_spatial_residual_valid);
                     }
                     else
-                        predicted_value=predict_spatial_value(current_decompressed_data);
+                        predicted_value=predict_spatial_value(reconstructed_data);
                 }
                 else
                 {
@@ -160,14 +171,14 @@ namespace unsz
                         if(point_set_codec_vec[candidate_point_set_id]==point_set_codec_e::constant)
                             continue;
                         if constexpr(try_time_value)
-                            used_time_value_predictions[candidate_point_set_id]=predict_temporal_value<fixed_value_mode>(pred_id,candidate_point_set_id,temporal_value_predictions[candidate_point_set_id]);
+                            used_time_value_predictions[candidate_point_set_id]=predict_temporal_value<fixed_value_mode>(storage_id,candidate_point_set_id,temporal_value_predictions[candidate_point_set_id]);
                         if(used_time_value_predictions[candidate_point_set_id])
                         {
                             if constexpr(use_spatial_residual)
                                 spatial_value_sources[candidate_point_set_id]={&current_time_spatial_residual_data,&current_time_spatial_residual_valid};
                         }
                         else
-                            spatial_value_sources[candidate_point_set_id].data=&current_decompressed_data;
+                            spatial_value_sources[candidate_point_set_id].data=&reconstructed_data;
                     }
                     fused_spatial_prediction_c<T_data> spatial_prediction;
                     if constexpr(fixed_predictor==point_set_codec_e::rbf)
@@ -177,6 +188,8 @@ namespace unsz
                     predicted_label=spatial_prediction.label;
                     point_set_id=symbol==0?predicted_label:1-predicted_label;
                     point_set_id_vec[pred_id]=(uint8_t)point_set_id;
+                    if(prediction_data_uses_prediction_order)
+                        prediction_order_point_set_id_vec[storage_id]=(uint8_t)point_set_id;
                     used_time_value=used_time_value_predictions[point_set_id];
                     temporal_prediction=temporal_value_predictions[point_set_id];
                     predicted_value=temporal_prediction;
@@ -190,7 +203,7 @@ namespace unsz
                 }
                 if(point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
                 {
-                    current_decompressed_data[pred_id]=point_set_min_data_vec[point_set_id];
+                    reconstructed_data[storage_id]=point_set_min_data_vec[point_set_id];
                     continue;
                 }
                 if(qb_indices[point_set_id]>=point_set_qbs[point_set_id].size())
@@ -198,10 +211,10 @@ namespace unsz
                 int32_t qb=point_set_qbs[point_set_id][qb_indices[point_set_id]++];
                 double point_abs_eb=point_set_abs_eb_vec[point_set_id]*eb_multipliers[prediction_index];
                 if(qb==numeric_limits<int32_t>::min())
-                    current_decompressed_data[pred_id]=read_binary<T_data>(unpredictable_value_cursor,unpredictable_value_end);
+                    reconstructed_data[storage_id]=read_binary<T_data>(unpredictable_value_cursor,unpredictable_value_end);
                 else
-                    current_decompressed_data[pred_id]=predicted_value+qb*2*point_abs_eb;
-                store_temporal_residual<fixed_value_mode>(pred_id,used_time_value,temporal_prediction);
+                    reconstructed_data[storage_id]=predicted_value+qb*2*point_abs_eb;
+                store_temporal_residual<fixed_value_mode>(storage_id,used_time_value,temporal_prediction);
             }
             for(uint32_t point_set_id=0;point_set_id<state.point_set_num;point_set_id++)
                 if(qb_indices[point_set_id]!=point_set_qbs[point_set_id].size())
@@ -249,7 +262,7 @@ namespace unsz
             current_decompressed_data.resize(point_num);
         else
             current_decompressed_data.assign(point_num,0);
-        if(spatial_references_use_prediction_order)
+        if(prediction_data_uses_prediction_order)
             prediction_order_decompressed_data.resize(point_num);
         auto stage_start_time=chrono::steady_clock::now();
         auto decompress_targets=[&](const prediction_structure_c<T_calc>&prediction_structure,auto get_qb,auto get_unpredictable_value)
@@ -260,13 +273,15 @@ namespace unsz
             const vector<uint8_t>&rbf_fallback=prediction_structure.rbf_fallback_flags;
             const vector<double>&pred_eb_multiplier_vec=prediction_structure.eb_multiplier;
             bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(prediction_max_ref_num);
+            vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
             for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
             {
                 int pred_id=target_ids[prediction_index];
+                uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)pred_id;
                 uint32_t point_set_id=two_point_sets?point_set_id_vec[pred_id]:0;
                 if(point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
                 {
-                    current_decompressed_data[pred_id]=point_set_min_data_vec[point_set_id];
+                    reconstructed_data[storage_id]=point_set_min_data_vec[point_set_id];
                     continue;
                 }
                 auto predict_spatial_value=[&](vector<T_data>&data,const vector<uint8_t>*valid_ref_mask=nullptr)
@@ -284,24 +299,24 @@ namespace unsz
                 bool use_cross_time_prediction=false;
                 if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation||fixed_value_mode==time_dimension_mode_e::linear_interpolation||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
                 {
-                    use_cross_time_prediction=predict_temporal_value<fixed_value_mode>(pred_id,point_set_id,temporal_prediction);
+                    use_cross_time_prediction=predict_temporal_value<fixed_value_mode>(storage_id,point_set_id,temporal_prediction);
                     pred=temporal_prediction;
                     if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
                         if(use_cross_time_prediction)
                             pred+=predict_spatial_value(current_time_spatial_residual_data,&current_time_spatial_residual_valid);
                 }
                 if(!use_cross_time_prediction)
-                    pred=predict_spatial_value(current_decompressed_data);
+                    pred=predict_spatial_value(reconstructed_data);
                 int32_t qb=get_qb(prediction_index,point_set_id);
                 double point_abs_eb=point_set_abs_eb_vec[point_set_id]*pred_eb_multiplier_vec[prediction_index];
                 if(qb==numeric_limits<int32_t>::min())
                 {
                     T_data unpredictable_value=get_unpredictable_value(point_set_id);
-                    current_decompressed_data[pred_id]=unpredictable_value;
+                    reconstructed_data[storage_id]=unpredictable_value;
                 }
                 else
-                    current_decompressed_data[pred_id]=pred+qb*2*point_abs_eb;
-                store_temporal_residual<fixed_value_mode>(pred_id,use_cross_time_prediction,temporal_prediction);
+                    reconstructed_data[storage_id]=pred+qb*2*point_abs_eb;
+                store_temporal_residual<fixed_value_mode>(storage_id,use_cross_time_prediction,temporal_prediction);
             }
         };
         if(use_single_point_set_spatial_fast_path)
@@ -315,11 +330,11 @@ namespace unsz
                     throw runtime_error("单点集空间快速路径的量化索引数量与目标数量不一致");
                 double base_abs_eb=point_set_abs_eb_vec[0];
                 const unsigned char *unpredictable_value_cursor=structure_unpredictable_value_begin_vec[structure_index],*unpredictable_value_end=structure_unpredictable_value_end_vec[structure_index];
-                vector<T_data>&reconstructed_data=spatial_references_use_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
+                vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
                 auto reconstruct_prediction=[&](uint32_t prediction_index,T_data prediction)
                 {
                     uint32_t pred_id=(uint32_t)structure.target_ids[prediction_index];
-                    uint32_t reconstructed_id=spatial_references_use_prediction_order?prediction_index:pred_id;
+                    uint32_t reconstructed_id=prediction_data_uses_prediction_order?prediction_index:pred_id;
                     double point_abs_eb=base_abs_eb*structure.eb_multiplier[prediction_index];
                     int32_t qb=qb_vec[prediction_index];
                     if(qb==numeric_limits<int32_t>::min())

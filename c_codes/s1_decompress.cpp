@@ -86,7 +86,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         param.validate_prediction_structures();
         validation_time=chrono::duration<double>(chrono::steady_clock::now()-validation_start_time).count();
     }
-    param.remap_single_point_set_spatial_references_to_prediction_order();
+    param.remap_prediction_data_to_prediction_order(true);
     double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time-validation_time;
     printf("preprocessing time excluding coordinate input and adjust coord= %f s\n",preprocessing_time);
     if(param.point_set_config_vec.size()==2&&param.label_value_execution=="staged")
@@ -115,7 +115,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
 
         auto decompression_start_time=chrono::steady_clock::now();
         (param.*decompress_field)();
-        if(param.spatial_references_use_prediction_order)
+        if(param.prediction_data_uses_prediction_order)
         {
             auto restore_start_time=chrono::steady_clock::now();
             const vector<int>&target_ids=param.prediction_structure_vec.front().target_ids;
