@@ -1,0 +1,59 @@
+[
+  {
+    "name": "e3sm_h4_aoddust_fused",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h4",
+    "csv_path": "results/e3sm_h4_aoddust_fused/results.csv",
+    "field_list": [
+      "AODDUST"
+    ],
+    "compressor_list": [
+      "unsz",
+      "umc"
+    ],
+    "time_step_num": 720,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "label": [
+          "spatial"
+        ],
+        "value": [
+          "anchor_interpolation_stride_8"
+        ]
+      },
+      "predictor": {
+        "name": "rbf",
+        "rbf_kernel": "matern32",
+        "rbf_shape": 0.03,
+        "rbf_nugget": 1e-06
+      },
+      "ordering_scope": "global",
+      "prediction_min_ref_num": 10,
+      "prediction_max_ref_num": 10,
+      "ordering_candidate_num": 16,
+      "ordering_score_max_ref_num": 1,
+      "ordering_score_min_ref_num": 1,
+      "eb_schedule": {
+        "name": "inverse_rank_log2",
+        "base": 0.85,
+        "log2_shift": 0.5,
+        "max_log2_exponent": 7
+      },
+      "label_value_execution": "fused",
+      "dag_cache_path": "/home/x-zjian1/unsz/results/e3sm_h4_aoddust_staged_screen/rbf10_global.dag",
+      "point_set_config_path_list": [
+        "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-1.json",
+        "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-2.json",
+        "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json",
+        "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-4.json",
+        "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-5.json"
+      ]
+    },
+    "umc": {
+      "from_edge": 1,
+      "reorder": 1,
+      "method": "NBP-IDW-INP",
+      "neighbor_num": 4
+    }
+  }
+]

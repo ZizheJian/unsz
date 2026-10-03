@@ -88,10 +88,16 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     for(auto&structure:param.prediction_structure_vec)
         if(structure.eb_multiplier.size()!=structure.target_ids.size())
             structure.eb_multiplier=param.generate_pred_eb_multiplier_vec(structure.target_id_groups,(uint32_t)structure.target_ids.size());
-    double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time;
-    printf("preprocessing time excluding coordinate input and adjust coord= %f s\n",preprocessing_time);
+    double validation_time=0;
     if(loaded_dag_cache)
+    {
+        auto validation_start_time=chrono::steady_clock::now();
         param.validate_prediction_structures();
+        validation_time=chrono::duration<double>(chrono::steady_clock::now()-validation_start_time).count();
+    }
+    param.remap_single_point_set_spatial_references_to_prediction_order();
+    double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time-validation_time;
+    printf("preprocessing time excluding coordinate input and adjust coord= %f s\n",preprocessing_time);
     if(joint_spatiotemporal)
     {
         unsz::point_set_codec_e codec=unsz::point_set_codec_e::constant;
@@ -136,6 +142,14 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
 
         auto decompression_start_time=chrono::steady_clock::now();
         (param.*decompress_field)();
+        if(param.spatial_references_use_prediction_order)
+        {
+            auto restore_start_time=chrono::steady_clock::now();
+            const vector<int>&target_ids=param.prediction_structure_vec.front().target_ids;
+            for(uint32_t prediction_index=0;prediction_index<param.point_num;prediction_index++)
+                param.current_decompressed_data[target_ids[prediction_index]]=param.prediction_order_decompressed_data[prediction_index];
+            printf("prediction order restore time= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-restore_start_time).count());
+        }
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
         param.validate_decoded_point_set_counts();
         unsz::write_binary_file(decompressed_path,param.current_decompressed_data.data(),param.point_num);

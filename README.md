@@ -1011,7 +1011,7 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
 
 ## 3.2. 方案
 
-下表逐field记录`configs/`中各task的当前方案，并按照上一表中的单个field总大小递增排列；同一数据集内的field按名称字母序排列。通常取UMC在REL `1e-3`处的PSNR作为代表点，在现有UNSZ与UMC曲线上按PSNR直接线性插值；`CR/UMC`大于1表示UNSZ压缩率更高，`总时间/UMC`是五个REL EB上压缩与解压时间之和倍率的几何平均。
+下表逐field记录`configs/`中各task的当前方案，并按照上一表中的单个field总大小递增排列；同一数据集内的field按名称字母序排列。通常取UMC在REL `1e-3`处的PSNR作为代表点，在现有UNSZ与UMC曲线上对正值的对数按PSNR插值；`CR/UMC`大于1表示UNSZ压缩率更高。`总时间/UMC`是在两条曲线的共同PSNR区间内对压缩与解压总时间之比的对数积分后取指数，小于1表示UNSZ更快。
 
 <table class="fixed-layout-table" width="100%">
   <colgroup>
@@ -1097,6 +1097,16 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
       <td>—</td>
     </tr>
     <tr>
+      <td>E3SM-h4 AODDUST</td>
+      <td>是</td>
+      <td>标签纯空间＋数值anchor8内插</td>
+      <td>否</td>
+      <td>1</td>
+      <td><code>77.30</code></td>
+      <td><code>7.798×</code></td>
+      <td><code>0.753×</code></td>
+    </tr>
+    <tr>
       <td>Katrina attr0</td>
       <td>是</td>
       <td>标签零阶外插＋数值零阶外插＋空间修正</td>
@@ -1109,7 +1119,7 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
   </tbody>
 </table>
 
-Tsunami的`CR/UMC`来自既有1点MSD五点曲线；切换正式配置后尚未统一复测五个REL EB的总时间，因此时间栏暂不填写。
+Tsunami的`CR/UMC`来自既有1点MSD五点曲线；切换正式配置后尚未统一复测五个REL EB的总时间，因此时间栏暂不填写。E3SM-h4 AODDUST使用10点Matérn-3/2 RBF、1点MSD和16个排序候选点；标签使用纯空间预测，数值使用stride为8的固定锚点内插。五点曲线的独立解压和逐点误差界检查均通过，UNSZ相对UMC的BD-rate为<code>-87.162%</code>。
 
 以下是所有实验通用的其他参数。如果发现其中有些参数在不同数据上有不同的最优值，并且有很大提升，应该移动到上表。
 

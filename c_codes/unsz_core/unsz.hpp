@@ -146,6 +146,12 @@ namespace unsz
     template<typename T_calc>
     struct prediction_structure_c
     {
+        struct reference_range_c
+        {
+            uint64_t begin;
+            uint32_t num;
+        };
+
         vector<vector<int>> target_id_groups;
         vector<int> target_ids,reference_ids;
         vector<uint64_t> reference_offsets;
@@ -160,6 +166,24 @@ namespace unsz
             if(reference_num==0)
                 return {};
             return {reference_ids.data()+begin,reference_num};
+        }
+
+        bool uses_standard_reference_layout(uint32_t max_reference_num) const
+        {
+            uint32_t initial_target_num=min<uint32_t>(max_reference_num,target_ids.size());
+            uint64_t initial_reference_num=initial_target_num<2?0:(uint64_t)initial_target_num*(initial_target_num-1)/2;
+            return reference_offsets.size()==target_ids.size()+1&&reference_offsets[initial_target_num]==initial_reference_num&&reference_offsets.back()==initial_reference_num+(uint64_t)(target_ids.size()-initial_target_num)*max_reference_num;
+        }
+
+        reference_range_c get_reference_range(uint32_t prediction_index,uint32_t max_reference_num,bool standard_reference_layout) const
+        {
+            if(standard_reference_layout&&prediction_index>=max_reference_num)
+            {
+                uint64_t initial_reference_num=(uint64_t)max_reference_num*(max_reference_num-1)/2;
+                return {initial_reference_num+(uint64_t)(prediction_index-max_reference_num)*max_reference_num,max_reference_num};
+            }
+            uint64_t begin=reference_offsets[prediction_index];
+            return {begin,(uint32_t)(reference_offsets[prediction_index+1]-begin)};
         }
 
     };
@@ -330,7 +354,7 @@ namespace unsz
             string label_flow="none";
             bool if_adjust_coord=false;
             vector<double> adjust_coord_matrix_parameter_vec;
-            bool print_compression_stage_time=false;
+            bool print_compression_stage_time=false,spatial_references_use_prediction_order=false;
             string label_value_execution="staged";//staged / fused
             string ordering_scope="local";//local / global
             uint32_t ordering_score_min_ref_num=0;//必须显式设置；缓存中的有效评分参考点少于该值时重新查询
@@ -367,7 +391,7 @@ namespace unsz
             vector<uint32_t> point_partition_id_vec;
             vector<uint8_t> partition_prediction_config_id_vec,partition_adaptive_sample_mask;
 
-            vector<T_data> current_data,current_decompressed_data;
+            vector<T_data> current_data,current_decompressed_data,prediction_order_decompressed_data;
             vector<uint32_t> time_step_vec;
             vector<T_coord> time_step_coordinate_vec;
             vector<vector<T_data>> reconstructed_time_data_vec;
@@ -402,7 +426,7 @@ namespace unsz
             template<time_dimension_mode_e value_mode>
             bool predict_temporal_value(uint32_t original_id,uint32_t point_set_id,T_data &prediction);
             template<time_dimension_mode_e value_mode>
-            void update_temporal_residual(int pred_id,uint32_t original_id,uint32_t point_set_id);
+            void store_temporal_residual(int pred_id,bool used_temporal_prediction,T_data temporal_prediction);
             template<time_dimension_mode_e label_mode>
             bool predict_temporal_label(uint32_t original_id,uint32_t label_channel_id,uint32_t &prediction);
             void update_time_prediction_state();
@@ -415,6 +439,7 @@ namespace unsz
             void load_adjust_coord_matrix_file();
             void adjust_coord();
             void load_or_generate_prediction_structures();
+            void remap_single_point_set_spatial_references_to_prediction_order();
             void build_partitions();
             vector<uint32_t> get_round_target_num_vec(uint32_t local_point_num) const;
             void generate_partition_prediction_structures(bool uses_idw,bool uses_rbf);
@@ -444,10 +469,10 @@ namespace unsz
             void generate_rbf_weights_from_loaded_dag();
             void save_prediction_structure_cache();
             void load_prediction_structure_cache();
-            T_data predict_value_one_point_set(uint32_t prediction_index,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,const vector<T_calc>&weights,const vector<T_data>&data);
+            T_data predict_value_one_point_set(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
             T_data predict_value_one_point_set_4(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
             T_data predict_value_one_point_set_10(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
-            uint32_t predict_label(uint32_t prediction_index,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
+            uint32_t predict_label(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
             uint32_t predict_label_4(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
             uint32_t predict_label_10(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
             T_data predict_value_two_point_sets_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask=nullptr);

@@ -3,19 +3,19 @@
 namespace unsz
 {
     template<typename T_data>
-    void quantize_or_store_unpredictable(T_data value,T_data prediction,double abs_eb,vector<int32_t>&qbs,vector<T_data>&unpredictable_values,T_data&reconstructed_value)
+    __attribute__((always_inline)) inline int32_t quantize_or_store_unpredictable(T_data value,T_data prediction,double abs_eb,vector<T_data>&unpredictable_values,T_data&reconstructed_value)
     {
-        double qb_double=round(((double)value-prediction)/(2*abs_eb));
-        if(isfinite(qb_double)&&qb_double>numeric_limits<int32_t>::min()&&qb_double<=numeric_limits<int32_t>::max())
+        double scaled_error=((double)value-prediction)/(2*abs_eb);
+        constexpr double min_predictable_qb=(double)numeric_limits<int32_t>::min()+0.5,max_predictable_qb=(double)numeric_limits<int32_t>::max()+0.5;
+        if(scaled_error>min_predictable_qb&&scaled_error<max_predictable_qb)
         {
-            int32_t qb=(int32_t)qb_double;
-            qbs.push_back(qb);
+            int32_t qb=(int32_t)llrint(scaled_error);
             reconstructed_value=prediction+qb*2*abs_eb;
-            return;
+            return qb;
         }
-        qbs.push_back(numeric_limits<int32_t>::min());
         unpredictable_values.push_back(value);
         reconstructed_value=value;
+        return numeric_limits<int32_t>::min();
     }
 
     namespace compression_dispatch
@@ -137,11 +137,30 @@ namespace unsz
             point_set_num=1;
             point_set_id_vec.clear();
             point_set_point_num_vec[0]=point_num;
-            for(T_data value:current_data)
+            T_data minimum[4]={numeric_limits<T_data>::infinity(),numeric_limits<T_data>::infinity(),numeric_limits<T_data>::infinity(),numeric_limits<T_data>::infinity()};
+            T_data maximum[4]={-numeric_limits<T_data>::infinity(),-numeric_limits<T_data>::infinity(),-numeric_limits<T_data>::infinity(),-numeric_limits<T_data>::infinity()};
+            uint32_t point_id=0;
+            for(;point_id+3<point_num;point_id+=4)
             {
-                point_set_min_data_vec[0]=min(point_set_min_data_vec[0],value);
-                point_set_max_data_vec[0]=max(point_set_max_data_vec[0],value);
+                for(uint32_t lane=0;lane<4;lane++)
+                {
+                    T_data value=current_data[point_id+lane];
+                    minimum[lane]=min(minimum[lane],value);
+                    maximum[lane]=max(maximum[lane],value);
+                }
             }
+            for(;point_id<point_num;point_id++)
+            {
+                minimum[0]=min(minimum[0],current_data[point_id]);
+                maximum[0]=max(maximum[0],current_data[point_id]);
+            }
+            for(uint32_t lane=1;lane<4;lane++)
+            {
+                minimum[0]=min(minimum[0],minimum[lane]);
+                maximum[0]=max(maximum[0],maximum[lane]);
+            }
+            point_set_min_data_vec[0]=minimum[0];
+            point_set_max_data_vec[0]=maximum[0];
         }
         else if(point_set_rule_vec.size()==1)
         {
@@ -295,9 +314,11 @@ namespace unsz
     {
         double &label_prediction_time=state.label_prediction_time;
         const prediction_structure_c<T_calc>&structure=prediction_structure_vec.front();
-        auto predict_configured_label=[&](uint32_t prediction_index,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,const vector<T_calc>&weights,const vector<uint8_t>&label_vec)
+        bool standard_reference_layout=structure.uses_standard_reference_layout(prediction_max_ref_num);
+        auto predict_configured_label=[&](uint32_t prediction_index)
         {
-            return predict_label(prediction_index,ref_ids,ref_begin,weights,label_vec);
+            typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+            return predict_label(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,point_set_id_vec);
         };
         auto stage_start_time=chrono::steady_clock::now();
         vector<uint8_t> label_symbols;
@@ -327,7 +348,7 @@ namespace unsz
                 if constexpr(try_time_label)
                     used_time_label=predict_temporal_label<fixed_label_mode>(pred_id,0,predicted_label);
                 if(!used_time_label)
-                    predicted_label=predict_configured_label(prediction_index,structure.reference_ids,structure.reference_offsets,structure.prediction_weights,point_set_id_vec);
+                    predicted_label=predict_configured_label(prediction_index);
             }
             bool prediction_error=actual_label!=predicted_label;
             state.label_target_num++;
@@ -351,44 +372,92 @@ namespace unsz
     {
         const vector<int>&target_ids=prediction_structure.target_ids;
         const vector<int>&reference_ids=prediction_structure.reference_ids;
-        const vector<uint64_t>&reference_begin=prediction_structure.reference_offsets;
         const vector<T_calc>&prediction_weights=prediction_structure.prediction_weights;
         const vector<uint8_t>&rbf_fallback=prediction_structure.rbf_fallback_flags;
         const vector<double>&pred_eb_multiplier_vec=prediction_structure.eb_multiplier;
+        bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(prediction_max_ref_num);
         uint32_t point_set_num=(uint32_t)point_set_codec_vec.size();
         value_compression_result_c<T_data> result;
         result.point_set_qb_vec.resize(point_set_num);
+        if constexpr(!two_point_sets&&fixed_value_mode==time_dimension_mode_e::spatial)
+        {
+            if(!use_partition_adaptive_predictor_experimental)
+            {
+                if(point_set_codec_vec[0]==point_set_codec_e::constant)
+                {
+                    for(int pred_id:target_ids)
+                        current_decompressed_data[pred_id]=point_set_min_data_vec[0];
+                    return result;
+                }
+                vector<int32_t>&qbs=result.point_set_qb_vec[0];
+                qbs.resize(target_ids.size());
+                double base_abs_eb=point_set_abs_eb_vec[0];
+                vector<T_data>&reconstructed_data=spatial_references_use_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
+                auto quantize_prediction=[&](uint32_t prediction_index,T_data prediction)
+                {
+                    int pred_id=target_ids[prediction_index];
+                    double point_abs_eb=base_abs_eb*pred_eb_multiplier_vec[prediction_index];
+                    uint32_t reconstructed_id=spatial_references_use_prediction_order?prediction_index:(uint32_t)pred_id;
+                    qbs[prediction_index]=quantize_or_store_unpredictable(current_data[pred_id],prediction,point_abs_eb,result.unpredictable_value_vec,reconstructed_data[reconstructed_id]);
+                };
+                uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,(uint32_t)target_ids.size());
+                for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
+                {
+                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                    quantize_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,reconstructed_data));
+                }
+                uint64_t fixed_ref_begin=(uint64_t)prediction_max_ref_num*(prediction_max_ref_num-1)/2;
+                if(prediction_max_ref_num==4&&standard_reference_layout)
+                {
+                    for(uint32_t prediction_index=general_target_num;prediction_index<target_ids.size();prediction_index++,fixed_ref_begin+=4)
+                        quantize_prediction(prediction_index,predict_value_one_point_set_4(fixed_ref_begin,reference_ids,prediction_weights,reconstructed_data));
+                }
+                else if(prediction_max_ref_num==10&&standard_reference_layout)
+                {
+                    for(uint32_t prediction_index=general_target_num;prediction_index<target_ids.size();prediction_index++,fixed_ref_begin+=10)
+                        quantize_prediction(prediction_index,predict_value_one_point_set_10(fixed_ref_begin,reference_ids,prediction_weights,reconstructed_data));
+                }
+                else
+                {
+                    for(uint32_t prediction_index=general_target_num;prediction_index<target_ids.size();prediction_index++)
+                    {
+                        typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                        quantize_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,reconstructed_data));
+                    }
+                }
+                return result;
+            }
+        }
         constexpr time_dimension_mode_e value_mode=fixed_value_mode;
         for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
         {
-            uint64_t ref_begin=reference_begin[prediction_index];
-            uint32_t ref_num=(uint32_t)(reference_begin[prediction_index+1]-ref_begin);
-            array_view_c<int> ref_ids(ref_num?reference_ids.data()+ref_begin:nullptr,ref_num);
-            array_view_c<T_calc> ref_weights(ref_num?prediction_weights.data()+ref_begin:nullptr,ref_num);
             int pred_id=target_ids[prediction_index];
             uint32_t point_set_id=two_point_sets?point_set_id_vec[pred_id]:0;
             if(point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
             {
                 current_decompressed_data[pred_id]=point_set_min_data_vec[point_set_id];
-                update_temporal_residual<fixed_value_mode>(pred_id,pred_id,point_set_id);
                 continue;
             }
             bool use_adaptive_config=should_use_selected_adaptive_prediction(pred_id);
             auto predict_spatial_value=[&](vector<T_data>&data,const vector<uint8_t>*valid_ref_mask=nullptr)
             {
+                typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                array_view_c<int> ref_ids(reference_range.num?reference_ids.data()+reference_range.begin:nullptr,reference_range.num);
                 if(use_adaptive_config)
                     return predict_selected_adaptive_value(pred_id,ref_ids,data);
                 if constexpr(!two_point_sets)
-                    return predict_value_one_point_set(prediction_index,reference_ids,reference_begin,prediction_weights,data);
+                    return predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,data);
+                array_view_c<T_calc> ref_weights(reference_range.num?prediction_weights.data()+reference_range.begin:nullptr,reference_range.num);
                 if constexpr(fixed_predictor==point_set_codec_e::idw)
                     return predict_value_two_point_sets_idw(ref_ids,ref_weights,data,point_set_id,valid_ref_mask);
                 return predict_value_two_point_sets_rbf(!rbf_fallback[prediction_index],ref_ids,ref_weights,data,point_set_id,valid_ref_mask);
             };
-            T_data pred=0;
+            T_data pred=0,temporal_prediction=0;
             bool use_cross_time_prediction=false;
             if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation||value_mode==time_dimension_mode_e::linear_interpolation||value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
             {
-                use_cross_time_prediction=predict_temporal_value<value_mode>(pred_id,point_set_id,pred);
+                use_cross_time_prediction=predict_temporal_value<value_mode>(pred_id,point_set_id,temporal_prediction);
+                pred=temporal_prediction;
                 if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
                     if(use_cross_time_prediction)
                         pred+=predict_spatial_value(current_time_spatial_residual_data,&current_time_spatial_residual_valid);
@@ -397,8 +466,8 @@ namespace unsz
                 pred=predict_spatial_value(current_decompressed_data);
             result.cross_time_prediction_num+=use_cross_time_prediction;
             double point_abs_eb=point_set_abs_eb_vec[point_set_id]*pred_eb_multiplier_vec[prediction_index];
-            quantize_or_store_unpredictable(current_data[pred_id],pred,point_abs_eb,result.point_set_qb_vec[point_set_id],result.unpredictable_value_vec,current_decompressed_data[pred_id]);
-            update_temporal_residual<fixed_value_mode>(pred_id,pred_id,point_set_id);
+            result.point_set_qb_vec[point_set_id].push_back(quantize_or_store_unpredictable(current_data[pred_id],pred,point_abs_eb,result.unpredictable_value_vec,current_decompressed_data[pred_id]));
+            store_temporal_residual<fixed_value_mode>(pred_id,use_cross_time_prediction,temporal_prediction);
         }
         return result;
     }
@@ -409,6 +478,8 @@ namespace unsz
     {
         constexpr time_dimension_mode_e value_mode=fixed_value_mode;
         current_decompressed_data.resize(point_num);
+        if(spatial_references_use_prediction_order)
+            prediction_order_decompressed_data.resize(point_num);
         auto stage_start_time=chrono::steady_clock::now();
         vector<uint64_t> cross_time_prediction_num_vec(prediction_structure_vec.size(),0);
         vector<double> prediction_duration_vec(prediction_structure_vec.size()),encoding_duration_vec(prediction_structure_vec.size());
@@ -459,53 +530,81 @@ namespace unsz
         {
             const vector<int>&target_ids=prediction_structure.target_ids;
             const vector<int>&ref_ids_vec=prediction_structure.reference_ids;
-            const vector<uint64_t>&ref_begin_vec=prediction_structure.reference_offsets;
             const vector<T_calc>&weights=prediction_structure.prediction_weights;
             const vector<uint8_t>&rbf_fallback=prediction_structure.rbf_fallback_flags;
             const vector<double>&eb_multipliers=prediction_structure.eb_multiplier;
+            bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(prediction_max_ref_num);
             label_symbols.reserve(target_ids.size());
             uint64_t local_label_error_num=0,local_cross_time_prediction_num=0;
             for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
             {
                 int pred_id=target_ids[prediction_index];
                 uint32_t actual_point_set_id=point_set_id_vec[pred_id];
-                uint64_t ref_begin=ref_begin_vec[prediction_index],ref_end=ref_begin_vec[prediction_index+1];
-                uint32_t ref_num=(uint32_t)(ref_end-ref_begin);
-                array_view_c<int> ref_ids(ref_num?ref_ids_vec.data()+ref_begin:nullptr,ref_num);
-                array_view_c<T_calc> ref_weights(ref_num?weights.data()+ref_begin:nullptr,ref_num);
-                bool has_rbf_weights=true;
-                if constexpr(fixed_predictor==point_set_codec_e::rbf)
-                    has_rbf_weights=!rbf_fallback[prediction_index];
                 bool value_requires_prediction=point_set_codec_vec[actual_point_set_id]!=point_set_codec_e::constant;
                 uint32_t predicted_label=0;
-                T_data predicted_value=0;
+                T_data predicted_value=0,temporal_prediction=0;
                 bool used_time_label=false,used_time_value=false;
                 if constexpr(try_time_label)
                     used_time_label=predict_temporal_label<fixed_label_mode>(pred_id,0,predicted_label);
-                if constexpr(try_time_value)
+                if(used_time_label)
+                {
                     if(value_requires_prediction)
-                        used_time_value=predict_temporal_value<fixed_value_mode>(pred_id,actual_point_set_id,predicted_value);
-                array<spatial_value_source_c<T_data>,2> spatial_value_sources;
-                if(value_requires_prediction)
-                {
-                    if(used_time_value)
                     {
-                        if constexpr(use_spatial_residual)
-                            spatial_value_sources[actual_point_set_id]={&current_time_spatial_residual_data,&current_time_spatial_residual_valid};
+                        bool has_rbf_weights=true;
+                        if constexpr(fixed_predictor==point_set_codec_e::rbf)
+                            has_rbf_weights=!rbf_fallback[prediction_index];
+                        auto predict_spatial_value=[&](const vector<T_data>&data,const vector<uint8_t>*valid_ref_mask=nullptr)
+                        {
+                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                            array_view_c<int> ref_ids(reference_range.num?ref_ids_vec.data()+reference_range.begin:nullptr,reference_range.num);
+                            array_view_c<T_calc> ref_weights(reference_range.num?weights.data()+reference_range.begin:nullptr,reference_range.num);
+                            if constexpr(fixed_predictor==point_set_codec_e::rbf)
+                                return predict_value_two_point_sets_rbf(has_rbf_weights,ref_ids,ref_weights,data,actual_point_set_id,valid_ref_mask);
+                            else
+                                return predict_value_two_point_sets_idw(ref_ids,ref_weights,data,actual_point_set_id,valid_ref_mask);
+                        };
+                        if constexpr(try_time_value)
+                            used_time_value=predict_temporal_value<fixed_value_mode>(pred_id,actual_point_set_id,temporal_prediction);
+                        predicted_value=temporal_prediction;
+                        if(used_time_value)
+                        {
+                            if constexpr(use_spatial_residual)
+                                predicted_value+=predict_spatial_value(current_time_spatial_residual_data,&current_time_spatial_residual_valid);
+                        }
+                        else
+                            predicted_value=predict_spatial_value(current_decompressed_data);
                     }
-                    else
-                        spatial_value_sources[actual_point_set_id].data=&current_decompressed_data;
                 }
-                bool needs_spatial_value_prediction=spatial_value_sources[actual_point_set_id].data!=nullptr;
-                if(!used_time_label||needs_spatial_value_prediction)
+                else
                 {
+                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                    array_view_c<int> ref_ids(reference_range.num?ref_ids_vec.data()+reference_range.begin:nullptr,reference_range.num);
+                    array_view_c<T_calc> ref_weights(reference_range.num?weights.data()+reference_range.begin:nullptr,reference_range.num);
+                    bool has_rbf_weights=true;
+                    if constexpr(fixed_predictor==point_set_codec_e::rbf)
+                        has_rbf_weights=!rbf_fallback[prediction_index];
+                    if constexpr(try_time_value)
+                        if(value_requires_prediction)
+                            used_time_value=predict_temporal_value<fixed_value_mode>(pred_id,actual_point_set_id,temporal_prediction);
+                    predicted_value=temporal_prediction;
+                    array<spatial_value_source_c<T_data>,2> spatial_value_sources;
+                    if(value_requires_prediction)
+                    {
+                        if(used_time_value)
+                        {
+                            if constexpr(use_spatial_residual)
+                                spatial_value_sources[actual_point_set_id]={&current_time_spatial_residual_data,&current_time_spatial_residual_valid};
+                        }
+                        else
+                            spatial_value_sources[actual_point_set_id].data=&current_decompressed_data;
+                    }
+                    bool needs_spatial_value_prediction=spatial_value_sources[actual_point_set_id].data!=nullptr;
                     fused_spatial_prediction_c<T_data> spatial_prediction;
                     if constexpr(fixed_predictor==point_set_codec_e::rbf)
-                        spatial_prediction=predict_fused_spatial_rbf(has_rbf_weights,ref_ids,ref_weights,!used_time_label,spatial_value_sources);
+                        spatial_prediction=predict_fused_spatial_rbf(has_rbf_weights,ref_ids,ref_weights,true,spatial_value_sources);
                     else
-                        spatial_prediction=predict_fused_spatial_idw(ref_ids,ref_weights,!used_time_label,spatial_value_sources);
-                    if(!used_time_label)
-                        predicted_label=spatial_prediction.label;
+                        spatial_prediction=predict_fused_spatial_idw(ref_ids,ref_weights,true,spatial_value_sources);
+                    predicted_label=spatial_prediction.label;
                     if(needs_spatial_value_prediction)
                     {
                         if(used_time_value)
@@ -523,9 +622,10 @@ namespace unsz
                 else
                 {
                     double point_abs_eb=point_set_abs_eb_vec[actual_point_set_id]*eb_multipliers[prediction_index];
-                    quantize_or_store_unpredictable(current_data[pred_id],predicted_value,point_abs_eb,point_set_qbs[actual_point_set_id],unpredictable_values,current_decompressed_data[pred_id]);
+                    point_set_qbs[actual_point_set_id].push_back(quantize_or_store_unpredictable(current_data[pred_id],predicted_value,point_abs_eb,unpredictable_values,current_decompressed_data[pred_id]));
                 }
-                update_temporal_residual<fixed_value_mode>(pred_id,pred_id,actual_point_set_id);
+                if(value_requires_prediction)
+                    store_temporal_residual<fixed_value_mode>(pred_id,used_time_value,temporal_prediction);
             }
             return pair<uint64_t,uint64_t>(local_label_error_num,local_cross_time_prediction_num);
         };

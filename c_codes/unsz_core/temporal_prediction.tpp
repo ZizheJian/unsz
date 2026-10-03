@@ -222,14 +222,13 @@ namespace unsz
 
     template<typename T_coord,typename T_data>
     template<time_dimension_mode_e value_mode>
-    void param_c<T_coord,T_data>::update_temporal_residual(int pred_id,uint32_t original_id,uint32_t point_set_id)
+    void param_c<T_coord,T_data>::store_temporal_residual(int pred_id,bool used_temporal_prediction,T_data temporal_prediction)
     {
         if constexpr(value_mode!=time_dimension_mode_e::constant_extrapolation_spatial_residual&&value_mode!=time_dimension_mode_e::linear_interpolation_spatial_residual)
             return;
-        T_data baseline=0;
-        if(predict_temporal_value<value_mode>(original_id,point_set_id,baseline))
+        if(used_temporal_prediction)
         {
-            current_time_spatial_residual_data[pred_id]=current_decompressed_data[pred_id]-baseline;
+            current_time_spatial_residual_data[pred_id]=current_decompressed_data[pred_id]-temporal_prediction;
             current_time_spatial_residual_valid[pred_id]=1;
         }
     }
