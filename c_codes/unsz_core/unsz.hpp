@@ -36,8 +36,7 @@ namespace unsz
     enum class point_set_codec_e:uint8_t{idw=0,constant=2,rbf=5};
     enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
-    enum class partition_fitting_method_e:uint8_t{direct=0,continuous_mix=1,idw_residual=2};
-    enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,label_linear_interpolation_spatial_residual=5,linear_interpolation=6,joint_spatiotemporal=7,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
+    enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,label_linear_interpolation_spatial_residual=5,linear_interpolation=6,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
     enum class label_value_execution_e:uint8_t{no_label=0,staged=1,fused=2};
     enum class time_step_order_e:uint8_t{chronological=0,interpolation=1,anchor_stride_8=2};
 
@@ -157,7 +156,7 @@ namespace unsz
         vector<uint64_t> reference_offsets;
         vector<T_calc> prediction_weights;
         vector<uint8_t> rbf_fallback_flags;
-        vector<double> eb_multiplier;
+        vector<double> eb_multiplier,inverse_eb_multiplier;
 
         array_view_c<int> get_reference_ids(uint32_t prediction_id) const
         {
@@ -186,17 +185,6 @@ namespace unsz
             return {begin,(uint32_t)(reference_offsets[prediction_index+1]-begin)};
         }
 
-    };
-
-    struct partition_prediction_config_c
-    {
-        uint32_t ref_num;
-        double idw_power;
-        bool use_fitting;
-        double fitting_weight_power=0;
-        double fitting_ridge=0;
-        bool normalize_fitting_coord=false;
-        partition_fitting_method_e fitting_method=partition_fitting_method_e::direct;
     };
 
     template<typename T_coord>
@@ -364,10 +352,6 @@ namespace unsz
             uint32_t partition_size=0;//0表示不分区；非0时所有参考点必须来自同一partition
             uint32_t partition_num=0;//直接指定2、4、8等2的幂个partition
             uint32_t thread_num=1;
-            bool use_partition_adaptive_predictor_experimental=false;
-            uint32_t partition_adaptive_sample_num_experimental=256;
-            double partition_adaptive_min_improvement_experimental=0;
-            string partition_fitting_candidates_experimental="original";//original / weighted / ridge / mixed / residual / extended / all
             string eb_schedule="round_point_ratio";//none / round / point / inverse_rank_log2 / round_point / round_ratio / round_point_ratio
             double eb_schedule_start_ratio=0.8;
             double eb_schedule_log2_shift=0;//inverse_rank_log2的指数位移
@@ -389,7 +373,6 @@ namespace unsz
             vector<prediction_structure_c<T_calc>> prediction_structure_vec;//未切分时只有一个结构；切分后每个结构独立完整
             vector<vector<int>> partition_point_ids_vec;
             vector<uint32_t> point_partition_id_vec;
-            vector<uint8_t> partition_prediction_config_id_vec,partition_adaptive_sample_mask;
 
             vector<T_data> current_data,current_decompressed_data,prediction_order_decompressed_data;
             vector<uint32_t> time_step_vec;
@@ -443,22 +426,9 @@ namespace unsz
             void build_partitions();
             vector<uint32_t> get_round_target_num_vec(uint32_t local_point_num) const;
             void generate_partition_prediction_structures(bool uses_idw,bool uses_rbf);
-            vector<partition_prediction_config_c> get_partition_prediction_config_vec();
             vector<double> generate_pred_eb_multiplier_vec(const vector<vector<int>>&target_id_groups,uint32_t target_num,bool print_statistics=false);
-            void select_partition_prediction_configs();
-            void prepare_partition_adaptive_sample_mask();
             void write_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,T_calc *weights,array_view_c<T_coord> target_ref_squared_distances={});
             void append_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
-            bool should_use_selected_adaptive_prediction(int pred_id) const;
-            T_data predict_selected_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data>&data);
-            T_data predict_partition_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,uint8_t config_id);
-            T_data predict_partition_adaptive_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,const partition_prediction_config_c &config);
-            T_data predict_partition_idw_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power);
-            bool predict_partition_idw_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double power,T_data &prediction,double &loo_error);
-            bool predict_partition_linear_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double weight_power=0,double ridge=0,bool normalize_coord=false);
-            bool predict_partition_linear_fitting_value_and_loo_error(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,T_data &prediction,double &loo_error,double weight_power=0,double ridge=0,bool normalize_coord=true);
-            bool predict_partition_continuous_mix_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double fitting_weight_power,T_data &prediction);
-            bool predict_partition_idw_residual_fitting_value(int pred_id,array_view_c<int> ref_ids,vector<T_data> &data,double idw_power,double residual_weight_power,T_data &prediction);
             void generate_prediction_structures_and_weights();
             void generate_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf);
             void generate_global_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf);
@@ -482,15 +452,10 @@ namespace unsz
             bool solve_scalar_rbf_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
             void generate_batched_rbf_weights(const vector<T_coord>&reference_coords,const vector<T_coord>&target_ref_squared_distances,const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback);
             void preprocess_compression(chrono::steady_clock::time_point preprocessing_start_time);
-            void prepare_joint_spatiotemporal_coordinates();
             reconstruction_statistics_c calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset=0) const;
             void compress_files(void(param_c<T_coord,T_data>::*compress_file)(),bool write_output=true,const function<void(uint32_t,const vector<unsigned char>&)>&compressed_stream_consumer={},bool validate_reconstruction=true);
             template<point_set_codec_e predictor>
             void compress_staged_two_point_sets_files();
-            template<point_set_codec_e predictor>
-            void compress_joint_spatiotemporal_files();
-            template<point_set_codec_e predictor>
-            void decompress_joint_spatiotemporal_files();
             template<point_set_codec_e predictor>
             void dispatch_staged_label_compression();
             template<point_set_codec_e predictor>
@@ -528,8 +493,6 @@ namespace unsz
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
             void decompress_labels_and_values(decompression_file_state_c<T_data>&state);
             
-            template<typename T_system>
-            bool solve_linear_system(vector<vector<T_system>> &A,vector<T_system> &b,vector<T_system> &x);
     };
 }
 
@@ -541,7 +504,6 @@ namespace unsz
 #include "adjust_coord.tpp"
 #include "prediction_round.tpp"
 #include "partition.tpp"
-#include "partition_adaptive_prediction.tpp"
 #include "eb_schedule.tpp"
 #include "generate_prediction_structure_and_weights.tpp"
 #include "point_set_config.tpp"
@@ -558,7 +520,6 @@ namespace unsz
 #include "one_point_set_compress_entry.tpp"
 #include "two_point_sets_compress_entry.tpp"
 #include "staged_two_point_sets_entry.tpp"
-#include "joint_spatiotemporal_entry.tpp"
 #include "compress_entry.tpp"
 #include "compress.tpp"
 #include "decompress.tpp"

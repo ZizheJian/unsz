@@ -2,10 +2,7 @@
 
 这里保存已经选定、可以直接用于压缩和解压的坐标变换矩阵。训练过程中每轮loss、耗时和中间矩阵仍保存在`adjust_coord_history/*.npz`，二者用途不同。
 
-矩阵文件中的`training_type`明确区分：
-
-- `spatial`：只使用空间坐标训练，矩阵通常是二维或三维。
-- `spatiotemporal`：将time step作为额外坐标维度进行联合时空训练，矩阵通常比空间维数多一维。
+矩阵文件中的`training_type`固定为`spatial`，表示只使用空间坐标训练；矩阵通常是二维或三维。
 
 文本格式为：
 
@@ -33,5 +30,3 @@ install/bin/s1_decompress ... -adjust-coord-matrix-file adjust_coord_matrices/Ka
 ```
 
 当前统一训练协议使用实际空间预测器的全部参数和`prediction_ggd_bit`离散量化区间码长loss，不使用GGD微分熵loss。训练目标数、训练EB、迭代数和矩阵吸收率可以由数据集JSON中的field task覆盖。Tsunami的六个field已经按RBF10、Matérn-3/2核、shape `0.03`、nugget `1e-6`、无趋势项和10000个训练目标完成重测；改善最多的height也只降低约`0.46%` BR，因此六项全部使用原始坐标，候选矩阵仅保存在结果目录。完整对照结果见`results/tsunami_adjust_coord_rbf10_discrete_entropy/summary.csv`。Katrina最终使用100000个目标、训练REL EB `1e-3`、2轮和吸收率`0.75`；在`78.7245 dB`处的BR为`0.313441`，比可复现的旧二次方loss矩阵低`4.733%`。完整调优记录见`results/katrina_adjust_coord_ggd_tuning/`。
-
-`Katrina_attr0_spatiotemporal_t162_random_hyperrectangle_regions_r4.txt`是全部162步四维联合筛选矩阵。它在REL `1e-3`下同PSNR BR明显差于当前纯空间和上一时刻标签方案，只用于复现否定性实验，不是Katrina正式配置。

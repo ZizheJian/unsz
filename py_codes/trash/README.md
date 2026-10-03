@@ -2,7 +2,7 @@
 
 这里保存已经完成、当前不再作为项目入口，但以后可能复用其分析或实验逻辑的Python程序。
 
-- 根目录只保留当前使用的`t0_start_single_c_code.py`、`t1_start_c_code.py`、`t2_adjust_coord.py`和统一可视化程序`t3_visualize.py`。效果不佳的联合四维入口已移到本目录的`t5_cross_time.py`。
+- 根目录只保留当前使用的`t0_start_single_c_code.py`、`t1_start_c_code.py`、`t2_adjust_coord.py`和统一可视化程序`t3_visualize.py`。
 - `screen_more_fields.py`和`run_spatial_field_benchmark.py`的功能已并入根目录`t1_start_c_code.py`；`slurm/screen_more_fields.slurm`是对应的历史批处理入口。
 - `t5`～`t83`中的其他分析与消融程序移到这里。已弃用的目标排序专用脚本已删除，需要重做消融时从Git历史恢复；其余脚本仅作为历史记录，不保证与当前CLI兼容。
 - `t84`～`t87`、`t89`和`t90`筛选Tsunami momentum_x的RBF核、shape、nugget和参考点数，并补齐Matérn-3/2与Matérn-5/2五点RD。
@@ -23,8 +23,6 @@
 - `results/katrina_removed_more_redundant_hot_checks.csv`和`results/katrina_post_loop_fused_counters.csv`记录继续删除重复符号检查并把可推导计数移出逐点循环后的结果。
 - `results/katrina_reuse_huffman_qb_range.csv`和`results/katrina_reuse_huffman_qb_range_repeat.csv`记录量化索引数量改为循环后汇总、范围复用Huffman预处理结果后的测速。
 - `t96_benchmark_katrina_current_spatial.py`使用当前4参考点融合快速路径重跑Katrina五点空间RD和核心吞吐率，并与数据目录中的UMC NBP-IDW-INP曲线对齐。
-- `slurm/run_katrina_current_joint_screen.slurm`在Katrina全部162步、REL EB `1e-3`下训练四维矩阵，并用128个独立partition和16线程筛选当前时空联合预测的BR及核心吞吐率。
-- `results/katrina_current_joint_screen.csv`记录上述任务`20476218`的结果；联合方案同PSNR下明显差于当前纯空间和上一时刻标签方案，因此没有继续补五点曲线。
 - `t97_benchmark_katrina_current_cross_time_label.py`使用当前4参考点融合路径重跑Katrina上一time step标签预测的五点RD；`t98_benchmark_katrina_cross_time_label_fused.py`在REL `1e-3`下交替重复比较分阶段、融合原始权重和融合预归一化数值权重三条路径，结果分别位于`results/katrina_current_cross_time_label_rd.csv`和`results/katrina_cross_time_label_fused_time.csv`。
 - `results`保存这些实验产生的历史CSV；`results/adjust_coord_history`保存已被正式矩阵取代的采样原型和区域数消融矩阵。关键结论已经整理到根目录的`TODO.md`和`TODO_DETAIL.md`。
 - `slurm`保存已完成但可能复用的Slurm实验脚本，`results/slurm_logs`保存对应的原始标准输出；日志由`.gitignore`忽略，只用于本地复查。

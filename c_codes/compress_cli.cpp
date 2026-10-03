@@ -220,30 +220,6 @@ namespace unsz
                     throw runtime_error("-thread-num后面缺少参数值");
                 param.thread_num=parse_positive_uint32(argv[++arg_id],"-thread-num");
             }
-            else if (strcmp(argv[arg_id],"-partition-adaptive-predictor-experimental")==0)
-                param.use_partition_adaptive_predictor_experimental=true;
-            else if (strcmp(argv[arg_id],"-partition-adaptive-sample-num-experimental")==0)
-            {
-                if (arg_id+1>=argc)
-                    throw runtime_error("-partition-adaptive-sample-num-experimental后面缺少参数值");
-                param.partition_adaptive_sample_num_experimental=parse_positive_uint32(argv[++arg_id],"-partition-adaptive-sample-num-experimental");
-            }
-            else if (strcmp(argv[arg_id],"-partition-adaptive-min-improvement-experimental")==0)
-            {
-                if (arg_id+1>=argc)
-                    throw runtime_error("-partition-adaptive-min-improvement-experimental后面缺少参数值");
-                param.partition_adaptive_min_improvement_experimental=parse_positive_double(argv[++arg_id],"-partition-adaptive-min-improvement-experimental");
-                if (param.partition_adaptive_min_improvement_experimental>1)
-                    throw runtime_error("-partition-adaptive-min-improvement-experimental不能大于1");
-            }
-            else if (strcmp(argv[arg_id],"-partition-fitting-candidates-experimental")==0)
-            {
-                if (arg_id+1>=argc)
-                    throw runtime_error("-partition-fitting-candidates-experimental后面缺少模式");
-                param.partition_fitting_candidates_experimental=argv[++arg_id];
-                if (param.partition_fitting_candidates_experimental!="original" && param.partition_fitting_candidates_experimental!="weighted" && param.partition_fitting_candidates_experimental!="ridge" && param.partition_fitting_candidates_experimental!="mixed" && param.partition_fitting_candidates_experimental!="residual" && param.partition_fitting_candidates_experimental!="extended" && param.partition_fitting_candidates_experimental!="all")
-                    throw runtime_error("-partition-fitting-candidates-experimental必须是original、weighted、ridge、mixed、residual、extended或all");
-            }
             else if(strcmp(argv[arg_id],"-point-set-config")==0)
             {
                 if(arg_id+1>=argc)
@@ -255,7 +231,7 @@ namespace unsz
                 if (arg_id+1>=argc)
                     throw runtime_error("-value-flow后面缺少模式");
                 param.value_flow=argv[++arg_id];
-                if(param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="joint_spatiotemporal"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
+                if(param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
                     throw runtime_error("未知的value flow："+param.value_flow);
             }
             else if (strcmp(argv[arg_id],"-label-flow")==0)

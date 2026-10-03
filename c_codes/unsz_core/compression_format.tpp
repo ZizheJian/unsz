@@ -186,20 +186,6 @@ namespace unsz
         }
         else if(point_set_num!=1)
             throw runtime_error("单点集field配置要求码流包含一个点集");
-        if (use_partition_adaptive_predictor_experimental)
-        {
-            uint32_t block_config_num=read_binary<uint32_t>(cursor,end);
-            if (block_config_num!=partition_point_ids_vec.size() || (uint64_t)(end-cursor)<block_config_num)
-                throw runtime_error("partition预测配置数量与partition数量不一致");
-            partition_prediction_config_id_vec.assign(cursor,cursor+block_config_num);
-            cursor+=block_config_num;
-            uint32_t candidate_num=get_partition_prediction_config_vec().size();
-            for (uint8_t config_id:partition_prediction_config_id_vec)
-                if (config_id>=candidate_num)
-                    throw runtime_error("压缩文件中的partition预测配置编号越界");
-            prepare_partition_adaptive_sample_mask();
-        }
-
         if(point_set_num>2)
             throw runtime_error("UNSZ只支持一个或两个点集");
         has_label=point_set_num==2;
@@ -361,8 +347,6 @@ namespace unsz
         }
         vector<unsigned char> container;
         uint64_t container_byte_num=8+4*sizeof(uint32_t)+(uint64_t)point_set_num*(sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data))+sizeof(uint32_t)+(uint64_t)(payload_num+1)*sizeof(uint64_t);
-        if(use_partition_adaptive_predictor_experimental)
-            container_byte_num+=sizeof(uint32_t)+partition_prediction_config_id_vec.size();
         for(const encoded_compression_payload_c&payload:payload_vec)
             container_byte_num+=payload.bytes.size();
         container.reserve((size_t)container_byte_num);
@@ -371,11 +355,6 @@ namespace unsz
         append_binary<uint32_t>(container,point_num);
         append_binary<uint32_t>(container,sizeof(T_data));
         append_binary<uint32_t>(container,point_set_num);
-        if(use_partition_adaptive_predictor_experimental)
-        {
-            append_binary<uint32_t>(container,partition_prediction_config_id_vec.size());
-            container.insert(container.end(),partition_prediction_config_id_vec.begin(),partition_prediction_config_id_vec.end());
-        }
         for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {
             append_binary<uint8_t>(container,(uint8_t)point_set_codec_vec[point_set_id]);

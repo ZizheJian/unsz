@@ -84,7 +84,7 @@ install/bin/s1_compress -data-dir /path/to/data -field field -time-step '[0,9]' 
 
 `-time-step`支持闭区间`[a,b]`、右开区间`[a,b)`和显式列表`{a1,a2,...}`。例如`[0,31)`和`{0,3,7}`分别处理0至30以及0、3、7号time step。包含括号或花括号的表达式建议使用引号，避免被shell解释。
 
-普通流程把压缩文件写到原数据旁边，名称为`<field>.dat.<time_step>.unsz`；解压结果为`<field>.dat.<time_step>.unsz.bin`。联合时空流程把全部time step写入单个`<field>.joint.unsz`，解压时仍拆成各个`<field>.dat.<time_step>.unsz.bin`。程序打印总BR、PSNR、最大误差比例、压缩端与解压端各自的预处理时间，以及核心压缩和核心解压时间。
+压缩文件写到原数据旁边，名称为`<field>.dat.<time_step>.unsz`；解压结果为`<field>.dat.<time_step>.unsz.bin`。程序打印总BR、PSNR、最大误差比例、压缩端与解压端各自的预处理时间，以及核心压缩和核心解压时间。
 
 当前bitstream不保存用户error bound、坐标变换矩阵、预测参数或实验开关。解压时必须提供与压缩时完全相同的参数；参数不一致通常会导致解码失败或误差检查失败。
 
@@ -166,7 +166,7 @@ JSON最外层是task list；同一个JSON可以包含不同数据目录的任务
 ]
 ```
 
-`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF在同点集参考点不足或权重求解失败时固定退化为最近的同点集参考点，不再提供IDW fallback。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数；同点集参考点少于`prediction_min_ref_num`时，RBF触发最近点fallback。当前正式RBF配置的上下限相同，IDW的下限为1。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope="local"`时先把点分轮，再在各轮内部排序，并通过`prediction_round_num`明确记录轮数；`ordering_scope="global"`时只生成一条完整顺序，不接受`prediction_round_num`，也不能使用名称中含`round`的逐轮EB序列。global可以使用`none`、`point`或连续的`inverse_rank_log2`。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时空流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、标签/数值执行方式、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`、`.unsz.bin`和联合时空`.joint.unsz`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
+`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF在同点集参考点不足或权重求解失败时固定退化为最近的同点集参考点，不再提供IDW fallback。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数；同点集参考点少于`prediction_min_ref_num`时，RBF触发最近点fallback。当前正式RBF配置的上下限相同，IDW的下限为1。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope="local"`时先把点分轮，再在各轮内部排序，并通过`prediction_round_num`明确记录轮数；`ordering_scope="global"`时只生成一条完整顺序，不接受`prediction_round_num`，也不能使用名称中含`round`的逐轮EB序列。global可以使用`none`、`point`或连续的`inverse_rank_log2`。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时间流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、标签/数值执行方式、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`和`.unsz.bin`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
 
 UMC任务在独立解压完成后始终逐点读取原始field和磁盘上的`.umc.out`。检查使用NumPy分块计算每个time step的数据范围、最大误差和总MSE，验证逐点REL误差界，并核对磁盘PSNR与UMC压缩端和解压端报告一致；该检查在UMC程序计时之外执行，不计入核心压缩或解压时间。
 
@@ -231,11 +231,6 @@ UNSZ目前实现了以下压缩流程：
       <td>以固定stride依次处理锚点，再在每个锚点区间内按一阶内插顺序递归处理其余time step。标签侧的锚点使用零阶外插、区间内部使用端点一致性并在不一致时进行空间补充；数值侧的锚点使用零阶外插、区间内部使用一阶内插，并可选择是否继续使用空间预测压缩时间残差。</td>
     </tr>
     <tr>
-      <td>联合时空压缩</td>
-      <td>几乎放弃</td>
-      <td>C++读取一次空间坐标，在末尾增加时间坐标并为每个time step复制一份；全局点编号为<code>time_id×N+spatial_id</code>。随后把各文件的值按相同编号连接起来，作为一个高维点云调用对应的一点集或两点集纯空间预测；解压单个联合码流后再按每步<code>N</code>个点拆回原文件。在所有已有的数据上，总能找到比它好的方案，而且预处理耗时较长，因此不进入常规自动选择。</td>
-    </tr>
-    <tr>
       <td>时间一阶内插预测中，最后一个文件使用来自第一个文件零阶外插预测</td>
       <td>尚未测试</td>
       <td></td>
@@ -255,8 +250,6 @@ UNSZ目前实现了以下压缩流程：
 时间遍历顺序与标签、数值预测公式分开处理。程序统一提供顺序遍历、递归内插和anchor8三种time step顺序；标签flow和数值flow分别选择自己的顺序。每次遍历开始前会生成time step依赖DAG，直接记录各目标的标签和值参考节点以及各参考节点的剩余出度；目标处理完成后删除已消费的边，某类历史的剩余出度归零时立即释放对应的完整数组，不再扫描或永久保留全部既有time step。`staged`依次应用两份顺序并分别生成依赖DAG，允许二者不同。`fused`保留两份独立顺序：相同时使用现有同步实现，不同时进入专门的不同顺序fused入口；该入口目前明确报告尚未实现，以后可以在不改变配置结构的情况下加入交错调度。
 
 时间一阶内插可通过`-time-step-coordinate-file <path>`读取一维float64原始数组，第`i`个数是time step `i`的实际坐标。压缩和解压必须读取同一文件；不传该参数时保持原有的等间距假设。对应task使用`time_step_coordinate_file`记录文件名并同时传给两端，普通等时间间隔数据不需要记录这一项。
-
-联合时空流程使用`"value_flow":"joint_spatiotemporal"`。C++直接从`coords.dat`获得每个time step的空间点数，将空间坐标复制到各个time step并增加一个时间坐标维度，再把所有time step作为一个统一点云生成DAG；不再要求用户重复传入空间点数。输入仍是原始空间坐标和逐time step的field文件，不需要由Python预先生成升维坐标或拼接field；时间坐标由`time_step_coordinate_file`提供，不设置时使用time step编号。单点集和两点集都把升维后的数据交给普通纯空间压缩；两点集`fused`生成正式码流，`staged`只在内存中估计标签流与数值流的总大小。联合时空只接受显式ABS误差上限。启用partition时，程序在升维坐标上切分统一点云，每个partition独立生成DAG、权重和payload，最后只拼接payload与offset表。普通非联合时空流程仍可使用REL：每个time step根据完整空间field的range换算一次ABS误差上限，该time step内的所有partition共享换算结果。
 
 ## 2.2. 生成坐标变换矩阵
 
@@ -506,7 +499,7 @@ install/bin/s1_compress -data-dir /path/to/Katrina -field attr0 -time-step '[0,9
 install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0,9]' -coordinate-dim 3 -M REL 1e-3 -predictor idw -prediction-min-ref-num 1 -prediction-max-ref-num 4 -ordering-candidate-num 16 -ordering-score-max-ref-num 1 -ordering-score-min-ref-num 1 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
 ```
 
-矩阵文件记录数据集、field、维数、下三角元素和训练类型。`training_type=spatial`表示只使用空间坐标训练；`training_type=spatiotemporal`表示把time step作为额外坐标维度进行联合时空训练。当前选定矩阵集中保存在`adjust_coord_matrices/`，格式和文件索引见其中的`README.md`。
+矩阵文件记录数据集、field、维数、下三角元素和训练类型。当前只接受`training_type=spatial`，表示只使用空间坐标训练。选定矩阵集中保存在`adjust_coord_matrices/`，格式和文件索引见其中的`README.md`。
 
 ## 2.3. 生成DAG
 
@@ -908,7 +901,7 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
 
 ## 2.7. 并行设计
 
-当前OpenMP实现已经支持adjust后的独立partition。程序先按坐标递归中位数切分，只生成顶层partition点集，不建立整场kd-tree；随后每个worker为自己的partition建立局部kd-tree，并独立生成预测顺序、参考关系、权重和EB倍率。每个partition只引用本partition内的数据，单点集以及fused双点集的标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。`global`和`local`表示每个partition内部是否分轮；partition本身始终互相独立。v11容器统一使用`payload_begin[P+1]`定位各预测结构的独立payload；不分区时P=1，分区时每个partition对应一个payload，最终只按结构编号串行拼接字节。普通REL模式先根据当前完整time step的field range换算统一ABS EB，再由该time step内所有partition共享；联合时空目前只接受ABS。DAG缓存与staged调试路径暂不支持partition。
+当前OpenMP实现已经支持adjust后的独立partition。程序先按坐标递归中位数切分，只生成顶层partition点集，不建立整场kd-tree；随后每个worker为自己的partition建立局部kd-tree，并独立生成预测顺序、参考关系、权重和EB倍率。每个partition只引用本partition内的数据，单点集以及fused双点集的标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。`global`和`local`表示每个partition内部是否分轮；partition本身始终互相独立。v11容器统一使用`payload_begin[P+1]`定位各预测结构的独立payload；不分区时P=1，分区时每个partition对应一个payload，最终只按结构编号串行拼接字节。REL模式先根据当前完整time step的field range换算统一ABS EB，再由该time step内所有partition共享。DAG缓存与staged调试路径暂不支持partition。
 
 并行实验不使用“多线程UNSZ对串行UMC”作为主要速度结论。单线程实验始终比较一核UNSZ与一核UMC。高速版要求核心压缩与核心解压的耗时之和不超过UMC的`1.1倍`，高压缩比版要求该总和不超过`2倍`；在同一节点上交替运行双方的五个EB，并以逐EB总耗时倍率的几何平均作判断。压缩和解压分项继续报告以定位热点，但不分别设置门槛；暂不把可由全部time step复用的公共预处理计入该限制。对于包含多个独立time step的数据，使用相同数量的进程把不同文件分配给UNSZ和UMC，比较双方相同资源下的总吞吐率；独立进程也避免依赖UMC接口是否线程安全。对于单个大field，单独报告UNSZ从1线程到多线程的strong/weak scaling；UMC官方当前没有通用的单field并行入口，因此只列其官方串行结果，不把二者直接解释为并行算法优劣。如果论文需要同核数的单field比较，再为UMC增加与UNSZ相同partition数量的外部分区，并同时报告两种方法因partition边界造成的BR变化。
 

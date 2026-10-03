@@ -53,11 +53,10 @@ namespace unsz
         }
         if (!got_training_type || !got_field || !got_coordinate_dim || !got_matrix)
             throw runtime_error("坐标变换矩阵文件缺少必要字段："+adjust_coord_matrix_file);
-        if (adjust_coord_training_type!="spatial" && adjust_coord_training_type!="spatiotemporal")
-            throw runtime_error("坐标变换矩阵训练类型必须是spatial或spatiotemporal");
-        uint32_t expected_coordinate_dim=dim+(value_flow=="joint_spatiotemporal");
-        if(matrix_coordinate_dim!=expected_coordinate_dim)
-            throw runtime_error("坐标变换矩阵维数"+to_string(matrix_coordinate_dim)+"与当前流程要求的coordinate_dim="+to_string(expected_coordinate_dim)+"不一致");
+        if(adjust_coord_training_type!="spatial")
+            throw runtime_error("坐标变换矩阵训练类型必须是spatial");
+        if(matrix_coordinate_dim!=dim)
+            throw runtime_error("坐标变换矩阵维数"+to_string(matrix_coordinate_dim)+"与当前coordinate_dim="+to_string(dim)+"不一致");
         if(matrix_field!=field_name)
             throw runtime_error("坐标变换矩阵field="+matrix_field+"与当前field="+field_name+"不一致");
         if_adjust_coord=true;

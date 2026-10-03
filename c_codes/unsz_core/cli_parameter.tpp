@@ -14,8 +14,6 @@ namespace unsz
             throw runtime_error("必须且只能在-M和-point-set-config之间选择一个");
         if(got_error_mode&&!got_predictor)
             throw runtime_error("使用-M时必须通过-predictor显式指定预测器");
-        if(use_partition_adaptive_predictor_experimental&&partition_size==0&&partition_num==0)
-            throw runtime_error("partition自适应预测器需要指定空间partition");
         if(thread_num>1&&partition_size==0&&partition_num==0)
             throw runtime_error("多线程模式需要指定partition数量或大小");
         if(data_dir.back()!='/')
@@ -42,8 +40,6 @@ namespace unsz
             got_abs_eb=true;
         }
         configure_point_sets();
-        if(value_flow=="joint_spatiotemporal"&&any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec!=point_set_codec_e::constant&&config.error_mode!=point_set_error_mode_e::absolute;}))
-            throw runtime_error("联合时空流程只接受ABS误差上限");
         if(label_flow=="anchor_interpolation_stride_8"&&point_set_config_vec.size()==1)
             throw runtime_error("label锚点内插流程要求field包含两个点集");
         if(point_set_config_vec.size()==1)

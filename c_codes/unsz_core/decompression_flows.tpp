@@ -134,8 +134,6 @@ namespace unsz::one_point_set
         if(param.point_set_config_vec.size()!=1)
             throw runtime_error("单点集解压要求field恰好配置一个点集");
         param.resolve_single_point_set_time_mode();
-        if(param.value_flow=="joint_spatiotemporal")
-            throw runtime_error("联合时空解压必须通过联合时空入口处理");
         prediction_framework_c framework=param.get_prediction_framework(1);
         point_set_codec_e predictor=param.point_set_config_vec[0].codec;
         if(predictor==point_set_codec_e::idw)

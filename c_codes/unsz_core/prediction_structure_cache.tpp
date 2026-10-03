@@ -205,7 +205,7 @@ namespace unsz
     void param_c<T_coord,T_data>::remap_single_point_set_spatial_references_to_prediction_order()
     {
         spatial_references_use_prediction_order=false;
-        if(point_set_config_vec.size()!=1||point_set_config_vec.front().codec==point_set_codec_e::constant||time_step_vec.size()!=1||value_flow!="none"||prediction_structure_vec.size()!=1||use_partition_adaptive_predictor_experimental)
+        if(point_set_config_vec.size()!=1||point_set_config_vec.front().codec==point_set_codec_e::constant||time_step_vec.size()!=1||value_flow!="none"||prediction_structure_vec.size()!=1)
             return;
         prediction_structure_c<T_calc>&structure=prediction_structure_vec.front();
         if(structure.target_ids.size()!=point_num)

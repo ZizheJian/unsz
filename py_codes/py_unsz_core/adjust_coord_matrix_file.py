@@ -3,7 +3,7 @@ import numpy as np
 
 matrix_file_magic="UNSZ_ADJUST_COORD_MATRIX"
 matrix_file_version=2
-training_type_vec=("spatial","spatiotemporal")
+training_type_vec=("spatial",)
 
 def write_adjust_coord_matrix(path,matrix,training_type,field):
     matrix=np.asarray(matrix,dtype=np.float64)

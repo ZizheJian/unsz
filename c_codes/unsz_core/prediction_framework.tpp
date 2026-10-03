@@ -44,8 +44,6 @@ namespace unsz
     {
         if(point_set_config_vec.size()!=1)
             throw runtime_error("单点集时间流程选择要求field恰好配置一个点集");
-        if(value_flow=="joint_spatiotemporal")
-            return;
         bool value_uses_anchor_flow=value_flow=="anchor_interpolation_stride_8"||value_flow=="anchor_interpolation_stride_8_spatial_residual";
         if(!value_uses_anchor_flow&&value_flow!="none"&&value_flow!="constant_extrapolation"&&value_flow!="linear_interpolation"&&value_flow!="constant_extrapolation_spatial_residual"&&value_flow!="linear_interpolation_spatial_residual")
             throw runtime_error("未知的单点集数值预测流程："+value_flow);
@@ -66,65 +64,53 @@ namespace unsz
             throw runtime_error("点集数量不能为0");
         prediction_framework_c framework;
         framework.has_label=point_set_num>1;
-        bool use_joint_spatiotemporal=value_flow=="joint_spatiotemporal";
-        if(use_joint_spatiotemporal&&label_flow!="none")
-            throw runtime_error("联合时空数值流程不能再叠加标签时间预测流程");
-        if(use_joint_spatiotemporal)
-        {
-            framework.value_mode=time_dimension_mode_e::joint_spatiotemporal;
-            if(framework.has_label)
-                framework.label_mode=time_dimension_mode_e::joint_spatiotemporal;
-        }
-        else
-        {
-            bool uses_anchor_flow=uses_anchor_interpolation_stride_8_flow();
-            bool first_anchor=uses_anchor_flow&&current_time_step==0;
-            bool regular_anchor=uses_anchor_flow&&current_time_step_is_regular_anchor();
-            bool value_uses_anchor_flow=value_flow=="anchor_interpolation_stride_8"||value_flow=="anchor_interpolation_stride_8_spatial_residual";
-            bool label_uses_anchor_flow=label_flow=="anchor_interpolation_stride_8";
-            uint8_t value_time_ref_num=temporal_value_dependency_vec[current_time_step_index].source_num;
-            uint8_t label_time_ref_num=temporal_label_dependency_vec[current_time_step_index].source_num;
-            if(value_uses_anchor_flow&&first_anchor)
-                framework.value_mode=time_dimension_mode_e::spatial;
-            else if(value_uses_anchor_flow&&(regular_anchor||value_time_ref_num<2))
-                if(value_flow=="anchor_interpolation_stride_8_spatial_residual")
-                    framework.value_mode=time_dimension_mode_e::constant_extrapolation_spatial_residual;
-                else
-                    framework.value_mode=time_dimension_mode_e::constant_extrapolation;
-            else if(value_uses_anchor_flow)
-                if(value_flow=="anchor_interpolation_stride_8_spatial_residual")
-                    framework.value_mode=time_dimension_mode_e::linear_interpolation_spatial_residual;
-                else
-                    framework.value_mode=time_dimension_mode_e::linear_interpolation;
-            else if(value_flow=="none")
-                framework.value_mode=time_dimension_mode_e::spatial;
-            else if(value_flow=="constant_extrapolation")
-                framework.value_mode=time_dimension_mode_e::constant_extrapolation;
-            else if(value_flow=="linear_interpolation")
-                framework.value_mode=time_dimension_mode_e::linear_interpolation;
-            else if(value_flow=="linear_interpolation_spatial_residual")
-                framework.value_mode=time_dimension_mode_e::linear_interpolation_spatial_residual;
-            else if(value_flow=="constant_extrapolation_spatial_residual")
+        bool uses_anchor_flow=uses_anchor_interpolation_stride_8_flow();
+        bool first_anchor=uses_anchor_flow&&current_time_step==0;
+        bool regular_anchor=uses_anchor_flow&&current_time_step_is_regular_anchor();
+        bool value_uses_anchor_flow=value_flow=="anchor_interpolation_stride_8"||value_flow=="anchor_interpolation_stride_8_spatial_residual";
+        bool label_uses_anchor_flow=label_flow=="anchor_interpolation_stride_8";
+        uint8_t value_time_ref_num=temporal_value_dependency_vec[current_time_step_index].source_num;
+        uint8_t label_time_ref_num=temporal_label_dependency_vec[current_time_step_index].source_num;
+        if(value_uses_anchor_flow&&first_anchor)
+            framework.value_mode=time_dimension_mode_e::spatial;
+        else if(value_uses_anchor_flow&&(regular_anchor||value_time_ref_num<2))
+            if(value_flow=="anchor_interpolation_stride_8_spatial_residual")
                 framework.value_mode=time_dimension_mode_e::constant_extrapolation_spatial_residual;
             else
-                throw runtime_error("未知的数值时间预测方式："+value_flow);
-            if(framework.has_label)
-            {
-                if(label_uses_anchor_flow&&first_anchor)
-                    framework.label_mode=time_dimension_mode_e::spatial;
-                else if(label_uses_anchor_flow&&(regular_anchor||label_time_ref_num<2))
-                    framework.label_mode=time_dimension_mode_e::constant_extrapolation;
-                else if(label_uses_anchor_flow)
-                    framework.label_mode=time_dimension_mode_e::label_linear_interpolation_spatial_residual;
-                else if(label_flow=="none")
-                    framework.label_mode=time_dimension_mode_e::spatial;
-                else if(label_flow=="constant_extrapolation")
-                    framework.label_mode=time_dimension_mode_e::constant_extrapolation;
-                else if(label_flow=="linear_interpolation_spatial_residual")
-                    framework.label_mode=time_dimension_mode_e::label_linear_interpolation_spatial_residual;
-                else
-                    throw runtime_error("未知的标签时间预测方式："+label_flow);
-            }
+                framework.value_mode=time_dimension_mode_e::constant_extrapolation;
+        else if(value_uses_anchor_flow)
+            if(value_flow=="anchor_interpolation_stride_8_spatial_residual")
+                framework.value_mode=time_dimension_mode_e::linear_interpolation_spatial_residual;
+            else
+                framework.value_mode=time_dimension_mode_e::linear_interpolation;
+        else if(value_flow=="none")
+            framework.value_mode=time_dimension_mode_e::spatial;
+        else if(value_flow=="constant_extrapolation")
+            framework.value_mode=time_dimension_mode_e::constant_extrapolation;
+        else if(value_flow=="linear_interpolation")
+            framework.value_mode=time_dimension_mode_e::linear_interpolation;
+        else if(value_flow=="linear_interpolation_spatial_residual")
+            framework.value_mode=time_dimension_mode_e::linear_interpolation_spatial_residual;
+        else if(value_flow=="constant_extrapolation_spatial_residual")
+            framework.value_mode=time_dimension_mode_e::constant_extrapolation_spatial_residual;
+        else
+            throw runtime_error("未知的数值时间预测方式："+value_flow);
+        if(framework.has_label)
+        {
+            if(label_uses_anchor_flow&&first_anchor)
+                framework.label_mode=time_dimension_mode_e::spatial;
+            else if(label_uses_anchor_flow&&(regular_anchor||label_time_ref_num<2))
+                framework.label_mode=time_dimension_mode_e::constant_extrapolation;
+            else if(label_uses_anchor_flow)
+                framework.label_mode=time_dimension_mode_e::label_linear_interpolation_spatial_residual;
+            else if(label_flow=="none")
+                framework.label_mode=time_dimension_mode_e::spatial;
+            else if(label_flow=="constant_extrapolation")
+                framework.label_mode=time_dimension_mode_e::constant_extrapolation;
+            else if(label_flow=="linear_interpolation_spatial_residual")
+                framework.label_mode=time_dimension_mode_e::label_linear_interpolation_spatial_residual;
+            else
+                throw runtime_error("未知的标签时间预测方式："+label_flow);
         }
         if(!framework.has_label)
             framework.execution=label_value_execution_e::no_label;

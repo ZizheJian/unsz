@@ -66,15 +66,6 @@ template<typename T_coord>
 void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::time_point preprocessing_start_time)
 {
     double adjust_coord_time=0;
-    bool joint_spatiotemporal=param.value_flow=="joint_spatiotemporal";
-    if(joint_spatiotemporal)
-    {
-        if(param.point_set_config_vec.size()!=1&&param.point_set_config_vec.size()!=2)
-            throw runtime_error("联合时空解压只支持一个或两个点集");
-        if(param.point_set_config_vec.size()==2&&param.label_value_execution!="fused")
-            throw runtime_error("两点集联合时空解压只支持生成正式码流的fused模式");
-        param.prepare_joint_spatiotemporal_coordinates();
-    }
     if (param.if_adjust_coord)
     {
         auto adjust_coord_start_time=chrono::steady_clock::now();
@@ -98,24 +89,6 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     param.remap_single_point_set_spatial_references_to_prediction_order();
     double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time-validation_time;
     printf("preprocessing time excluding coordinate input and adjust coord= %f s\n",preprocessing_time);
-    if(joint_spatiotemporal)
-    {
-        unsz::point_set_codec_e codec=unsz::point_set_codec_e::constant;
-        for(const unsz::point_set_config_c&config:param.point_set_config_vec)
-            if(config.codec!=unsz::point_set_codec_e::constant)
-            {
-                if(codec!=unsz::point_set_codec_e::constant&&codec!=config.codec)
-                    throw runtime_error("同一次联合时空解压中的非常量点集必须使用同一种空间预测器");
-                codec=config.codec;
-            }
-        if(codec==unsz::point_set_codec_e::idw)
-            param.template decompress_joint_spatiotemporal_files<unsz::point_set_codec_e::idw>();
-        else if(codec==unsz::point_set_codec_e::rbf)
-            param.template decompress_joint_spatiotemporal_files<unsz::point_set_codec_e::rbf>();
-        else
-            throw runtime_error("联合时空解压至少需要一个使用IDW或RBF的非常量点集");
-        return;
-    }
     if(param.point_set_config_vec.size()==2&&param.label_value_execution=="staged")
         throw runtime_error("staged模式只在内存中估计压缩效果，不生成可解压码流");
     uint32_t validated_file_num=0;
@@ -285,22 +258,6 @@ int decompress_main(int argc,char **argv)
             param.partition_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-thread-num")
             param.thread_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-partition-adaptive-predictor-experimental")
-            param.use_partition_adaptive_predictor_experimental=true;
-        else if (option=="-partition-adaptive-sample-num-experimental")
-            param.partition_adaptive_sample_num_experimental=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-partition-adaptive-min-improvement-experimental")
-        {
-            param.partition_adaptive_min_improvement_experimental=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-            if (param.partition_adaptive_min_improvement_experimental>1)
-                throw runtime_error("-partition-adaptive-min-improvement-experimental不能大于1");
-        }
-        else if (option=="-partition-fitting-candidates-experimental")
-        {
-            param.partition_fitting_candidates_experimental=read_option_value(argc,argv,arg_id,option);
-            if (param.partition_fitting_candidates_experimental!="original" && param.partition_fitting_candidates_experimental!="weighted" && param.partition_fitting_candidates_experimental!="ridge" && param.partition_fitting_candidates_experimental!="mixed" && param.partition_fitting_candidates_experimental!="residual" && param.partition_fitting_candidates_experimental!="extended" && param.partition_fitting_candidates_experimental!="all")
-                throw runtime_error("-partition-fitting-candidates-experimental必须是original、weighted、ridge、mixed、residual、extended或all");
-        }
         else if(option=="-predictor")
         {
             param.predictor=read_option_value(argc,argv,arg_id,option);
@@ -313,7 +270,7 @@ int decompress_main(int argc,char **argv)
         else if (option=="-value-flow")
         {
             param.value_flow=read_option_value(argc,argv,arg_id,option);
-            if(param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="joint_spatiotemporal"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
+            if(param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
                 throw runtime_error("未知的value flow："+param.value_flow);
         }
         else if (option=="-label-flow")

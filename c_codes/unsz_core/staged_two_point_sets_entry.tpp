@@ -2,7 +2,7 @@
 
 namespace unsz
 {
-inline uint64_t get_point_set_value_stream_offset(const vector<unsigned char> &bytes,bool partition_adaptive)
+inline uint64_t get_point_set_value_stream_offset(const vector<unsigned char> &bytes)
 {
     const unsigned char *begin=bytes.data(),*cursor=begin,*end=begin+bytes.size();
     if((uint64_t)(end-cursor)<8)
@@ -16,13 +16,6 @@ inline uint64_t get_point_set_value_stream_offset(const vector<unsigned char> &b
     read_binary<uint32_t>(cursor,end);
     uint32_t data_type_bytes=read_binary<uint32_t>(cursor,end);
     uint32_t point_set_num=read_binary<uint32_t>(cursor,end);
-    if(partition_adaptive)
-    {
-        uint32_t config_num=read_binary<uint32_t>(cursor,end);
-        if((uint64_t)(end-cursor)<config_num)
-            throw runtime_error("UNSZ partition配置不完整");
-        cursor+=config_num;
-    }
     uint64_t point_set_metadata_bytes=(uint64_t)point_set_num*(sizeof(uint8_t)+sizeof(uint32_t)+2*data_type_bytes);
     if((uint64_t)(end-cursor)<point_set_metadata_bytes)
         throw runtime_error("UNSZ点集元数据不完整");
@@ -99,7 +92,7 @@ void param_c<T_coord,T_data>::compress_staged_two_point_sets_files()
         printf("staged label pass: process all labels before values\n");
         compress_files(&param_c<T_coord,T_data>::template dispatch_staged_label_compression<predictor>,false,[&](uint32_t file_id,const vector<unsigned char>&bytes)
         {
-            label_prefix_byte_num_map[time_step_vec[file_id]]=get_point_set_value_stream_offset(bytes,use_partition_adaptive_predictor_experimental);
+            label_prefix_byte_num_map[time_step_vec[file_id]]=get_point_set_value_stream_offset(bytes);
         },false);
         double label_pass_time=last_total_compression_time;
 
@@ -112,7 +105,7 @@ void param_c<T_coord,T_data>::compress_staged_two_point_sets_files()
             auto prefix_iterator=label_prefix_byte_num_map.find(time_step);
             if(prefix_iterator==label_prefix_byte_num_map.end())
                 throw runtime_error("staged标签遍缺少time step "+to_string(time_step));
-            uint64_t value_offset=get_point_set_value_stream_offset(value_file,use_partition_adaptive_predictor_experimental);
+            uint64_t value_offset=get_point_set_value_stream_offset(value_file);
             total_compressed_bytes+=prefix_iterator->second+value_file.size()-value_offset;
         });
         double value_pass_time=last_total_compression_time;

@@ -32,11 +32,11 @@
   <path class="line" d="M1095 310 C1095 340 485 330 485 370"/>
   <path class="line" d="M1095 310 C1095 345 1015 335 1015 370"/>
 
-  <path class="line" d="M485 505 C485 545 750 540 750 590"/>
-  <path class="line" d="M485 505 C485 545 1235 530 1235 590"/>
-  <path class="line" d="M1015 505 C1015 545 265 530 265 590"/>
-  <path class="line" d="M1015 505 C1015 545 750 540 750 590"/>
-  <path class="line" d="M1015 505 C1015 545 1235 540 1235 590"/>
+  <path class="line" d="M485 480 C485 535 750 535 750 590"/>
+  <path class="line" d="M485 480 C485 535 1235 525 1235 590"/>
+  <path class="line" d="M1015 480 C1015 535 265 525 265 590"/>
+  <path class="line" d="M1015 480 C1015 535 750 535 750 590"/>
+  <path class="line" d="M1015 480 C1015 535 1235 535 1235 590"/>
 
   <path class="line" d="M265 660 C265 700 980 680 980 725"/>
   <path class="line" d="M750 660 C750 695 520 690 520 725"/>
@@ -60,17 +60,15 @@
   <text class="stage" x="1470" y="278">① 点集</text>
 
   <!-- 标签和数值各自选择预测方式。 -->
-  <rect class="component" x="265" y="370" width="440" height="135" rx="10"/>
+  <rect class="component" x="265" y="370" width="440" height="110" rx="10"/>
   <text class="box-title" x="485" y="402">标签预测：比较候选码流</text>
   <text class="box-text" x="485" y="434">不使用时间：当前空间DAG</text>
   <text class="box-text" x="485" y="462">使用时间：上一time step</text>
-  <text class="box-text" x="485" y="490">统一处理：统一时空DAG</text>
 
-  <rect class="component" x="795" y="370" width="440" height="135" rx="10"/>
+  <rect class="component" x="795" y="370" width="440" height="110" rx="10"/>
   <text class="box-title" x="1015" y="402">数值预测：比较候选码流</text>
   <text class="box-text" x="1015" y="434">不使用时间：当前空间DAG</text>
   <text class="box-text" x="1015" y="462">使用时间：上一time step／时间插值</text>
-  <text class="box-text" x="1015" y="490">联合时空：统一时空DAG</text>
   <text class="stage" x="1470" y="442">② 分别选择预测方式</text>
 
   <!-- 核心执行路径。 -->

@@ -21,36 +21,9 @@ namespace unsz
             prediction_structure_c<T_calc>&structure=prediction_structure_vec[structure_id];
             if(structure.eb_multiplier.size()!=structure.target_ids.size())
                 structure.eb_multiplier=generate_pred_eb_multiplier_vec(structure.target_id_groups,(uint32_t)structure.target_ids.size(),structure_id==0);
-        }
-        if(value_flow=="joint_spatiotemporal")
-        {
-            if(original_data_path_vec.empty()||point_num%original_data_path_vec.size()!=0)
-                throw runtime_error("联合时空点数不能被time step数量整除");
-            uint32_t spatial_point_num=point_num/original_data_path_vec.size();
-            uint64_t cross_time_ref_num=0,total_ref_num=0,target_with_cross_time_ref_num=0;
-            auto accumulate_cross_time_references=[&](const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin)
-            {
-                for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
-                {
-                    int pred_id=target_ids[prediction_index];
-                    bool has_cross_time_ref=false;
-                    for(uint64_t ref_offset=ref_begin[prediction_index];ref_offset<ref_begin[prediction_index+1];ref_offset++)
-                    {
-                        int ref_id=ref_ids[ref_offset];
-                        bool cross_time_ref=pred_id!=ref_id&&pred_id%spatial_point_num==ref_id%spatial_point_num;
-                        cross_time_ref_num+=cross_time_ref;
-                        total_ref_num++;
-                        has_cross_time_ref|=cross_time_ref;
-                    }
-                    target_with_cross_time_ref_num+=has_cross_time_ref;
-                }
-            };
-            for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
-                accumulate_cross_time_references(structure.target_ids,structure.reference_ids,structure.reference_offsets);
-            double cross_time_edge_ratio=0;
-            if(total_ref_num>0)
-                cross_time_edge_ratio=(double)cross_time_ref_num/total_ref_num;
-            printf("cross_time_reference_targets=%llu, target_ratio=%f, reference_edges=%llu, edge_ratio=%f\n",(unsigned long long)target_with_cross_time_ref_num,(double)target_with_cross_time_ref_num/point_num,(unsigned long long)cross_time_ref_num,cross_time_edge_ratio);
+            structure.inverse_eb_multiplier.resize(structure.eb_multiplier.size());
+            for(uint32_t prediction_index=0;prediction_index<structure.eb_multiplier.size();prediction_index++)
+                structure.inverse_eb_multiplier[prediction_index]=1/structure.eb_multiplier[prediction_index];
         }
         double validation_time=0;
         if(load_existing_dag_cache)
@@ -142,16 +115,6 @@ namespace unsz
     template<point_set_codec_e predictor,typename T_coord,typename T_data>
     void compress_with_predictor(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point preprocessing_start_time)
     {
-        if(param.value_flow=="joint_spatiotemporal")
-        {
-            if(param.point_set_config_vec.size()!=1&&param.point_set_config_vec.size()!=2)
-                throw runtime_error("联合时空压缩只支持一个或两个点集");
-            if(param.point_set_config_vec.size()==2&&param.label_value_execution!="staged"&&param.label_value_execution!="fused")
-                throw runtime_error("two_point_sets只支持staged或fused执行方式");
-            param.prepare_joint_spatiotemporal_coordinates();
-            param.preprocess_compression(preprocessing_start_time);
-            return param.template compress_joint_spatiotemporal_files<predictor>();
-        }
         if(param.point_set_config_vec.size()==1)
         {
             param.resolve_single_point_set_time_mode();
