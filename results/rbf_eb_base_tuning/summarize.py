@@ -9,7 +9,7 @@ from py_codes.plot_dataset_rd import calculate_bd_rate
 from benchmark import base_name,dataset_config_map,result_root
 
 shape_result_root=project_root/"results/rbf_shape_tuning"
-base_vec=(0.8,0.85,0.9)
+base_vec=(0.75,0.8,0.85,0.9)
 
 def geometric_mean(values):
     return math.exp(sum(math.log(value) for value in values)/len(values))

@@ -72,7 +72,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         param.generate_rbf_weights_from_loaded_dag();
     for(auto&structure:param.prediction_structure_vec)
         if(structure.eb_multiplier.size()!=structure.target_ids.size())
-            structure.eb_multiplier=param.generate_pred_eb_multiplier_vec(structure.target_id_groups,(uint32_t)structure.target_ids.size());
+            structure.eb_multiplier=param.generate_pred_eb_multiplier_vec((uint32_t)structure.target_ids.size());
     double validation_time=0;
     if(loaded_dag_cache)
     {
@@ -285,6 +285,16 @@ int decompress_main(int argc,char **argv)
             if(param.coordinate_transform_auto_threshold>1)
                 throw runtime_error("-coordinate-transform-threshold必须在(0,1]内");
         }
+        else if(option=="-coordinate-transform-first-sample-ratio")
+        {
+            param.coordinate_transform_first_sample_ratio=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
+            if(param.coordinate_transform_first_sample_ratio>1)
+                throw runtime_error("-coordinate-transform-first-sample-ratio必须在(0,1]内");
+        }
+        else if(option=="-coordinate-transform-second-sample-num")
+            param.coordinate_transform_second_sample_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if(option=="-coordinate-transform-sample-file-num")
+            param.coordinate_transform_sample_file_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-decompression-stage-time")
             param.print_compression_stage_time=true;
         else if(option=="-label-value-execution")
@@ -303,7 +313,7 @@ int decompress_main(int argc,char **argv)
         {
             param.eb_schedule=read_option_value(argc,argv,arg_id,option);
             param.eb_schedule_start_ratio=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-            if(param.eb_schedule!="none"&&param.eb_schedule!="round"&&param.eb_schedule!="point"&&param.eb_schedule!="inverse_rank_log2"&&param.eb_schedule!="round_point"&&param.eb_schedule!="round_ratio"&&param.eb_schedule!="round_point_ratio")
+            if(param.eb_schedule!="none"&&param.eb_schedule!="inverse_rank_log2")
                 throw runtime_error("未知的EB序列模式："+param.eb_schedule);
             if (param.eb_schedule_start_ratio>1)
                 throw runtime_error("-eb-schedule的起始倍率不能大于1");

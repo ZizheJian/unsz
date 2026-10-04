@@ -165,7 +165,7 @@ JSON最外层是task list；同一个JSON可以包含不同数据目录的任务
 ]
 ```
 
-`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF要求`prediction_min_ref_num`与`prediction_max_ref_num`相等；只在完整参考点集合可用时执行RBF，否则固定退化为最近的同点集参考点，不再提供部分参考点RBF或IDW fallback。IDW仍允许两个参数不同，并在可用同点集参考点上重新归一化。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope="local"`时先把点分轮，再在各轮内部排序，并通过`prediction_round_num`明确记录轮数；`ordering_scope="global"`时只生成一条完整顺序，不接受`prediction_round_num`，也不能使用名称中含`round`的逐轮EB序列。global可以使用`none`、`point`或连续的`inverse_rank_log2`。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时间流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、标签/数值执行方式、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`和`.unsz.bin`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
+`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF要求`prediction_min_ref_num`与`prediction_max_ref_num`相等；只在完整参考点集合可用时执行RBF，否则固定退化为最近的同点集参考点，不再提供部分参考点RBF或IDW fallback。IDW仍允许两个参数不同，并在可用同点集参考点上重新归一化。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope="local"`时先把点分轮，再在各轮内部排序，并通过`prediction_round_num`明确记录轮数；`ordering_scope="global"`时只生成一条完整顺序，不接受`prediction_round_num`。`eb_schedule`只支持不调整误差界的`none`和按预测位置连续变化的`inverse_rank_log2`；后者记录`base`、`log2_shift`和`max_log2_exponent`。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时间流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、标签/数值执行方式、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`和`.unsz.bin`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
 
 UMC任务在独立解压完成后始终逐点读取原始field和磁盘上的`.umc.out`。检查使用NumPy分块计算每个time step的数据范围、最大误差和总MSE，验证逐点REL误差界，并核对磁盘PSNR与UMC压缩端和解压端报告一致；该检查在UMC程序计时之外执行，不计入核心压缩或解压时间。
 
@@ -257,7 +257,7 @@ UNSZ目前实现了以下压缩流程：
 - `"on"`：训练并始终应用坐标变换。
 - `"auto"`：训练后根据收益判据决定是否应用；默认阈值为`0.2`，可用`coordinate_transform_threshold`修改。
 
-训练固定使用最多3个均匀分布的time step。每个训练文件先以固定随机种子保留25%的有效点建立kd-tree，再在这些点中总共选取最多3000个目标；每个目标使用正式预测器的`prediction_max_ref_num`个近邻形成训练点对。当前只学习各坐标轴的对角缩放，不混合坐标轴，也不执行第二轮重新采样。
+训练默认使用最多3个均匀分布的time step。每个训练文件先以固定随机种子保留30%的点建立kd-tree，再在这些点中总共选取最多3000个目标；每个目标使用正式预测器的`prediction_max_ref_num`个近邻形成训练点对。task可通过`coordinate_transform_sample_file_num`、`coordinate_transform_first_sample_ratio`和`coordinate_transform_second_sample_num`修改这三个参数。当前只学习各坐标轴的对角缩放，不混合坐标轴，也不执行第二轮重新采样。
 
 对每个训练点对，令数值差为`Δv`、原始坐标差为`Δc`，训练对角向量`s`使以下损失最小：
 
@@ -495,8 +495,8 @@ $$
     <tr>
       <td>调整局部排序的轮数、相邻轮的数据量比例和逐轮EB</td>
       <td>已完成</td>
-      <td>局部排序仍需要先分轮再分别排序，默认使用<code>8轮+EB公比0.8</code>；全局排序已经没有预测意义上的轮，不再沿用分段EB倍率</td>
-      <td>局部排序保留8轮、相邻轮的数据量比例2和EB公比0.8；全局排序使用按预测位置连续变化的EB倍率</td>
+      <td>局部排序仍需要先分轮再分别排序；两种范围均使用按预测位置连续变化的EB倍率</td>
+      <td>局部排序保留8轮和相邻轮的数据量比例2；局部与全局统一使用<code>inverse_rank_log2</code></td>
     </tr>
     <tr>
       <td>根据一个重构点会影响多少后续预测来分配EB</td>

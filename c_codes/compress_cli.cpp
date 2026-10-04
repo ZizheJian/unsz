@@ -267,6 +267,26 @@ namespace unsz
                 if(param.coordinate_transform_auto_threshold>1)
                     throw runtime_error("-coordinate-transform-threshold必须在(0,1]内");
             }
+            else if(strcmp(argv[arg_id],"-coordinate-transform-first-sample-ratio")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-coordinate-transform-first-sample-ratio后面缺少比例");
+                param.coordinate_transform_first_sample_ratio=parse_positive_double(argv[++arg_id],"-coordinate-transform-first-sample-ratio");
+                if(param.coordinate_transform_first_sample_ratio>1)
+                    throw runtime_error("-coordinate-transform-first-sample-ratio必须在(0,1]内");
+            }
+            else if(strcmp(argv[arg_id],"-coordinate-transform-second-sample-num")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-coordinate-transform-second-sample-num后面缺少数量");
+                param.coordinate_transform_second_sample_num=parse_positive_uint32(argv[++arg_id],"-coordinate-transform-second-sample-num");
+            }
+            else if(strcmp(argv[arg_id],"-coordinate-transform-sample-file-num")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-coordinate-transform-sample-file-num后面缺少数量");
+                param.coordinate_transform_sample_file_num=parse_positive_uint32(argv[++arg_id],"-coordinate-transform-sample-file-num");
+            }
             else if (strcmp(argv[arg_id],"-compression-stage-time")==0)
                 param.print_compression_stage_time=true;
             else if(strcmp(argv[arg_id],"-label-value-execution")==0)
@@ -291,7 +311,7 @@ namespace unsz
                     throw runtime_error("-eb-schedule后面需要模式和起始倍率");
                 param.eb_schedule=argv[++arg_id];
                 param.eb_schedule_start_ratio=parse_positive_double(argv[++arg_id],"-eb-schedule");
-                if(param.eb_schedule!="none"&&param.eb_schedule!="round"&&param.eb_schedule!="point"&&param.eb_schedule!="inverse_rank_log2"&&param.eb_schedule!="round_point"&&param.eb_schedule!="round_ratio"&&param.eb_schedule!="round_point_ratio")
+                if(param.eb_schedule!="none"&&param.eb_schedule!="inverse_rank_log2")
                     throw runtime_error("未知的EB序列模式："+param.eb_schedule);
                 if (param.eb_schedule_start_ratio>1)
                     throw runtime_error("-eb-schedule的起始倍率不能大于1");

@@ -14,7 +14,7 @@ dataset_config_map={
     "haiyan":"adcirc-haiyan-zeta-fused",
     "katrina":"katrina",
 }
-base_vec=(0.8,0.9)
+base_vec=(0.75,)
 
 def expected_row_num(task):
     unsz=task["unsz"]
@@ -50,7 +50,7 @@ def make_task(base_task,dataset,base,field):
     return task
 
 def main():
-    parser=argparse.ArgumentParser(description="固定最终RBF参数，测试两个额外inverse_rank_log2 EB base")
+    parser=argparse.ArgumentParser(description="固定最终RBF参数，测试inverse_rank_log2 EB base=0.75")
     parser.add_argument("dataset",choices=tuple(dataset_config_map))
     arguments=parser.parse_args()
     base_tasks=load_json_tasks(resolve_json_path(dataset_config_map[arguments.dataset]))

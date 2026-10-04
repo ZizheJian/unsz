@@ -63,8 +63,6 @@ namespace unsz
             throw runtime_error("local排序必须显式设置-prediction-round-num");
         if(ordering_scope=="global")
             prediction_round_num=1;
-        if(ordering_scope=="global"&&eb_schedule.find("round")!=string::npos)
-            throw runtime_error("global排序不能使用逐轮EB序列");
         if(uses_rbf&&prediction_min_ref_num<2)
             throw runtime_error("RBF的prediction_min_ref_num不能小于2");
     }

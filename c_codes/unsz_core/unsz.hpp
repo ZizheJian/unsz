@@ -343,6 +343,9 @@ namespace unsz
             string label_flow="none";
             string coordinate_transform_mode="off";//off / on / auto
             double coordinate_transform_auto_threshold=0.2;
+            double coordinate_transform_first_sample_ratio=0.3;
+            uint32_t coordinate_transform_second_sample_num=3000;
+            uint32_t coordinate_transform_sample_file_num=3;
             bool use_coordinate_transform=false;
             vector<double> coordinate_transform_diagonal;
             vector<vector<T_data>> coordinate_transform_training_data;
@@ -357,9 +360,9 @@ namespace unsz
             uint32_t partition_size=0;//0表示不分区；非0时所有参考点必须来自同一partition
             uint32_t partition_num=0;//直接指定2、4、8等2的幂个partition
             uint32_t thread_num=1;
-            string eb_schedule="round_point_ratio";//none / round / point / inverse_rank_log2 / round_point / round_ratio / round_point_ratio
+            string eb_schedule="inverse_rank_log2";//none / inverse_rank_log2
             double eb_schedule_start_ratio=0.8;
-            double eb_schedule_log2_shift=0;//inverse_rank_log2的指数位移
+            double eb_schedule_log2_shift=0.5;//inverse_rank_log2的指数位移
             double eb_schedule_max_log2_exponent=7;//inverse_rank_log2的最小EB倍率由该指数限制，不依赖预测轮数
             uint32_t prediction_round_num=8;
             double round_size_growth_ratio_experimental=2;
@@ -434,7 +437,7 @@ namespace unsz
             void build_partitions();
             vector<uint32_t> get_round_target_num_vec(uint32_t local_point_num) const;
             void generate_partition_prediction_structures(bool uses_idw,bool uses_rbf);
-            vector<double> generate_pred_eb_multiplier_vec(const vector<vector<int>>&target_id_groups,uint32_t target_num,bool print_statistics=false);
+            vector<double> generate_pred_eb_multiplier_vec(uint32_t target_num,bool print_statistics=false);
             void write_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,T_calc *weights,array_view_c<T_coord> target_ref_squared_distances={});
             void append_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
             void generate_prediction_structures_and_weights();

@@ -7,7 +7,7 @@ namespace unsz
     {
         if(coordinate_transform_mode=="off")
             return;
-        uint32_t sample_file_num=min<uint32_t>(3,original_data_path_vec.size());
+        uint32_t sample_file_num=min<uint32_t>(coordinate_transform_sample_file_num,original_data_path_vec.size());
         coordinate_transform_training_data.resize(sample_file_num);
         for(uint32_t sample_file_id=0;sample_file_id<sample_file_num;sample_file_id++)
         {
@@ -77,22 +77,20 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::train_coordinate_transform()
     {
-        constexpr double first_sample_ratio=0.25;
-        constexpr uint32_t second_sample_num=3000;
         if(coordinate_transform_training_data.empty())
             throw runtime_error("坐标变换缺少训练数据");
-        uint32_t first_sample_num=max<uint32_t>(1,(uint32_t)ceil(point_num*first_sample_ratio));
+        uint32_t first_sample_num=max<uint32_t>(1,(uint32_t)ceil(point_num*coordinate_transform_first_sample_ratio));
         vector<int> first_sample_ids(point_num);
         iota(first_sample_ids.begin(),first_sample_ids.end(),0);
         mt19937 random_generator(0);
         shuffle(first_sample_ids.begin(),first_sample_ids.end(),random_generator);
         first_sample_ids.resize(first_sample_num);
         sort(first_sample_ids.begin(),first_sample_ids.end());
-        printf("coordinate transform first sample ratio=%.6f,points=%u/%u,planned second targets=%llu\n",first_sample_ratio,first_sample_num,point_num,(unsigned long long)min<uint64_t>(second_sample_num,(uint64_t)first_sample_num*coordinate_transform_training_data.size()));
+        printf("coordinate transform first sample ratio=%.6f,points=%u/%u,planned second targets=%llu\n",coordinate_transform_first_sample_ratio,first_sample_num,point_num,(unsigned long long)min<uint64_t>(coordinate_transform_second_sample_num,(uint64_t)first_sample_num*coordinate_transform_training_data.size()));
 
         vector<double> coordinate_differences,value_differences;
-        coordinate_differences.reserve((uint64_t)second_sample_num*prediction_max_ref_num*dim);
-        value_differences.reserve((uint64_t)second_sample_num*prediction_max_ref_num);
+        coordinate_differences.reserve((uint64_t)coordinate_transform_second_sample_num*prediction_max_ref_num*dim);
+        value_differences.reserve((uint64_t)coordinate_transform_second_sample_num*prediction_max_ref_num);
         auto value_is_trainable=[&](T_data value)
         {
             if(!isfinite(value))
@@ -122,7 +120,7 @@ namespace unsz
                 active_max_coord[d]=max(active_max_coord[d],coord_array[point_id][d]);
             }
         block_tree_c<T_coord> tree(coord_array,active_min_coord,active_max_coord,first_sample_ids,kd_tree_leaf_size);
-        uint32_t remaining_target_num=second_sample_num;
+        uint32_t remaining_target_num=coordinate_transform_second_sample_num;
         for(uint32_t sample_file_id=0;sample_file_id<coordinate_transform_training_data.size();sample_file_id++)
         {
             const vector<T_data>&data=coordinate_transform_training_data[sample_file_id];
@@ -167,7 +165,7 @@ namespace unsz
         printf("coordinate transform sampled targets=%u,retained targets=%u,complete targets=%u,pairs=%llu\n",sampled_target_num,retained_target_num,complete_target_num,(unsigned long long)value_differences.size());
 
         vector<double> diagonal(dim,1);
-        uint32_t function_evaluation_num=0;
+        uint32_t function_evaluation_num=0,accepted_step_num=0;
         for(uint32_t iteration=0;iteration<100&&function_evaluation_num<100;iteration++)
         {
             vector<double> normal_matrix((uint64_t)dim*dim,0),normal_gradient(dim,0);
@@ -223,6 +221,7 @@ namespace unsz
                 {
                     double relative_reduction=(squared_loss-candidate_loss)/max(squared_loss,numeric_limits<double>::min());
                     diagonal=move(candidate);
+                    accepted_step_num++;
                     accepted=true;
                     if(relative_reduction<=1e-10)
                         iteration=100;
@@ -233,6 +232,7 @@ namespace unsz
             if(!accepted)
                 break;
         }
+        printf("coordinate transform optimization accepted steps=%u,function evaluations=%u\n",accepted_step_num,function_evaluation_num);
         for(double&value:diagonal)
             value=abs(value);
         double diagonal_squared_norm=inner_product(diagonal.begin(),diagonal.end(),diagonal.begin(),0.0);

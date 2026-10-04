@@ -164,6 +164,8 @@ def build_predictor_arguments(predictor):
     return predictor_name,arguments
 
 def build_eb_schedule_arguments(eb_schedule):
+    if eb_schedule["name"] not in ("none","inverse_rank_log2"):
+        raise ValueError(f"未知EB序列模式：{eb_schedule['name']}")
     arguments=["-eb-schedule",eb_schedule["name"],eb_schedule["base"]]
     if eb_schedule["name"]=="inverse_rank_log2":
         arguments.extend(("-eb-schedule-log2-shift",eb_schedule["log2_shift"],"-eb-schedule-max-log2-exponent",eb_schedule["max_log2_exponent"]))
@@ -198,6 +200,12 @@ def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expre
         arguments.extend(("-coordinate-transform",coordinate_transform))
     if "coordinate_transform_threshold" in config:
         arguments.extend(("-coordinate-transform-threshold",config["coordinate_transform_threshold"]))
+    if "coordinate_transform_first_sample_ratio" in config:
+        arguments.extend(("-coordinate-transform-first-sample-ratio",config["coordinate_transform_first_sample_ratio"]))
+    if "coordinate_transform_second_sample_num" in config:
+        arguments.extend(("-coordinate-transform-second-sample-num",config["coordinate_transform_second_sample_num"]))
+    if "coordinate_transform_sample_file_num" in config:
+        arguments.extend(("-coordinate-transform-sample-file-num",config["coordinate_transform_sample_file_num"]))
     has_partition_num="partition_num" in config
     has_partition_size="partition_size" in config
     if has_partition_num and has_partition_size:

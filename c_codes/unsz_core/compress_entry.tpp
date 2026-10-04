@@ -21,7 +21,7 @@ namespace unsz
         {
             prediction_structure_c<T_calc>&structure=prediction_structure_vec[structure_id];
             if(structure.eb_multiplier.size()!=structure.target_ids.size())
-                structure.eb_multiplier=generate_pred_eb_multiplier_vec(structure.target_id_groups,(uint32_t)structure.target_ids.size(),structure_id==0);
+                structure.eb_multiplier=generate_pred_eb_multiplier_vec((uint32_t)structure.target_ids.size(),structure_id==0);
             structure.inverse_eb_multiplier.resize(structure.eb_multiplier.size());
             for(uint32_t prediction_index=0;prediction_index<structure.eb_multiplier.size();prediction_index++)
                 structure.inverse_eb_multiplier[prediction_index]=1/structure.eb_multiplier[prediction_index];
