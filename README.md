@@ -123,8 +123,7 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0
 |---|---|
 | `t1_start_c_code.py` | 正式实验通用入口，只接受一个JSON位置参数：`configs/`中的JSON名称或任意JSON路径，例如`./unsz_env/bin/python t1_start_c_code.py tsunami`或`./unsz_env/bin/python t1_start_c_code.py /path/to/test.json`。包含UNSZ任务时，入口默认先执行CMake配置、增量构建和安装；临时复用现有安装时可添加`--skip-build`。随后直接构造并执行UNSZ或UMC命令，不再调用第二层Python实验入口，结果直接写入CSV。入口不会编译UMC，UMC需要提前手动编译。 |
 | `py_codes/parse_unsz_output.py`、`py_codes/parse_umc_output.py` | 只解析并核对压缩器输出，不负责调度或启动实验。 |
-| `t2_adjust_coord.py` | 训练坐标变换矩阵。命令行与`t1_start_c_code.py`一样只接受一个JSON名称或路径，并依次训练每个task的全部field；Python函数`train_adjust_coord()`直接接收已经选定field的配置，仍可调整loss、采样、优化器、预测器、训练参考点数和输出路径。 |
-| `t3_visualize.py` | 生成Katrina attr0与Ocean temperature坐标变换前后的field图像，以及Tsunami最佳与最差field的原网格图像 |
+| `t3_visualize.py` | 读取C++压缩器生成的`*.unsz.coord_transform.txt`，生成Katrina attr0坐标变换前后的field图像，以及Tsunami最佳与最差field的原网格图像 |
 | `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h0、E3SM-h4、ADCIRC Haiyan、Tsunami、TAPS和Ocean-large发布数据转换为UNSZ/UMC共用的平坦二进制基准输入；共享工具位于同目录的`prepare_dataset_common.py` |
 | `py_codes/run_spatial_field_benchmark.slurm` | 在Slurm节点上运行环境变量`CONFIG`明确指定的完整task JSON，不在运行时拆分或改写JSON |
 | `py_codes/run_configurations.slurm` | 以Slurm array依次把当前9个正式数据集JSON交给`t1_start_c_code.py`。 |
@@ -166,7 +165,7 @@ JSON最外层是task list；同一个JSON可以包含不同数据目录的任务
 ]
 ```
 
-`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF在同点集参考点不足或权重求解失败时固定退化为最近的同点集参考点，不再提供IDW fallback。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数；同点集参考点少于`prediction_min_ref_num`时，RBF触发最近点fallback。当前正式RBF配置的上下限相同，IDW的下限为1。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope="local"`时先把点分轮，再在各轮内部排序，并通过`prediction_round_num`明确记录轮数；`ordering_scope="global"`时只生成一条完整顺序，不接受`prediction_round_num`，也不能使用名称中含`round`的逐轮EB序列。global可以使用`none`、`point`或连续的`inverse_rank_log2`。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时间流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、标签/数值执行方式、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`和`.unsz.bin`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
+`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF要求`prediction_min_ref_num`与`prediction_max_ref_num`相等；只在完整参考点集合可用时执行RBF，否则固定退化为最近的同点集参考点，不再提供部分参考点RBF或IDW fallback。IDW仍允许两个参数不同，并在可用同点集参考点上重新归一化。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope="local"`时先把点分轮，再在各轮内部排序，并通过`prediction_round_num`明确记录轮数；`ordering_scope="global"`时只生成一条完整顺序，不接受`prediction_round_num`，也不能使用名称中含`round`的逐轮EB序列。global可以使用`none`、`point`或连续的`inverse_rank_log2`。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时间流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。`eb_schedule`记录EB曲线的`name`和`base`；连续的`inverse_rank_log2`还记录`log2_shift`和`max_log2_exponent`。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、标签/数值执行方式、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`和`.unsz.bin`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
 
 UMC任务在独立解压完成后始终逐点读取原始field和磁盘上的`.umc.out`。检查使用NumPy分块计算每个time step的数据范围、最大误差和总MSE，验证逐点REL误差界，并核对磁盘PSNR与UMC压缩端和解压端报告一致；该检查在UMC程序计时之外执行，不计入核心压缩或解压时间。
 
@@ -175,7 +174,6 @@ UMC任务在独立解压完成后始终逐点读取原始field和磁盘上的`.u
 ```bash
 ./unsz_env/bin/python t3_visualize.py
 ./unsz_env/bin/python t3_visualize.py -dataset katrina
-./unsz_env/bin/python t3_visualize.py -dataset ocean-temperature
 ./unsz_env/bin/python t3_visualize.py -dataset tsunami-velocity-x
 ./unsz_env/bin/python t3_visualize.py -dataset tsunami-height
 ```
@@ -253,259 +251,53 @@ UNSZ目前实现了以下压缩流程：
 
 ## 2.2. 生成坐标变换矩阵
 
-UNSZ根据点之间的距离选择参考点，但原始坐标中的距离不一定能反映数据是否容易互相预测。例如Katrina的z轴被严重拉伸，坐标上最近的点不一定是数值上最接近的点。Adjust coord用少量训练文件提前学习一个下三角矩阵`C`，以后只根据公共坐标和这个矩阵生成预测关系和计算距离。需要注意的是，并不是所有数据都应该生成坐标变换矩阵，并且没有一个优化目标能够精确指出哪个矩阵更好。
+坐标变换已并入C++预处理，不再使用独立的Python训练程序或预先生成的下三角矩阵。task中的`coordinate_transform`支持：
 
-待验证的简化方案是只学习或扫描各坐标轴的缩放比例，不使用轴间混合，并在相同预测器、排序和PSNR下比较BR。不能先认定Katrina现有矩阵等价于纯z缩放：当前矩阵中z到x、y的系数约为`-0.00534/-0.00258`，乘上原始z跨度后，对x、y距离的影响可能与这两轴自身跨度同量级。轴向缩放若仍用于生成顺序、选择参考点和计算RBF权重，压缩端与解压端必须使用相同的缩放比例。
+- `"off"`：不训练也不应用坐标变换。
+- `"on"`：训练并始终应用坐标变换。
+- `"auto"`：训练后根据收益判据决定是否应用；默认阈值为`0.2`，可用`coordinate_transform_threshold`修改。
 
-正式训练入口只指定一份task JSON。例如：
+训练固定使用最多3个均匀分布的time step。每个训练文件先以固定随机种子保留25%的有效点建立kd-tree，再在这些点中总共选取最多3000个目标；每个目标使用正式预测器的`prediction_max_ref_num`个近邻形成训练点对。当前只学习各坐标轴的对角缩放，不混合坐标轴，也不执行第二轮重新采样。
 
-```bash
-./unsz_env/bin/python t2_adjust_coord.py katrina
-```
+对每个训练点对，令数值差为`Δv`、原始坐标差为`Δc`，训练对角向量`s`使以下损失最小：
 
-`t2`通过`t1_start_c_code.load_json_tasks()`读取明确指定的JSON，不会扫描`configs/`并根据dataset猜测配置文件。它依次使用每个task的数据路径、维数、time step数和最终数值预测器。正式训练所需的loss、优化器、采样数量、迭代数、矩阵混合参数、训练REL EB和输出矩阵文件名都必须在task中显式记录；缺少字段时直接报错，不从其他参数推导，也不使用隐藏默认值。命令行不提供单独的训练参数，避免正式矩阵使用不同协议。需要只训练部分field时，应提供只包含这些task或field的JSON；做消融时可以调用`t2_adjust_coord.train_adjust_coord()`，通过函数参数明确覆盖训练配置。更底层的`adjust_coord()`保留完整参数接口。
+$$
+L_{\mathrm{diag}}=\min_{s,a}\sum_i\left(|\Delta v_i|-a\lVert\Delta c_i\odot s\rVert_2\right)^2.
+$$
 
-坐标按照`c'=cC`变换，训练希望两个点的数值差与它们在新坐标中的距离接近：
+训练使用Gauss–Newton法；求解后把`s`归一化，使其平方和等于坐标维数。自动判据还计算两个基线：
+
+$$
+L_0=\sum_i|\Delta v_i|^2,
+\qquad
+L_{\mathrm{iso}}=\min_a\sum_i(|\Delta v_i|-a\lVert\Delta c_i\rVert_2)^2.
+$$
+
+最终收益定义为：
+
+$$
+g=\max\left(0,\frac{L_{\mathrm{iso}}-L_{\mathrm{diag}}}{L_0-L_{\mathrm{iso}}}\right).
+$$
+
+`auto`模式仅在`g`不小于阈值时应用变换。变换后的坐标用于建树、生成DAG和计算预测权重；数据值本身不变。
+
+压缩器把本次训练结果写到数据目录中的`<field>.unsz.coord_transform.txt`。文件以明文记录维数、是否启用、收益和每个坐标轴的缩放值；解压器读取同一文件，不重新训练。例：
 
 ```text
-|v1-v2|≈||(c1-c2)C||₂
+UNSZ_COORDINATE_TRANSFORM 2
+dimension 3
+enabled 1
+gain 0.42
+diagonal 1.31 0.74 0.08
 ```
 
-这个过程是迭代式的。迭代轮数由task中的`adjust_coord_iteration_num`明确给出；Katrina的码长loss在第3轮后明显退化，因此当前配置使用2轮。
-
-训练不需要读取所有time step，而是在整个时间范围内等间隔选择task中`adjust_coord_sample_file_num`指定数量的文件。Katrina当前明确设置为3，因此162个文件中会读取第27、80和134个文件。随后，每轮迭代中依次执行采样、训练和后处理。
-
-### 2.2.1. 采样
-
-每轮迭代要做两次采样。第一次采样决定用哪些点建立近邻树，主要控制建树和查询的规模；第二次采样只从树上的点中挑选一部分作为目标，主要控制交给优化器的点对数量。具体过程如下：
-
-1. 从全部坐标中无放回地随机选择`ceil(point_num×first_sample_ratio)`个点；比例由task中的`adjust_coord_first_sample_ratio`明确给出，Katrina当前使用25%。选出的编号会排序，因此没有重复且保持原始点编号顺序。第一次采样不能太稀疏，否则树上的“最近点”会离目标太远，无法代表完整点云中的局部关系。
-2. 对每个训练文件分别删除这批点中的异常值。当前Python版本只通过`is_abnormal()`把点分为正常和异常两类，并且不让异常点参与训练。由于异常点的位置会随time step改变，每个文件最终留下的点可能不同。
-3. 从每个文件剩余的点中再次无放回地随机选择目标，也就是训练点对的第一个点。目标数由task中的`adjust_coord_second_sample_num`明确给出，并尽量平均分给各训练文件，从而不让点数或time step数量改变优化器的输入规模；Katrina当前使用100000个目标。Python函数可以通过`second_sample_num`覆盖该固定数量；只有显式设为0时才改用`ceil(第一次采样点数×训练文件数×second_sample_ratio)`。
-4. 对每个文件单独建立一棵`cKDTree`。树上的坐标先经过当前`C`变换；查询时选择`prediction_max_ref_num`个近邻作为点对的第二个点。正式`t2`从对应task读取实际预测器的参考点数，因此当前Tsunami配置中每个目标使用10个近邻；Python函数仍可显式覆盖该数值。
-5. 对每个点对记录数值差`Δv`和未经变换的原始坐标差`Δc`。
-
-采样相关方案如下：
-
-<table class="fixed-layout-table" width="100%">
-  <colgroup>
-    <col width="20%">
-    <col width="10%">
-    <col width="42%">
-    <col width="28%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th width="20%">优化方案</th>
-      <th width="10%">当前状态</th>
-      <th width="42%">已有结论</th>
-      <th width="28%">下一步</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>第一次采样密度和第二次目标数量</td>
-      <td>待验证</td>
-      <td>降低第一次采样率会减少建树、近邻查询的时间和内存，但树中点变稀疏，查询到的近邻会比完整点云中的真实近邻更远，可能使训练矩阵失真，Katrina当前使用25%。第二次采样只控制作为训练目标的点数，基本上决定adjust coord的速度。Katrina码长loss从10000增加到31324、60000和100000个目标时实际BR持续改善，当前配置固定为100000；其他field在建立正式训练配置时也必须显式记录该值。</td>
-      <td>新field先使用10000个目标；只有实际压缩验证表明扩样有效时再增加</td>
-    </tr>
-    <tr>
-      <td>随机选定矩形区域作为样本</td>
-      <td>放弃</td>
-      <td>没有表现出稳定优势。在LES velocity_x上，固定采样点数并估算区域大小时，使用2或4个区域只让BR降低约<code>0.30%</code>，使用1或8个区域却分别使BR增加<code>27.88%/0.49%</code>。旧Ocean velocityZonal实验中的四维4区域方案曾比零阶外插降低<code>8.920%</code> BD-rate，但该实验同时改用了联合四维预测，无法证明收益来自区域采样；联合四维方案本身也已被更好的时间预测方案取代。因此现有结果不支持继续使用矩形区域采样</td>
-      <td>不再作为训练候选；只在trash中保留历史实现和结果用于复现</td>
-    </tr>
-    <tr>
-      <td>训练使用与实际压缩相同的参考点数</td>
-      <td>已采纳</td>
-      <td>训练与实际压缩使用相同的预测器参数，包括参考点数。此前固定使用4个训练近邻的结果只保留为历史消融，不再作为正式矩阵</td>
-      <td>每次修改field的预测参考点数后重新训练并复测矩阵</td>
-    </tr>
-  </tbody>
-</table>
-
-### 2.2.2. 训练
-
-汇总所有样本点对的数值差和原始坐标差后，程序训练一个公共的下三角矩阵`C`。训练loss由task中的`adjust_coord_loss`明确指定；Katrina当前使用离散量化区间码长loss `prediction_ggd_bit`。程序从task JSON读取该field最终采用的IDW或RBF预测器及其参考点数、`idw_power`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`，再在真实数据上生成预测误差。二次方loss定义为：
-
-$$ L(C)=\sum_i\left(\lvert\Delta v_i\rvert-\lVert\Delta c_iC\rVert_2\right)^2 $$
-
-除了首轮以外，训练会以历史`C`作为初值。
-
-训练目标和优化器相关方案如下：
-
-<table class="fixed-layout-table" width="100%">
-  <colgroup>
-    <col width="20%">
-    <col width="10%">
-    <col width="42%">
-    <col width="28%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th width="20%">优化方案</th>
-      <th width="10%">当前状态</th>
-      <th width="42%">已有结论</th>
-      <th width="28%">下一步</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>量化区间码长loss</td>
-      <td>Katrina已采纳</td>
-      <td>这是当前<code>prediction_ggd_bit</code>的实现。使用预测器生成误差，闭式估计最大似然的GGD尺度参数（固定中心为0、形状参数为0.5），通过CDF之差估计每个误差附近的量化区间概率，并最小化累计估计码长。该方法依赖EB，而且没有先生成离散量化索引，因此只是量化码长的连续近似。Katrina使用100000个目标、训练REL EB <code>1e-3</code>和第2轮矩阵后，同PSNR BR比可复现的旧二次方loss矩阵降低<code>4.733%</code>。</td>
-      <td>在其他启用坐标变换的field上分别验证</td>
-    </tr>
-    <tr>
-      <td>GGD微分熵loss</td>
-      <td>已实现，待比较</td>
-      <td>这是最初设想的码长loss。设预测误差为<code>e_i(C)</code>，固定GGD中心为0、形状参数<code>β=0.5</code>，先闭式估计尺度参数：$$ \alpha(C)=\left(\frac{\beta}{n}\sum_i\lvert e_i(C)\rvert^\beta\right)^{1/\beta}. $$ 然后直接最小化微分熵：$$ h(C)=\frac{1/\beta+\ln\left(2\alpha(C)\Gamma(1/\beta)/\beta\right)}{\ln 2}. $$ 当<code>β=0.5</code>时，$$ h(C)=\frac{2+\ln(4\alpha(C))}{\ln 2}. $$ 它不量化预测误差，也不依赖EB。当前实现对IDW和零次多项式RBF提供解析梯度，并使用L-BFGS；在函数接口中传入<code>loss_function_name="prediction_ggd_differential_entropy"</code>即可选择，若希望`t2`命令行采用它，则在对应field task中记录<code>adjust_coord_loss</code>和<code>adjust_coord_optimizer="lbfgs"</code>。</td>
-      <td>与量化区间码长loss及二次方loss比较BR和训练时间</td>
-    </tr>
-    <tr>
-      <td>二次方loss</td>
-      <td>待验证</td>
-      <td>$$ L(C)=\sum_i\left(\lvert\Delta v_i\rvert-\lVert\Delta c_iC\rVert_2\right)^2 $$
-      比四次loss和对数loss要好（在稳定性和能够达到的最优压缩效果上），但疑似不如码长loss。另外速度也疑似比码长loss慢。
-      </td>
-      <td>需要和码长loss比较</td>
-    </tr>
-    <tr>
-      <td>新矩阵吸收率</td>
-      <td>按field选择</td>
-      <td>默认值仍为<code>0.5</code>。Katrina在100000样本、训练REL EB <code>1e-3</code>的第2轮比较<code>0.25/0.5/0.75/1.0</code>后选择<code>0.75</code></td>
-      <td>新field先使用默认值，只在实际BR对吸收率敏感时调节</td>
-    </tr>
-    <tr>
-      <td>外层训练迭代数</td>
-      <td>按field选择</td>
-      <td>默认值为4轮。Katrina码长loss逐轮实测后选择第2轮；第3和第4轮即使训练loss变化不大，实际BR也明显退化</td>
-      <td>保存并验证每一轮矩阵，不按训练loss自动选择</td>
-    </tr>
-    <tr>
-      <td>直接优化<code>M=CCᵀ</code></td>
-      <td>放弃</td>
-      <td>当前直接优化<code>C</code>会自动得到半正定的<code>CCᵀ</code>，列符号歧义也已通过统一正对角线解决。直接优化<code>M</code>时，平方loss仍包含<code>sqrt(ΔcMΔcᵀ)</code>，不会变成简单的线性最小二乘，反而还要额外施加半正定约束或进行投影</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>手写Gauss–Newton快速迭代</td>
-      <td>需要更新并重新验证</td>
-      <td>当前版本针对的是二次方loss，有明显的加速效果，只带来非常微小的br损失。</td>
-      <td>需要实现针对码长loss的版本，并验证</td>
-    </tr>
-    <tr>
-      <td>二次差分loss</td>
-      <td>放弃</td>
-      <td>定义依赖近似共线三点，适用范围和预期收益都较弱</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>随坐标变化的变换矩阵</td>
-      <td>待验证</td>
-      <td></td>
-      <td></td>
-    </tr>
-  </tbody>
-</table>
-
-### 2.2.3. 后处理
-
-一次训练结束后会得到原始下三角矩阵`C_new`，随后按以下顺序处理：
-
-1. **检查优化结果。** 程序首先确认`C_new`的所有元素和loss残差均为有限值。出现NaN或Inf说明优化已经失效，继续建树会传播错误，因此立即终止。
-2. **统一列符号。** 把`C_new`中负对角元素对应的整列取反。同一个度量可以由列符号不同的多个`C`表示，因为任意对角元素为`±1`的`D`都满足`(CD)(CD)ᵀ=CCᵀ`；统一为正对角线可以避免等价因子在后续平均时相互抵消，而且列取反本身不改变任何距离。
-3. **分离矩阵形状和整体倍率。** 将统一符号后的矩阵写成`C_new=sC_norm`，其中`||C_norm||_F²=dim`。倍率`s`可以理解为数值差相对于坐标差的总体尺度，归一化矩阵`C_norm`表示真正影响近邻顺序和IDW权重的度量形状。
-4. **缓冲。** 归一化后的变换矩阵和历史上的归一化矩阵加权算数平均，默认新矩阵的权重是0.5，随后再次归一化。倍率`s`和历史倍率加权几何平均，默认新倍率的权重是0.9，实验表明这个倍率权重不会影响最终归一化矩阵、BR或训练时间。
-
-矩阵后处理相关方案如下：
-
-<table class="fixed-layout-table" width="100%">
-  <colgroup>
-    <col width="20%">
-    <col width="10%">
-    <col width="42%">
-    <col width="28%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th width="20%">优化方案</th>
-      <th width="10%">状态</th>
-      <th width="42%">已有结论</th>
-      <th width="28%">下一步</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>在<code>M=CCᵀ</code>上混合新旧训练结果</td>
-      <td>放弃</td>
-      <td><code>M</code>混合表示平均平方距离，不符合当前“平均新旧变换后坐标”的缓冲定义。另外在katrina上效果略差。</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>分离矩阵形状和整体倍率</td>
-      <td>已采纳，待验证</td>
-      <td>原方案每轮归一化<code>C</code>并丢弃整体倍率，新方案分别缓冲归一化矩阵<code>C</code>和倍率<code>s</code>。平方loss下，固定矩阵形状后的倍率只是一个容易求解的一维最小二乘问题，优化器能迅速重新找到合适倍率；近邻选择又只由归一化矩阵形状决定，因此两种方案在Katrina上完全一样，报错耗时和结果。只是新方案不会无故丢弃倍率，算法定义更合理，因此暂时采纳</td>
-      <td>在其他数据和码长loss上验证</td>
-    </tr>
-    <tr>
-      <td><code>s</code>的采纳率</td>
-      <td>暂时固定</td>
-      <td>平方loss下，固定矩阵形状后只剩一个一维尺度最小二乘问题，优化器可以迅速重新得到合适倍率。采纳率<code>0.7/0.9/1.0</code>得到相同的归一化矩阵和<code>6/7/6/6</code>轮内层评估次数，对BR与时间均无可见影响</td>
-      <td>默认固定为<code>0.9</code>。如果发现“分离矩阵形状和整体倍率”在其他数据上也没有性能影响，则这一项也不需要调整了。</td>
-    </tr>
-  </tbody>
-</table>
-
-### 2.2.4. 其他优化方案
-
-<table class="fixed-layout-table" width="100%">
-  <colgroup>
-    <col width="20%">
-    <col width="10%">
-    <col width="42%">
-    <col width="28%">
-  </colgroup>
-  <thead>
-    <tr>
-      <th width="20%">优化方案</th>
-      <th width="10%">当前状态</th>
-      <th width="42%">已有结论</th>
-      <th width="28%">下一步</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>让adjust coord训练读取用户定义多点集配置</td>
-      <td>待实现</td>
-      <td>C++压缩端已经支持多个点集、各点集独立的预测方法和误差界以及<code>n-1</code>个标签通道；Python训练端没有读取点集JSON，仍只把<code>is_abnormal()</code>筛出的所有正常值视为一个点集，并为每个文件使用一个公共误差界</td>
-      <td>让训练端读取压缩所用的同一份JSON。非constant点集分别按自身预测方法和误差界计算码长loss，再合并成一个公共矩阵的目标；constant点集不产生数值码长loss。标签码流是否计入目标需单独验证</td>
-    </tr>
-    <tr>
-      <td>预先把各坐标维度scale到相同范围</td>
-      <td>放弃</td>
-      <td>Katrina重新训练后相对原坐标adjust退化<code>22.848%</code> BD-rate</td>
-      <td></td>
-    </tr>
-  </tbody>
-</table>
-
-### 2.2.5. 使用训练好的矩阵
-
-推荐通过矩阵文件使用训练结果。压缩和解压必须提供同一个文件：
-
-```bash
-install/bin/s1_compress -data-dir /path/to/Katrina -field attr0 -time-step '[0,9]' -coordinate-dim 3 -M REL 1e-3 -predictor idw -prediction-min-ref-num 1 -prediction-max-ref-num 4 -ordering-candidate-num 16 -ordering-score-max-ref-num 1 -ordering-score-min-ref-num 1 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
-install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0,9]' -coordinate-dim 3 -M REL 1e-3 -predictor idw -prediction-min-ref-num 1 -prediction-max-ref-num 4 -ordering-candidate-num 16 -ordering-score-max-ref-num 1 -ordering-score-min-ref-num 1 -adjust-coord-matrix-file adjust_coord_matrices/Katrina_attr0_spatial.txt
-```
-
-矩阵文件记录数据集、field、维数、下三角元素和训练类型。当前只接受`training_type=spatial`，表示只使用空间坐标训练。选定矩阵集中保存在`adjust_coord_matrices/`，格式和文件索引见其中的`README.md`。
+`t3_visualize.py`也直接读取该文件，因此可视化和实际压缩使用完全相同的C++训练结果。
 
 ## 2.3. 生成DAG
 
 预测前需要根据公共坐标生成一套所有time step都能复用的有向无环图（DAG）。整体分为三步：
 
-1. 使用经过adjust coord变换的坐标生成kd-tree。
+1. 使用经过坐标变换的坐标生成kd-tree。
 2. 对所有点生成一个预测目标的顺序。
 3. 根据这个顺序，对每个预测目标寻找合适的参考点。
 
@@ -1092,7 +884,7 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
     <tr>
       <td>E3SM-h4 AODDUST</td>
       <td>是</td>
-      <td>标签纯空间＋数值anchor8内插</td>
+      <td>标签anchor8＋数值anchor8内插</td>
       <td>否</td>
       <td>1</td>
       <td><code>77.30</code></td>
@@ -1112,7 +904,7 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
   </tbody>
 </table>
 
-Tsunami的`CR/UMC`来自既有1点MSD五点曲线；切换正式配置后尚未统一复测五个REL EB的总时间，因此时间栏暂不填写。E3SM-h4 AODDUST使用10点Matérn-3/2 RBF、1点MSD和16个排序候选点；标签使用纯空间预测，数值使用stride为8的固定锚点内插。五点曲线的独立解压和逐点误差界检查均通过，UNSZ相对UMC的BD-rate为<code>-87.162%</code>。
+Tsunami的`CR/UMC`来自既有1点MSD五点曲线；切换正式配置后尚未统一复测五个REL EB的总时间，因此时间栏暂不填写。E3SM-h4 AODDUST的标签和值均使用stride为8的固定锚点内插；相对标签纯空间方案，完整五点曲线的BD-rate增加<code>3.442%</code>，核心压缩与解压总时间减少<code>35.895%</code>。表中的E3SM压缩率和时间仍是流程切换前的结果，待其余RBF参数确定后统一复测并更新。
 
 以下是所有实验通用的其他参数。如果发现其中有些参数在不同数据上有不同的最优值，并且有很大提升，应该移动到上表。
 
@@ -1129,8 +921,8 @@ Tsunami的`CR/UMC`来自既有1点MSD五点曲线；切换正式配置后尚未�
   </thead>
   <tbody>
     <tr>
-      <td>adjust coord配置</td>
-      <td>码长loss、100000个目标、训练REL EB <code>1e-3</code>、2轮和吸收率<code>0.75</code></td>
+      <td>坐标变换</td>
+      <td>C++内置的一轮对角缩放训练；自动模式阈值为<code>0.2</code></td>
     </tr>
     <tr>
       <td>预测器</td>

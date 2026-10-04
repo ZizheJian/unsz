@@ -44,9 +44,11 @@ namespace unsz
             throw runtime_error("label锚点内插流程要求field包含两个点集");
         if(point_set_config_vec.size()==1)
             resolve_single_point_set_time_mode();
-        load_adjust_coord_matrix_file();
         if(prediction_min_ref_num>prediction_max_ref_num)
             throw runtime_error("prediction_min_ref_num不能大于prediction_max_ref_num");
+        bool uses_rbf=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec==point_set_codec_e::rbf;});
+        if(uses_rbf&&prediction_min_ref_num!=prediction_max_ref_num)
+            throw runtime_error("RBF要求prediction_min_ref_num与prediction_max_ref_num相等");
         if(ordering_candidate_num==0)
             throw runtime_error("必须显式设置正数ordering_candidate_num");
         if(ordering_score_max_ref_num==0)
@@ -63,7 +65,7 @@ namespace unsz
             prediction_round_num=1;
         if(ordering_scope=="global"&&eb_schedule.find("round")!=string::npos)
             throw runtime_error("global排序不能使用逐轮EB序列");
-        if(prediction_min_ref_num<2&&any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec==point_set_codec_e::rbf;}))
+        if(uses_rbf&&prediction_min_ref_num<2)
             throw runtime_error("RBF的prediction_min_ref_num不能小于2");
     }
 }

@@ -600,7 +600,7 @@ class huffman_encoder_class
                 *c++=mask;
         }
 
-        static unsigned char readBit(const unsigned char* const &c,int i)
+        static unsigned char readBit(const unsigned char* const &c,uint64_t i)
         { 
             return ((*(c+(i>>3)))>>(i&7))&1;
         }

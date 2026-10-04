@@ -30,6 +30,7 @@
       "prediction_min_ref_num": 10,
       "prediction_max_ref_num": 10,
       "ordering_candidate_num": 16,
+      "coordinate_transform": "auto",
       "ordering_score_max_ref_num": 1,
       "ordering_score_min_ref_num": 1,
       "eb_schedule": {
@@ -39,7 +40,7 @@
         "max_log2_exponent": 7
       },
       "label_value_execution": "fused",
-      "dag_cache_path": "/home/x-zjian1/unsz/results/adcirc_haiyan_zeta_staged_screen/rbf10_global.dag",
+      "dag_cache_path": "/home/x-zjian1/unsz/results/coordinate_transform/production/adcirc_haiyan_zeta_auto.dag",
       "point_set_config_path_list": [
         "point_set_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-1.json",
         "point_set_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-2.json",

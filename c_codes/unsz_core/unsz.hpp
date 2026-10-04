@@ -19,6 +19,7 @@
 #include <string>
 #include <type_traits>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <cctype>
 #include <cstdlib>
@@ -329,7 +330,7 @@ namespace unsz
 
             param_c()=default;
 
-            string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,dag_cache_path,adjust_coord_matrix_file,adjust_coord_training_type,point_set_config_path;
+            string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,dag_cache_path,point_set_config_path;
             vector<string> original_data_path_vec,compressed_data_path_vec,decompressed_data_path_vec;
             uint32_t dim=3;
             uint32_t point_num=0;
@@ -340,8 +341,12 @@ namespace unsz
             vector<point_set_config_c> point_set_config_vec;
             string value_flow="none";
             string label_flow="none";
-            bool if_adjust_coord=false;
-            vector<double> adjust_coord_matrix_parameter_vec;
+            string coordinate_transform_mode="off";//off / on / auto
+            double coordinate_transform_auto_threshold=0.2;
+            bool use_coordinate_transform=false;
+            vector<double> coordinate_transform_diagonal;
+            vector<vector<T_data>> coordinate_transform_training_data;
+            double coordinate_transform_gain=0;
             bool print_compression_stage_time=false,prediction_data_uses_prediction_order=false;
             string label_value_execution="staged";//staged / fused
             string ordering_scope="local";//local / global
@@ -419,8 +424,11 @@ namespace unsz
             void resolve_single_point_set_time_mode();
             template<point_set_codec_e predictor>
             void dispatch_single_point_set_compression();
-            void load_adjust_coord_matrix_file();
-            void adjust_coord();
+            void prepare_coordinate_transform_training_data();
+            void train_coordinate_transform();
+            void apply_coordinate_transform();
+            void write_coordinate_transform_file() const;
+            void read_coordinate_transform_file();
             void load_or_generate_prediction_structures();
             void remap_prediction_data_to_prediction_order(bool for_decompression=false);
             void build_partitions();
@@ -447,6 +455,7 @@ namespace unsz
             uint32_t predict_label_10(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
             T_data predict_value_two_point_sets_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask=nullptr);
             T_data predict_value_two_point_sets_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask=nullptr);
+            fused_spatial_prediction_c<T_data> predict_fused_spatial_idw_4(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
             fused_spatial_prediction_c<T_data> predict_fused_spatial_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
             fused_spatial_prediction_c<T_data> predict_fused_spatial_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
             bool solve_scalar_rbf_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
@@ -501,8 +510,7 @@ namespace unsz
 #include "binary_file.tpp"
 #include "tree.tpp"
 #include "init.tpp"
-#include "adjust_coord_matrix_file.tpp"
-#include "adjust_coord.tpp"
+#include "coordinate_transform.tpp"
 #include "prediction_round.tpp"
 #include "partition.tpp"
 #include "eb_schedule.tpp"

@@ -163,8 +163,61 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
+    fused_spatial_prediction_c<T_data> param_c<T_coord,T_data>::predict_fused_spatial_idw_4(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources)
+    {
+        const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
+        int ref_id0=ref_ids[0],ref_id1=ref_ids[1],ref_id2=ref_ids[2],ref_id3=ref_ids[3];
+        uint32_t point_set_id0=prediction_point_set_ids[ref_id0],point_set_id1=prediction_point_set_ids[ref_id1],point_set_id2=prediction_point_set_ids[ref_id2],point_set_id3=prediction_point_set_ids[ref_id3];
+        T_calc weight0=ref_weights[0],weight1=ref_weights[1],weight2=ref_weights[2],weight3=ref_weights[3];
+        fused_spatial_prediction_c<T_data> result;
+        T_calc label_weight_sum[2]={0,0},value_weight_sum[2]={0,0},weighted_value_sum[2]={0,0};
+        bool all_refs_match[2]={true,true};
+        auto accumulate_reference=[&](int ref_id,uint32_t point_set_id,T_calc weight)
+        {
+            if(predict_label)
+                label_weight_sum[point_set_id]+=weight;
+            uint32_t other_point_set_id=1-point_set_id;
+            if(spatial_value_sources[other_point_set_id].data)
+                all_refs_match[other_point_set_id]=false;
+            const spatial_value_source_c<T_data>&source=spatial_value_sources[point_set_id];
+            if(!source.data)
+                return;
+            if(source.valid_ref_mask&&!(*source.valid_ref_mask)[ref_id])
+            {
+                all_refs_match[point_set_id]=false;
+                return;
+            }
+            value_weight_sum[point_set_id]+=weight;
+            weighted_value_sum[point_set_id]+=weight*(*source.data)[ref_id];
+        };
+        accumulate_reference(ref_id0,point_set_id0,weight0);
+        accumulate_reference(ref_id1,point_set_id1,weight1);
+        accumulate_reference(ref_id2,point_set_id2,weight2);
+        accumulate_reference(ref_id3,point_set_id3,weight3);
+        if(predict_label)
+            result.label=label_weight_sum[1]>label_weight_sum[0];
+        for(uint32_t point_set_id=0;point_set_id<2;point_set_id++)
+        {
+            const spatial_value_source_c<T_data>&source=spatial_value_sources[point_set_id];
+            if(!source.data)
+                continue;
+            if(all_refs_match[point_set_id])
+                result.values[point_set_id]=(T_data)weighted_value_sum[point_set_id];
+            else if(value_weight_sum[point_set_id]>0&&isfinite(value_weight_sum[point_set_id])&&isfinite(weighted_value_sum[point_set_id]))
+            {
+                T_calc prediction=weighted_value_sum[point_set_id]/value_weight_sum[point_set_id];
+                if(isfinite(prediction))
+                    result.values[point_set_id]=(T_data)prediction;
+            }
+        }
+        return result;
+    }
+
+    template<typename T_coord,typename T_data>
     fused_spatial_prediction_c<T_data> param_c<T_coord,T_data>::predict_fused_spatial_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources)
     {
+        if(prediction_max_ref_num==4&&ref_ids.size()==4)
+            return predict_fused_spatial_idw_4(ref_ids,ref_weights,predict_label,spatial_value_sources);
         const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
         fused_spatial_prediction_c<T_data> result;
         uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
@@ -235,20 +288,21 @@ namespace unsz
             if(spatial_value_sources[other_point_set_id].data)
                 all_refs_match[other_point_set_id]=false;
             const spatial_value_source_c<T_data>&source=spatial_value_sources[point_set_id];
-            if(!source.data)
-                continue;
-            if(source.valid_ref_mask&&!(*source.valid_ref_mask)[ref_id])
+            if(source.data)
             {
-                all_refs_match[point_set_id]=false;
-                continue;
-            }
-            if(nearest_ref_id[point_set_id]<0)
-                nearest_ref_id[point_set_id]=ref_id;
-            value_ref_num[point_set_id]++;
-            if(has_rbf_weights)
-            {
-                value_weight_sum[point_set_id]+=weight;
-                weighted_value_sum[point_set_id]+=weight*(*source.data)[ref_id];
+                if(source.valid_ref_mask&&!(*source.valid_ref_mask)[ref_id])
+                    all_refs_match[point_set_id]=false;
+                else
+                {
+                    if(nearest_ref_id[point_set_id]<0)
+                        nearest_ref_id[point_set_id]=ref_id;
+                    value_ref_num[point_set_id]++;
+                    if(has_rbf_weights)
+                    {
+                        value_weight_sum[point_set_id]+=weight;
+                        weighted_value_sum[point_set_id]+=weight*(*source.data)[ref_id];
+                    }
+                }
             }
         }
         if(predict_label)

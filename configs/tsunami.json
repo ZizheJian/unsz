@@ -40,6 +40,8 @@
       "prediction_min_ref_num": 10,
       "prediction_max_ref_num": 10,
       "ordering_candidate_num": 16,
+      "coordinate_transform": "auto",
+      "dag_cache_path": "/home/x-zjian1/unsz/results/coordinate_transform/production/tsunami_{field}_auto.dag",
       "ordering_score_max_ref_num": 1,
       "ordering_score_min_ref_num": 1,
       "eb_schedule": {

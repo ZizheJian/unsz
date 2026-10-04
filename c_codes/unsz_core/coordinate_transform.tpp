@@ -1,0 +1,357 @@
+#pragma once
+
+namespace unsz
+{
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::prepare_coordinate_transform_training_data()
+    {
+        if(coordinate_transform_mode=="off")
+            return;
+        uint32_t sample_file_num=min<uint32_t>(3,original_data_path_vec.size());
+        coordinate_transform_training_data.resize(sample_file_num);
+        for(uint32_t sample_file_id=0;sample_file_id<sample_file_num;sample_file_id++)
+        {
+            double position=(sample_file_id+0.5)*(original_data_path_vec.size()-1)/sample_file_num;
+            uint32_t file_id=(uint32_t)llround(position);
+            coordinate_transform_training_data[sample_file_id].resize(point_num);
+            read_binary_file_exact(original_data_path_vec[file_id],coordinate_transform_training_data[sample_file_id].data(),point_num);
+        }
+    }
+
+    inline bool solve_coordinate_transform_normal_equation(vector<double> matrix,vector<double> right_hand_side,vector<double>&solution)
+    {
+        uint32_t n=(uint32_t)right_hand_side.size();
+        solution=move(right_hand_side);
+        for(uint32_t pivot=0;pivot<n;pivot++)
+        {
+            uint32_t best_row=pivot;
+            for(uint32_t row=pivot+1;row<n;row++)
+                if(abs(matrix[(uint64_t)row*n+pivot])>abs(matrix[(uint64_t)best_row*n+pivot]))
+                    best_row=row;
+            double pivot_value=matrix[(uint64_t)best_row*n+pivot];
+            if(!isfinite(pivot_value)||abs(pivot_value)<=numeric_limits<double>::epsilon())
+                return false;
+            if(best_row!=pivot)
+            {
+                for(uint32_t col=pivot;col<n;col++)
+                    swap(matrix[(uint64_t)pivot*n+col],matrix[(uint64_t)best_row*n+col]);
+                swap(solution[pivot],solution[best_row]);
+            }
+            for(uint32_t row=pivot+1;row<n;row++)
+            {
+                double ratio=matrix[(uint64_t)row*n+pivot]/matrix[(uint64_t)pivot*n+pivot];
+                for(uint32_t col=pivot+1;col<n;col++)
+                    matrix[(uint64_t)row*n+col]-=ratio*matrix[(uint64_t)pivot*n+col];
+                solution[row]-=ratio*solution[pivot];
+            }
+        }
+        for(int row=(int)n-1;row>=0;row--)
+        {
+            for(uint32_t col=row+1;col<n;col++)
+                solution[row]-=matrix[(uint64_t)row*n+col]*solution[col];
+            solution[row]/=matrix[(uint64_t)row*n+row];
+            if(!isfinite(solution[row]))
+                return false;
+        }
+        return true;
+    }
+
+    inline double coordinate_transform_squared_loss(const vector<double>&coordinate_differences,const vector<double>&value_differences,const vector<double>&diagonal)
+    {
+        uint32_t dim=(uint32_t)diagonal.size();
+        double squared_loss=0;
+        for(uint64_t pair_id=0;pair_id<value_differences.size();pair_id++)
+        {
+            double squared_distance=0;
+            for(uint32_t d=0;d<dim;d++)
+            {
+                double transformed_difference=coordinate_differences[pair_id*dim+d]*diagonal[d];
+                squared_distance+=transformed_difference*transformed_difference;
+            }
+            double residual=abs(value_differences[pair_id])-sqrt(squared_distance);
+            squared_loss+=residual*residual;
+        }
+        return squared_loss;
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::train_coordinate_transform()
+    {
+        constexpr double first_sample_ratio=0.25;
+        constexpr uint32_t second_sample_num=3000;
+        if(coordinate_transform_training_data.empty())
+            throw runtime_error("坐标变换缺少训练数据");
+        uint32_t first_sample_num=max<uint32_t>(1,(uint32_t)ceil(point_num*first_sample_ratio));
+        vector<int> first_sample_ids(point_num);
+        iota(first_sample_ids.begin(),first_sample_ids.end(),0);
+        mt19937 random_generator(0);
+        shuffle(first_sample_ids.begin(),first_sample_ids.end(),random_generator);
+        first_sample_ids.resize(first_sample_num);
+        sort(first_sample_ids.begin(),first_sample_ids.end());
+        printf("coordinate transform first sample ratio=%.6f,points=%u/%u,planned second targets=%llu\n",first_sample_ratio,first_sample_num,point_num,(unsigned long long)min<uint64_t>(second_sample_num,(uint64_t)first_sample_num*coordinate_transform_training_data.size()));
+
+        vector<double> coordinate_differences,value_differences;
+        coordinate_differences.reserve((uint64_t)second_sample_num*prediction_max_ref_num*dim);
+        value_differences.reserve((uint64_t)second_sample_num*prediction_max_ref_num);
+        auto value_is_trainable=[&](T_data value)
+        {
+            if(!isfinite(value))
+                return false;
+            if(point_set_rule_vec.empty())
+                return point_set_config_vec.front().codec!=point_set_codec_e::constant;
+            const point_set_rule_c&rule=point_set_rule_vec.front();
+            bool matches=false;
+            switch(rule.operator_type)
+            {
+                case point_set_rule_operator_e::less:matches=value<rule.value;break;
+                case point_set_rule_operator_e::less_equal:matches=value<=rule.value;break;
+                case point_set_rule_operator_e::greater:matches=value>rule.value;break;
+                case point_set_rule_operator_e::greater_equal:matches=value>=rule.value;break;
+                case point_set_rule_operator_e::equal:matches=value==rule.value;break;
+                case point_set_rule_operator_e::not_equal:matches=value!=rule.value;break;
+            }
+            uint32_t point_set_id=matches?0:1;
+            return point_set_config_vec[point_set_id].codec!=point_set_codec_e::constant;
+        };
+        uint32_t sampled_target_num=0,retained_target_num=0,complete_target_num=0;
+        vector<T_coord> active_min_coord(dim,numeric_limits<T_coord>::infinity()),active_max_coord(dim,-numeric_limits<T_coord>::infinity());
+        for(int point_id:first_sample_ids)
+            for(uint32_t d=0;d<dim;d++)
+            {
+                active_min_coord[d]=min(active_min_coord[d],coord_array[point_id][d]);
+                active_max_coord[d]=max(active_max_coord[d],coord_array[point_id][d]);
+            }
+        block_tree_c<T_coord> tree(coord_array,active_min_coord,active_max_coord,first_sample_ids,kd_tree_leaf_size);
+        uint32_t remaining_target_num=second_sample_num;
+        for(uint32_t sample_file_id=0;sample_file_id<coordinate_transform_training_data.size();sample_file_id++)
+        {
+            const vector<T_data>&data=coordinate_transform_training_data[sample_file_id];
+            uint32_t remaining_file_num=(uint32_t)coordinate_transform_training_data.size()-sample_file_id;
+            uint32_t target_num=min<uint32_t>(first_sample_ids.size(),(remaining_target_num+remaining_file_num-1)/remaining_file_num);
+            vector<int> target_ids=first_sample_ids;
+            shuffle(target_ids.begin(),target_ids.end(),random_generator);
+            target_ids.resize(target_num);
+            remaining_target_num-=target_num;
+            for(int target_id:target_ids)
+            {
+                sampled_target_num++;
+                if(!value_is_trainable(data[target_id]))
+                    continue;
+                nearest_queue_c<T_coord> nearest_queue;
+                tree.find_original_nearest(nearest_queue,coord_array,prediction_max_ref_num+1,0,coord_array[target_id]);
+                uint32_t geometric_ref_num=0,retained_ref_num=0;
+                while(!nearest_queue.empty())
+                {
+                    int reference_id=nearest_queue.top().second;
+                    nearest_queue.pop();
+                    if(reference_id==target_id)
+                        continue;
+                    geometric_ref_num++;
+                    if(!value_is_trainable(data[reference_id]))
+                        continue;
+                    for(uint32_t d=0;d<dim;d++)
+                        coordinate_differences.push_back((double)coord_array[target_id][d]-(double)coord_array[reference_id][d]);
+                    value_differences.push_back((double)data[target_id]-(double)data[reference_id]);
+                    retained_ref_num++;
+                }
+                if(geometric_ref_num!=prediction_max_ref_num)
+                    throw runtime_error("坐标变换目标点没有找到足够的非自身几何参考点");
+                retained_target_num+=retained_ref_num>0;
+                complete_target_num+=retained_ref_num==prediction_max_ref_num;
+            }
+        }
+        if(value_differences.empty())
+            throw runtime_error("坐标变换过滤后没有保留训练点对");
+        coordinate_transform_training_data.clear();
+        coordinate_transform_training_data.shrink_to_fit();
+        printf("coordinate transform sampled targets=%u,retained targets=%u,complete targets=%u,pairs=%llu\n",sampled_target_num,retained_target_num,complete_target_num,(unsigned long long)value_differences.size());
+
+        vector<double> diagonal(dim,1);
+        uint32_t function_evaluation_num=0;
+        for(uint32_t iteration=0;iteration<100&&function_evaluation_num<100;iteration++)
+        {
+            vector<double> normal_matrix((uint64_t)dim*dim,0),normal_gradient(dim,0);
+            double squared_loss=0;
+            for(uint64_t pair_id=0;pair_id<value_differences.size();pair_id++)
+            {
+                double squared_distance=0;
+                for(uint32_t d=0;d<dim;d++)
+                {
+                    double transformed_difference=coordinate_differences[pair_id*dim+d]*diagonal[d];
+                    squared_distance+=transformed_difference*transformed_difference;
+                }
+                double distance=sqrt(squared_distance);
+                double residual=abs(value_differences[pair_id])-distance;
+                squared_loss+=residual*residual;
+                if(distance==0)
+                    continue;
+                vector<double> jacobian(dim);
+                for(uint32_t d=0;d<dim;d++)
+                {
+                    double difference=coordinate_differences[pair_id*dim+d];
+                    jacobian[d]=-difference*difference*diagonal[d]/distance;
+                    normal_gradient[d]+=jacobian[d]*residual;
+                }
+                for(uint32_t row=0;row<dim;row++)
+                    for(uint32_t col=0;col<dim;col++)
+                        normal_matrix[(uint64_t)row*dim+col]+=jacobian[row]*jacobian[col];
+            }
+            function_evaluation_num++;
+            for(double&value:normal_gradient)
+                value=-value;
+            vector<double> step;
+            if(!solve_coordinate_transform_normal_equation(move(normal_matrix),move(normal_gradient),step))
+                break;
+            double step_norm=0,parameter_norm=0;
+            for(uint32_t d=0;d<dim;d++)
+            {
+                step_norm+=step[d]*step[d];
+                parameter_norm+=diagonal[d]*diagonal[d];
+            }
+            if(sqrt(step_norm)<=1e-10*(sqrt(parameter_norm)+1e-10))
+                break;
+            bool accepted=false;
+            double step_ratio=1;
+            while(function_evaluation_num<100&&step_ratio>=1.0/256)
+            {
+                vector<double> candidate=diagonal;
+                for(uint32_t d=0;d<dim;d++)
+                    candidate[d]+=step_ratio*step[d];
+                double candidate_loss=coordinate_transform_squared_loss(coordinate_differences,value_differences,candidate);
+                function_evaluation_num++;
+                if(candidate_loss<squared_loss)
+                {
+                    double relative_reduction=(squared_loss-candidate_loss)/max(squared_loss,numeric_limits<double>::min());
+                    diagonal=move(candidate);
+                    accepted=true;
+                    if(relative_reduction<=1e-10)
+                        iteration=100;
+                    break;
+                }
+                step_ratio/=2;
+            }
+            if(!accepted)
+                break;
+        }
+        for(double&value:diagonal)
+            value=abs(value);
+        double diagonal_squared_norm=inner_product(diagonal.begin(),diagonal.end(),diagonal.begin(),0.0);
+        if(!(diagonal_squared_norm>0)||!isfinite(diagonal_squared_norm))
+            throw runtime_error("坐标变换训练得到无效的对角矩阵");
+        double normalization=sqrt(dim/diagonal_squared_norm);
+        for(double&value:diagonal)
+            value*=normalization;
+        coordinate_transform_diagonal=diagonal;
+
+        double zero_loss=0,isotropic_numerator=0,isotropic_denominator=0;
+        for(uint64_t pair_id=0;pair_id<value_differences.size();pair_id++)
+        {
+            zero_loss+=value_differences[pair_id]*value_differences[pair_id];
+            double squared_distance=0;
+            for(uint32_t d=0;d<dim;d++)
+            {
+                double difference=coordinate_differences[pair_id*dim+d];
+                squared_distance+=difference*difference;
+            }
+            double distance=sqrt(squared_distance);
+            isotropic_numerator+=abs(value_differences[pair_id])*distance;
+            isotropic_denominator+=squared_distance;
+        }
+        double isotropic_scale=isotropic_denominator>0?isotropic_numerator/isotropic_denominator:1;
+        vector<double> isotropic_diagonal(dim,isotropic_scale);
+        double isotropic_loss=coordinate_transform_squared_loss(coordinate_differences,value_differences,isotropic_diagonal);
+        double fitted_scale_numerator=0,fitted_scale_denominator=0;
+        for(uint64_t pair_id=0;pair_id<value_differences.size();pair_id++)
+        {
+            double squared_distance=0;
+            for(uint32_t d=0;d<dim;d++)
+            {
+                double transformed_difference=coordinate_differences[pair_id*dim+d]*diagonal[d];
+                squared_distance+=transformed_difference*transformed_difference;
+            }
+            double distance=sqrt(squared_distance);
+            fitted_scale_numerator+=abs(value_differences[pair_id])*distance;
+            fitted_scale_denominator+=squared_distance;
+        }
+        double fitted_scale=fitted_scale_denominator>0?fitted_scale_numerator/fitted_scale_denominator:1;
+        vector<double> fitted_diagonal=diagonal;
+        for(double&value:fitted_diagonal)
+            value*=fitted_scale;
+        double fitted_loss=coordinate_transform_squared_loss(coordinate_differences,value_differences,fitted_diagonal);
+        double isotropic_explained_fraction=zero_loss>0?max(0.0,1-isotropic_loss/zero_loss):0;
+        coordinate_transform_gain=zero_loss>isotropic_loss?max(0.0,(isotropic_loss-fitted_loss)/(zero_loss-isotropic_loss)):0;
+        printf("coordinate transform loss per pair: zero=%.12g,isotropic=%.12g,diagonal=%.12g,isotropic_explained=%.9f,diagonal_gain_vs_isotropic_explained=%.9f\n",zero_loss/value_differences.size(),isotropic_loss/value_differences.size(),fitted_loss/value_differences.size(),isotropic_explained_fraction,coordinate_transform_gain);
+        use_coordinate_transform=coordinate_transform_mode=="on"||(coordinate_transform_mode=="auto"&&coordinate_transform_gain>=coordinate_transform_auto_threshold);
+        printf("coordinate transform gain=%.9f,threshold=%.9f,use=%u,diagonal=[",coordinate_transform_gain,coordinate_transform_auto_threshold,(uint32_t)use_coordinate_transform);
+        for(uint32_t d=0;d<dim;d++)
+            printf("%s%.12g",d==0?"":",",coordinate_transform_diagonal[d]);
+        printf("]\n");
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::apply_coordinate_transform()
+    {
+        if(!use_coordinate_transform)
+            return;
+        if(coordinate_transform_diagonal.size()!=dim)
+            throw runtime_error("坐标变换对角元素数量与坐标维数不一致");
+        min_coord.assign(dim,numeric_limits<T_coord>::infinity());
+        max_coord.assign(dim,-numeric_limits<T_coord>::infinity());
+        for(uint32_t point_id=0;point_id<point_num;point_id++)
+            for(uint32_t d=0;d<dim;d++)
+            {
+                coord_array[point_id][d]*=(T_coord)coordinate_transform_diagonal[d];
+                min_coord[d]=min(min_coord[d],coord_array[point_id][d]);
+                max_coord[d]=max(max_coord[d],coord_array[point_id][d]);
+            }
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::write_coordinate_transform_file() const
+    {
+        if(coordinate_transform_mode=="off")
+            return;
+        string path=data_dir+field_name+".unsz.coord_transform.txt";
+        ofstream file(path);
+        if(!file)
+            throw runtime_error("无法写入坐标变换文件："+path);
+        file<<"UNSZ_COORDINATE_TRANSFORM 2\n";
+        file<<"dimension "<<dim<<"\n";
+        file<<"enabled "<<(uint32_t)use_coordinate_transform<<"\n";
+        file<<"gain "<<setprecision(17)<<coordinate_transform_gain<<"\n";
+        file<<"diagonal";
+        for(double value:coordinate_transform_diagonal)
+            file<<" "<<setprecision(17)<<value;
+        file<<"\n";
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::read_coordinate_transform_file()
+    {
+        if(coordinate_transform_mode=="off")
+            return;
+        string path=data_dir+field_name+".unsz.coord_transform.txt";
+        ifstream file(path);
+        if(!file)
+            throw runtime_error("找不到坐标变换文件："+path);
+        string magic,key;
+        uint32_t version,file_dim,enabled;
+        if(!(file>>magic>>version)||magic!="UNSZ_COORDINATE_TRANSFORM"||version!=2)
+            throw runtime_error("坐标变换文件格式不正确："+path);
+        if(!(file>>key>>file_dim)||key!="dimension"||file_dim!=dim)
+            throw runtime_error("坐标变换文件维数不正确："+path);
+        if(!(file>>key>>enabled)||key!="enabled"||enabled>1)
+            throw runtime_error("坐标变换文件enabled字段不正确："+path);
+        if(!(file>>key>>coordinate_transform_gain)||key!="gain"||!isfinite(coordinate_transform_gain))
+            throw runtime_error("坐标变换文件gain字段不正确："+path);
+        if(!(file>>key)||key!="diagonal")
+            throw runtime_error("坐标变换文件缺少diagonal字段："+path);
+        coordinate_transform_diagonal.resize(dim);
+        for(double&value:coordinate_transform_diagonal)
+            if(!(file>>value)||!isfinite(value))
+                throw runtime_error("坐标变换文件的对角元素不正确："+path);
+        if(file>>key)
+            throw runtime_error("坐标变换文件末尾存在多余内容："+path);
+        use_coordinate_transform=enabled;
+    }
+}

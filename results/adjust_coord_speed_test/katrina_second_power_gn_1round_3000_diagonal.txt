@@ -1,0 +1,5 @@
+UNSZ_ADJUST_COORD_MATRIX 2
+training_type spatial
+field attr0
+coordinate_dim 3
+lower_triangular 1.035029060821631 0 1.389117566919559 0 0 0.007658012518789

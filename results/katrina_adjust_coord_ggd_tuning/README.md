@@ -1,4 +1,6 @@
-# Katrina码长loss坐标矩阵调优
+# Katrina码长loss坐标矩阵调优（历史）
+
+本目录记录已被C++内置对角坐标变换取代的旧Python训练实验，不再代表正式配置或可执行入口。
 
 本实验固定Katrina当前完整压缩流程和Tsunami空间参数：标签零阶外插、数值零阶外插＋空间修正、global、MSD、RBF10、Matérn-3/2、shape `0.03`、nugget `1e-6`、16个排序候选以及连续EB底数`0.85`和shift `0.5`。所有压缩结果均覆盖全部162个time step并通过独立解压。
 
@@ -11,6 +13,6 @@
 | 旧二次方loss矩阵，插值 | `78.724548` | `0.329014` | `2.214×` |
 | 新码长loss矩阵 | `78.724548` | `0.313441` | `2.324×` |
 
-新矩阵在同PSNR下将BR降低`4.733%`。其REL `1e-3`压缩与解压总时间为`3.461069 s`，UMC对应时间为`3.266591 s`，倍率为`1.060×`。正式矩阵已经写入`adjust_coord_matrices/Katrina_attr0_spatial.txt`，`t1_start_c_code.py`也记录了训练REL EB、目标数、轮数和吸收率，使`t2_adjust_coord.py -data katrina -field attr0`能够复现该训练配置。
+新矩阵在同PSNR下将BR降低`4.733%`。其REL `1e-3`压缩与解压总时间为`3.461069 s`，UMC对应时间为`3.266591 s`，倍率为`1.060×`。旧矩阵保存在`adjust_coord_matrices/Katrina_attr0_spatial.txt`，仅用于历史结果复查。
 
 训练器在部分轮次仍报告较大的`optimality`，而训练loss与实际BR并不单调，因此当前选择依据始终是完整压缩得到的BR，不是优化器的训练loss。各训练状态、逐轮矩阵和原始测试点均保存在本目录。

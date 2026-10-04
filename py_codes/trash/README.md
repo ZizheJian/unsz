@@ -2,7 +2,7 @@
 
 这里保存已经完成、当前不再作为项目入口，但以后可能复用其分析或实验逻辑的Python程序。
 
-- 根目录只保留当前使用的`t0_start_single_c_code.py`、`t1_start_c_code.py`、`t2_adjust_coord.py`和统一可视化程序`t3_visualize.py`。
+- 根目录只保留当前使用的`t0_start_single_c_code.py`、`t1_start_c_code.py`和统一可视化程序`t3_visualize.py`；坐标变换训练已经并入C++预处理。
 - `screen_more_fields.py`和`run_spatial_field_benchmark.py`的功能已并入根目录`t1_start_c_code.py`；`slurm/screen_more_fields.slurm`是对应的历史批处理入口。
 - `t5`～`t83`中的其他分析与消融程序移到这里。已弃用的目标排序专用脚本已删除，需要重做消融时从Git历史恢复；其余脚本仅作为历史记录，不保证与当前CLI兼容。
 - `t84`～`t87`、`t89`和`t90`筛选Tsunami momentum_x的RBF核、shape、nugget和参考点数，并补齐Matérn-3/2与Matérn-5/2五点RD。

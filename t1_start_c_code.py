@@ -173,6 +173,8 @@ def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expre
     predictor,predictor_arguments=build_predictor_arguments(config["predictor"])
     if config["prediction_min_ref_num"]>config["prediction_max_ref_num"]:
         raise ValueError("prediction_min_ref_num不能大于prediction_max_ref_num")
+    if predictor=="rbf" and config["prediction_min_ref_num"]!=config["prediction_max_ref_num"]:
+        raise ValueError("RBF要求prediction_min_ref_num与prediction_max_ref_num相等")
     if config["ordering_score_min_ref_num"]>config["ordering_score_max_ref_num"]:
         raise ValueError("ordering_score_min_ref_num不能大于ordering_score_max_ref_num")
     if config["ordering_scope"] not in ("local","global"):
@@ -189,8 +191,13 @@ def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expre
         raise ValueError("global排序不使用prediction_round_num")
     if dag_cache_path is not None:
         arguments.extend(("-dag-cache",dag_cache_path))
-    if "adjust_coord_matrix_file" in config:
-        arguments.extend(("-adjust-coord-matrix-file",project_root/"adjust_coord_matrices"/config["adjust_coord_matrix_file"]))
+    coordinate_transform=config.get("coordinate_transform","off")
+    if coordinate_transform not in ("off","on","auto"):
+        raise ValueError(f"未知坐标变换模式：{coordinate_transform}")
+    if coordinate_transform!="off":
+        arguments.extend(("-coordinate-transform",coordinate_transform))
+    if "coordinate_transform_threshold" in config:
+        arguments.extend(("-coordinate-transform-threshold",config["coordinate_transform_threshold"]))
     has_partition_num="partition_num" in config
     has_partition_size="partition_size" in config
     if has_partition_num and has_partition_size:
@@ -387,7 +394,7 @@ def run_task(task):
             else:
                 result=run_umc(config,rel_eb,data_range)
             label_value_execution=config.get("label_value_execution","not_applicable") if compressor=="unsz" else "not_applicable"
-            item={"task":task["name"],"compressor":compressor,"label_flow":label_flow or "not_applicable","value_flow":value_flow or "not_applicable","label_value_execution":label_value_execution,"rel_eb":rel_eb if rel_eb is not None else "not_applicable","point_set_config":point_set_config_path or "not_applicable"}
+            item={"task":task["name"],"field":field,"compressor":compressor,"label_flow":label_flow or "not_applicable","value_flow":value_flow or "not_applicable","label_value_execution":label_value_execution,"rel_eb":rel_eb if rel_eb is not None else "not_applicable","point_set_config":point_set_config_path or "not_applicable"}
             for column_name in ("br","psnr","command"):
                 write_csv_item(str(result_path),item,column_name,result[column_name])
             staged=compressor=="unsz" and result.get("staged",False)
@@ -400,7 +407,7 @@ def run_task(task):
                     write_csv_item(str(result_path),item,column_name,result[column_name])
                 for column_name,value in (("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("compression_preprocessing_MB_s",calculate_throughput(total_bytes,result["compression_preprocessing_time"],"压缩预处理时间")),("decompression_preprocessing_MB_s",calculate_throughput(total_bytes,result["decompression_preprocessing_time"],"解压预处理时间")),("compression_MB_s",calculate_throughput(total_bytes,result["compression_time"],"压缩时间")),("decompression_MB_s",calculate_throughput(total_bytes,result["decompression_time"],"解压时间"))):
                     write_csv_item(str(result_path),item,column_name,value)
-            for column_name,value in (("field",field),("data_dir",task["data_dir"]),("time_step_num",task["time_step_num"]),("input_bytes",total_bytes)):
+            for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",task["time_step_num"]),("input_bytes",total_bytes)):
                 write_csv_item(str(result_path),item,column_name,value)
             if task.get("cleanup_after_each_test",False):
                 cleanup_test_outputs(field_config,compressor)

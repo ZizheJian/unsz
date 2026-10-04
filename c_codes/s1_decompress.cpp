@@ -65,13 +65,7 @@ string read_option_value(int argc,char **argv,int &arg_id,string option)
 template<typename T_coord>
 void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::time_point preprocessing_start_time)
 {
-    double adjust_coord_time=0;
-    if (param.if_adjust_coord)
-    {
-        auto adjust_coord_start_time=chrono::steady_clock::now();
-        param.adjust_coord();
-        adjust_coord_time=chrono::duration<double>(chrono::steady_clock::now()-adjust_coord_start_time).count();
-    }
+    param.apply_coordinate_transform();
     bool loaded_dag_cache=!param.dag_cache_path.empty()&&filesystem::exists(param.dag_cache_path);
     param.load_or_generate_prediction_structures();
     if(loaded_dag_cache&&(param.rbf_parameter_specified||any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf;})))
@@ -87,8 +81,8 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         validation_time=chrono::duration<double>(chrono::steady_clock::now()-validation_start_time).count();
     }
     param.remap_prediction_data_to_prediction_order(true);
-    double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time-validation_time;
-    printf("preprocessing time excluding coordinate input and adjust coord= %f s\n",preprocessing_time);
+    double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-validation_time;
+    printf("preprocessing time excluding coordinate and transform-file input= %f s\n",preprocessing_time);
     if(param.point_set_config_vec.size()==2&&param.label_value_execution=="staged")
         throw runtime_error("staged模式只在内存中估计压缩效果，不生成可解压码流");
     uint32_t validated_file_num=0;
@@ -279,8 +273,18 @@ int decompress_main(int argc,char **argv)
             if(param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
                 throw runtime_error("未知的label flow："+param.label_flow);
         }
-        else if (option=="-adjust-coord-matrix-file")
-            param.adjust_coord_matrix_file=read_option_value(argc,argv,arg_id,option);
+        else if(option=="-coordinate-transform")
+        {
+            param.coordinate_transform_mode=read_option_value(argc,argv,arg_id,option);
+            if(param.coordinate_transform_mode!="off"&&param.coordinate_transform_mode!="on"&&param.coordinate_transform_mode!="auto")
+                throw runtime_error("-coordinate-transform必须是off、on或auto");
+        }
+        else if(option=="-coordinate-transform-threshold")
+        {
+            param.coordinate_transform_auto_threshold=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
+            if(param.coordinate_transform_auto_threshold>1)
+                throw runtime_error("-coordinate-transform-threshold必须在(0,1]内");
+        }
         else if(option=="-decompression-stage-time")
             param.print_compression_stage_time=true;
         else if(option=="-label-value-execution")
@@ -313,6 +317,7 @@ int decompress_main(int argc,char **argv)
     }
     param.prepare_cli_parameters(time_step_vec,error_bound);
     param.init();
+    param.read_coordinate_transform_file();
     auto preprocessing_start_time=chrono::steady_clock::now();
     run_decompression(param,preprocessing_start_time);
     return 0;

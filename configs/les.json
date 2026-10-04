@@ -43,7 +43,8 @@
         "max_log2_exponent": 7
       },
       "ordering_candidate_num": 16,
-      "dag_cache_path": "/home/x-zjian1/unsz/results/les_spatial/rbf10_global.dag"
+      "coordinate_transform": "auto",
+      "dag_cache_path": "/home/x-zjian1/unsz/results/coordinate_transform/production/les_{field}_auto.dag"
     },
     "umc": {
       "from_edge": 0,
@@ -96,7 +97,8 @@
         "max_log2_exponent": 7
       },
       "ordering_candidate_num": 16,
-      "dag_cache_path": "/home/x-zjian1/unsz/results/les_spatial/rbf10_global.dag"
+      "coordinate_transform": "auto",
+      "dag_cache_path": "/home/x-zjian1/unsz/results/coordinate_transform/production/les_{field}_auto.dag"
     },
     "umc": {
       "from_edge": 0,
@@ -149,7 +151,8 @@
         "max_log2_exponent": 7
       },
       "ordering_candidate_num": 16,
-      "dag_cache_path": "/home/x-zjian1/unsz/results/les_spatial/rbf10_global.dag"
+      "coordinate_transform": "auto",
+      "dag_cache_path": "/home/x-zjian1/unsz/results/coordinate_transform/production/les_{field}_auto.dag"
     },
     "umc": {
       "from_edge": 0,

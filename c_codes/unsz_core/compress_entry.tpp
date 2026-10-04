@@ -5,12 +5,13 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::preprocess_compression(chrono::steady_clock::time_point preprocessing_start_time)
     {
-        double adjust_coord_time=0;
-        if(if_adjust_coord)
+        if(coordinate_transform_mode!="off")
         {
-            auto adjust_coord_start_time=chrono::steady_clock::now();
-            adjust_coord();
-            adjust_coord_time=chrono::duration<double>(chrono::steady_clock::now()-adjust_coord_start_time).count();
+            auto coordinate_transform_start_time=chrono::steady_clock::now();
+            train_coordinate_transform();
+            apply_coordinate_transform();
+            write_coordinate_transform_file();
+            printf("coordinate transform training and application time= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_start_time).count());
         }
         bool load_existing_dag_cache=!dag_cache_path.empty()&&filesystem::exists(dag_cache_path);
         load_or_generate_prediction_structures();
@@ -33,8 +34,8 @@ namespace unsz
             validation_time=chrono::duration<double>(chrono::steady_clock::now()-validation_start_time).count();
         }
         remap_prediction_data_to_prediction_order();
-        double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-adjust_coord_time-validation_time;
-        printf("preprocessing time excluding coordinate input and adjust coord= %f s\n",preprocessing_time);
+        double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-validation_time;
+        printf("preprocessing time excluding coordinate and training-data input= %f s\n",preprocessing_time);
     }
 
     template<typename T_coord,typename T_data>
