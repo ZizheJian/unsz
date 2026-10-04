@@ -63,9 +63,9 @@ namespace unsz
         prepare_temporal_prediction();
         if constexpr(two_point_sets)
         {
-            point_set_id_vec.assign(point_num,point_set_num-1);
+            point_set_id_vec.resize(point_num);
             if(prediction_data_uses_prediction_order)
-                prediction_order_point_set_id_vec.assign(point_num,point_set_num-1);
+                prediction_order_point_set_id_vec.resize(point_num);
         }
         else
         {
@@ -95,9 +95,9 @@ namespace unsz
         constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
         constexpr bool try_time_value=fixed_value_mode==time_dimension_mode_e::constant_extrapolation||fixed_value_mode==time_dimension_mode_e::linear_interpolation||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
         constexpr bool use_spatial_residual=fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
-        current_decompressed_data.assign(point_num,0);
+        current_decompressed_data.resize(point_num);
         if(prediction_data_uses_prediction_order)
-            prediction_order_decompressed_data.assign(point_num,0);
+            prediction_order_decompressed_data.resize(point_num);
         vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
         auto stage_start_time=chrono::steady_clock::now();
         auto decompress_targets=[&](const prediction_structure_c<T_calc>&prediction_structure,const vector<uint8_t>&label_symbols,const vector<vector<int32_t>>&point_set_qbs,vector<uint64_t>&qb_indices,const unsigned char*&unpredictable_value_cursor,const unsigned char*unpredictable_value_end)
@@ -258,10 +258,7 @@ namespace unsz
         if constexpr(supports_single_point_set_spatial_fast_path)
             for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
                 use_single_point_set_spatial_fast_path&=structure.prediction_weights.size()==structure.reference_ids.size();
-        if(use_single_point_set_spatial_fast_path&&prediction_structure_vec.size()==1)
-            current_decompressed_data.resize(point_num);
-        else
-            current_decompressed_data.assign(point_num,0);
+        current_decompressed_data.resize(point_num);
         if(prediction_data_uses_prediction_order)
             prediction_order_decompressed_data.resize(point_num);
         auto stage_start_time=chrono::steady_clock::now();

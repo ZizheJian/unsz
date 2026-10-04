@@ -2,6 +2,100 @@
 
 namespace unsz
 {
+    inline constexpr double coordinate_transform_original_flatness_enable_threshold=0.05;
+    inline constexpr double coordinate_transform_original_flatness_reject_threshold=0.75;
+    inline constexpr double coordinate_transform_relative_flatness_enable_threshold=1.075;
+
+    inline pair<double,double> coordinate_covariance_eigenvalue_range(vector<double> covariance,uint32_t dim)
+    {
+        if(dim==0||covariance.size()!=(uint64_t)dim*dim)
+            throw runtime_error("坐标协方差矩阵维数不正确");
+        for(uint32_t iteration=0;iteration<64*dim*dim;iteration++)
+        {
+            uint32_t row=0,col=0;
+            double largest_off_diagonal=0,largest_diagonal=0;
+            for(uint32_t i=0;i<dim;i++)
+            {
+                largest_diagonal=max(largest_diagonal,abs(covariance[(uint64_t)i*dim+i]));
+                for(uint32_t j=i+1;j<dim;j++)
+                {
+                    double value=abs(covariance[(uint64_t)i*dim+j]);
+                    if(value>largest_off_diagonal)
+                    {
+                        largest_off_diagonal=value;
+                        row=i;
+                        col=j;
+                    }
+                }
+            }
+            if(largest_off_diagonal<=numeric_limits<double>::epsilon()*max(1.0,largest_diagonal)*16)
+                break;
+            double row_value=covariance[(uint64_t)row*dim+row],col_value=covariance[(uint64_t)col*dim+col],cross_value=covariance[(uint64_t)row*dim+col];
+            double angle=0.5*atan2(2*cross_value,col_value-row_value);
+            double cosine=cos(angle),sine=sin(angle);
+            for(uint32_t i=0;i<dim;i++)
+            {
+                if(i==row||i==col)
+                    continue;
+                double row_cross=covariance[(uint64_t)i*dim+row],col_cross=covariance[(uint64_t)i*dim+col];
+                covariance[(uint64_t)i*dim+row]=covariance[(uint64_t)row*dim+i]=cosine*row_cross-sine*col_cross;
+                covariance[(uint64_t)i*dim+col]=covariance[(uint64_t)col*dim+i]=sine*row_cross+cosine*col_cross;
+            }
+            covariance[(uint64_t)row*dim+row]=cosine*cosine*row_value-2*sine*cosine*cross_value+sine*sine*col_value;
+            covariance[(uint64_t)col*dim+col]=sine*sine*row_value+2*sine*cosine*cross_value+cosine*cosine*col_value;
+            covariance[(uint64_t)row*dim+col]=covariance[(uint64_t)col*dim+row]=0;
+        }
+        double minimum=covariance[0],maximum=covariance[0];
+        for(uint32_t d=1;d<dim;d++)
+        {
+            minimum=min(minimum,covariance[(uint64_t)d*dim+d]);
+            maximum=max(maximum,covariance[(uint64_t)d*dim+d]);
+        }
+        return {minimum,maximum};
+    }
+
+    template<typename T_coord>
+    vector<double> calculate_coordinate_covariance(const Array2D<T_coord>&coordinates,uint32_t dim)
+    {
+        vector<double> mean(dim,0),delta(dim),covariance((uint64_t)dim*dim,0);
+        for(uint32_t point_id=0;point_id<coordinates.n0;point_id++)
+        {
+            double count=point_id+1;
+            for(uint32_t d=0;d<dim;d++)
+            {
+                delta[d]=(double)coordinates.data[(uint64_t)point_id*dim+d]-mean[d];
+                mean[d]+=delta[d]/count;
+            }
+            for(uint32_t row=0;row<dim;row++)
+                for(uint32_t col=0;col<dim;col++)
+                    covariance[(uint64_t)row*dim+col]+=delta[row]*((double)coordinates.data[(uint64_t)point_id*dim+col]-mean[col]);
+        }
+        for(uint32_t row=0;row<dim;row++)
+            for(uint32_t col=row+1;col<dim;col++)
+            {
+                double symmetric_value=(covariance[(uint64_t)row*dim+col]+covariance[(uint64_t)col*dim+row])/2;
+                covariance[(uint64_t)row*dim+col]=covariance[(uint64_t)col*dim+row]=symmetric_value;
+            }
+        return covariance;
+    }
+
+    inline double calculate_coordinate_flatness(const vector<double>&covariance,uint32_t dim,const vector<double>*diagonal=nullptr)
+    {
+        vector<double> transformed_covariance=covariance;
+        if(diagonal)
+        {
+            if(diagonal->size()!=dim)
+                throw runtime_error("坐标变换对角元素数量与坐标维数不一致");
+            for(uint32_t row=0;row<dim;row++)
+                for(uint32_t col=0;col<dim;col++)
+                    transformed_covariance[(uint64_t)row*dim+col]*=(*diagonal)[row]*(*diagonal)[col];
+        }
+        auto [minimum,maximum]=coordinate_covariance_eigenvalue_range(move(transformed_covariance),dim);
+        if(!(maximum>0)||!isfinite(minimum)||!isfinite(maximum))
+            return 1;
+        return sqrt(max(0.0,minimum)/maximum);
+    }
+
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_coordinate_transform_training_data()
     {
@@ -243,46 +337,7 @@ namespace unsz
             value*=normalization;
         coordinate_transform_diagonal=diagonal;
 
-        double zero_loss=0,isotropic_numerator=0,isotropic_denominator=0;
-        for(uint64_t pair_id=0;pair_id<value_differences.size();pair_id++)
-        {
-            zero_loss+=value_differences[pair_id]*value_differences[pair_id];
-            double squared_distance=0;
-            for(uint32_t d=0;d<dim;d++)
-            {
-                double difference=coordinate_differences[pair_id*dim+d];
-                squared_distance+=difference*difference;
-            }
-            double distance=sqrt(squared_distance);
-            isotropic_numerator+=abs(value_differences[pair_id])*distance;
-            isotropic_denominator+=squared_distance;
-        }
-        double isotropic_scale=isotropic_denominator>0?isotropic_numerator/isotropic_denominator:1;
-        vector<double> isotropic_diagonal(dim,isotropic_scale);
-        double isotropic_loss=coordinate_transform_squared_loss(coordinate_differences,value_differences,isotropic_diagonal);
-        double fitted_scale_numerator=0,fitted_scale_denominator=0;
-        for(uint64_t pair_id=0;pair_id<value_differences.size();pair_id++)
-        {
-            double squared_distance=0;
-            for(uint32_t d=0;d<dim;d++)
-            {
-                double transformed_difference=coordinate_differences[pair_id*dim+d]*diagonal[d];
-                squared_distance+=transformed_difference*transformed_difference;
-            }
-            double distance=sqrt(squared_distance);
-            fitted_scale_numerator+=abs(value_differences[pair_id])*distance;
-            fitted_scale_denominator+=squared_distance;
-        }
-        double fitted_scale=fitted_scale_denominator>0?fitted_scale_numerator/fitted_scale_denominator:1;
-        vector<double> fitted_diagonal=diagonal;
-        for(double&value:fitted_diagonal)
-            value*=fitted_scale;
-        double fitted_loss=coordinate_transform_squared_loss(coordinate_differences,value_differences,fitted_diagonal);
-        double isotropic_explained_fraction=zero_loss>0?max(0.0,1-isotropic_loss/zero_loss):0;
-        coordinate_transform_gain=zero_loss>isotropic_loss?max(0.0,(isotropic_loss-fitted_loss)/(zero_loss-isotropic_loss)):0;
-        printf("coordinate transform loss per pair: zero=%.12g,isotropic=%.12g,diagonal=%.12g,isotropic_explained=%.9f,diagonal_gain_vs_isotropic_explained=%.9f\n",zero_loss/value_differences.size(),isotropic_loss/value_differences.size(),fitted_loss/value_differences.size(),isotropic_explained_fraction,coordinate_transform_gain);
-        use_coordinate_transform=coordinate_transform_mode=="on"||(coordinate_transform_mode=="auto"&&coordinate_transform_gain>=coordinate_transform_auto_threshold);
-        printf("coordinate transform gain=%.9f,threshold=%.9f,use=%u,diagonal=[",coordinate_transform_gain,coordinate_transform_auto_threshold,(uint32_t)use_coordinate_transform);
+        printf("coordinate transform diagonal=[");
         for(uint32_t d=0;d<dim;d++)
             printf("%s%.12g",d==0?"":",",coordinate_transform_diagonal[d]);
         printf("]\n");
@@ -315,10 +370,9 @@ namespace unsz
         ofstream file(path);
         if(!file)
             throw runtime_error("无法写入坐标变换文件："+path);
-        file<<"UNSZ_COORDINATE_TRANSFORM 2\n";
+        file<<"UNSZ_COORDINATE_TRANSFORM 3\n";
         file<<"dimension "<<dim<<"\n";
         file<<"enabled "<<(uint32_t)use_coordinate_transform<<"\n";
-        file<<"gain "<<setprecision(17)<<coordinate_transform_gain<<"\n";
         file<<"diagonal";
         for(double value:coordinate_transform_diagonal)
             file<<" "<<setprecision(17)<<value;
@@ -336,14 +390,12 @@ namespace unsz
             throw runtime_error("找不到坐标变换文件："+path);
         string magic,key;
         uint32_t version,file_dim,enabled;
-        if(!(file>>magic>>version)||magic!="UNSZ_COORDINATE_TRANSFORM"||version!=2)
+        if(!(file>>magic>>version)||magic!="UNSZ_COORDINATE_TRANSFORM"||version!=3)
             throw runtime_error("坐标变换文件格式不正确："+path);
         if(!(file>>key>>file_dim)||key!="dimension"||file_dim!=dim)
             throw runtime_error("坐标变换文件维数不正确："+path);
         if(!(file>>key>>enabled)||key!="enabled"||enabled>1)
             throw runtime_error("坐标变换文件enabled字段不正确："+path);
-        if(!(file>>key>>coordinate_transform_gain)||key!="gain"||!isfinite(coordinate_transform_gain))
-            throw runtime_error("坐标变换文件gain字段不正确："+path);
         if(!(file>>key)||key!="diagonal")
             throw runtime_error("坐标变换文件缺少diagonal字段："+path);
         coordinate_transform_diagonal.resize(dim);

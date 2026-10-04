@@ -41,7 +41,9 @@
       "prediction_max_ref_num": 10,
       "ordering_candidate_num": 16,
       "coordinate_transform": "auto",
-      "dag_cache_path": "/home/x-zjian1/unsz/results/coordinate_transform/production/tsunami_{field}_auto.dag",
+      "coordinate_transform_first_sample_ratio": 0.3,
+      "coordinate_transform_second_sample_num": 3000,
+      "coordinate_transform_sample_file_num": 3,
       "ordering_score_max_ref_num": 1,
       "ordering_score_min_ref_num": 1,
       "eb_schedule": {

@@ -5,13 +5,48 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::preprocess_compression(chrono::steady_clock::time_point preprocessing_start_time)
     {
+        double excluded_input_time=0;
         if(coordinate_transform_mode!="off")
         {
             auto coordinate_transform_start_time=chrono::steady_clock::now();
-            train_coordinate_transform();
+            vector<double> coordinate_covariance;
+            double original_flatness=0,transformed_flatness=0,flatness_ratio=0;
+            bool train_transform=true;
+            if(coordinate_transform_mode=="auto")
+            {
+                coordinate_covariance=calculate_coordinate_covariance(coord_array,dim);
+                original_flatness=calculate_coordinate_flatness(coordinate_covariance,dim);
+                printf("coordinate transform original flatness=%.9f\n",original_flatness);
+                if(original_flatness>=coordinate_transform_original_flatness_reject_threshold)
+                {
+                    train_transform=false;
+                    use_coordinate_transform=false;
+                    coordinate_transform_diagonal.assign(dim,1);
+                    printf("coordinate transform rejected before training: original flatness >= %.3f\n",coordinate_transform_original_flatness_reject_threshold);
+                }
+            }
+            if(train_transform)
+            {
+                auto training_input_start_time=chrono::steady_clock::now();
+                prepare_coordinate_transform_training_data();
+                excluded_input_time=chrono::duration<double>(chrono::steady_clock::now()-training_input_start_time).count();
+                train_coordinate_transform();
+                if(coordinate_transform_mode=="on")
+                    use_coordinate_transform=true;
+                else
+                {
+                    transformed_flatness=calculate_coordinate_flatness(coordinate_covariance,dim,&coordinate_transform_diagonal);
+                    flatness_ratio=original_flatness>0?transformed_flatness/original_flatness:numeric_limits<double>::infinity();
+                    use_coordinate_transform=original_flatness<=coordinate_transform_original_flatness_enable_threshold||flatness_ratio>=coordinate_transform_relative_flatness_enable_threshold;
+                }
+                if(coordinate_transform_mode=="auto")
+                {
+                    printf("coordinate transform transformed flatness=%.9f,ratio=%.9f,use=%u\n",transformed_flatness,flatness_ratio,(uint32_t)use_coordinate_transform);
+                }
+            }
             apply_coordinate_transform();
             write_coordinate_transform_file();
-            printf("coordinate transform training and application time= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_start_time).count());
+            printf("coordinate transform decision,training and application time excluding training-data input= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_start_time).count()-excluded_input_time);
         }
         bool load_existing_dag_cache=!dag_cache_path.empty()&&filesystem::exists(dag_cache_path);
         load_or_generate_prediction_structures();
@@ -34,7 +69,7 @@ namespace unsz
             validation_time=chrono::duration<double>(chrono::steady_clock::now()-validation_start_time).count();
         }
         remap_prediction_data_to_prediction_order();
-        double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-validation_time;
+        double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-validation_time-excluded_input_time;
         printf("preprocessing time excluding coordinate and training-data input= %f s\n",preprocessing_time);
     }
 

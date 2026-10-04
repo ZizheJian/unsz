@@ -279,12 +279,6 @@ int decompress_main(int argc,char **argv)
             if(param.coordinate_transform_mode!="off"&&param.coordinate_transform_mode!="on"&&param.coordinate_transform_mode!="auto")
                 throw runtime_error("-coordinate-transform必须是off、on或auto");
         }
-        else if(option=="-coordinate-transform-threshold")
-        {
-            param.coordinate_transform_auto_threshold=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-            if(param.coordinate_transform_auto_threshold>1)
-                throw runtime_error("-coordinate-transform-threshold必须在(0,1]内");
-        }
         else if(option=="-coordinate-transform-first-sample-ratio")
         {
             param.coordinate_transform_first_sample_ratio=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);

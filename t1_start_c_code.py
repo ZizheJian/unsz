@@ -1,4 +1,4 @@
-import argparse,array,json,math,os,shlex
+import argparse,array,csv,json,math,os,shlex
 from pathlib import Path
 from py_codes.parse_umc_output import calculate_umc_disk_error,parse_umc_compression_result,parse_umc_decompression_result
 from py_codes.parse_unsz_output import parse_unsz_compression_output,parse_unsz_output
@@ -96,10 +96,32 @@ def cleanup_test_outputs(config,compressor):
             remove_file_if_exists(str(input_path)+".unsz")
             remove_file_if_exists(str(input_path)+".unsz.bin")
         remove_file_if_exists(Path(config["data_dir"])/f"{config['field']}.joint.unsz")
+        remove_file_if_exists(Path(config["data_dir"])/f"{config['field']}.unsz.coord_transform.txt")
     elif compressor=="umc":
         for input_path in generate_input_file_paths(config):
             remove_file_if_exists(str(input_path)+".umc")
             remove_file_if_exists(str(input_path)+".umc.out")
+
+result_identity_columns=("task","field","compressor","label_flow","value_flow","label_value_execution","rel_eb","point_set_config")
+
+def normalize_result_csv_columns(path):
+    path=Path(path)
+    if not path.is_file():
+        return
+    with path.open(newline="",encoding="utf-8") as file:
+        rows=list(csv.reader(file))
+    if not rows:
+        return
+    header=rows[0]
+    missing_columns=[column for column in result_identity_columns if column not in header]
+    if missing_columns:
+        raise ValueError(f"结果CSV缺少身份列：{path}：{','.join(missing_columns)}")
+    if tuple(header[:len(result_identity_columns)])==result_identity_columns:
+        return
+    column_ids=[header.index(column) for column in result_identity_columns]
+    column_ids.extend(column_id for column_id,column in enumerate(header) if column not in result_identity_columns)
+    with path.open("w",newline="",encoding="utf-8") as file:
+        csv.writer(file,lineterminator="\n").writerows([[row[column_id] if column_id<len(row) else "" for column_id in column_ids] for row in rows])
 
 def build_project(build_max_cpus,silent_build):
     source_path=project_root/"c_codes"
@@ -198,8 +220,6 @@ def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expre
         raise ValueError(f"未知坐标变换模式：{coordinate_transform}")
     if coordinate_transform!="off":
         arguments.extend(("-coordinate-transform",coordinate_transform))
-    if "coordinate_transform_threshold" in config:
-        arguments.extend(("-coordinate-transform-threshold",config["coordinate_transform_threshold"]))
     if "coordinate_transform_first_sample_ratio" in config:
         arguments.extend(("-coordinate-transform-first-sample-ratio",config["coordinate_transform_first_sample_ratio"]))
     if "coordinate_transform_second_sample_num" in config:
@@ -290,6 +310,8 @@ def run_unsz(config):
         raise FileNotFoundError("缺少测试文件："+", ".join(missing_paths))
     dag_cache_path=None
     if "dag_cache_path" in config:
+        if not config.get("allow_dag_cache_for_screening",False):
+            raise ValueError("正式实验禁止使用DAG缓存；只有筛选实验可以显式设置allow_dag_cache_for_screening=true")
         dag_cache_path=Path(config["dag_cache_path"].format(field=config["field"]))
         if not dag_cache_path.is_absolute():
             dag_cache_path=source_data_dir/dag_cache_path
@@ -369,6 +391,7 @@ def run_task(task):
         if not result_path.is_absolute():
             result_path=project_root/result_path
         result_path.parent.mkdir(parents=True,exist_ok=True)
+        normalize_result_csv_columns(result_path)
         unsz_configs=expand_unsz_flows(field_config|task["unsz"]) if "unsz" in task["compressor_list"] else []
         point_set_config_path_list=task.get("unsz",{}).get("point_set_config_path_list")
         test_vec=[]

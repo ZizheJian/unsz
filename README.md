@@ -88,7 +88,7 @@ install/bin/s1_compress -data-dir /path/to/data -field field -time-step '[0,9]' 
 
 当前bitstream不保存用户error bound、坐标变换矩阵、预测参数或实验开关。解压时必须提供与压缩时完全相同的参数；参数不一致通常会导致解码失败或误差检查失败。
 
-空间预测DAG默认不缓存，压缩和解压分别现场生成。显式传入`-dag-cache <path>`后才启用缓存：路径不存在时，压缩器或解压器生成DAG并写入该路径；路径存在时直接读取。缓存必须由相同坐标变换和预测参数生成，同一field测试不同配置时必须为它们指定不同路径。
+空间预测DAG默认不缓存，压缩和解压分别现场生成。显式传入`-dag-cache <path>`后才启用缓存：路径不存在时，压缩器或解压器生成DAG并写入该路径；路径存在时直接读取。缓存必须由相同坐标变换和预测参数生成，同一field测试不同配置时必须为它们指定不同路径。`t1_start_c_code.py`默认拒绝task中的DAG缓存；只有筛选实验同时显式设置`"allow_dag_cache_for_screening":true`时才允许使用，正式实验不得设置该开关。
 
 ## 1.4. 自定义有序点集
 
@@ -165,7 +165,7 @@ JSON最外层是task list；同一个JSON可以包含不同数据目录的任务
 ]
 ```
 
-`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF要求`prediction_min_ref_num`与`prediction_max_ref_num`相等；只在完整参考点集合可用时执行RBF，否则固定退化为最近的同点集参考点，不再提供部分参考点RBF或IDW fallback。IDW仍允许两个参数不同，并在可用同点集参考点上重新归一化。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope="local"`时先把点分轮，再在各轮内部排序，并通过`prediction_round_num`明确记录轮数；`ordering_scope="global"`时只生成一条完整顺序，不接受`prediction_round_num`。`eb_schedule`只支持不调整误差界的`none`和按预测位置连续变化的`inverse_rank_log2`；后者记录`base`、`log2_shift`和`max_log2_exponent`。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时间流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、标签/数值执行方式、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。需要缓存DAG时，在`unsz`中显式设置`dag_cache_path`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`和`.unsz.bin`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
+`predictor`集中记录预测器自身的参数：IDW使用`name`和`idw_power`；RBF使用`name`、`rbf_kernel`、`rbf_shape`和`rbf_nugget`。RBF权重在DAG生成后统一以批量LDLT和Schur补求解，不再提供求解器配置。RBF要求`prediction_min_ref_num`与`prediction_max_ref_num`相等；只在完整参考点集合可用时执行RBF，否则固定退化为最近的同点集参考点，不再提供部分参考点RBF或IDW fallback。IDW仍允许两个参数不同，并在可用同点集参考点上重新归一化。`prediction_max_ref_num`既是DAG为每个目标最多保存的参考点数，也是主预测器最多使用的同点集参考点数。预测目标固定使用反向MSD排序，不再把排序标准作为配置维度；MSD评分使用的参考点数量由独立的`ordering_score_max_ref_num`和`ordering_score_min_ref_num`控制。`ordering_scope="local"`时先把点分轮，再在各轮内部排序，并通过`prediction_round_num`明确记录轮数；`ordering_scope="global"`时只生成一条完整顺序，不接受`prediction_round_num`。`eb_schedule`只支持不调整误差界的`none`和按预测位置连续变化的`inverse_rank_log2`；后者记录`base`、`log2_shift`和`max_log2_exponent`。`ordering_candidate_num`必须显式记录每次选择下一个预测目标时检查的候选数，不根据预测器或时间流程推断默认值。RBF固定使用0阶常数约束。例如要比较不同`rbf_shape`，应写成两个名称不同的task，而不是把`rbf_shape`写成list。程序不再生成或接受额外的`key`；压缩和解压文件继续采用原始field文件名，CSV写入`csv_path`，并用task名称、压缩器、标签流程、数值流程、标签/数值执行方式、REL EB和点集配置路径共同区分每一行，其中不适用的标识写为`not_applicable`。筛选实验需要缓存DAG时，在`unsz`中同时显式设置`dag_cache_path`和`"allow_dag_cache_for_screening":true`；相对路径以`data_dir`为基准，并可使用`{field}`占位符。没有该参数时，压缩器和解压器分别现场生成DAG且不写入缓存。同一field测试不同DAG配置时必须显式使用不同路径，避免误读不兼容缓存。正式实验禁止设置DAG缓存。task设置`"cleanup_after_each_test":true`时，每组结果成功写入CSV后删除UNSZ生成的`.unsz`和`.unsz.bin`，以及UMC生成的`.umc`和`.umc.out`；点集JSON与显式指定的DAG缓存不会被删除。
 
 UMC任务在独立解压完成后始终逐点读取原始field和磁盘上的`.umc.out`。检查使用NumPy分块计算每个time step的数据范围、最大误差和总MSE，验证逐点REL误差界，并核对磁盘PSNR与UMC压缩端和解压端报告一致；该检查在UMC程序计时之外执行，不计入核心压缩或解压时间。
 
@@ -255,7 +255,7 @@ UNSZ目前实现了以下压缩流程：
 
 - `"off"`：不训练也不应用坐标变换。
 - `"on"`：训练并始终应用坐标变换。
-- `"auto"`：训练后根据收益判据决定是否应用；默认阈值为`0.2`，可用`coordinate_transform_threshold`修改。
+- `"auto"`：根据坐标flatness自动决定是否训练和应用坐标变换。
 
 训练默认使用最多3个均匀分布的time step。每个训练文件先以固定随机种子保留30%的点建立kd-tree，再在这些点中总共选取最多3000个目标；每个目标使用正式预测器的`prediction_max_ref_num`个近邻形成训练点对。task可通过`coordinate_transform_sample_file_num`、`coordinate_transform_first_sample_ratio`和`coordinate_transform_second_sample_num`修改这三个参数。当前只学习各坐标轴的对角缩放，不混合坐标轴，也不执行第二轮重新采样。
 
@@ -265,29 +265,26 @@ $$
 L_{\mathrm{diag}}=\min_{s,a}\sum_i\left(|\Delta v_i|-a\lVert\Delta c_i\odot s\rVert_2\right)^2.
 $$
 
-训练使用Gauss–Newton法；求解后把`s`归一化，使其平方和等于坐标维数。自动判据还计算两个基线：
+训练使用Gauss–Newton法；求解后把`s`归一化，使其平方和等于坐标维数。`auto`模式首先计算原始坐标协方差矩阵的flatness：
 
 $$
-L_0=\sum_i|\Delta v_i|^2,
-\qquad
-L_{\mathrm{iso}}=\min_a\sum_i(|\Delta v_i|-a\lVert\Delta c_i\rVert_2)^2.
+f=\sqrt{\frac{\lambda_{\min}}{\lambda_{\max}}}.
 $$
 
-最终收益定义为：
+当原始flatness不大于`0.05`时确定启用并继续训练；当它不小于`0.75`时直接拒绝，不读取训练数据也不训练。其余情况完成训练，并用`DCD`直接计算变换后协方差，其中`C`是原始协方差，`D`是训练出的对角矩阵。仅当
 
 $$
-g=\max\left(0,\frac{L_{\mathrm{iso}}-L_{\mathrm{diag}}}{L_0-L_{\mathrm{iso}}}\right).
+\frac{f_{\mathrm{transformed}}}{f_{\mathrm{original}}}\ge 1.075
 $$
 
-`auto`模式仅在`g`不小于阈值时应用变换。变换后的坐标用于建树、生成DAG和计算预测权重；数据值本身不变。
+时才应用变换，否则关闭。flatness计算、训练和坐标变换都计入预处理时间；坐标和训练数据的文件读取不计时。变换后的坐标用于建树、生成DAG和计算预测权重；数据值本身不变。
 
-压缩器把本次训练结果写到数据目录中的`<field>.unsz.coord_transform.txt`。文件以明文记录维数、是否启用、收益和每个坐标轴的缩放值；解压器读取同一文件，不重新训练。例：
+压缩器把本次训练结果写到数据目录中的`<field>.unsz.coord_transform.txt`。文件以明文记录维数、是否启用和每个坐标轴的缩放值；解压器读取同一文件，不重新训练。例：
 
 ```text
-UNSZ_COORDINATE_TRANSFORM 2
+UNSZ_COORDINATE_TRANSFORM 3
 dimension 3
 enabled 1
-gain 0.42
 diagonal 1.31 0.74 0.08
 ```
 
@@ -955,7 +952,7 @@ Tsunami的`CR/UMC`来自既有1点MSD五点曲线；切换正式配置后尚未�
 
 `configs/`中的task JSON是当前运行配置的权威记录，3.2节只汇总已经选定或正在调优的方案。主要baseline为UMC；SZ3和ZFP留到正式实验阶段补充。
 
-单点集RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点；多点集RD曲线由`point_set_config_path_list`中的完整误差配置构成，每个点集可以使用不同EB。UNSZ与UMC曲线不要求使用相同EB，而是在共同PSNR范围内对`log(BR)`和`log(time)`作分段线性插值后比较；BD-rate为`log(BR)`差的区间积分均值取指数，因而不受额外插入EB采样点影响。UMC合并多个time step的MSE时所需的数据范围，在每个task的每个field开始实验前计算一次，并传给该field的全部UMC实验，不随REL EB重复读取输入。速度统计压缩与解压的程序内部核心时间之和；压缩端与解压端的预处理时间分别记录，其中包括各自的DAG加载或生成、RBF权重生成等操作，输入正确性验证和坐标变换时间单独排除。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
+单点集RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点；多点集RD曲线由`point_set_config_path_list`中的完整误差配置构成，每个点集可以使用不同EB。UNSZ与UMC曲线不要求使用相同EB，而是在共同PSNR范围内对`log(BR)`和`log(time)`作分段线性插值后比较；BD-rate为`log(BR)`差的区间积分均值取指数，因而不受额外插入EB采样点影响。UMC合并多个time step的MSE时所需的数据范围，在每个task的每个field开始实验前计算一次，并传给该field的全部UMC实验，不随REL EB重复读取输入。速度统计压缩与解压的程序内部核心时间之和；压缩端与解压端的完整预处理时间分别记录。正式实验中两个压缩器都不保存预测DAG，压缩端和解压端分别现场重新生成各自的预测结构；UNSZ压缩预处理包含坐标变换训练与应用、DAG生成和RBF权重计算，解压预处理读取可复用的坐标变换参数并包含变换应用、DAG生成和RBF权重计算。坐标、connectivity、坐标变换训练数据及坐标变换参数文件的读取不计时，输入正确性验证也不计时。坐标变换参数是field级可复用预处理结果，不计入每个压缩码流的大小。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
 
 UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同一计时口径：压缩时间为field重排与核心压缩之和，解压时间为核心解压与恢复原始顺序之和；读取输入、写出结果、读取原始field进行误差验证和误差统计均不计入。ADCIRC-Haiyan-1.5km的connectivity包含两个连通分量，而UMC的DPFS只遍历0号点所在的连通分量，无法生成覆盖全部点的有效重排。我们不修改UMC算法，也不改用`reorder=0`；因此Haiyan汇报为UMC无法运行，不计算`CR/UMC`和`总时间/UMC`。
 

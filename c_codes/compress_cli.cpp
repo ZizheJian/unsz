@@ -259,14 +259,6 @@ namespace unsz
                 if(param.coordinate_transform_mode!="off"&&param.coordinate_transform_mode!="on"&&param.coordinate_transform_mode!="auto")
                     throw runtime_error("-coordinate-transform必须是off、on或auto");
             }
-            else if(strcmp(argv[arg_id],"-coordinate-transform-threshold")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-coordinate-transform-threshold后面缺少阈值");
-                param.coordinate_transform_auto_threshold=parse_positive_double(argv[++arg_id],"-coordinate-transform-threshold");
-                if(param.coordinate_transform_auto_threshold>1)
-                    throw runtime_error("-coordinate-transform-threshold必须在(0,1]内");
-            }
             else if(strcmp(argv[arg_id],"-coordinate-transform-first-sample-ratio")==0)
             {
                 if(arg_id+1>=argc)
@@ -339,7 +331,6 @@ namespace unsz
         param_c<float,float> param;
         parse_args(argc,argv,param);
         param.init();
-        param.prepare_coordinate_transform_training_data();
         auto preprocessing_start_time=chrono::steady_clock::now();
         printf("使用float处理坐标和距离\n");
         unsz::compress(param,preprocessing_start_time);

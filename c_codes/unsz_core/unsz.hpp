@@ -152,7 +152,7 @@ namespace unsz
             uint32_t num;
         };
 
-        vector<vector<int>> target_id_groups;
+        vector<uint32_t> target_group_sizes;
         vector<int> target_ids,reference_ids;
         vector<uint64_t> reference_offsets;
         vector<T_calc> prediction_weights;
@@ -342,14 +342,12 @@ namespace unsz
             string value_flow="none";
             string label_flow="none";
             string coordinate_transform_mode="off";//off / on / auto
-            double coordinate_transform_auto_threshold=0.2;
             double coordinate_transform_first_sample_ratio=0.3;
             uint32_t coordinate_transform_second_sample_num=3000;
             uint32_t coordinate_transform_sample_file_num=3;
             bool use_coordinate_transform=false;
             vector<double> coordinate_transform_diagonal;
             vector<vector<T_data>> coordinate_transform_training_data;
-            double coordinate_transform_gain=0;
             bool print_compression_stage_time=false,prediction_data_uses_prediction_order=false;
             string label_value_execution="staged";//staged / fused
             string ordering_scope="local";//local / global
@@ -379,9 +377,6 @@ namespace unsz
             Array2D<T_coord> coord_array;
             vector<T_coord> min_coord,max_coord;
             vector<prediction_structure_c<T_calc>> prediction_structure_vec;//未切分时只有一个结构；切分后每个结构独立完整
-            vector<vector<int>> partition_point_ids_vec;
-            vector<uint32_t> point_partition_id_vec;
-
             vector<T_data> current_data,current_decompressed_data,prediction_order_decompressed_data;
             vector<uint32_t> time_step_vec;
             vector<T_coord> time_step_coordinate_vec;
@@ -434,7 +429,7 @@ namespace unsz
             void read_coordinate_transform_file();
             void load_or_generate_prediction_structures();
             void remap_prediction_data_to_prediction_order(bool for_decompression=false);
-            void build_partitions();
+            vector<vector<int>> build_partitions();
             vector<uint32_t> get_round_target_num_vec(uint32_t local_point_num) const;
             void generate_partition_prediction_structures(bool uses_idw,bool uses_rbf);
             vector<double> generate_pred_eb_multiplier_vec(uint32_t target_num,bool print_statistics=false);
@@ -445,7 +440,7 @@ namespace unsz
             void generate_global_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf);
             void generate_local_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf);
             template<bool global_order>
-            void sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,bool uses_idw,bool uses_rbf,vector<T_coord>&prediction_ref_coords,vector<T_coord>&prediction_ref_squared_distances);
+            void sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,vector<vector<int>>&target_id_groups,prediction_structure_c<T_calc>&structure,bool uses_idw,bool uses_rbf,vector<T_coord>&prediction_ref_coords,vector<T_coord>&prediction_ref_squared_distances);
             void validate_prediction_structures() const;
             void generate_rbf_weights_from_loaded_dag();
             void save_prediction_structure_cache();

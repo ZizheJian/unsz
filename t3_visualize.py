@@ -45,19 +45,18 @@ dataset_config={
 
 def read_coordinate_transform(path,coordinate_dim):
     token=path.read_text().split()
-    if len(token)!=9+coordinate_dim or token[:2]!=["UNSZ_COORDINATE_TRANSFORM","2"]:
+    if len(token)!=7+coordinate_dim or token[:2]!=["UNSZ_COORDINATE_TRANSFORM","3"]:
         raise ValueError(f"坐标变换文件格式不正确：{path}")
     if token[2]!="dimension" or int(token[3])!=coordinate_dim:
         raise ValueError(f"坐标变换文件维数不正确：{path}")
     if token[4]!="enabled" or token[5] not in ("0","1"):
         raise ValueError(f"坐标变换文件enabled字段不正确：{path}")
-    if token[6]!="gain" or token[8]!="diagonal":
+    if token[6]!="diagonal":
         raise ValueError(f"坐标变换文件字段不正确：{path}")
-    gain=float(token[7])
-    diagonal=np.asarray(token[9:],dtype=np.float64)
-    if not np.isfinite(gain) or not np.isfinite(diagonal).all():
+    diagonal=np.asarray(token[7:],dtype=np.float64)
+    if not np.isfinite(diagonal).all():
         raise ValueError(f"坐标变换文件包含非有限数：{path}")
-    return bool(int(token[5])),gain,diagonal
+    return bool(int(token[5])),diagonal
 
 def make_grid(coord,conn,cell_point_num):
     cells=np.column_stack((np.full(conn.shape[0],cell_point_num,dtype=np.int32),conn)).ravel()
@@ -111,10 +110,10 @@ def visualize(dataset_name,data_root,output_dir):
     config=dict(dataset_config[dataset_name])
     data_dir=data_root/config["directory"]
     if "coordinate_transform_file" in config:
-        enabled,gain,diagonal=read_coordinate_transform(data_dir/config["coordinate_transform_file"],config["coordinate_dim"])
+        enabled,diagonal=read_coordinate_transform(data_dir/config["coordinate_transform_file"],config["coordinate_dim"])
         config["coordinate_transform_enabled"]=enabled
         config["transform_matrix"]=np.diag(diagonal)
-        print(f"坐标变换：enabled={int(enabled)}，gain={gain:.9f}，diagonal={diagonal.tolist()}")
+        print(f"坐标变换：enabled={int(enabled)}，diagonal={diagonal.tolist()}")
     data=np.fromfile(data_dir/f"{config['field']}.dat.{config['time_step']}",dtype=np.float32)
     if config["abnormal_upper_bound"] is not None:
         data=np.where(data<config["abnormal_upper_bound"],np.nan,data)

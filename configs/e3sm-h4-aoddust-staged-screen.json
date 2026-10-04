@@ -42,6 +42,7 @@
         "max_log2_exponent": 7
       },
       "label_value_execution": "staged",
+      "allow_dag_cache_for_screening": true,
       "dag_cache_path": "/home/x-zjian1/unsz/results/e3sm_h4_aoddust_staged_screen/rbf10_global.dag",
       "point_set_config_path_list": [
         "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json"
@@ -93,6 +94,7 @@
         "max_log2_exponent": 7
       },
       "label_value_execution": "staged",
+      "allow_dag_cache_for_screening": true,
       "dag_cache_path": "/home/x-zjian1/unsz/results/e3sm_h4_aoddust_staged_screen/rbf10_global.dag",
       "point_set_config_path_list": [
         "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json"

@@ -3,10 +3,10 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::build_partitions()
+    vector<vector<int>> param_c<T_coord,T_data>::build_partitions()
     {
         if(partition_size==0&&partition_num==0)
-            return;
+            return {};
         if(partition_size>0&&partition_num>0)
             throw runtime_error("不能同时指定partition大小和partition数量");
         uint32_t requested_partition_num=partition_num;
@@ -19,7 +19,7 @@ namespace unsz
         if(requested_partition_num==0||requested_partition_num>point_num||(requested_partition_num&(requested_partition_num-1))!=0)
             throw runtime_error("partition数量必须是不超过点数的2的幂");
 
-        partition_point_ids_vec.assign(1,vector<int>(point_num));
+        vector<vector<int>> partition_point_ids_vec(1,vector<int>(point_num));
         iota(partition_point_ids_vec.front().begin(),partition_point_ids_vec.front().end(),0);
         while(partition_point_ids_vec.size()<requested_partition_num)
         {
@@ -48,7 +48,7 @@ namespace unsz
             partition_point_ids_vec.swap(child_point_ids_vec);
         }
 
-        point_partition_id_vec.assign(point_num,numeric_limits<uint32_t>::max());
+        vector<uint8_t> point_was_assigned(point_num,0);
         uint32_t min_partition_point_num=point_num,max_partition_point_num=0;
         for(uint32_t partition_id=0;partition_id<partition_point_ids_vec.size();partition_id++)
         {
@@ -57,21 +57,22 @@ namespace unsz
             max_partition_point_num=max<uint32_t>(max_partition_point_num,point_ids.size());
             for(int point_id:point_ids)
             {
-                if(point_partition_id_vec[point_id]!=numeric_limits<uint32_t>::max())
+                if(point_was_assigned[point_id])
                     throw runtime_error("partition包含重复点");
-                point_partition_id_vec[point_id]=partition_id;
+                point_was_assigned[point_id]=1;
             }
         }
-        if(any_of(point_partition_id_vec.begin(),point_partition_id_vec.end(),[](uint32_t id){return id==numeric_limits<uint32_t>::max();}))
+        if(any_of(point_was_assigned.begin(),point_was_assigned.end(),[](uint8_t assigned){return !assigned;}))
             throw runtime_error("partition没有覆盖所有点");
         printf("Independent spatial partitions: %u, point_num_range=[%u,%u]\n",(uint32_t)partition_point_ids_vec.size(),min_partition_point_num,max_partition_point_num);
+        return partition_point_ids_vec;
     }
 
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::generate_partition_prediction_structures(bool uses_idw,bool uses_rbf)
     {
         auto generation_start_time=chrono::steady_clock::now();
-        build_partitions();
+        vector<vector<int>> partition_point_ids_vec=build_partitions();
         prediction_structure_vec.clear();
         prediction_structure_vec.resize(partition_point_ids_vec.size());
         printf("Generating independent partition prediction structures: partition_num=%u,thread_num=%u\n",(uint32_t)partition_point_ids_vec.size(),thread_num);
@@ -103,6 +104,7 @@ namespace unsz
         }
         if(generation_exception)
             rethrow_exception(generation_exception);
+        partition_point_ids_vec.clear();
         uint64_t generated_target_num=0,generated_reference_num=0;
         for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
         {

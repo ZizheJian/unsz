@@ -107,7 +107,7 @@ namespace unsz
         const prediction_framework_c&framework=current_prediction_framework;
         if(framework.value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||framework.value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
         {
-            current_time_spatial_residual_data.assign(point_num,0);
+            current_time_spatial_residual_data.resize(point_num);
             current_time_spatial_residual_valid.assign(point_num,0);
         }
         const temporal_dependency_c&value_dependency=temporal_value_dependency_vec[current_time_step_index];

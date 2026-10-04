@@ -365,7 +365,7 @@ namespace unsz
         }
         bool use_causal_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_label_available;
         constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
-        vector<uint8_t> label_symbol_by_point(point_num,0);
+        label_symbols.resize(point_num);
         for(uint32_t prediction_index=0;prediction_index<structure.target_ids.size();prediction_index++)
         {
             int pred_id=structure.target_ids[prediction_index];
@@ -388,11 +388,8 @@ namespace unsz
             bool prediction_error=actual_label!=predicted_label;
             state.label_target_num++;
             state.label_error_num+=prediction_error;
-            label_symbol_by_point[pred_id]=prediction_error?1:0;
+            label_symbols[pred_id]=prediction_error?1:0;
         }
-        label_symbols.reserve(state.label_target_num);
-        for(uint32_t point_id=0;point_id<point_num;point_id++)
-            label_symbols.push_back(label_symbol_by_point[point_id]);
         label_prediction_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
         vector<vector<int32_t>> empty_point_set_qbs(state.point_set_num);
         vector<T_data> empty_unpredictable_values;
