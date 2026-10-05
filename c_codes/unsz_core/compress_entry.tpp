@@ -48,10 +48,7 @@ namespace unsz
             write_coordinate_transform_file();
             printf("coordinate transform decision,training and application time excluding training-data input= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_start_time).count()-excluded_input_time);
         }
-        bool load_existing_dag_cache=!dag_cache_path.empty()&&filesystem::exists(dag_cache_path);
-        load_or_generate_prediction_structures();
-        if(load_existing_dag_cache&&any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c &config){return config.codec==point_set_codec_e::rbf;}))
-            generate_rbf_weights_from_loaded_dag();
+        generate_prediction_structures_and_weights();
         for(uint32_t structure_id=0;structure_id<prediction_structure_vec.size();structure_id++)
         {
             prediction_structure_c<T_calc>&structure=prediction_structure_vec[structure_id];
@@ -60,13 +57,6 @@ namespace unsz
             structure.inverse_eb_multiplier.resize(structure.eb_multiplier.size());
             for(uint32_t prediction_index=0;prediction_index<structure.eb_multiplier.size();prediction_index++)
                 structure.inverse_eb_multiplier[prediction_index]=1/structure.eb_multiplier[prediction_index];
-        }
-        double validation_time=0;
-        if(load_existing_dag_cache)
-        {
-            auto validation_start_time=chrono::steady_clock::now();
-            validate_prediction_structures();
-            validation_time=chrono::duration<double>(chrono::steady_clock::now()-validation_start_time).count();
         }
         remap_prediction_data_to_prediction_order();
         excluded_input_time+=select_automatic_flows();
@@ -81,7 +71,7 @@ namespace unsz
             prepare_time_step_order(label_order);
         else
             prepare_time_step_order(time_step_order_e::chronological);
-        double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-validation_time-excluded_input_time;
+        double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-excluded_input_time;
         printf("preprocessing time excluding coordinate and field-data input= %f s\n",preprocessing_time);
     }
 
@@ -165,19 +155,13 @@ namespace unsz
         auto automatic_flow_precomputation_start=chrono::steady_clock::now();
         param.precompute_automatic_flow_abs_eb();
         preprocessing_start_time+=chrono::steady_clock::now()-automatic_flow_precomputation_start;
-        point_set_codec_e predictor=point_set_codec_e::constant;
         for(const point_set_config_c&config:param.point_set_config_vec)
         {
             if(config.codec==point_set_codec_e::constant)
                 continue;
-            if(predictor!=point_set_codec_e::constant&&predictor!=config.codec)
-                throw runtime_error("同一次压缩中的非常量点集必须使用同一种空间预测器");
-            predictor=config.codec;
+            if(config.codec!=point_set_codec_e::rbf)
+                throw runtime_error("压缩只支持RBF空间预测器");
         }
-        if(predictor==point_set_codec_e::idw)
-            return compress_with_predictor<point_set_codec_e::idw>(param,preprocessing_start_time);
-        if(predictor==point_set_codec_e::rbf)
-            return compress_with_predictor<point_set_codec_e::rbf>(param,preprocessing_start_time);
-        throw runtime_error("压缩至少需要一个使用IDW或RBF的非常量点集");
+        return compress_with_predictor<point_set_codec_e::rbf>(param,preprocessing_start_time);
     }
 }

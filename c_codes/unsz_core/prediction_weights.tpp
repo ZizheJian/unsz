@@ -3,55 +3,6 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::write_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,T_calc *weights,array_view_c<T_coord> target_ref_squared_distances)
-    {
-        if(!target_ref_squared_distances.empty()&&target_ref_squared_distances.size()!=ref_ids.size())
-            throw runtime_error("预计算距离数量与IDW参考点数量不一致");
-        if(ref_ids.empty())
-            return;
-        fill(weights,weights+ref_ids.size(),0);
-        T_calc weight_sum=0;
-        for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
-        {
-            T_calc squared_distance;
-            if(target_ref_squared_distances.empty())
-                squared_distance=(T_calc)get_dist_to_coord(coord_array[pred_id],coord_array[ref_ids[ref_index]],dim);
-            else
-                squared_distance=(T_calc)target_ref_squared_distances[ref_index];
-            if(squared_distance==0)
-            {
-                weights[ref_index]=1;
-                return;
-            }
-            T_calc weight=pow(squared_distance,(T_calc)(-idw_power/2));
-            if(!isfinite(weight))
-            {
-                weights[ref_index]=1;
-                return;
-            }
-            weights[ref_index]=weight;
-            weight_sum+=weight;
-        }
-        if(!(weight_sum>0)||!isfinite(weight_sum))
-        {
-            fill(weights,weights+ref_ids.size(),0);
-            weights[0]=1;
-            return;
-        }
-        for(uint32_t weight_index=0;weight_index<ref_ids.size();weight_index++)
-            weights[weight_index]/=weight_sum;
-    }
-
-    template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::append_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances)
-    {
-        uint64_t begin=weights.size();
-        weights.resize(begin+ref_ids.size());
-        write_normalized_idw_prediction_weights(pred_id,ref_ids,ref_ids.empty()?nullptr:weights.data()+begin,target_ref_squared_distances);
-    }
-
-
-    template<typename T_coord,typename T_data>
     bool param_c<T_coord,T_data>::solve_scalar_rbf_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> precomputed_target_ref_squared_distances)
     {
         // 仅处理参考点数未达到固定批宽、但仍满足RBF下限的少量边界目标。
@@ -493,46 +444,4 @@ namespace unsz
         printf("Batched RBF weights: vectorized_targets=%llu,scalar_targets=%llu,rbf_targets=%llu,nearest_fallback_targets=%llu,time=%f s\n",(unsigned long long)batched_target_ids.size(),(unsigned long long)scalar_target_num,(unsigned long long)rbf_target_num,(unsigned long long)nearest_fallback_target_num,chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
     }
 
-    template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::generate_rbf_weights_from_loaded_dag()
-    {
-        auto prepare=[&](prediction_structure_c<T_calc>&structure)
-        {
-            if(structure.prediction_weights.size()==structure.reference_ids.size()&&structure.rbf_fallback_flags.size()==structure.target_ids.size())
-                return;
-            auto start_time=chrono::steady_clock::now();
-            vector<T_coord> reference_coords((uint64_t)structure.reference_ids.size()*dim),target_ref_squared_distances(structure.reference_ids.size());
-            for(uint32_t prediction_index=0;prediction_index<structure.target_ids.size();prediction_index++)
-            {
-                uint64_t begin=structure.reference_offsets[prediction_index],end=structure.reference_offsets[prediction_index+1];
-                int pred_id=structure.target_ids[prediction_index];
-                for(uint64_t ref_offset=begin;ref_offset<end;ref_offset++)
-                {
-                    int ref_id=structure.reference_ids[ref_offset];
-                    for(uint32_t dimension=0;dimension<dim;dimension++)
-                        reference_coords[ref_offset*dim+dimension]=coord_array[ref_id][dimension];
-                    target_ref_squared_distances[ref_offset]=get_dist_to_coord(coord_array[pred_id],coord_array[ref_id],dim);
-                }
-            }
-            printf("Reconstructed temporary RBF geometry from DAG: coordinates=%llu,distances=%llu,time=%f s\n",(unsigned long long)reference_coords.size(),(unsigned long long)target_ref_squared_distances.size(),chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
-            generate_batched_rbf_weights(reference_coords,target_ref_squared_distances,structure.target_ids,structure.reference_ids,structure.reference_offsets,structure.prediction_weights,structure.rbf_fallback_flags);
-        };
-        exception_ptr weight_exception;
-#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(prediction_structure_vec.size()>1&&thread_num>1)
-        for(int64_t structure_index=0;structure_index<(int64_t)prediction_structure_vec.size();structure_index++)
-        {
-            try
-            {
-                prepare(prediction_structure_vec[structure_index]);
-            }
-            catch(...)
-            {
-#pragma omp critical
-                if(!weight_exception)
-                    weight_exception=current_exception();
-            }
-        }
-        if(weight_exception)
-            rethrow_exception(weight_exception);
-    }
 }

@@ -3,15 +3,16 @@
 namespace unsz
 {
     template<typename T_data>
-    __attribute__((always_inline)) inline int32_t quantize_or_store_unpredictable(T_data value,T_data prediction,double abs_eb,double inverse_double_abs_eb,vector<T_data>&unpredictable_values,T_data&reconstructed_value)
+    __attribute__((always_inline)) inline int32_t quantize_or_store_unpredictable(T_data value,T_data prediction,T_data abs_eb,T_data inverse_double_abs_eb,vector<T_data>&unpredictable_values,T_data&reconstructed_value)
     {
-        double scaled_error=((double)value-prediction)*inverse_double_abs_eb;
-        constexpr double min_predictable_qb=(double)numeric_limits<int32_t>::min()+0.5,max_predictable_qb=(double)numeric_limits<int32_t>::max()+0.5;
+        T_data scaled_error=(value-prediction)*inverse_double_abs_eb;
+        constexpr T_data min_predictable_qb=(T_data)numeric_limits<int32_t>::min(),max_predictable_qb=(T_data)numeric_limits<int32_t>::max();
         if(scaled_error>min_predictable_qb&&scaled_error<max_predictable_qb)
         {
-            int32_t qb=(int32_t)llrint(scaled_error);
-            reconstructed_value=prediction+qb*2*abs_eb;
-            return qb;
+            int32_t qb=(int32_t)lrintf(scaled_error);
+            reconstructed_value=prediction+(T_data)qb*((T_data)2*abs_eb);
+            if(abs(value-reconstructed_value)<=abs_eb)
+                return qb;
         }
         unpredictable_values.push_back(value);
         reconstructed_value=value;
@@ -274,8 +275,8 @@ namespace unsz
             if(state.point_set_num!=2)
                 throw runtime_error("融合两点集预测要求当前文件恰好包含两个点集");
             for(point_set_codec_e codec:point_set_codec_vec)
-                if(codec!=point_set_codec_e::constant&&codec!=point_set_codec_e::idw&&codec!=point_set_codec_e::rbf)
-                    throw runtime_error("融合两点集预测只支持constant、IDW或RBF预测器");
+                if(codec!=point_set_codec_e::constant&&codec!=point_set_codec_e::rbf)
+                    throw runtime_error("融合两点集预测只支持constant或RBF预测器");
         }
     }
 
@@ -315,14 +316,14 @@ namespace unsz
         const vector<int>&reference_ids=prediction_structure.reference_ids;
         const vector<T_calc>&prediction_weights=prediction_structure.prediction_weights;
         const vector<uint8_t>&rbf_fallback=prediction_structure.rbf_fallback_flags;
-        const vector<double>&pred_eb_multiplier_vec=prediction_structure.eb_multiplier;
-        const vector<double>&inverse_eb_multiplier_vec=prediction_structure.inverse_eb_multiplier;
+        const vector<T_calc>&pred_eb_multiplier_vec=prediction_structure.eb_multiplier;
+        const vector<T_calc>&inverse_eb_multiplier_vec=prediction_structure.inverse_eb_multiplier;
         bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(prediction_max_ref_num);
         uint32_t point_set_num=(uint32_t)point_set_codec_vec.size();
-        array<double,2> inverse_double_base_abs_eb{{0,0}};
+        array<T_data,2> inverse_double_base_abs_eb{{0,0}};
         for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
             if(point_set_codec_vec[point_set_id]!=point_set_codec_e::constant)
-                inverse_double_base_abs_eb[point_set_id]=0.5/point_set_abs_eb_vec[point_set_id];
+                inverse_double_base_abs_eb[point_set_id]=(T_data)0.5/point_set_abs_eb_vec[point_set_id];
         value_compression_result_c<T_data> result;
         result.point_set_qb_vec.resize(point_set_num);
         vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
@@ -345,9 +346,9 @@ namespace unsz
             auto quantize_prediction=[&](uint32_t prediction_index,T_data prediction)
             {
                 int pred_id=target_ids[prediction_index];
-                double point_abs_eb=base_abs_eb*pred_eb_multiplier_vec[prediction_index];
+                T_data point_abs_eb=base_abs_eb*pred_eb_multiplier_vec[prediction_index];
                 uint32_t reconstructed_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)pred_id;
-                double inverse_double_abs_eb=inverse_double_base_abs_eb[0]*inverse_eb_multiplier_vec[prediction_index];
+                T_data inverse_double_abs_eb=inverse_double_base_abs_eb[0]*inverse_eb_multiplier_vec[prediction_index];
                 qbs[prediction_index]=quantize_or_store_unpredictable(current_data[pred_id],prediction,point_abs_eb,inverse_double_abs_eb,result.unpredictable_value_vec,reconstructed_data[reconstructed_id]);
             };
             uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,(uint32_t)target_ids.size());
@@ -395,8 +396,6 @@ namespace unsz
                 if constexpr(!two_point_sets)
                     return predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,data);
                 array_view_c<T_calc> ref_weights(reference_range.num?prediction_weights.data()+reference_range.begin:nullptr,reference_range.num);
-                if constexpr(fixed_predictor==point_set_codec_e::idw)
-                    return predict_value_two_point_sets_idw(ref_ids,ref_weights,data,point_set_id,valid_ref_mask);
                 return predict_value_two_point_sets_rbf(!rbf_fallback[prediction_index],ref_ids,ref_weights,data,point_set_id,valid_ref_mask);
             };
             T_data pred=0,temporal_prediction=0;
@@ -412,8 +411,8 @@ namespace unsz
             if(!use_cross_time_prediction)
                 pred=predict_spatial_value(reconstructed_data);
             result.cross_time_prediction_num+=use_cross_time_prediction;
-            double point_abs_eb=point_set_abs_eb_vec[point_set_id]*pred_eb_multiplier_vec[prediction_index];
-            double inverse_double_abs_eb=inverse_double_base_abs_eb[point_set_id]*inverse_eb_multiplier_vec[prediction_index];
+            T_data point_abs_eb=point_set_abs_eb_vec[point_set_id]*pred_eb_multiplier_vec[prediction_index];
+            T_data inverse_double_abs_eb=inverse_double_base_abs_eb[point_set_id]*inverse_eb_multiplier_vec[prediction_index];
             int32_t qb=quantize_or_store_unpredictable(current_data[pred_id],pred,point_abs_eb,inverse_double_abs_eb,result.unpredictable_value_vec,reconstructed_data[storage_id]);
             if constexpr(two_point_sets)
                 result.point_set_qb_vec[point_set_id].push_back(qb);
@@ -477,10 +476,10 @@ namespace unsz
         constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
         constexpr bool try_time_value=fixed_value_mode==time_dimension_mode_e::constant_extrapolation||fixed_value_mode==time_dimension_mode_e::linear_interpolation||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
         constexpr bool use_spatial_residual=fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
-        array<double,2> inverse_double_base_abs_eb{{0,0}};
+        array<T_data,2> inverse_double_base_abs_eb{{0,0}};
         for(uint32_t point_set_id=0;point_set_id<point_set_codec_vec.size();point_set_id++)
             if(point_set_codec_vec[point_set_id]!=point_set_codec_e::constant)
-                inverse_double_base_abs_eb[point_set_id]=0.5/point_set_abs_eb_vec[point_set_id];
+                inverse_double_base_abs_eb[point_set_id]=(T_data)0.5/point_set_abs_eb_vec[point_set_id];
         vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
         bool label_symbols_use_original_order=prediction_structure_vec.size()==1;
         auto stage_start_time=chrono::steady_clock::now();
@@ -490,8 +489,8 @@ namespace unsz
             const vector<int>&ref_ids_vec=prediction_structure.reference_ids;
             const vector<T_calc>&weights=prediction_structure.prediction_weights;
             const vector<uint8_t>&rbf_fallback=prediction_structure.rbf_fallback_flags;
-            const vector<double>&eb_multipliers=prediction_structure.eb_multiplier;
-            const vector<double>&inverse_eb_multipliers=prediction_structure.inverse_eb_multiplier;
+            const vector<T_calc>&eb_multipliers=prediction_structure.eb_multiplier;
+            const vector<T_calc>&inverse_eb_multipliers=prediction_structure.inverse_eb_multiplier;
             bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(prediction_max_ref_num);
             if(label_symbols_use_original_order)
                 label_symbols.assign(target_ids.size(),0);
@@ -521,10 +520,7 @@ namespace unsz
                             typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
                             array_view_c<int> ref_ids(reference_range.num?ref_ids_vec.data()+reference_range.begin:nullptr,reference_range.num);
                             array_view_c<T_calc> ref_weights(reference_range.num?weights.data()+reference_range.begin:nullptr,reference_range.num);
-                            if constexpr(fixed_predictor==point_set_codec_e::rbf)
-                                return predict_value_two_point_sets_rbf(has_rbf_weights,ref_ids,ref_weights,data,actual_point_set_id,valid_ref_mask);
-                            else
-                                return predict_value_two_point_sets_idw(ref_ids,ref_weights,data,actual_point_set_id,valid_ref_mask);
+                            return predict_value_two_point_sets_rbf(has_rbf_weights,ref_ids,ref_weights,data,actual_point_set_id,valid_ref_mask);
                         };
                         if constexpr(try_time_value)
                             used_time_value=predict_temporal_value<fixed_value_mode>(storage_id,actual_point_set_id,temporal_prediction);
@@ -563,10 +559,7 @@ namespace unsz
                     }
                     bool needs_spatial_value_prediction=spatial_value_sources[actual_point_set_id].data!=nullptr;
                     fused_spatial_prediction_c<T_data> spatial_prediction;
-                    if constexpr(fixed_predictor==point_set_codec_e::rbf)
-                        spatial_prediction=predict_fused_spatial_rbf(has_rbf_weights,ref_ids,ref_weights,true,spatial_value_sources);
-                    else
-                        spatial_prediction=predict_fused_spatial_idw(ref_ids,ref_weights,true,spatial_value_sources);
+                    spatial_prediction=predict_fused_spatial_rbf(has_rbf_weights,ref_ids,ref_weights,true,spatial_value_sources);
                     predicted_label=spatial_prediction.label;
                     if(needs_spatial_value_prediction)
                     {
@@ -587,8 +580,8 @@ namespace unsz
                     reconstructed_data[storage_id]=point_set_min_data_vec[actual_point_set_id];
                 else
                 {
-                    double point_abs_eb=point_set_abs_eb_vec[actual_point_set_id]*eb_multipliers[prediction_index];
-                    double inverse_double_abs_eb=inverse_double_base_abs_eb[actual_point_set_id]*inverse_eb_multipliers[prediction_index];
+                    T_data point_abs_eb=point_set_abs_eb_vec[actual_point_set_id]*eb_multipliers[prediction_index];
+                    T_data inverse_double_abs_eb=inverse_double_base_abs_eb[actual_point_set_id]*inverse_eb_multipliers[prediction_index];
                     point_set_qbs[actual_point_set_id].push_back(quantize_or_store_unpredictable(current_data[pred_id],predicted_value,point_abs_eb,inverse_double_abs_eb,unpredictable_values,reconstructed_data[storage_id]));
                 }
                 if(value_requires_prediction)

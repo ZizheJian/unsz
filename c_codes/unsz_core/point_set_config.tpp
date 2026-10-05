@@ -37,21 +37,10 @@ namespace unsz
                 throw runtime_error(location+"包含未知字段'"+item.first+"'");
     }
 
-    inline point_set_codec_e parse_point_set_codec(const string &text,const string &location)
-    {
-        if(text=="idw")
-            return point_set_codec_e::idw;
-        if(text=="constant")
-            return point_set_codec_e::constant;
-        if(text=="rbf")
-            return point_set_codec_e::rbf;
-        throw runtime_error(location+"的predictor必须是idw、constant或rbf："+text);
-    }
-
-    inline point_set_codec_e parse_point_set_method(const string &text,const string &predictor,const string &location)
+    inline point_set_codec_e parse_point_set_method(const string &text,const string &location)
     {
         if(text=="predict")
-            return parse_point_set_codec(predictor,"-predictor");
+            return point_set_codec_e::rbf;
         if(text=="constant")
             return point_set_codec_e::constant;
         throw runtime_error(location+"的method必须是predict或constant："+text);
@@ -93,7 +82,7 @@ namespace unsz
             if(!got_rel_eb && !got_abs_eb)
                 throw runtime_error("单点集模式必须通过-M指定误差模式和误差上限");
             point_set_config_c config;
-            config.codec=parse_point_set_codec(predictor,"-predictor");
+            config.codec=point_set_codec_e::rbf;
             config.error_mode=got_rel_eb?point_set_error_mode_e::relative:point_set_error_mode_e::absolute;
             config.eb=got_rel_eb?(double)rel_eb:(double)abs_eb;
             point_set_config_vec.push_back(config);
@@ -123,9 +112,7 @@ namespace unsz
             reject_unknown_json_fields(label,{"method","eb_mode","eb_value","condition"},location);
             point_set_config_c config;
             string method=require_json_string(label,"method",location);
-            if(method=="predict"&&!got_predictor)
-                throw runtime_error("点集配置使用method=predict时必须通过-predictor指定预测器");
-            config.codec=parse_point_set_method(method,predictor,location);
+            config.codec=parse_point_set_method(method,location);
             auto eb_mode_iterator=label.object_value.find("eb_mode"),eb_value_iterator=label.object_value.find("eb_value");
             if(config.codec==point_set_codec_e::constant)
             {

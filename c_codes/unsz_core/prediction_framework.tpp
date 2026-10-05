@@ -44,11 +44,13 @@ namespace unsz
     {
         if(point_set_config_vec.size()!=1)
             throw runtime_error("单点集时间流程选择要求field恰好配置一个点集");
+        if(time_step_vec.empty())
+            throw runtime_error("单点集压缩或解压至少需要一个time step");
+        if(value_flow=="auto")
+            return;
         bool value_uses_anchor_flow=value_flow=="anchor_interpolation_stride_8"||value_flow=="anchor_interpolation_stride_8_spatial_residual";
         if(!value_uses_anchor_flow&&value_flow!="none"&&value_flow!="constant_extrapolation"&&value_flow!="linear_interpolation"&&value_flow!="constant_extrapolation_spatial_residual"&&value_flow!="linear_interpolation_spatial_residual")
             throw runtime_error("未知的单点集数值预测流程："+value_flow);
-        if(time_step_vec.empty())
-            throw runtime_error("单点集压缩或解压至少需要一个time step");
         if(time_step_vec.size()==1)
             value_flow="none";
         else if(time_step_vec.size()==2&&value_flow=="linear_interpolation")

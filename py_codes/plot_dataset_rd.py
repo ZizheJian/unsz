@@ -133,7 +133,7 @@ def plot(data_dir,dataset,fields,time_step_num,task,label_flow,value_flow,label_
         summary.append((field,bd_rate))
         axis.plot(umc_br,umc_psnr,color="#D55E00",marker="o",markersize=5,linewidth=2,label="UMC")
         axis.plot(unsz_br,unsz_psnr,color="#0072B2",marker="s",markersize=5,linewidth=2,label="UNSZ")
-        axis.set_xlim(left=0)
+        axis.set_xscale("log")
         axis.set_xlabel("Bit rate (bit/value)")
         axis.set_ylabel("PSNR (dB)")
         axis.set_title(field.removeprefix(dataset.lower()+"_"))

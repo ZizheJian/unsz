@@ -69,7 +69,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::generate_partition_prediction_structures(bool uses_idw,bool uses_rbf)
+    void param_c<T_coord,T_data>::generate_partition_prediction_structures(bool uses_rbf)
     {
         auto generation_start_time=chrono::steady_clock::now();
         vector<vector<int>> partition_point_ids_vec=build_partitions();
@@ -93,7 +93,7 @@ namespace unsz
                     }
                 auto partition_start_time=chrono::steady_clock::now();
                 block_tree_c<T_coord> tree(coord_array,partition_min_coord,partition_max_coord,point_ids,kd_tree_leaf_size);
-                generate_prediction_structure_and_weights(tree,point_ids,partition_min_coord,partition_max_coord,prediction_structure_vec[partition_id],partition_start_time,uses_idw,uses_rbf);
+                generate_prediction_structure_and_weights(tree,point_ids,partition_min_coord,partition_max_coord,prediction_structure_vec[partition_id],partition_start_time,uses_rbf);
             }
             catch(...)
             {

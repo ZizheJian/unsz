@@ -12,6 +12,7 @@ umc_root=Path("/home/x-zjian1/umc")
 umc_inp_batch=10
 build_max_cpus=get_max_cpus(8)
 silent_build=False
+allowed_unsz_config_keys={"point_set_config_path_list","partition_num","partition_size","thread_num","flow","coordinate_transform"}
 
 # JSON配置
 def resolve_json_path(path_or_name):
@@ -34,7 +35,27 @@ def load_json_tasks(json_path):
         raise ValueError(f"JSON中没有task：{json_path}")
     if any(not isinstance(task,dict) for task in tasks):
         raise TypeError(f"JSON中的每个task必须是object：{json_path}")
+    for task in tasks:
+        unsz_config=task.get("unsz",{})
+        if not isinstance(unsz_config,dict):
+            raise TypeError(f"task {task.get('name','<unnamed>')}的unsz必须是object")
+        unsupported_keys=sorted(set(unsz_config)-allowed_unsz_config_keys)
+        if unsupported_keys:
+            raise ValueError(f"task {task.get('name','<unnamed>')}包含已删除的UNSZ参数：{','.join(unsupported_keys)}")
     return tasks
+
+def select_tasks(tasks,task_names,fields,compressors):
+    selected_tasks=[]
+    for task in tasks:
+        if task_names and task["name"] not in task_names:
+            continue
+        selected_fields=[field for field in task["field_list"] if not fields or field in fields]
+        selected_compressors=[compressor for compressor in task["compressor_list"] if not compressors or compressor in compressors]
+        if selected_fields and selected_compressors:
+            selected_tasks.append(task|{"field_list":selected_fields,"compressor_list":selected_compressors})
+    if not selected_tasks:
+        raise ValueError("task、field和compressor筛选后没有实验")
+    return selected_tasks
 
 def resolve_point_set_config_path(path):
     path=Path(path)
@@ -140,56 +161,13 @@ def check_baseline_programs(tasks):
                 raise FileNotFoundError(f"没有找到UMC可执行文件：{path}")
 
 # UNSZ命令
-def build_predictor_arguments(predictor):
-    predictor_name=predictor["name"]
-    if predictor_name=="idw":
-        return predictor_name,["-idw-power",predictor["idw_power"]]
-    if predictor_name!="rbf":
-        raise ValueError(f"未知预测器：{predictor_name}")
-    arguments=["-rbf-kernel",predictor["rbf_kernel"],"-rbf-shape",predictor["rbf_shape"],"-rbf-nugget",predictor["rbf_nugget"]]
-    return predictor_name,arguments
-
-def build_eb_schedule_arguments(eb_schedule):
-    if eb_schedule["name"] not in ("none","inverse_rank_log2"):
-        raise ValueError(f"未知EB序列模式：{eb_schedule['name']}")
-    arguments=["-eb-schedule",eb_schedule["name"],eb_schedule["base"]]
-    if eb_schedule["name"]=="inverse_rank_log2":
-        arguments.extend(("-eb-schedule-log2-shift",eb_schedule["log2_shift"],"-eb-schedule-max-log2-exponent",eb_schedule["max_log2_exponent"]))
-    return arguments
-
-def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expression):
-    predictor,predictor_arguments=build_predictor_arguments(config["predictor"])
-    if config["prediction_min_ref_num"]>config["prediction_max_ref_num"]:
-        raise ValueError("prediction_min_ref_num不能大于prediction_max_ref_num")
-    if predictor=="rbf" and config["prediction_min_ref_num"]!=config["prediction_max_ref_num"]:
-        raise ValueError("RBF要求prediction_min_ref_num与prediction_max_ref_num相等")
-    if config["ordering_score_min_ref_num"]>config["ordering_score_max_ref_num"]:
-        raise ValueError("ordering_score_min_ref_num不能大于ordering_score_max_ref_num")
-    if config["ordering_scope"] not in ("local","global"):
-        raise ValueError(f"未知排序规模：{config['ordering_scope']}")
-    arguments=["-data-dir",data_dir,"-field",config["field"],"-time-step",time_expression,"-coordinate-dim",config["coordinate_dim"],
-               "-prediction-min-ref-num",config["prediction_min_ref_num"],"-prediction-max-ref-num",config["prediction_max_ref_num"],
-               "-ordering-scope",config["ordering_scope"],"-ordering-score-max-ref-num",config["ordering_score_max_ref_num"],
-               "-ordering-score-min-ref-num",config["ordering_score_min_ref_num"],
-               "-ordering-candidate-num",config["ordering_candidate_num"],*predictor_arguments,
-               *build_eb_schedule_arguments(config["eb_schedule"])]
-    if config["ordering_scope"]=="local":
-        arguments.extend(("-prediction-round-num",config["prediction_round_num"]))
-    elif "prediction_round_num" in config:
-        raise ValueError("global排序不使用prediction_round_num")
-    if dag_cache_path is not None:
-        arguments.extend(("-dag-cache",dag_cache_path))
-    coordinate_transform=config.get("coordinate_transform","off")
-    if coordinate_transform not in ("off","on","auto"):
-        raise ValueError(f"未知坐标变换模式：{coordinate_transform}")
-    if coordinate_transform!="off":
+def build_spatial_prediction_arguments(config,data_dir,time_expression):
+    arguments=["-data-dir",data_dir,"-field",config["field"],"-time-step",time_expression,"-coordinate-dim",config["coordinate_dim"]]
+    if "coordinate_transform" in config:
+        coordinate_transform=config["coordinate_transform"]
+        if coordinate_transform not in ("off","on","auto"):
+            raise ValueError(f"未知坐标变换模式：{coordinate_transform}")
         arguments.extend(("-coordinate-transform",coordinate_transform))
-    if "coordinate_transform_first_sample_ratio" in config:
-        arguments.extend(("-coordinate-transform-first-sample-ratio",config["coordinate_transform_first_sample_ratio"]))
-    if "coordinate_transform_second_sample_num" in config:
-        arguments.extend(("-coordinate-transform-second-sample-num",config["coordinate_transform_second_sample_num"]))
-    if "coordinate_transform_sample_file_num" in config:
-        arguments.extend(("-coordinate-transform-sample-file-num",config["coordinate_transform_sample_file_num"]))
     has_partition_num="partition_num" in config
     has_partition_size="partition_size" in config
     if has_partition_num and has_partition_size:
@@ -205,24 +183,24 @@ def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expre
         arguments.extend(("-"+partition_name.replace("_","-"),config[partition_name],"-thread-num",config["thread_num"]))
     elif "thread_num" in config:
         raise ValueError("thread_num只能和partition_num或partition_size一起设置")
-    if "label_value_execution" in config:
-        raise ValueError("label_value_execution已删除；两点集始终融合压缩")
-    return predictor,arguments
+    return arguments
 
-def build_spatial_unsz_arguments(config,data_dir,dag_cache_path):
-    return build_spatial_prediction_arguments(config,data_dir,dag_cache_path,"{"+",".join(str(value) for value in range(config["time_step_num"]))+"}")
+def build_spatial_unsz_arguments(config,data_dir):
+    return build_spatial_prediction_arguments(config,data_dir,"{"+",".join(str(value) for value in range(config["time_step_num"]))+"}")
 
-def build_temporal_unsz_arguments(config,data_dir,dag_cache_path):
+def build_temporal_unsz_arguments(config,data_dir):
     if config["time_step_num"]<2:
         raise ValueError("时间预测至少需要两个time step")
     value_flow=config["value_flow"]
     label_flow=config["label_flow"]
     time_expression=f"[0,{config['time_step_num']-1}]"
-    predictor,arguments=build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expression)
+    arguments=build_spatial_prediction_arguments(config,data_dir,time_expression)
     if "time_step_coordinate_file" in config:
         arguments.extend(("-time-step-coordinate-file",Path(config["data_dir"])/config["time_step_coordinate_file"]))
-    if value_flow!="spatial":
+    if config.get("force_flow",False) and value_flow!="spatial":
         arguments.extend(("-value-flow",value_flow))
+    if not config.get("force_flow",False):
+        return arguments
     if label_flow=="constant_extrapolation":
         arguments.extend(("-label-flow","constant_extrapolation"))
     elif label_flow=="linear_interpolation_spatial_residual":
@@ -233,36 +211,35 @@ def build_temporal_unsz_arguments(config,data_dir,dag_cache_path):
         arguments.extend(("-label-flow","auto"))
     elif label_flow not in (None,"spatial"):
         raise ValueError(f"未知标签流程：{label_flow}")
-    return predictor,arguments
+    return arguments
 
-def build_unsz_commands(config,data_dir,dag_cache_path):
+def build_unsz_commands(config,data_dir):
     if config["value_flow"]!="spatial" or config["label_flow"] not in (None,"spatial"):
-        predictor,arguments=build_temporal_unsz_arguments(config,data_dir,dag_cache_path)
+        arguments=build_temporal_unsz_arguments(config,data_dir)
     else:
-        predictor,arguments=build_spatial_unsz_arguments(config,data_dir,dag_cache_path)
+        arguments=build_spatial_unsz_arguments(config,data_dir)
     if "point_set_config_path" in config:
         point_set_config_path=resolve_point_set_config_path(config["point_set_config_path"])
         if not point_set_config_path.is_file():
             raise FileNotFoundError(f"找不到点集配置文件：{point_set_config_path}")
-        compression_error=["-point-set-config",point_set_config_path,"-predictor",predictor]
+        compression_error=["-point-set-config",point_set_config_path]
         decompression_error=compression_error
     else:
         rel_eb=config["rel_eb"]
-        compression_error=["-M","REL",rel_eb,"-predictor",predictor]
-        decompression_error=["-M","REL",rel_eb,"-predictor",predictor]
-    automatic_flow_arguments=[]
-    for name in ("automatic_flow_sample_num","automatic_flow_start_num"):
-        if name in config:
-            if not isinstance(config[name],int) or config[name]<=0:
-                raise ValueError(f"{name}必须是正整数")
-            automatic_flow_arguments.extend(("-"+name.replace("_","-"),config[name]))
-    compression_command=[project_root/"install/bin/s1_compress",*compression_error,*arguments,*automatic_flow_arguments]
+        compression_error=["-M","REL",rel_eb]
+        decompression_error=["-M","REL",rel_eb]
+    compression_command=[project_root/"install/bin/s1_compress",*compression_error,*arguments]
     decompression_command=[project_root/"install/bin/s1_decompress",*decompression_error,*arguments]
     return compression_command,decompression_command
 
 def expand_unsz_flows(config):
+    if "flow" not in config:
+        value_flow="auto" if config["time_step_num"]>1 else "spatial"
+        has_label="point_set_config_path_list" in config or "point_set_config_path" in config
+        label_flow="auto" if has_label and config["time_step_num"]>1 else None
+        return [config|{"label_flow":label_flow,"value_flow":value_flow,"force_flow":False}]
     flow=config["flow"]
-    return [config|{"label_flow":label_flow,"value_flow":value_flow} for label_flow in flow.get("label",[None]) for value_flow in flow["value"]]
+    return [config|{"label_flow":label_flow,"value_flow":value_flow,"force_flow":True} for label_flow in flow.get("label",[None]) for value_flow in flow["value"]]
 
 # 压缩器执行
 def run_unsz(config):
@@ -272,20 +249,14 @@ def run_unsz(config):
     missing_paths=[str(path) for path in required_paths if not path.is_file()]
     if missing_paths:
         raise FileNotFoundError("缺少测试文件："+", ".join(missing_paths))
-    dag_cache_path=None
-    if "dag_cache_path" in config:
-        if not config.get("allow_dag_cache_for_screening",False):
-            raise ValueError("正式实验禁止使用DAG缓存；只有筛选实验可以显式设置allow_dag_cache_for_screening=true")
-        dag_cache_path=Path(config["dag_cache_path"].format(field=config["field"]))
-        if not dag_cache_path.is_absolute():
-            dag_cache_path=source_data_dir/dag_cache_path
-        dag_cache_path.parent.mkdir(parents=True,exist_ok=True)
-    compression_command,decompression_command=build_unsz_commands(config,source_data_dir,dag_cache_path)
+    compression_command,decompression_command=build_unsz_commands(config,source_data_dir)
     compression_output=run_command(compression_command,silent=True)
     decompression_output=run_command(decompression_command,silent=True)
     result=parse_unsz_output(compression_output,decompression_output)
     error_configuration=config["point_set_config_path"] if "point_set_config_path" in config else f"REL {config['rel_eb']}"
-    print(f"总结果：compressor=unsz,task={config['name']},data_dir={config['data_dir']},field={config['field']},error_configuration={error_configuration},br={result['br']},psnr={result['psnr']}")
+    selected_label_flow=result["selected_label_flow"] or config.get("label_flow") or "not_applicable"
+    selected_value_flow=result["selected_value_flow"] or config["value_flow"]
+    print(f"总结果：compressor=unsz,task={config['name']},data_dir={config['data_dir']},field={config['field']},error_configuration={error_configuration},selected_label_flow={selected_label_flow},selected_value_flow={selected_value_flow},br={result['br']},psnr={result['psnr']}")
     print(f"计时：compression_preprocessing={result['compression_preprocessing_time']} s,decompression_preprocessing={result['decompression_preprocessing_time']} s,compression={result['compression_time']} s,decompression={result['decompression_time']} s,compression+decompression={result['compression_time']+result['decompression_time']} s")
     command="compression: "+shlex.join(str(value) for value in compression_command)
     command+="; decompression: "+shlex.join(str(value) for value in decompression_command)
@@ -391,6 +362,8 @@ def run_task(task):
             if compressor=="unsz":
                 for column_name in ("label_stream_br","value_stream_br","shared_metadata_br"):
                     write_csv_item(str(result_path),item,column_name,result[column_name])
+                write_csv_item(str(result_path),item,"selected_label_flow",result["selected_label_flow"] or label_flow or "not_applicable")
+                write_csv_item(str(result_path),item,"selected_value_flow",result["selected_value_flow"] or value_flow)
             for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",task["time_step_num"]),("input_bytes",total_bytes)):
                 write_csv_item(str(result_path),item,column_name,value)
             if task.get("cleanup_after_each_test",False):
@@ -401,9 +374,13 @@ def cli(command_line_arguments=None):
     parser=argparse.ArgumentParser(description="运行configs目录中的UNSZ实验配置")
     parser.add_argument("json",help="configs中的JSON配置名称，或JSON文件路径")
     parser.add_argument("--skip-build",action="store_true",help="使用现有UNSZ安装而不重新构建")
+    parser.add_argument("--task",action="append",dest="task_names",help="只运行指定task，可重复")
+    parser.add_argument("--field",action="append",dest="fields",help="只运行指定field，可重复")
+    parser.add_argument("--compressor",action="append",choices=("unsz","umc"),dest="compressors",help="只运行指定压缩器，可重复")
     arguments=parser.parse_args(command_line_arguments)
     try:
         tasks=load_json_tasks(resolve_json_path(arguments.json))
+        tasks=select_tasks(tasks,arguments.task_names,arguments.fields,arguments.compressors)
     except (FileNotFoundError,TypeError,ValueError) as error:
         parser.error(str(error))
     if not arguments.skip_build and any("unsz" in task["compressor_list"] for task in tasks):

@@ -122,10 +122,22 @@ namespace unsz
         bool automatic_label=label_flow=="auto",automatic_value=value_flow=="auto";
         if(!automatic_label&&!automatic_value)
             return;
-        if(point_set_config_vec.size()!=2||!automatic_label||!automatic_value)
-            throw runtime_error("自动flow选择目前要求两点集的label和value同时设置为auto");
-        if(point_set_config_vec[0].codec==point_set_codec_e::constant||point_set_config_vec[1].codec!=point_set_codec_e::constant)
-            throw runtime_error("自动flow选择目前要求点集0使用IDW或RBF、点集1使用constant");
+        if(point_set_config_vec.size()==1)
+        {
+            if(automatic_label||!automatic_value)
+                throw runtime_error("单点集自动flow选择只支持将value设置为auto");
+            if(point_set_config_vec[0].codec==point_set_codec_e::constant)
+                throw runtime_error("单点集自动flow选择要求点集使用RBF");
+        }
+        else if(point_set_config_vec.size()==2)
+        {
+            if(!automatic_label||!automatic_value)
+                throw runtime_error("两点集自动flow选择要求label和value同时设置为auto");
+            if(point_set_config_vec[0].codec==point_set_codec_e::constant||point_set_config_vec[1].codec!=point_set_codec_e::constant)
+                throw runtime_error("两点集自动flow选择要求点集0使用RBF、点集1使用constant");
+        }
+        else
+            throw runtime_error("自动flow选择只支持一个或两个点集");
         if(time_step_vec.size()<2)
             throw runtime_error("自动flow选择至少需要两个time step");
     }
@@ -140,13 +152,17 @@ namespace unsz
         automatic_flow_abs_eb_vec.resize(original_data_path_vec.size());
         automatic_flow_point_set_codec_vec.resize(original_data_path_vec.size());
         current_data.resize(point_num);
+        bool two_point_sets=point_set_config_vec.size()==2;
         for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
         {
             read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
             compression_file_state_c state;
-            classify_current_point_sets<true>(state);
+            if(two_point_sets)
+                classify_current_point_sets<true>(state);
+            else
+                classify_current_point_sets<false>(state);
             prepare_current_point_set_codecs_and_eb(state);
-            for(uint32_t point_set_id=0;point_set_id<2;point_set_id++)
+            for(uint32_t point_set_id=0;point_set_id<state.point_set_num;point_set_id++)
             {
                 automatic_flow_abs_eb_vec[time_index][point_set_id]=point_set_abs_eb_vec[point_set_id];
                 automatic_flow_point_set_codec_vec[time_index][point_set_id]=point_set_codec_vec[point_set_id];
@@ -170,6 +186,7 @@ namespace unsz
         double excluded_input_time=0;
         double file_statistics_time=0,sample_structure_time=0,sample_value_preparation_time=0,candidate_evaluation_time=0,shared_label_estimation_time=0;
         uint32_t time_step_num=(uint32_t)time_step_vec.size(),structure_num=(uint32_t)prediction_structure_vec.size();
+        bool two_point_sets=point_set_config_vec.size()==2;
         auto sample_structure_start_time=chrono::steady_clock::now();
         vector<vector<automatic_flow_window_c>> structure_windows(structure_num);
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
@@ -215,15 +232,15 @@ namespace unsz
             candidates.push_back(move(candidate));
         };
         add_candidate("none","none");
-        add_candidate("constant_extrapolation","constant_extrapolation");
-        add_candidate("constant_extrapolation","constant_extrapolation_spatial_residual");
+        add_candidate(two_point_sets?"constant_extrapolation":"none","constant_extrapolation");
+        add_candidate(two_point_sets?"constant_extrapolation":"none","constant_extrapolation_spatial_residual");
         bool anchor_compatible=time_step_vec.front()==0;
         for(uint32_t time_index=1;time_index<time_step_num;time_index++)
             anchor_compatible&=time_step_vec[time_index]==time_step_vec[time_index-1]+1;
         if(anchor_compatible)
         {
-            add_candidate("anchor_interpolation_stride_8","anchor_interpolation_stride_8");
-            add_candidate("anchor_interpolation_stride_8","anchor_interpolation_stride_8_spatial_residual");
+            add_candidate(two_point_sets?"anchor_interpolation_stride_8":"none","anchor_interpolation_stride_8");
+            add_candidate(two_point_sets?"anchor_interpolation_stride_8":"none","anchor_interpolation_stride_8_spatial_residual");
         }
         vector<uint8_t> read_sampled_time_step=evaluate_time_step;
         for(const automatic_flow_candidate_c&candidate:candidates)
@@ -248,7 +265,10 @@ namespace unsz
             excluded_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start).count();
             auto statistics_start_time=chrono::steady_clock::now();
             compression_file_state_c state;
-            classify_current_point_sets<true>(state);
+            if(two_point_sets)
+                classify_current_point_sets<true>(state);
+            else
+                classify_current_point_sets<false>(state);
             file_statistics_time+=chrono::duration<double>(chrono::steady_clock::now()-statistics_start_time).count();
             sample_structure_start_time=chrono::steady_clock::now();
             automatic_flow_time_statistics_c<T_data>&statistics=time_statistics[time_index];
@@ -258,13 +278,19 @@ namespace unsz
             for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
             {
                 const vector<int>&target_ids=prediction_structure_vec[structure_id].target_ids;
-                uint32_t first_point_set_num=0;
-                for(int target_id:target_ids)
-                    first_point_set_num+=point_set_id_vec[target_id]==0;
+                uint32_t first_point_set_num=two_point_sets?0:(uint32_t)target_ids.size();
+                if(two_point_sets)
+                    for(int target_id:target_ids)
+                        first_point_set_num+=point_set_id_vec[target_id]==0;
                 statistics.structure_point_set_point_num[structure_id][0]=first_point_set_num;
                 statistics.structure_point_set_point_num[structure_id][1]=(uint32_t)target_ids.size()-first_point_set_num;
                 for(automatic_flow_window_c&window:structure_windows[structure_id])
                 {
+                    if(!two_point_sets)
+                    {
+                        window.width=min(window.quota,window.region_end-window.region_begin);
+                        continue;
+                    }
                     uint32_t region_size=window.region_end-window.region_begin,first_point_set_num=0,required_width=region_size;
                     for(uint32_t offset=0;offset<region_size;offset++)
                     {
@@ -400,8 +426,9 @@ namespace unsz
                 continue;
             sampled_values[time_index]=read_automatic_flow_sample_values<T_data>(original_data_path_vec[time_index],sample_original_ids,point_num,excluded_input_time);
             sampled_labels[time_index].resize(sample_original_ids.size());
-            for(uint32_t sample_id=0;sample_id<sample_original_ids.size();sample_id++)
-                sampled_labels[time_index][sample_id]=classify_value(sampled_values[time_index][sample_id]);
+            if(two_point_sets)
+                for(uint32_t sample_id=0;sample_id<sample_original_ids.size();sample_id++)
+                    sampled_labels[time_index][sample_id]=classify_value(sampled_values[time_index][sample_id]);
             automatic_flow_time_statistics_c<T_data>&statistics=time_statistics[time_index];
             statistics.point_set_abs_eb=automatic_flow_abs_eb_vec[time_index];
             statistics.point_set_codec=automatic_flow_point_set_codec_vec[time_index];
@@ -449,7 +476,9 @@ namespace unsz
         prediction_data_uses_prediction_order=false;
         unordered_map<string,double> estimated_label_bytes_by_flow;
         auto shared_label_start_time=chrono::steady_clock::now();
-        for(const automatic_flow_candidate_c&candidate:candidates)
+        if(!two_point_sets)
+            estimated_label_bytes_by_flow["none"]=0;
+        else for(const automatic_flow_candidate_c&candidate:candidates)
         {
             if(estimated_label_bytes_by_flow.count(candidate.label_flow))
                 continue;
@@ -557,20 +586,13 @@ namespace unsz
                             prediction=temporal_baseline[target_sample_id];
                             if(use_spatial_residual)
                             {
-                                T_data residual_prediction;
-                                if(point_set_config_vec[0].codec==point_set_codec_e::rbf)
-                                    residual_prediction=predict_value_two_point_sets_rbf(target.has_rbf_weights,reference_ids,reference_weights,temporal_residual,0,&temporal_valid);
-                                else
-                                    residual_prediction=predict_value_two_point_sets_idw(reference_ids,reference_weights,temporal_residual,0,&temporal_valid);
-                                prediction+=residual_prediction;
+                                prediction+=predict_value_two_point_sets_rbf(target.has_rbf_weights,reference_ids,reference_weights,temporal_residual,0,&temporal_valid);
                             }
                         }
-                        else if(point_set_config_vec[0].codec==point_set_codec_e::rbf)
-                            prediction=predict_value_two_point_sets_rbf(target.has_rbf_weights,reference_ids,reference_weights,sampled_values[time_index],0);
                         else
-                            prediction=predict_value_two_point_sets_idw(reference_ids,reference_weights,sampled_values[time_index],0);
-                        double abs_eb=time_statistics[time_index].point_set_abs_eb[0]*prediction_structure_vec[structure_id].eb_multiplier[target.prediction_index];
-                        double inverse_double_abs_eb=0.5/time_statistics[time_index].point_set_abs_eb[0]*prediction_structure_vec[structure_id].inverse_eb_multiplier[target.prediction_index];
+                            prediction=predict_value_two_point_sets_rbf(target.has_rbf_weights,reference_ids,reference_weights,sampled_values[time_index],0);
+                        T_data abs_eb=time_statistics[time_index].point_set_abs_eb[0]*prediction_structure_vec[structure_id].eb_multiplier[target.prediction_index];
+                        T_data inverse_double_abs_eb=(T_data)0.5/time_statistics[time_index].point_set_abs_eb[0]*prediction_structure_vec[structure_id].inverse_eb_multiplier[target.prediction_index];
                         T_data reconstructed;
                         qbs.push_back(quantize_or_store_unpredictable(sampled_values[time_index][target_sample_id],prediction,abs_eb,inverse_double_abs_eb,unpredictable_values,reconstructed));
                     }

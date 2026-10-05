@@ -12,8 +12,6 @@ namespace unsz
         bool got_point_set_config=!point_set_config_path.empty();
         if(got_error_mode==got_point_set_config)
             throw runtime_error("必须且只能在-M和-point-set-config之间选择一个");
-        if(got_error_mode&&!got_predictor)
-            throw runtime_error("使用-M时必须通过-predictor显式指定预测器");
         if(thread_num>1&&partition_size==0&&partition_num==0)
             throw runtime_error("多线程模式需要指定partition数量或大小");
         if(data_dir.back()!='/')
@@ -40,30 +38,12 @@ namespace unsz
             got_abs_eb=true;
         }
         configure_point_sets();
+        if(point_set_config_vec.size()==1)
+            label_flow="none";
         if(label_flow=="anchor_interpolation_stride_8"&&point_set_config_vec.size()==1)
             throw runtime_error("label锚点内插流程要求field包含两个点集");
         if(point_set_config_vec.size()==1)
             resolve_single_point_set_time_mode();
-        if(prediction_min_ref_num>prediction_max_ref_num)
-            throw runtime_error("prediction_min_ref_num不能大于prediction_max_ref_num");
-        bool uses_rbf=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec==point_set_codec_e::rbf;});
-        if(uses_rbf&&prediction_min_ref_num!=prediction_max_ref_num)
-            throw runtime_error("RBF要求prediction_min_ref_num与prediction_max_ref_num相等");
-        if(ordering_candidate_num==0)
-            throw runtime_error("必须显式设置正数ordering_candidate_num");
-        if(ordering_score_max_ref_num==0)
-            throw runtime_error("必须显式设置正数ordering_score_max_ref_num");
-        if(ordering_score_min_ref_num==0)
-            throw runtime_error("必须显式设置正数ordering_score_min_ref_num");
-        if(ordering_score_min_ref_num>ordering_score_max_ref_num)
-            throw runtime_error("ordering_score_min_ref_num不能大于ordering_score_max_ref_num");
-        if(ordering_scope=="global"&&got_prediction_round_num)
-            throw runtime_error("global排序不使用-prediction-round-num");
-        if(ordering_scope=="local"&&!got_prediction_round_num)
-            throw runtime_error("local排序必须显式设置-prediction-round-num");
-        if(ordering_scope=="global")
-            prediction_round_num=1;
-        if(uses_rbf&&prediction_min_ref_num<2)
-            throw runtime_error("RBF的prediction_min_ref_num不能小于2");
+        prediction_round_num=1;
     }
 }

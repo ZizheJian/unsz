@@ -3,7 +3,7 @@
 namespace unsz
 {
     inline constexpr unsigned char compression_file_magic[8]={'U','N','S','Z','P','S','1','1'};
-    inline constexpr uint32_t compression_file_version=13;
+    inline constexpr uint32_t compression_file_version=15;
 
     inline uint8_t encode_prediction_flow(const string&flow)
     {
@@ -231,7 +231,7 @@ namespace unsz
         for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {
             uint8_t codec=read_binary<uint8_t>(cursor,end);
-            if(codec!=(uint8_t)point_set_codec_e::idw&&codec!=(uint8_t)point_set_codec_e::constant&&codec!=(uint8_t)point_set_codec_e::rbf)
+            if(codec!=(uint8_t)point_set_codec_e::constant&&codec!=(uint8_t)point_set_codec_e::rbf)
                 throw runtime_error("压缩文件包含未知的点集编码方式");
             point_set_codec_vec[point_set_id]=(point_set_codec_e)codec;
             point_set_point_num_vec[point_set_id]=read_binary<uint32_t>(cursor,end);
@@ -425,7 +425,7 @@ namespace unsz
             else if(point_set_codec_vec[point_set_id]==point_set_codec_e::rbf)
                 codec_name="rbf";
             else
-                codec_name="idw";
+                throw runtime_error("未知的点集编码方式");
             printf(", set%u_num=%u, set%u_codec=%s",point_set_id,point_set_point_num_vec[point_set_id],point_set_id,codec_name);
         }
         printf("\n");

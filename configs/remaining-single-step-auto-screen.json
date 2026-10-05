@@ -1,102 +1,113 @@
 [
   {
-    "name":"taps_auto_screen",
-    "data_dir":"/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
-    "csv_path":"results/remaining_adjust_coord_screen/taps.csv",
-    "field_list":["C11H22","CO2","PRESSURE","RMS_T","TEMPERATURE","TKE","VELOCITY_X"],
-    "rel_eb_list":[0.001],
-    "compressor_list":["unsz"],
-    "time_step_num":1,
-    "coordinate_dim":3,
-    "unsz":{
-      "flow":{"value":["spatial"]},
-      "predictor":{"name":"rbf","rbf_kernel":"exponential","rbf_shape":0.01,"rbf_nugget":1e-6},
-      "ordering_scope":"global",
-      "prediction_min_ref_num":10,
-      "prediction_max_ref_num":10,
-      "ordering_candidate_num":16,
-      "coordinate_transform":"auto",
-      "coordinate_transform_first_sample_ratio":0.3,
-      "coordinate_transform_second_sample_num":3000,
-      "coordinate_transform_sample_file_num":3,
-      "ordering_score_max_ref_num":1,
-      "ordering_score_min_ref_num":1,
-      "eb_schedule":{"name":"inverse_rank_log2","base":0.8,"log2_shift":0.5,"max_log2_exponent":7}
+    "name": "taps_auto_screen",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+    "csv_path": "results/remaining_adjust_coord_screen/taps.csv",
+    "field_list": [
+      "C11H22",
+      "CO2",
+      "PRESSURE",
+      "RMS_T",
+      "TEMPERATURE",
+      "TKE",
+      "VELOCITY_X"
+    ],
+    "rel_eb_list": [
+      0.001
+    ],
+    "compressor_list": [
+      "unsz"
+    ],
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "coordinate_transform": "auto"
     }
   },
   {
-    "name":"haiyan_depth_auto_screen",
-    "data_dir":"/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/ADCIRC-Haiyan-1.5km",
-    "csv_path":"results/remaining_adjust_coord_screen/haiyan_depth.csv",
-    "field_list":["depth"],
-    "rel_eb_list":[0.001],
-    "compressor_list":["unsz"],
-    "time_step_num":1,
-    "coordinate_dim":3,
-    "unsz":{
-      "flow":{"value":["spatial"]},
-      "predictor":{"name":"rbf","rbf_kernel":"exponential","rbf_shape":0.01,"rbf_nugget":1e-6},
-      "ordering_scope":"global",
-      "prediction_min_ref_num":10,
-      "prediction_max_ref_num":10,
-      "ordering_candidate_num":16,
-      "coordinate_transform":"auto",
-      "coordinate_transform_first_sample_ratio":0.3,
-      "coordinate_transform_second_sample_num":3000,
-      "coordinate_transform_sample_file_num":3,
-      "ordering_score_max_ref_num":1,
-      "ordering_score_min_ref_num":1,
-      "eb_schedule":{"name":"inverse_rank_log2","base":0.8,"log2_shift":0.5,"max_log2_exponent":7}
+    "name": "haiyan_depth_auto_screen",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/ADCIRC-Haiyan-1.5km",
+    "csv_path": "results/remaining_adjust_coord_screen/haiyan_depth.csv",
+    "field_list": [
+      "depth"
+    ],
+    "rel_eb_list": [
+      0.001
+    ],
+    "compressor_list": [
+      "unsz"
+    ],
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "coordinate_transform": "auto"
     }
   },
   {
-    "name":"e3sm_h0_single_set_auto_screen",
-    "data_dir":"/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h0",
-    "csv_path":"results/remaining_adjust_coord_screen/e3sm_h0.csv",
-    "field_list":["CLDTOT","FLNS","PRECC","PS","TAUX","TREFHT","U10"],
-    "rel_eb_list":[0.001],
-    "compressor_list":["unsz"],
-    "time_step_num":1,
-    "coordinate_dim":3,
-    "unsz":{
-      "flow":{"value":["spatial"]},
-      "predictor":{"name":"rbf","rbf_kernel":"exponential","rbf_shape":0.01,"rbf_nugget":1e-6},
-      "ordering_scope":"global",
-      "prediction_min_ref_num":10,
-      "prediction_max_ref_num":10,
-      "ordering_candidate_num":16,
-      "coordinate_transform":"auto",
-      "coordinate_transform_first_sample_ratio":0.3,
-      "coordinate_transform_second_sample_num":3000,
-      "coordinate_transform_sample_file_num":3,
-      "ordering_score_max_ref_num":1,
-      "ordering_score_min_ref_num":1,
-      "eb_schedule":{"name":"inverse_rank_log2","base":0.8,"log2_shift":0.5,"max_log2_exponent":7}
+    "name": "e3sm_h0_single_set_auto_screen",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h0",
+    "csv_path": "results/remaining_adjust_coord_screen/e3sm_h0.csv",
+    "field_list": [
+      "CLDTOT",
+      "FLNS",
+      "PRECC",
+      "PS",
+      "TAUX",
+      "TREFHT",
+      "U10"
+    ],
+    "rel_eb_list": [
+      0.001
+    ],
+    "compressor_list": [
+      "unsz"
+    ],
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "value": [
+          "spatial"
+        ]
+      },
+      "coordinate_transform": "auto"
     }
   },
   {
-    "name":"e3sm_h0_aodvis_auto_screen",
-    "data_dir":"/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h0",
-    "csv_path":"results/remaining_adjust_coord_screen/e3sm_h0.csv",
-    "field_list":["AODVIS"],
-    "compressor_list":["unsz"],
-    "time_step_num":1,
-    "coordinate_dim":3,
-    "unsz":{
-      "flow":{"label":["spatial"],"value":["spatial"]},
-      "predictor":{"name":"rbf","rbf_kernel":"exponential","rbf_shape":0.01,"rbf_nugget":1e-6},
-      "ordering_scope":"global",
-      "prediction_min_ref_num":10,
-      "prediction_max_ref_num":10,
-      "ordering_candidate_num":16,
-      "coordinate_transform":"auto",
-      "coordinate_transform_first_sample_ratio":0.3,
-      "coordinate_transform_second_sample_num":3000,
-      "coordinate_transform_sample_file_num":3,
-      "ordering_score_max_ref_num":1,
-      "ordering_score_min_ref_num":1,
-      "eb_schedule":{"name":"inverse_rank_log2","base":0.8,"log2_shift":0.5,"max_log2_exponent":7},
-      "point_set_config_path_list":["point_set_configs/E3SM_h0_AODVIS_rbf_rel_1e-3.json"]
+    "name": "e3sm_h0_aodvis_auto_screen",
+    "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h0",
+    "csv_path": "results/remaining_adjust_coord_screen/e3sm_h0.csv",
+    "field_list": [
+      "AODVIS"
+    ],
+    "compressor_list": [
+      "unsz"
+    ],
+    "time_step_num": 1,
+    "coordinate_dim": 3,
+    "unsz": {
+      "flow": {
+        "label": [
+          "spatial"
+        ],
+        "value": [
+          "spatial"
+        ]
+      },
+      "coordinate_transform": "auto",
+      "point_set_config_path_list": [
+        "point_set_configs/E3SM_h0_AODVIS_rbf_rel_1e-3.json"
+      ]
     }
   }
 ]

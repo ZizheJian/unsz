@@ -135,12 +135,9 @@ namespace unsz::one_point_set
             throw runtime_error("单点集解压要求field恰好配置一个点集");
         param.resolve_single_point_set_time_mode();
         prediction_framework_c framework=param.get_prediction_framework(1);
-        point_set_codec_e predictor=param.point_set_config_vec[0].codec;
-        if(predictor==point_set_codec_e::idw)
-            return decompression_flow::dispatch_one_point_set<point_set_codec_e::idw>(param,framework.value_mode);
-        if(predictor==point_set_codec_e::rbf)
-            return decompression_flow::dispatch_one_point_set<point_set_codec_e::rbf>(param,framework.value_mode);
-        throw runtime_error("单点集解压只支持IDW或RBF空间预测器");
+        if(param.point_set_config_vec[0].codec!=point_set_codec_e::rbf)
+            throw runtime_error("单点集解压只支持RBF空间预测器");
+        return decompression_flow::dispatch_one_point_set<point_set_codec_e::rbf>(param,framework.value_mode);
     }
 }
 
@@ -154,18 +151,9 @@ namespace unsz::two_point_sets::fused
         prediction_framework_c framework=param.get_prediction_framework(2);
         if(param.label_flow!="none"&&param.value_flow!="none"&&param.get_time_step_order(param.label_flow)!=param.get_time_step_order(param.value_flow))
             throw runtime_error("两点集解压要求label和value使用相同time step顺序");
-        point_set_codec_e predictor=point_set_codec_e::constant;
         for(const point_set_config_c&config:param.point_set_config_vec)
-            if(config.codec!=point_set_codec_e::constant)
-            {
-                if(predictor!=point_set_codec_e::constant&&predictor!=config.codec)
-                    throw runtime_error("同一次两点集解压中的非常量点集必须使用同一种空间预测器");
-                predictor=config.codec;
-            }
-        if(predictor==point_set_codec_e::idw)
-            return decompression_flow::dispatch_two_point_sets_fused<point_set_codec_e::idw>(param,framework);
-        if(predictor==point_set_codec_e::rbf)
-            return decompression_flow::dispatch_two_point_sets_fused<point_set_codec_e::rbf>(param,framework);
-        throw runtime_error("两点集解压至少需要一个使用IDW或RBF的非常量点集");
+            if(config.codec!=point_set_codec_e::constant&&config.codec!=point_set_codec_e::rbf)
+                throw runtime_error("两点集解压只支持constant或RBF空间预测器");
+        return decompression_flow::dispatch_two_point_sets_fused<point_set_codec_e::rbf>(param,framework);
     }
 }

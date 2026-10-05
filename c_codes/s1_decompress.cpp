@@ -66,20 +66,10 @@ template<typename T_coord>
 void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock::time_point preprocessing_start_time)
 {
     param.apply_coordinate_transform();
-    bool loaded_dag_cache=!param.dag_cache_path.empty()&&filesystem::exists(param.dag_cache_path);
-    param.load_or_generate_prediction_structures();
-    if(loaded_dag_cache&&(param.rbf_parameter_specified||any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c &config){return config.codec==unsz::point_set_codec_e::rbf;})))
-        param.generate_rbf_weights_from_loaded_dag();
+    param.generate_prediction_structures_and_weights();
     for(auto&structure:param.prediction_structure_vec)
         if(structure.eb_multiplier.size()!=structure.target_ids.size())
             structure.eb_multiplier=param.generate_pred_eb_multiplier_vec((uint32_t)structure.target_ids.size());
-    double validation_time=0;
-    if(loaded_dag_cache)
-    {
-        auto validation_start_time=chrono::steady_clock::now();
-        param.validate_prediction_structures();
-        validation_time=chrono::duration<double>(chrono::steady_clock::now()-validation_start_time).count();
-    }
     param.remap_prediction_data_to_prediction_order(true);
     unsz::time_step_order_e label_order=param.get_time_step_order(param.label_flow),value_order=param.get_time_step_order(param.value_flow);
     if(param.point_set_config_vec.size()==1)
@@ -92,7 +82,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         param.prepare_time_step_order(label_order);
     else
         param.prepare_time_step_order(unsz::time_step_order_e::chronological);
-    double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-validation_time;
+    double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count();
     printf("preprocessing time excluding coordinate and transform-file input= %f s\n",preprocessing_time);
     uint32_t validated_file_num=0;
     double total_decompression_time=0,total_time_prediction_state_update_time=0;
@@ -207,67 +197,12 @@ int decompress_main(int argc,char **argv)
                 throw runtime_error("-M的误差模式必须是REL或ABS："+param.error_mode);
             param.got_error_mode=true;
         }
-        else if (option=="-prediction-min-ref-num")
-            param.prediction_min_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-prediction-max-ref-num")
-            param.prediction_max_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-ordering-score-max-ref-num")
-            param.ordering_score_max_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-ordering-score-min-ref-num")
-            param.ordering_score_min_ref_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-prediction-round-num")
-        {
-            param.prediction_round_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-            param.got_prediction_round_num=true;
-            if(param.prediction_round_num>63)
-                throw runtime_error("-prediction-round-num必须在[1,63]内");
-        }
-        else if(option=="-round-size-growth-ratio-experimental")
-        {
-            param.round_size_growth_ratio_experimental=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-            if(param.round_size_growth_ratio_experimental<1 || param.round_size_growth_ratio_experimental>16)
-                throw runtime_error("-round-size-growth-ratio-experimental必须在[1,16]内");
-        }
-        else if (option=="-idw-power")
-            param.idw_power=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-rbf-kernel")
-        {
-            param.rbf_parameter_specified=true;
-            param.rbf_kernel=read_option_value(argc,argv,arg_id,option);
-            if(param.rbf_kernel!="gaussian" && param.rbf_kernel!="exponential" && param.rbf_kernel!="matern32" && param.rbf_kernel!="matern52" && param.rbf_kernel!="inverse_multiquadric")
-                throw runtime_error("-rbf-kernel必须是gaussian、exponential、matern32、matern52或inverse_multiquadric");
-        }
-        else if(option=="-rbf-shape")
-        {
-            param.rbf_parameter_specified=true;
-            param.rbf_shape=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-        }
-        else if(option=="-rbf-nugget")
-        {
-            param.rbf_parameter_specified=true;
-            param.rbf_nugget=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-        }
-        else if (option=="-ordering-candidate-num")
-            param.ordering_candidate_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if (option=="-dag-cache")
-        {
-            param.dag_cache_path=read_option_value(argc,argv,arg_id,option);
-        }
-        else if (option=="-kd-leaf-size")
-            param.kd_tree_leaf_size=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-partition-size")
             param.partition_size=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-partition-num")
             param.partition_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-thread-num")
             param.thread_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-predictor")
-        {
-            param.predictor=read_option_value(argc,argv,arg_id,option);
-            if(param.predictor!="idw"&&param.predictor!="rbf")
-                throw runtime_error("-predictor必须是idw或rbf");
-            param.got_predictor=true;
-        }
         else if(option=="-point-set-config")
             param.point_set_config_path=read_option_value(argc,argv,arg_id,option);
         else if (option=="-value-flow")
@@ -288,37 +223,8 @@ int decompress_main(int argc,char **argv)
             if(param.coordinate_transform_mode!="off"&&param.coordinate_transform_mode!="on"&&param.coordinate_transform_mode!="auto")
                 throw runtime_error("-coordinate-transform必须是off、on或auto");
         }
-        else if(option=="-coordinate-transform-first-sample-ratio")
-        {
-            param.coordinate_transform_first_sample_ratio=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-            if(param.coordinate_transform_first_sample_ratio>1)
-                throw runtime_error("-coordinate-transform-first-sample-ratio必须在(0,1]内");
-        }
-        else if(option=="-coordinate-transform-second-sample-num")
-            param.coordinate_transform_second_sample_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-coordinate-transform-sample-file-num")
-            param.coordinate_transform_sample_file_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-decompression-stage-time")
             param.print_compression_stage_time=true;
-        else if(option=="-ordering-scope")
-        {
-            param.ordering_scope=read_option_value(argc,argv,arg_id,option);
-            if(param.ordering_scope!="local"&&param.ordering_scope!="global")
-                throw runtime_error("-ordering-scope必须是local或global");
-        }
-        else if (option=="-eb-schedule")
-        {
-            param.eb_schedule=read_option_value(argc,argv,arg_id,option);
-            param.eb_schedule_start_ratio=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-            if(param.eb_schedule!="none"&&param.eb_schedule!="inverse_rank_log2")
-                throw runtime_error("未知的EB序列模式："+param.eb_schedule);
-            if (param.eb_schedule_start_ratio>1)
-                throw runtime_error("-eb-schedule的起始倍率不能大于1");
-        }
-        else if(option=="-eb-schedule-log2-shift")
-            param.eb_schedule_log2_shift=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
-        else if(option=="-eb-schedule-max-log2-exponent")
-            param.eb_schedule_max_log2_exponent=parse_positive_double(read_option_value(argc,argv,arg_id,option),option);
         else
             throw runtime_error("未知参数："+option);
     }

@@ -33,7 +33,7 @@ using namespace std;
 
 namespace unsz
 {
-    enum class point_set_codec_e:uint8_t{idw=0,constant=2,rbf=5};
+    enum class point_set_codec_e:uint8_t{constant=2,rbf=5};
     enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
     enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,label_linear_interpolation_spatial_residual=5,linear_interpolation=6,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
@@ -117,7 +117,7 @@ namespace unsz
 
     struct point_set_config_c
     {
-        point_set_codec_e codec=point_set_codec_e::idw;
+        point_set_codec_e codec=point_set_codec_e::rbf;
         point_set_error_mode_e error_mode=point_set_error_mode_e::relative;
         double eb=0;
     };
@@ -160,7 +160,7 @@ namespace unsz
         vector<uint64_t> reference_offsets;
         vector<T_calc> prediction_weights;
         vector<uint8_t> rbf_fallback_flags;
-        vector<double> eb_multiplier,inverse_eb_multiplier;
+        vector<T_calc> eb_multiplier,inverse_eb_multiplier;
 
         array_view_c<int> get_reference_ids(uint32_t prediction_id) const
         {
@@ -333,21 +333,21 @@ namespace unsz
 
             param_c()=default;
 
-            string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,dag_cache_path,point_set_config_path;
+            string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,point_set_config_path;
             vector<string> original_data_path_vec,compressed_data_path_vec,decompressed_data_path_vec;
             uint32_t dim=3;
             uint32_t point_num=0;
             T_data rel_eb=0,abs_eb=0;
             bool got_rel_eb=false,got_abs_eb=false;
-            bool got_data_dir=false,got_field=false,got_time_step=false,got_error_mode=false,got_predictor=false,got_prediction_round_num=false;
+            bool got_data_dir=false,got_field=false,got_time_step=false,got_error_mode=false;
             vector<point_set_rule_c> point_set_rule_vec;
             vector<point_set_config_c> point_set_config_vec;
-            string value_flow="none";
-            string label_flow="none";
+            string value_flow="auto";
+            string label_flow="auto";
             uint32_t automatic_flow_sample_num=512,automatic_flow_start_num=4;
             vector<array<T_data,2>> automatic_flow_abs_eb_vec;
             vector<array<point_set_codec_e,2>> automatic_flow_point_set_codec_vec;
-            string coordinate_transform_mode="off";//off / on / auto
+            string coordinate_transform_mode="auto";//off / on / auto；off和on仅用于实验
             double coordinate_transform_first_sample_ratio=0.3;
             uint32_t coordinate_transform_second_sample_num=3000;
             uint32_t coordinate_transform_sample_file_num=3;
@@ -355,10 +355,10 @@ namespace unsz
             vector<double> coordinate_transform_diagonal;
             vector<vector<T_data>> coordinate_transform_training_data;
             bool print_compression_stage_time=false,prediction_data_uses_prediction_order=false;
-            string ordering_scope="local";//local / global
-            uint32_t ordering_score_min_ref_num=0;//必须显式设置；缓存中的有效评分参考点少于该值时重新查询
-            uint32_t ordering_candidate_num=0;//必须显式设置
-            uint32_t ordering_score_max_ref_num=0;//必须显式设置；只控制反向MSD排序评分的参考点数量
+            string ordering_scope="global";//正式压缩固定使用global
+            uint32_t ordering_score_min_ref_num=1;
+            uint32_t ordering_candidate_num=16;
+            uint32_t ordering_score_max_ref_num=1;
             uint32_t kd_tree_leaf_size=32;
             uint32_t partition_size=0;//0表示不分区；非0时所有参考点必须来自同一partition
             uint32_t partition_num=0;//直接指定2、4、8等2的幂个partition
@@ -369,15 +369,12 @@ namespace unsz
             double eb_schedule_max_log2_exponent=7;//inverse_rank_log2的最小EB倍率由该指数限制，不依赖预测轮数
             uint32_t prediction_round_num=8;
             double round_size_growth_ratio_experimental=2;
-            uint32_t prediction_min_ref_num=1;//同点集参考点少于该值时使用fallback
-            uint32_t prediction_max_ref_num=4;//DAG保存的参考点数，也是主预测器最多使用的同点集参考点数
-            double idw_power=2;//欧氏距离的负指数；代码中的dist是平方距离，因此实际使用-power/2
-            string rbf_kernel="gaussian";//gaussian / exponential / matern32 / matern52 / inverse_multiquadric
-            double rbf_shape=1;
-            double rbf_nugget=1e-8;
-            bool rbf_parameter_specified=false;
+            uint32_t prediction_min_ref_num=10;
+            uint32_t prediction_max_ref_num=10;
+            string rbf_kernel="exponential";
+            double rbf_shape=0.01;
+            double rbf_nugget=1e-6;
             int zstd_compression_level=3;
-            string predictor;
 
             Array2D<T_coord> coord_array;
             vector<T_coord> min_coord,max_coord;
@@ -432,34 +429,24 @@ namespace unsz
             void apply_coordinate_transform();
             void write_coordinate_transform_file() const;
             void read_coordinate_transform_file();
-            void load_or_generate_prediction_structures();
             void remap_prediction_data_to_prediction_order(bool for_decompression=false);
             vector<vector<int>> build_partitions();
             vector<uint32_t> get_round_target_num_vec(uint32_t local_point_num) const;
-            void generate_partition_prediction_structures(bool uses_idw,bool uses_rbf);
-            vector<double> generate_pred_eb_multiplier_vec(uint32_t target_num,bool print_statistics=false);
-            void write_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,T_calc *weights,array_view_c<T_coord> target_ref_squared_distances={});
-            void append_normalized_idw_prediction_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
+            void generate_partition_prediction_structures(bool uses_rbf);
+            vector<T_calc> generate_pred_eb_multiplier_vec(uint32_t target_num,bool print_statistics=false);
             void generate_prediction_structures_and_weights();
-            void generate_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf);
-            void generate_global_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf);
-            void generate_local_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_idw,bool uses_rbf);
+            void generate_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf);
+            void generate_global_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf);
+            void generate_local_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf);
             template<bool global_order>
-            void sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,vector<vector<int>>&target_id_groups,prediction_structure_c<T_calc>&structure,bool uses_idw,bool uses_rbf,vector<T_coord>&prediction_ref_coords,vector<T_coord>&prediction_ref_squared_distances);
-            void validate_prediction_structures() const;
-            void generate_rbf_weights_from_loaded_dag();
-            void save_prediction_structure_cache();
-            void load_prediction_structure_cache();
+            void sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,vector<vector<int>>&target_id_groups,prediction_structure_c<T_calc>&structure,bool uses_rbf,vector<T_coord>&prediction_ref_coords,vector<T_coord>&prediction_ref_squared_distances);
             T_data predict_value_one_point_set(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
             T_data predict_value_one_point_set_4(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
             T_data predict_value_one_point_set_10(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
             uint32_t predict_label(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
             uint32_t predict_label_4(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
             uint32_t predict_label_10(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
-            T_data predict_value_two_point_sets_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask=nullptr);
             T_data predict_value_two_point_sets_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask=nullptr);
-            fused_spatial_prediction_c<T_data> predict_fused_spatial_idw_4(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
-            fused_spatial_prediction_c<T_data> predict_fused_spatial_idw(array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
             fused_spatial_prediction_c<T_data> predict_fused_spatial_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
             bool solve_scalar_rbf_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
             void generate_batched_rbf_weights(const vector<T_coord>&reference_coords,const vector<T_coord>&target_ref_squared_distances,const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback);
@@ -522,7 +509,7 @@ namespace unsz
 #include "compression_format.tpp"
 #include "reconstruction_statistics.tpp"
 #include "prediction_weights.tpp"
-#include "prediction_structure_cache.tpp"
+#include "prediction_order.tpp"
 #include "compression_flows.tpp"
 #include "decompression_flows.tpp"
 #include "one_point_set_compress_entry.tpp"

@@ -106,102 +106,6 @@ namespace unsz
                     throw runtime_error("-M的误差模式必须是REL或ABS："+param.error_mode);
                 param.got_error_mode=true;
             }
-            else if (strcmp(argv[arg_id],"-prediction-min-ref-num")==0)
-            {
-                if (arg_id+1>=argc)
-                    throw runtime_error("-prediction-min-ref-num后面缺少参数值");
-                param.prediction_min_ref_num=parse_positive_uint32(argv[++arg_id],"-prediction-min-ref-num");
-            }
-            else if (strcmp(argv[arg_id],"-prediction-max-ref-num")==0)
-            {
-                if (arg_id+1>=argc)
-                    throw runtime_error("-prediction-max-ref-num后面缺少参数值");
-                param.prediction_max_ref_num=parse_positive_uint32(argv[++arg_id],"-prediction-max-ref-num");
-            }
-            else if(strcmp(argv[arg_id],"-ordering-score-max-ref-num")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-ordering-score-max-ref-num后面缺少参数值");
-                param.ordering_score_max_ref_num=parse_positive_uint32(argv[++arg_id],"-ordering-score-max-ref-num");
-            }
-            else if(strcmp(argv[arg_id],"-ordering-score-min-ref-num")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-ordering-score-min-ref-num后面缺少参数值");
-                param.ordering_score_min_ref_num=parse_positive_uint32(argv[++arg_id],"-ordering-score-min-ref-num");
-            }
-            else if(strcmp(argv[arg_id],"-prediction-round-num")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-prediction-round-num后面缺少参数值");
-                param.prediction_round_num=parse_positive_uint32(argv[++arg_id],"-prediction-round-num");
-                param.got_prediction_round_num=true;
-                if(param.prediction_round_num>63)
-                    throw runtime_error("-prediction-round-num必须在[1,63]内");
-            }
-            else if(strcmp(argv[arg_id],"-round-size-growth-ratio-experimental")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-round-size-growth-ratio-experimental后面缺少参数值");
-                param.round_size_growth_ratio_experimental=parse_positive_double(argv[++arg_id],"-round-size-growth-ratio-experimental");
-                if(param.round_size_growth_ratio_experimental<1 || param.round_size_growth_ratio_experimental>16)
-                    throw runtime_error("-round-size-growth-ratio-experimental必须在[1,16]内");
-            }
-            else if (strcmp(argv[arg_id],"-idw-power")==0)
-            {
-                if (arg_id+1>=argc)
-                    throw runtime_error("-idw-power后面缺少参数值");
-                param.idw_power=parse_positive_double(argv[++arg_id],"-idw-power");
-            }
-            else if(strcmp(argv[arg_id],"-zstd-level")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-zstd-level后面缺少参数值");
-                param.zstd_compression_level=(int)parse_positive_uint32(argv[++arg_id],"-zstd-level");
-                if(param.zstd_compression_level>22)
-                    throw runtime_error("-zstd-level必须在[1,22]内");
-            }
-            else if(strcmp(argv[arg_id],"-rbf-kernel")==0)
-            {
-                param.rbf_parameter_specified=true;
-                if(arg_id+1>=argc)
-                    throw runtime_error("-rbf-kernel后面缺少核函数名称");
-                param.rbf_kernel=argv[++arg_id];
-                if(param.rbf_kernel!="gaussian" && param.rbf_kernel!="exponential" && param.rbf_kernel!="matern32" && param.rbf_kernel!="matern52" && param.rbf_kernel!="inverse_multiquadric")
-                    throw runtime_error("-rbf-kernel必须是gaussian、exponential、matern32、matern52或inverse_multiquadric");
-            }
-            else if(strcmp(argv[arg_id],"-rbf-shape")==0)
-            {
-                param.rbf_parameter_specified=true;
-                if(arg_id+1>=argc)
-                    throw runtime_error("-rbf-shape后面缺少参数值");
-                param.rbf_shape=parse_positive_double(argv[++arg_id],"-rbf-shape");
-            }
-            else if(strcmp(argv[arg_id],"-rbf-nugget")==0)
-            {
-                param.rbf_parameter_specified=true;
-                if(arg_id+1>=argc)
-                    throw runtime_error("-rbf-nugget后面缺少参数值");
-                param.rbf_nugget=parse_positive_double(argv[++arg_id],"-rbf-nugget");
-            }
-            else if (strcmp(argv[arg_id],"-ordering-candidate-num")==0)
-            {
-                if (arg_id+1>=argc)
-                    throw runtime_error("-ordering-candidate-num后面缺少参数值");
-                param.ordering_candidate_num=parse_positive_uint32(argv[++arg_id],"-ordering-candidate-num");
-            }
-            else if (strcmp(argv[arg_id],"-dag-cache")==0)
-            {
-                if (arg_id+1>=argc)
-                    throw runtime_error("-dag-cache后面缺少参数值");
-                param.dag_cache_path=argv[++arg_id];
-            }
-            else if (strcmp(argv[arg_id],"-kd-leaf-size")==0)
-            {
-                if (arg_id+1>=argc)
-                    throw runtime_error("-kd-leaf-size后面缺少参数值");
-                param.kd_tree_leaf_size=parse_positive_uint32(argv[++arg_id],"-kd-leaf-size");
-            }
             else if (strcmp(argv[arg_id],"-partition-size")==0)
             {
                 if (arg_id+1>=argc)
@@ -219,18 +123,6 @@ namespace unsz
                 if (arg_id+1>=argc)
                     throw runtime_error("-thread-num后面缺少参数值");
                 param.thread_num=parse_positive_uint32(argv[++arg_id],"-thread-num");
-            }
-            else if(strcmp(argv[arg_id],"-automatic-flow-sample-num")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-automatic-flow-sample-num后面缺少参数值");
-                param.automatic_flow_sample_num=parse_positive_uint32(argv[++arg_id],"-automatic-flow-sample-num");
-            }
-            else if(strcmp(argv[arg_id],"-automatic-flow-start-num")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-automatic-flow-start-num后面缺少参数值");
-                param.automatic_flow_start_num=parse_positive_uint32(argv[++arg_id],"-automatic-flow-start-num");
             }
             else if(strcmp(argv[arg_id],"-point-set-config")==0)
             {
@@ -254,15 +146,6 @@ namespace unsz
                 if(param.label_flow!="auto"&&param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
                     throw runtime_error("未知的label flow："+param.label_flow);
             }
-            else if (strcmp(argv[arg_id],"-predictor")==0)
-            {
-                if (arg_id+1>=argc)
-                    throw runtime_error("-predictor后面缺少参数值");
-                param.predictor=argv[++arg_id];
-                if(param.predictor!="idw" && param.predictor!="rbf")
-                    throw runtime_error("-predictor必须是idw或rbf");
-                param.got_predictor=true;
-            }
             else if(strcmp(argv[arg_id],"-coordinate-transform")==0)
             {
                 if (arg_id+1>=argc)
@@ -271,59 +154,8 @@ namespace unsz
                 if(param.coordinate_transform_mode!="off"&&param.coordinate_transform_mode!="on"&&param.coordinate_transform_mode!="auto")
                     throw runtime_error("-coordinate-transform必须是off、on或auto");
             }
-            else if(strcmp(argv[arg_id],"-coordinate-transform-first-sample-ratio")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-coordinate-transform-first-sample-ratio后面缺少比例");
-                param.coordinate_transform_first_sample_ratio=parse_positive_double(argv[++arg_id],"-coordinate-transform-first-sample-ratio");
-                if(param.coordinate_transform_first_sample_ratio>1)
-                    throw runtime_error("-coordinate-transform-first-sample-ratio必须在(0,1]内");
-            }
-            else if(strcmp(argv[arg_id],"-coordinate-transform-second-sample-num")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-coordinate-transform-second-sample-num后面缺少数量");
-                param.coordinate_transform_second_sample_num=parse_positive_uint32(argv[++arg_id],"-coordinate-transform-second-sample-num");
-            }
-            else if(strcmp(argv[arg_id],"-coordinate-transform-sample-file-num")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-coordinate-transform-sample-file-num后面缺少数量");
-                param.coordinate_transform_sample_file_num=parse_positive_uint32(argv[++arg_id],"-coordinate-transform-sample-file-num");
-            }
             else if (strcmp(argv[arg_id],"-compression-stage-time")==0)
                 param.print_compression_stage_time=true;
-            else if(strcmp(argv[arg_id],"-ordering-scope")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-ordering-scope后面缺少排序规模");
-                param.ordering_scope=argv[++arg_id];
-                if(param.ordering_scope!="local"&&param.ordering_scope!="global")
-                    throw runtime_error("-ordering-scope必须是local或global");
-            }
-            else if (strcmp(argv[arg_id],"-eb-schedule")==0)
-            {
-                if (arg_id+2>=argc)
-                    throw runtime_error("-eb-schedule后面需要模式和起始倍率");
-                param.eb_schedule=argv[++arg_id];
-                param.eb_schedule_start_ratio=parse_positive_double(argv[++arg_id],"-eb-schedule");
-                if(param.eb_schedule!="none"&&param.eb_schedule!="inverse_rank_log2")
-                    throw runtime_error("未知的EB序列模式："+param.eb_schedule);
-                if (param.eb_schedule_start_ratio>1)
-                    throw runtime_error("-eb-schedule的起始倍率不能大于1");
-            }
-            else if(strcmp(argv[arg_id],"-eb-schedule-log2-shift")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-eb-schedule-log2-shift后面缺少参数值");
-                param.eb_schedule_log2_shift=parse_positive_double(argv[++arg_id],"-eb-schedule-log2-shift");
-            }
-            else if(strcmp(argv[arg_id],"-eb-schedule-max-log2-exponent")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-eb-schedule-max-log2-exponent后面缺少参数值");
-                param.eb_schedule_max_log2_exponent=parse_positive_double(argv[++arg_id],"-eb-schedule-max-log2-exponent");
-            }
             else
                 throw runtime_error("未知参数："+string(argv[arg_id]));
         }

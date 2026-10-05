@@ -11,34 +11,14 @@
       0.01,
       0.001,
       0.0001,
-      1e-05
+      0.000010
     ],
     "compressor_list": [
       "unsz"
     ],
     "time_step_num": 1,
     "coordinate_dim": 3,
-    "unsz": {
-      "flow": {
-        "value": [
-          "spatial"
-        ]
-      },
-      "predictor": {
-        "name": "rbf",
-        "rbf_kernel": "matern32",
-        "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06
-      },
-      "ordering_scope": "local",
-      "prediction_round_num": 8,
-      "prediction_min_ref_num": 10,
-      "prediction_max_ref_num": 10,
-      "ordering_score_max_ref_num": 10,
-      "ordering_score_min_ref_num": 10,
-      "eb_schedule": {"name": "inverse_rank_log2", "base": 0.8, "log2_shift": 0.5, "max_log2_exponent": 7},
-      "ordering_candidate_num": 48
-    }
+    "unsz": {}
   },
   {
     "name": "taps_pressure",
@@ -52,31 +32,14 @@
       0.01,
       0.001,
       0.0001,
-      1e-05
+      0.000010
     ],
     "compressor_list": [
       "unsz"
     ],
     "time_step_num": 1,
     "coordinate_dim": 3,
-    "unsz": {
-      "flow": {
-        "value": [
-          "spatial"
-        ]
-      },
-      "predictor": {
-        "name": "idw",
-        "idw_power": 2.5
-      },
-      "ordering_scope": "global",
-      "prediction_min_ref_num": 1,
-      "prediction_max_ref_num": 5,
-      "ordering_score_max_ref_num": 5,
-      "ordering_score_min_ref_num": 5,
-      "eb_schedule": {"name": "none", "base": 1.0},
-      "ordering_candidate_num": 48
-    }
+    "unsz": {}
   },
   {
     "name": "taps_tke",
@@ -90,34 +53,14 @@
       0.01,
       0.001,
       0.0001,
-      1e-05
+      0.000010
     ],
     "compressor_list": [
       "unsz"
     ],
     "time_step_num": 1,
     "coordinate_dim": 3,
-    "unsz": {
-      "flow": {
-        "value": [
-          "spatial"
-        ]
-      },
-      "predictor": {
-        "name": "rbf",
-        "rbf_kernel": "matern32",
-        "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06
-      },
-      "ordering_scope": "local",
-      "prediction_round_num": 8,
-      "prediction_min_ref_num": 10,
-      "prediction_max_ref_num": 10,
-      "ordering_score_max_ref_num": 10,
-      "ordering_score_min_ref_num": 10,
-      "eb_schedule": {"name": "inverse_rank_log2", "base": 0.8, "log2_shift": 0.5, "max_log2_exponent": 7},
-      "ordering_candidate_num": 48
-    }
+    "unsz": {}
   },
   {
     "name": "taps_velocity_x",
@@ -131,34 +74,14 @@
       0.01,
       0.001,
       0.0001,
-      1e-05
+      0.000010
     ],
     "compressor_list": [
       "unsz"
     ],
     "time_step_num": 1,
     "coordinate_dim": 3,
-    "unsz": {
-      "flow": {
-        "value": [
-          "spatial"
-        ]
-      },
-      "predictor": {
-        "name": "rbf",
-        "rbf_kernel": "matern32",
-        "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06
-      },
-      "ordering_scope": "local",
-      "prediction_round_num": 8,
-      "prediction_min_ref_num": 10,
-      "prediction_max_ref_num": 10,
-      "ordering_score_max_ref_num": 10,
-      "ordering_score_min_ref_num": 10,
-      "eb_schedule": {"name": "inverse_rank_log2", "base": 0.8, "log2_shift": 0.5, "max_log2_exponent": 7},
-      "ordering_candidate_num": 48
-    }
+    "unsz": {}
   },
   {
     "name": "taps_rms_t",
@@ -172,34 +95,14 @@
       0.01,
       0.001,
       0.0001,
-      1e-05
+      0.000010
     ],
     "compressor_list": [
       "unsz"
     ],
     "time_step_num": 1,
     "coordinate_dim": 3,
-    "unsz": {
-      "flow": {
-        "value": [
-          "spatial"
-        ]
-      },
-      "predictor": {
-        "name": "rbf",
-        "rbf_kernel": "matern32",
-        "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06
-      },
-      "ordering_scope": "local",
-      "prediction_round_num": 8,
-      "prediction_min_ref_num": 10,
-      "prediction_max_ref_num": 10,
-      "ordering_score_max_ref_num": 10,
-      "ordering_score_min_ref_num": 10,
-      "eb_schedule": {"name": "inverse_rank_log2", "base": 0.8, "log2_shift": 0.5, "max_log2_exponent": 7},
-      "ordering_candidate_num": 48
-    }
+    "unsz": {}
   },
   {
     "name": "taps_co2",
@@ -213,34 +116,14 @@
       0.01,
       0.001,
       0.0001,
-      1e-05
+      0.000010
     ],
     "compressor_list": [
       "unsz"
     ],
     "time_step_num": 1,
     "coordinate_dim": 3,
-    "unsz": {
-      "flow": {
-        "value": [
-          "spatial"
-        ]
-      },
-      "predictor": {
-        "name": "rbf",
-        "rbf_kernel": "matern32",
-        "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06
-      },
-      "ordering_scope": "local",
-      "prediction_round_num": 8,
-      "prediction_min_ref_num": 10,
-      "prediction_max_ref_num": 10,
-      "ordering_score_max_ref_num": 10,
-      "ordering_score_min_ref_num": 10,
-      "eb_schedule": {"name": "inverse_rank_log2", "base": 0.8, "log2_shift": 0.5, "max_log2_exponent": 7},
-      "ordering_candidate_num": 48
-    }
+    "unsz": {}
   },
   {
     "name": "taps_c11h22",
@@ -254,33 +137,13 @@
       0.01,
       0.001,
       0.0001,
-      1e-05
+      0.000010
     ],
     "compressor_list": [
       "unsz"
     ],
     "time_step_num": 1,
     "coordinate_dim": 3,
-    "unsz": {
-      "flow": {
-        "value": [
-          "spatial"
-        ]
-      },
-      "predictor": {
-        "name": "rbf",
-        "rbf_kernel": "matern32",
-        "rbf_shape": 0.01,
-        "rbf_nugget": 1e-06
-      },
-      "ordering_scope": "local",
-      "prediction_round_num": 8,
-      "prediction_min_ref_num": 10,
-      "prediction_max_ref_num": 10,
-      "ordering_score_max_ref_num": 10,
-      "ordering_score_min_ref_num": 10,
-      "eb_schedule": {"name": "inverse_rank_log2", "base": 0.8, "log2_shift": 0.5, "max_log2_exponent": 7},
-      "ordering_candidate_num": 48
-    }
+    "unsz": {}
   }
 ]
