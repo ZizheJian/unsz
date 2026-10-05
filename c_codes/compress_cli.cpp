@@ -220,6 +220,18 @@ namespace unsz
                     throw runtime_error("-thread-num后面缺少参数值");
                 param.thread_num=parse_positive_uint32(argv[++arg_id],"-thread-num");
             }
+            else if(strcmp(argv[arg_id],"-automatic-flow-sample-num")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-automatic-flow-sample-num后面缺少参数值");
+                param.automatic_flow_sample_num=parse_positive_uint32(argv[++arg_id],"-automatic-flow-sample-num");
+            }
+            else if(strcmp(argv[arg_id],"-automatic-flow-start-num")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-automatic-flow-start-num后面缺少参数值");
+                param.automatic_flow_start_num=parse_positive_uint32(argv[++arg_id],"-automatic-flow-start-num");
+            }
             else if(strcmp(argv[arg_id],"-point-set-config")==0)
             {
                 if(arg_id+1>=argc)
@@ -231,7 +243,7 @@ namespace unsz
                 if (arg_id+1>=argc)
                     throw runtime_error("-value-flow后面缺少模式");
                 param.value_flow=argv[++arg_id];
-                if(param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
+                if(param.value_flow!="auto"&&param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
                     throw runtime_error("未知的value flow："+param.value_flow);
             }
             else if (strcmp(argv[arg_id],"-label-flow")==0)
@@ -239,7 +251,7 @@ namespace unsz
                 if (arg_id+1>=argc)
                     throw runtime_error("-label-flow后面缺少模式");
                 param.label_flow=argv[++arg_id];
-                if(param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
+                if(param.label_flow!="auto"&&param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
                     throw runtime_error("未知的label flow："+param.label_flow);
             }
             else if (strcmp(argv[arg_id],"-predictor")==0)
@@ -281,14 +293,6 @@ namespace unsz
             }
             else if (strcmp(argv[arg_id],"-compression-stage-time")==0)
                 param.print_compression_stage_time=true;
-            else if(strcmp(argv[arg_id],"-label-value-execution")==0)
-            {
-                if(arg_id+1>=argc)
-                    throw runtime_error("-label-value-execution后面缺少执行方式");
-                param.label_value_execution=argv[++arg_id];
-                if(param.label_value_execution!="staged"&&param.label_value_execution!="fused")
-                    throw runtime_error("-label-value-execution必须是staged或fused");
-            }
             else if(strcmp(argv[arg_id],"-ordering-scope")==0)
             {
                 if(arg_id+1>=argc)

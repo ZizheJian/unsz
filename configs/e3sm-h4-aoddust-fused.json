@@ -43,7 +43,6 @@
         "log2_shift": 0.5,
         "max_log2_exponent": 7
       },
-      "label_value_execution": "fused",
       "point_set_config_path_list": [
         "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-1.json",
         "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-2.json",

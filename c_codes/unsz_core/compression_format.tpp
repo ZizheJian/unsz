@@ -3,7 +3,31 @@
 namespace unsz
 {
     inline constexpr unsigned char compression_file_magic[8]={'U','N','S','Z','P','S','1','1'};
-    inline constexpr uint32_t compression_file_version=12;
+    inline constexpr uint32_t compression_file_version=13;
+
+    inline uint8_t encode_prediction_flow(const string&flow)
+    {
+        if(flow=="none")return 0;
+        if(flow=="constant_extrapolation")return 1;
+        if(flow=="linear_interpolation")return 2;
+        if(flow=="constant_extrapolation_spatial_residual")return 3;
+        if(flow=="linear_interpolation_spatial_residual")return 4;
+        if(flow=="anchor_interpolation_stride_8")return 5;
+        if(flow=="anchor_interpolation_stride_8_spatial_residual")return 6;
+        throw runtime_error("不能写入未知预测flow："+flow);
+    }
+
+    inline string decode_prediction_flow(uint8_t flow)
+    {
+        if(flow==0)return "none";
+        if(flow==1)return "constant_extrapolation";
+        if(flow==2)return "linear_interpolation";
+        if(flow==3)return "constant_extrapolation_spatial_residual";
+        if(flow==4)return "linear_interpolation_spatial_residual";
+        if(flow==5)return "anchor_interpolation_stride_8";
+        if(flow==6)return "anchor_interpolation_stride_8_spatial_residual";
+        throw runtime_error("压缩文件包含未知预测flow编号："+to_string(flow));
+    }
 
     template<typename T>
     void append_binary(vector<unsigned char> &bytes,const T &value)
@@ -25,7 +49,7 @@ namespace unsz
     }
 
     template<typename T>
-    vector<unsigned char> huffman_encode(vector<T> &value_vec,T *min_value=nullptr,T *max_value=nullptr)
+    vector<unsigned char> huffman_encode(vector<T> &value_vec,T *min_value=nullptr,T *max_value=nullptr,uint64_t *header_byte_num=nullptr)
     {
         if (value_vec.empty())
             return {};
@@ -39,6 +63,8 @@ namespace unsz
         vector<unsigned char> bytes(max<uint64_t>(4096,max_byte_num));
         unsigned char *cursor=bytes.data();
         encoder.save(cursor);
+        if(header_byte_num)
+            *header_byte_num=cursor-bytes.data();
         encoder.encode(value_vec.data(),value_vec.size(),cursor);
         bytes.resize(cursor-bytes.data());
         return bytes;
@@ -175,6 +201,10 @@ namespace unsz
         uint32_t file_point_num=read_binary<uint32_t>(cursor,end);
         uint32_t data_type_bytes=read_binary<uint32_t>(cursor,end);
         point_set_num=read_binary<uint32_t>(cursor,end);
+        string file_label_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
+        string file_value_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
+        if(file_label_flow!=label_flow||file_value_flow!=value_flow)
+            throw runtime_error("压缩文件记录的预测flow与解压参数不一致");
         if (file_point_num!=point_num)
             throw runtime_error("压缩文件点数与坐标点数不一致");
         if (data_type_bytes!=sizeof(T_data))
@@ -346,7 +376,7 @@ namespace unsz
             unpredictable_value_byte_num+=payload.unpredictable_value_byte_num;
         }
         vector<unsigned char> container;
-        uint64_t container_byte_num=8+4*sizeof(uint32_t)+(uint64_t)point_set_num*(sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data))+sizeof(uint32_t)+(uint64_t)(payload_num+1)*sizeof(uint64_t);
+        uint64_t container_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t)+(uint64_t)point_set_num*(sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data))+sizeof(uint32_t)+(uint64_t)(payload_num+1)*sizeof(uint64_t);
         for(const encoded_compression_payload_c&payload:payload_vec)
             container_byte_num+=payload.bytes.size();
         container.reserve((size_t)container_byte_num);
@@ -355,6 +385,8 @@ namespace unsz
         append_binary<uint32_t>(container,point_num);
         append_binary<uint32_t>(container,sizeof(T_data));
         append_binary<uint32_t>(container,point_set_num);
+        append_binary<uint8_t>(container,encode_prediction_flow(label_flow));
+        append_binary<uint8_t>(container,encode_prediction_flow(value_flow));
         for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {
             append_binary<uint8_t>(container,(uint8_t)point_set_codec_vec[point_set_id]);
@@ -373,12 +405,16 @@ namespace unsz
         for(encoded_compression_payload_c &payload:payload_vec)
             container.insert(container.end(),payload.bytes.begin(),payload.bytes.end());
         current_compressed_bytes=move(container);
+        current_label_stream_bytes=state.has_label?(uint64_t)payload_num*2*sizeof(uint64_t)+label_zstd_byte_num:0;
+        current_value_stream_bytes=(uint64_t)payload_num*point_set_num*2*sizeof(uint64_t)+value_zstd_byte_num+unpredictable_value_byte_num;
+        current_shared_metadata_bytes=current_compressed_bytes.size()-current_label_stream_bytes-current_value_stream_bytes;
         state.lossless_encoding_time+=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
         double label_prediction_error_ratio=0;
         if(state.label_target_num>0)
             label_prediction_error_ratio=(double)state.label_error_num/state.label_target_num;
         printf("label_prediction_error_ratio=%f, label_position_delta_bytes=%llu, label_zstd_bytes=%llu, zstd_level=%d\n",label_prediction_error_ratio,(unsigned long long)label_position_delta_byte_num,(unsigned long long)label_zstd_byte_num,zstd_compression_level);
         printf("value_huffman_bytes=%llu, value_zstd_bytes=%llu, unpredictable_value_bytes=%llu, file_bytes=%llu\n",(unsigned long long)value_huffman_byte_num,(unsigned long long)value_zstd_byte_num,(unsigned long long)unpredictable_value_byte_num,(unsigned long long)current_compressed_bytes.size());
+        printf("label_stream_bytes=%llu, value_stream_bytes=%llu, shared_metadata_bytes=%llu\n",(unsigned long long)current_label_stream_bytes,(unsigned long long)current_value_stream_bytes,(unsigned long long)current_shared_metadata_bytes);
 
         printf("point_set_num=%u",point_set_num);
         for (uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
@@ -399,6 +435,46 @@ namespace unsz
             printf("compression stage time: point_set=%f s, label_prediction=%f s, value_prediction=%f s, lossless_encoding=%f s\n",point_set_time,state.label_prediction_time,state.value_prediction_time,state.lossless_encoding_time);
             printf("point set stage time: classification=%f s, setup=%f s\n",state.point_set_classification_time,state.point_set_setup_time);
         }
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::read_compressed_flows()
+    {
+        if(label_flow!="auto"&&value_flow!="auto")
+            return;
+        if(original_data_path_vec.empty())
+            throw runtime_error("自动flow解压缺少数据文件路径");
+        constexpr uint64_t flow_header_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t);
+        vector<unsigned char> bytes(flow_header_byte_num);
+        string compressed_path=original_data_path_vec.front()+".unsz";
+        FILE*file=fopen(compressed_path.c_str(),"rb");
+        if(!file)
+            throw runtime_error("找不到文件："+compressed_path);
+        bool read_failed=fread(bytes.data(),1,bytes.size(),file)!=bytes.size();
+        fclose(file);
+        if(read_failed)
+            throw runtime_error("UNSZ压缩文件头不完整："+compressed_path);
+        const unsigned char*cursor=bytes.data(),*end=bytes.data()+bytes.size();
+        if((uint64_t)(end-cursor)<8||memcmp(cursor,compression_file_magic,8)!=0)
+            throw runtime_error("不是受支持的UNSZ点集文件");
+        cursor+=8;
+        uint32_t version=read_binary<uint32_t>(cursor,end);
+        if(version!=compression_file_version)
+            throw runtime_error("不支持的UNSZ文件版本："+to_string(version));
+        read_binary<uint32_t>(cursor,end);
+        read_binary<uint32_t>(cursor,end);
+        read_binary<uint32_t>(cursor,end);
+        string file_label_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
+        string file_value_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
+        if(label_flow=="auto")
+            label_flow=file_label_flow;
+        else if(label_flow!=file_label_flow)
+            throw runtime_error("压缩文件记录的label flow与解压参数不一致");
+        if(value_flow=="auto")
+            value_flow=file_value_flow;
+        else if(value_flow!=file_value_flow)
+            throw runtime_error("压缩文件记录的value flow与解压参数不一致");
+        printf("compressed flow: label=%s,value=%s\n",label_flow.c_str(),value_flow.c_str());
     }
 
 }

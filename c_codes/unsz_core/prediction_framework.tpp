@@ -112,12 +112,6 @@ namespace unsz
             else
                 throw runtime_error("未知的标签时间预测方式："+label_flow);
         }
-        if(!framework.has_label)
-            framework.execution=label_value_execution_e::no_label;
-        else if(label_value_execution=="fused")
-            framework.execution=label_value_execution_e::fused;
-        else
-            framework.execution=label_value_execution_e::staged;
         return framework;
     }
 

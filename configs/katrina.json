@@ -49,8 +49,7 @@
         "point_set_configs/Katrina_attr0_rbf_rel_1e-3.json",
         "point_set_configs/Katrina_attr0_rbf_rel_1e-4.json",
         "point_set_configs/Katrina_attr0_rbf_rel_1e-5.json"
-      ],
-      "label_value_execution": "fused"
+      ]
     },
     "umc": {
       "from_edge": 0,

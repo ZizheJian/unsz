@@ -24,7 +24,6 @@
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
-#include <functional>
 #include "../huffman.hpp"
 #include "../third_party/zstd/lib/zstd.h"
 
@@ -38,7 +37,6 @@ namespace unsz
     enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
     enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,label_linear_interpolation_spatial_residual=5,linear_interpolation=6,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
-    enum class label_value_execution_e:uint8_t{no_label=0,staged=1,fused=2};
     enum class time_step_order_e:uint8_t{chronological=0,interpolation=1,anchor_stride_8=2};
 
     struct prediction_framework_c
@@ -46,13 +44,18 @@ namespace unsz
         bool has_label=false;
         time_dimension_mode_e label_mode=time_dimension_mode_e::not_applicable;
         time_dimension_mode_e value_mode=time_dimension_mode_e::spatial;
-        label_value_execution_e execution=label_value_execution_e::no_label;
     };
 
     struct temporal_dependency_c
     {
         array<int32_t,2> source_indices{{-1,-1}};
         uint8_t source_num=0;
+    };
+
+    struct temporal_dependency_plan_c
+    {
+        vector<uint32_t> processing_order;
+        vector<temporal_dependency_c> dependencies;
     };
 
     struct encoded_compression_payload_c
@@ -341,6 +344,9 @@ namespace unsz
             vector<point_set_config_c> point_set_config_vec;
             string value_flow="none";
             string label_flow="none";
+            uint32_t automatic_flow_sample_num=512,automatic_flow_start_num=4;
+            vector<array<T_data,2>> automatic_flow_abs_eb_vec;
+            vector<array<point_set_codec_e,2>> automatic_flow_point_set_codec_vec;
             string coordinate_transform_mode="off";//off / on / auto
             double coordinate_transform_first_sample_ratio=0.3;
             uint32_t coordinate_transform_second_sample_num=3000;
@@ -349,7 +355,6 @@ namespace unsz
             vector<double> coordinate_transform_diagonal;
             vector<vector<T_data>> coordinate_transform_training_data;
             bool print_compression_stage_time=false,prediction_data_uses_prediction_order=false;
-            string label_value_execution="staged";//staged / fused
             string ordering_scope="local";//local / global
             uint32_t ordering_score_min_ref_num=0;//必须显式设置；缓存中的有效评分参考点少于该值时重新查询
             uint32_t ordering_candidate_num=0;//必须显式设置
@@ -397,17 +402,17 @@ namespace unsz
             vector<uint32_t> point_set_point_num_vec;
             vector<T_data> point_set_min_data_vec,point_set_max_data_vec,point_set_abs_eb_vec;
             vector<point_set_codec_e> point_set_codec_vec;
-            bool suppress_compression_summary=false;
-            double last_total_psnr=0,last_total_compression_time=0;
-            uint64_t last_total_original_bytes=0;
+            uint64_t current_label_stream_bytes=0,current_value_stream_bytes=0,current_shared_metadata_bytes=0;
 
             void init();
             void load_time_step_coordinates();
             time_step_order_e get_time_step_order(const string &flow) const;
+            vector<uint32_t> generate_time_step_processing_order(time_step_order_e order) const;
             void prepare_time_step_order(time_step_order_e order);
             void configure_point_sets();
             void prepare_cli_parameters(const vector<uint32_t>&selected_time_step_vec,T_data error_bound);
             void prepare_temporal_dependencies();
+            temporal_dependency_plan_c generate_temporal_dependency_plan(const string&flow) const;
             void prepare_temporal_prediction();
             template<time_dimension_mode_e value_mode>
             bool predict_temporal_value(uint32_t storage_id,uint32_t point_set_id,T_data &prediction);
@@ -459,28 +464,24 @@ namespace unsz
             bool solve_scalar_rbf_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
             void generate_batched_rbf_weights(const vector<T_coord>&reference_coords,const vector<T_coord>&target_ref_squared_distances,const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback);
             void preprocess_compression(chrono::steady_clock::time_point preprocessing_start_time);
+            double select_automatic_flows();
+            void validate_automatic_flow_selection() const;
+            void precompute_automatic_flow_abs_eb();
+            void read_compressed_flows();
             reconstruction_statistics_c calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset=0) const;
             reconstruction_statistics_c calculate_prediction_order_reconstruction_statistics() const;
-            void compress_files(void(param_c<T_coord,T_data>::*compress_file)(),bool write_output=true,const function<void(uint32_t,const vector<unsigned char>&)>&compressed_stream_consumer={},bool validate_reconstruction=true);
-            template<point_set_codec_e predictor>
-            void compress_staged_two_point_sets_files();
-            template<point_set_codec_e predictor>
-            void dispatch_staged_label_compression();
-            template<point_set_codec_e predictor>
-            void dispatch_staged_value_compression();
+            void compress_files(void(param_c<T_coord,T_data>::*compress_file)());
             template<point_set_codec_e predictor>
             void dispatch_fused_compression();
             template<bool two_point_sets>
             void classify_current_point_sets(compression_file_state_c&state);
             void prepare_current_point_set_codecs_and_eb(compression_file_state_c&state);
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution>
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void prepare_current_prediction_state(compression_file_state_c&state);
-            template<bool two_point_sets,label_value_execution_e fixed_execution>
+            template<bool two_point_sets>
             void initialize_current_compression_buffers(compression_file_state_c&state);
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution>
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void prepare_current_compression(compression_file_state_c&state);
-            template<time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
-            void compress_labels(compression_file_state_c&state);
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,point_set_codec_e fixed_predictor>
             value_compression_result_c<T_data> compress_structure_values(const prediction_structure_c<T_calc>&prediction_structure);
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,point_set_codec_e fixed_predictor>
@@ -494,11 +495,11 @@ namespace unsz
             void dispatch_single_point_set_decompression();
             void dispatch_two_point_sets_decompression_by_mode();
             void validate_decoded_point_set_counts() const;
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
             void decompress_current_file();
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
             void decompress_values(decompression_file_state_c<T_data>&state);
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
             void decompress_labels_and_values(decompression_file_state_c<T_data>&state);
             
     };
@@ -526,7 +527,7 @@ namespace unsz
 #include "decompression_flows.tpp"
 #include "one_point_set_compress_entry.tpp"
 #include "two_point_sets_compress_entry.tpp"
-#include "staged_two_point_sets_entry.tpp"
 #include "compress_entry.tpp"
 #include "compress.tpp"
+#include "automatic_flow_selection.tpp"
 #include "decompress.tpp"

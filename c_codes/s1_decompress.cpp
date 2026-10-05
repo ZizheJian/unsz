@@ -81,10 +81,19 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         validation_time=chrono::duration<double>(chrono::steady_clock::now()-validation_start_time).count();
     }
     param.remap_prediction_data_to_prediction_order(true);
+    unsz::time_step_order_e label_order=param.get_time_step_order(param.label_flow),value_order=param.get_time_step_order(param.value_flow);
+    if(param.point_set_config_vec.size()==1)
+        param.prepare_time_step_order(value_order);
+    else if(label_order==value_order)
+        param.prepare_time_step_order(label_order);
+    else if(param.label_flow=="none")
+        param.prepare_time_step_order(value_order);
+    else if(param.value_flow=="none")
+        param.prepare_time_step_order(label_order);
+    else
+        param.prepare_time_step_order(unsz::time_step_order_e::chronological);
     double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-validation_time;
     printf("preprocessing time excluding coordinate and transform-file input= %f s\n",preprocessing_time);
-    if(param.point_set_config_vec.size()==2&&param.label_value_execution=="staged")
-        throw runtime_error("staged模式只在内存中估计压缩效果，不生成可解压码流");
     uint32_t validated_file_num=0;
     double total_decompression_time=0,total_time_prediction_state_update_time=0;
     unsz::reconstruction_statistics_c total_statistics;
@@ -264,13 +273,13 @@ int decompress_main(int argc,char **argv)
         else if (option=="-value-flow")
         {
             param.value_flow=read_option_value(argc,argv,arg_id,option);
-            if(param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
+            if(param.value_flow!="auto"&&param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
                 throw runtime_error("未知的value flow："+param.value_flow);
         }
         else if (option=="-label-flow")
         {
             param.label_flow=read_option_value(argc,argv,arg_id,option);
-            if(param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
+            if(param.label_flow!="auto"&&param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
                 throw runtime_error("未知的label flow："+param.label_flow);
         }
         else if(option=="-coordinate-transform")
@@ -291,12 +300,6 @@ int decompress_main(int argc,char **argv)
             param.coordinate_transform_sample_file_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if(option=="-decompression-stage-time")
             param.print_compression_stage_time=true;
-        else if(option=="-label-value-execution")
-        {
-            param.label_value_execution=read_option_value(argc,argv,arg_id,option);
-            if(param.label_value_execution!="staged"&&param.label_value_execution!="fused")
-                throw runtime_error("-label-value-execution必须是staged或fused");
-        }
         else if(option=="-ordering-scope")
         {
             param.ordering_scope=read_option_value(argc,argv,arg_id,option);
@@ -320,6 +323,7 @@ int decompress_main(int argc,char **argv)
             throw runtime_error("未知参数："+option);
     }
     param.prepare_cli_parameters(time_step_vec,error_bound);
+    param.read_compressed_flows();
     param.init();
     param.read_coordinate_transform_file();
     auto preprocessing_start_time=chrono::steady_clock::now();

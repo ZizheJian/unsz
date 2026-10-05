@@ -8,7 +8,7 @@ def read_output_float(pattern,text,name):
     return float(match.group(1))
 
 def parse_unsz_compression_output(compression_output):
-    return {"br":read_output_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR"),"psnr":read_output_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"压缩PSNR"),"compression_preprocessing_time":read_output_float(r"^preprocessing time excluding [^=]+= ([^ ]+) s$",compression_output,"压缩端预处理时间"),"compression_time":read_output_float(r"^total compression time= ([^ ]+) s$",compression_output,"压缩时间")}
+    return {"br":read_output_float(r"^total cr= [^,]+, total br= ([^,]+),",compression_output,"总BR"),"psnr":read_output_float(r"^total cr= [^,]+, total br= [^,]+, total psnr= ([^ ]+)$",compression_output,"压缩PSNR"),"label_stream_br":read_output_float(r"^total label stream br= ([^,]+),",compression_output,"标签码流BR"),"value_stream_br":read_output_float(r"^total label stream br= [^,]+, total value stream br= ([^,]+),",compression_output,"数值码流BR"),"shared_metadata_br":read_output_float(r"^total label stream br= [^,]+, total value stream br= [^,]+, total shared metadata br= ([^ ]+)$",compression_output,"共享元数据BR"),"compression_preprocessing_time":read_output_float(r"^preprocessing time excluding [^=]+= ([^ ]+) s$",compression_output,"压缩端预处理时间"),"compression_time":read_output_float(r"^total compression time= ([^ ]+) s$",compression_output,"压缩时间")}
 
 def parse_unsz_output(compression_output,decompression_output):
     result=parse_unsz_compression_output(compression_output)

@@ -33,7 +33,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
+    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
     void param_c<T_coord,T_data>::decompress_current_file()
     {
         decompression_file_state_c<T_data> state;
@@ -58,7 +58,6 @@ namespace unsz
         prediction_framework.has_label=two_point_sets;
         prediction_framework.value_mode=fixed_value_mode;
         prediction_framework.label_mode=fixed_label_mode;
-        prediction_framework.execution=two_point_sets?fixed_execution:label_value_execution_e::no_label;
         current_prediction_framework=prediction_framework;
         prepare_temporal_prediction();
         if constexpr(two_point_sets)
@@ -72,16 +71,16 @@ namespace unsz
             point_set_id_vec.clear();
             prediction_order_point_set_id_vec.clear();
         }
-        if constexpr(two_point_sets&&fixed_execution==label_value_execution_e::fused)
+        if constexpr(two_point_sets)
         {
-            decompress_labels_and_values<two_point_sets,fixed_value_mode,fixed_label_mode,fixed_execution,fixed_predictor>(state);
+            decompress_labels_and_values<two_point_sets,fixed_value_mode,fixed_label_mode,fixed_predictor>(state);
             if(print_compression_stage_time)
                 printf("decompression stage time: stream_decode=%f s, label_decode=%f s, value_decode=%f s\n",state.stream_decode_time,state.label_decode_time,state.value_decode_time);
             return;
         }
         else
         {
-            decompress_values<two_point_sets,fixed_value_mode,fixed_label_mode,fixed_execution,fixed_predictor>(state);
+            decompress_values<two_point_sets,fixed_value_mode,fixed_label_mode,fixed_predictor>(state);
             if(print_compression_stage_time)
                 printf("decompression stage time: stream_decode=%f s, label_decode=%f s, value_decode=%f s\n",state.stream_decode_time,state.label_decode_time,state.value_decode_time);
             return;
@@ -89,7 +88,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
+    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
     void param_c<T_coord,T_data>::decompress_labels_and_values(decompression_file_state_c<T_data>&state)
     {
         constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
@@ -247,7 +246,7 @@ namespace unsz
 
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution,point_set_codec_e fixed_predictor>
+    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
     void param_c<T_coord,T_data>::decompress_values(decompression_file_state_c<T_data>&state)
     {
         uint32_t point_set_num=state.point_set_num;

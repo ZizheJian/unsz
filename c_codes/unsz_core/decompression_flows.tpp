@@ -5,7 +5,7 @@ namespace unsz::one_point_set::spatial
     template<point_set_codec_e predictor,typename T_coord,typename T_data>
     void decompress(param_c<T_coord,T_data>&param)
     {
-        param.template decompress_current_file<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,predictor>();
+        param.template decompress_current_file<false,time_dimension_mode_e::spatial,time_dimension_mode_e::not_applicable,predictor>();
     }
 }
 
@@ -15,7 +15,7 @@ namespace unsz::one_point_set::temporal
     void decompress(param_c<T_coord,T_data>&param)
     {
         constexpr time_dimension_mode_e value_mode=time_flow::value_mode<time_ref_num,use_spatial_residual>();
-        param.template decompress_current_file<false,value_mode,time_dimension_mode_e::not_applicable,label_value_execution_e::no_label,predictor>();
+        param.template decompress_current_file<false,value_mode,time_dimension_mode_e::not_applicable,predictor>();
     }
 }
 
@@ -24,7 +24,7 @@ namespace unsz::two_point_sets::fused::label_spatial_value_spatial
     template<point_set_codec_e predictor,typename T_coord,typename T_data>
     void decompress(param_c<T_coord,T_data>&param)
     {
-        param.template decompress_current_file<true,time_dimension_mode_e::spatial,time_dimension_mode_e::spatial,label_value_execution_e::fused,predictor>();
+        param.template decompress_current_file<true,time_dimension_mode_e::spatial,time_dimension_mode_e::spatial,predictor>();
     }
 }
 
@@ -34,7 +34,7 @@ namespace unsz::two_point_sets::fused::label_spatial_value_temporal
     void decompress(param_c<T_coord,T_data>&param)
     {
         constexpr time_dimension_mode_e value_mode=time_flow::value_mode<time_ref_num,use_spatial_residual>();
-        param.template decompress_current_file<true,value_mode,time_dimension_mode_e::spatial,label_value_execution_e::fused,predictor>();
+        param.template decompress_current_file<true,value_mode,time_dimension_mode_e::spatial,predictor>();
     }
 }
 
@@ -44,7 +44,7 @@ namespace unsz::two_point_sets::fused::label_temporal_value_spatial
     void decompress(param_c<T_coord,T_data>&param)
     {
         constexpr time_dimension_mode_e label_mode=time_flow::label_mode<time_ref_num>();
-        param.template decompress_current_file<true,time_dimension_mode_e::spatial,label_mode,label_value_execution_e::fused,predictor>();
+        param.template decompress_current_file<true,time_dimension_mode_e::spatial,label_mode,predictor>();
     }
 }
 
@@ -55,7 +55,7 @@ namespace unsz::two_point_sets::fused::label_temporal_value_temporal
     {
         constexpr time_dimension_mode_e label_mode=time_flow::label_mode<time_ref_num>();
         constexpr time_dimension_mode_e value_mode=time_flow::value_mode<time_ref_num,use_spatial_residual>();
-        param.template decompress_current_file<true,value_mode,label_mode,label_value_execution_e::fused,predictor>();
+        param.template decompress_current_file<true,value_mode,label_mode,predictor>();
     }
 }
 
@@ -152,10 +152,8 @@ namespace unsz::two_point_sets::fused
         if(param.point_set_config_vec.size()!=2)
             throw runtime_error("两点集解压要求field恰好配置两个点集");
         prediction_framework_c framework=param.get_prediction_framework(2);
-        if(framework.execution!=label_value_execution_e::fused)
-            throw runtime_error("staged模式只在内存中估计压缩效果，不生成可解压码流");
         if(param.label_flow!="none"&&param.value_flow!="none"&&param.get_time_step_order(param.label_flow)!=param.get_time_step_order(param.value_flow))
-            throw runtime_error("fused模式尚未实现label和value使用不同time step顺序");
+            throw runtime_error("两点集解压要求label和value使用相同time step顺序");
         point_set_codec_e predictor=point_set_codec_e::constant;
         for(const point_set_config_c&config:param.point_set_config_vec)
             if(config.codec!=point_set_codec_e::constant)

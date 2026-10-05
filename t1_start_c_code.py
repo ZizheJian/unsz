@@ -140,42 +140,6 @@ def check_baseline_programs(tasks):
                 raise FileNotFoundError(f"没有找到UMC可执行文件：{path}")
 
 # UNSZ命令
-def read_time_step_coordinates(config):
-    if "time_step_coordinate_file" not in config:
-        return [float(time_step) for time_step in range(config["time_step_num"])]
-    path=Path(config["data_dir"])/config["time_step_coordinate_file"]
-    byte_num=path.stat().st_size
-    if byte_num%8:
-        raise ValueError(f"time step坐标文件大小不是float64的整数倍：{path}")
-    coordinates=array.array("d")
-    with path.open("rb") as file:
-        coordinates.fromfile(file,byte_num//8)
-    if len(coordinates)!=config["time_step_num"]:
-        raise ValueError(f"time step坐标数量应为{config['time_step_num']}，实际为{len(coordinates)}")
-    if any(not math.isfinite(value) for value in coordinates):
-        raise ValueError("time step坐标只能包含有限值")
-    differences=[right-left for left,right in zip(coordinates,coordinates[1:])]
-    if differences and not(all(value>0 for value in differences) or all(value<0 for value in differences)):
-        raise ValueError("time step坐标必须严格单调")
-    return list(coordinates)
-
-def linear_interpolation_time_order(coordinates):
-    order=[0,len(coordinates)-1]
-    intervals=[(0,len(coordinates)-1)]
-    for left,right in intervals:
-        if right-left<=1:
-            continue
-        physical_middle=(coordinates[left]+coordinates[right])/2
-        middle=min(range(left+1,right),key=lambda index:abs(coordinates[index]-physical_middle))
-        order.append(middle)
-        intervals.extend(((left,middle),(middle,right)))
-    if len(order)!=len(coordinates) or len(set(order))!=len(coordinates):
-        raise RuntimeError("一阶内插顺序没有覆盖全部time step")
-    return order
-
-def is_anchor_interpolation_stride_8_flow(flow):
-    return flow in ("anchor_interpolation_stride_8","anchor_interpolation_stride_8_spatial_residual")
-
 def build_predictor_arguments(predictor):
     predictor_name=predictor["name"]
     if predictor_name=="idw":
@@ -241,10 +205,8 @@ def build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expre
         arguments.extend(("-"+partition_name.replace("_","-"),config[partition_name],"-thread-num",config["thread_num"]))
     elif "thread_num" in config:
         raise ValueError("thread_num只能和partition_num或partition_size一起设置")
-    if config["label_flow"] is not None:
-        if config["label_value_execution"] not in ("staged","fused"):
-            raise ValueError(f"未知标签与数值执行方式：{config['label_value_execution']}")
-        arguments.extend(("-label-value-execution",config["label_value_execution"]))
+    if "label_value_execution" in config:
+        raise ValueError("label_value_execution已删除；两点集始终融合压缩")
     return predictor,arguments
 
 def build_spatial_unsz_arguments(config,data_dir,dag_cache_path):
@@ -253,15 +215,9 @@ def build_spatial_unsz_arguments(config,data_dir,dag_cache_path):
 def build_temporal_unsz_arguments(config,data_dir,dag_cache_path):
     if config["time_step_num"]<2:
         raise ValueError("时间预测至少需要两个time step")
-    coordinates=read_time_step_coordinates(config)
     value_flow=config["value_flow"]
     label_flow=config["label_flow"]
-    use_anchor_order=is_anchor_interpolation_stride_8_flow(value_flow) or label_flow=="anchor_interpolation_stride_8"
-    if not use_anchor_order and (value_flow in ("linear_interpolation","linear_interpolation_spatial_residual") or label_flow=="linear_interpolation_spatial_residual"):
-        time_order=linear_interpolation_time_order(coordinates)
-        time_expression="{"+",".join(str(value) for value in time_order)+"}"
-    else:
-        time_expression=f"[0,{config['time_step_num']-1}]"
+    time_expression=f"[0,{config['time_step_num']-1}]"
     predictor,arguments=build_spatial_prediction_arguments(config,data_dir,dag_cache_path,time_expression)
     if "time_step_coordinate_file" in config:
         arguments.extend(("-time-step-coordinate-file",Path(config["data_dir"])/config["time_step_coordinate_file"]))
@@ -273,6 +229,8 @@ def build_temporal_unsz_arguments(config,data_dir,dag_cache_path):
         arguments.extend(("-label-flow","linear_interpolation_spatial_residual"))
     elif label_flow=="anchor_interpolation_stride_8":
         arguments.extend(("-label-flow",label_flow))
+    elif label_flow=="auto":
+        arguments.extend(("-label-flow","auto"))
     elif label_flow not in (None,"spatial"):
         raise ValueError(f"未知标签流程：{label_flow}")
     return predictor,arguments
@@ -292,7 +250,13 @@ def build_unsz_commands(config,data_dir,dag_cache_path):
         rel_eb=config["rel_eb"]
         compression_error=["-M","REL",rel_eb,"-predictor",predictor]
         decompression_error=["-M","REL",rel_eb,"-predictor",predictor]
-    compression_command=[project_root/"install/bin/s1_compress",*compression_error,*arguments]
+    automatic_flow_arguments=[]
+    for name in ("automatic_flow_sample_num","automatic_flow_start_num"):
+        if name in config:
+            if not isinstance(config[name],int) or config[name]<=0:
+                raise ValueError(f"{name}必须是正整数")
+            automatic_flow_arguments.extend(("-"+name.replace("_","-"),config[name]))
+    compression_command=[project_root/"install/bin/s1_compress",*compression_error,*arguments,*automatic_flow_arguments]
     decompression_command=[project_root/"install/bin/s1_decompress",*decompression_error,*arguments]
     return compression_command,decompression_command
 
@@ -318,21 +282,13 @@ def run_unsz(config):
         dag_cache_path.parent.mkdir(parents=True,exist_ok=True)
     compression_command,decompression_command=build_unsz_commands(config,source_data_dir,dag_cache_path)
     compression_output=run_command(compression_command,silent=True)
-    staged=config.get("label_value_execution")=="staged"
-    if staged:
-        result={**parse_unsz_compression_output(compression_output),"decompression_preprocessing_time":0,"decompression_time":0,"staged":True}
-    else:
-        decompression_output=run_command(decompression_command,silent=True)
-        result={**parse_unsz_output(compression_output,decompression_output),"staged":False}
+    decompression_output=run_command(decompression_command,silent=True)
+    result=parse_unsz_output(compression_output,decompression_output)
     error_configuration=config["point_set_config_path"] if "point_set_config_path" in config else f"REL {config['rel_eb']}"
     print(f"总结果：compressor=unsz,task={config['name']},data_dir={config['data_dir']},field={config['field']},error_configuration={error_configuration},br={result['br']},psnr={result['psnr']}")
-    if staged:
-        print("staged只估计压缩效果，不记录或比较速度")
-    else:
-        print(f"计时：compression_preprocessing={result['compression_preprocessing_time']} s,decompression_preprocessing={result['decompression_preprocessing_time']} s,compression={result['compression_time']} s,decompression={result['decompression_time']} s,compression+decompression={result['compression_time']+result['decompression_time']} s")
+    print(f"计时：compression_preprocessing={result['compression_preprocessing_time']} s,decompression_preprocessing={result['decompression_preprocessing_time']} s,compression={result['compression_time']} s,decompression={result['decompression_time']} s,compression+decompression={result['compression_time']+result['decompression_time']} s")
     command="compression: "+shlex.join(str(value) for value in compression_command)
-    if not staged:
-        command+="; decompression: "+shlex.join(str(value) for value in decompression_command)
+    command+="; decompression: "+shlex.join(str(value) for value in decompression_command)
     return {"compressor":"unsz",**result,"command":command}
 
 def run_umc(config,rel_eb,data_range):
@@ -424,20 +380,17 @@ def run_task(task):
                 result=run_unsz(config)
             else:
                 result=run_umc(config,rel_eb,data_range)
-            label_value_execution=config.get("label_value_execution","not_applicable") if compressor=="unsz" else "not_applicable"
+            label_value_execution="fused" if compressor=="unsz" and label_flow is not None else "not_applicable"
             item={"task":task["name"],"field":field,"compressor":compressor,"label_flow":label_flow or "not_applicable","value_flow":value_flow or "not_applicable","label_value_execution":label_value_execution,"rel_eb":rel_eb if rel_eb is not None else "not_applicable","point_set_config":point_set_config_path or "not_applicable"}
             for column_name in ("br","psnr","command"):
                 write_csv_item(str(result_path),item,column_name,result[column_name])
-            staged=compressor=="unsz" and result.get("staged",False)
-            timing_columns=("compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time","compression_decompression_time","compression_preprocessing_MB_s","decompression_preprocessing_MB_s","compression_MB_s","decompression_MB_s")
-            if staged:
-                for column_name in timing_columns:
-                    write_csv_item(str(result_path),item,column_name,"not_applicable")
-            else:
-                for column_name in ("compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time"):
+            for column_name in ("compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time"):
+                write_csv_item(str(result_path),item,column_name,result[column_name])
+            for column_name,value in (("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("compression_preprocessing_MB_s",calculate_throughput(total_bytes,result["compression_preprocessing_time"],"压缩预处理时间")),("decompression_preprocessing_MB_s",calculate_throughput(total_bytes,result["decompression_preprocessing_time"],"解压预处理时间")),("compression_MB_s",calculate_throughput(total_bytes,result["compression_time"],"压缩时间")),("decompression_MB_s",calculate_throughput(total_bytes,result["decompression_time"],"解压时间"))):
+                write_csv_item(str(result_path),item,column_name,value)
+            if compressor=="unsz":
+                for column_name in ("label_stream_br","value_stream_br","shared_metadata_br"):
                     write_csv_item(str(result_path),item,column_name,result[column_name])
-                for column_name,value in (("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("compression_preprocessing_MB_s",calculate_throughput(total_bytes,result["compression_preprocessing_time"],"压缩预处理时间")),("decompression_preprocessing_MB_s",calculate_throughput(total_bytes,result["decompression_preprocessing_time"],"解压预处理时间")),("compression_MB_s",calculate_throughput(total_bytes,result["compression_time"],"压缩时间")),("decompression_MB_s",calculate_throughput(total_bytes,result["decompression_time"],"解压时间"))):
-                    write_csv_item(str(result_path),item,column_name,value)
             for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",task["time_step_num"]),("input_bytes",total_bytes)):
                 write_csv_item(str(result_path),item,column_name,value)
             if task.get("cleanup_after_each_test",False):

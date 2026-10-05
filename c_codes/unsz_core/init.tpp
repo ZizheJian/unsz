@@ -13,7 +13,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::prepare_time_step_order(time_step_order_e order)
+    vector<uint32_t> param_c<T_coord,T_data>::generate_time_step_processing_order(time_step_order_e order) const
     {
         if(time_step_vec.empty())
             throw runtime_error("至少需要一个time step");
@@ -23,14 +23,9 @@ namespace unsz
         iota(sorted_id_vec.begin(),sorted_id_vec.end(),0);
         sort(sorted_id_vec.begin(),sorted_id_vec.end(),[this](uint32_t a,uint32_t b){return time_step_vec[a]<time_step_vec[b];});
         vector<uint32_t> sorted_time_step_vec;
-        vector<string> sorted_data_path_vec;
         sorted_time_step_vec.reserve(time_step_vec.size());
-        sorted_data_path_vec.reserve(time_step_vec.size());
         for(uint32_t id:sorted_id_vec)
-        {
             sorted_time_step_vec.push_back(time_step_vec[id]);
-            sorted_data_path_vec.push_back(original_data_path_vec[id]);
-        }
         for(uint32_t i=1;i<sorted_time_step_vec.size();i++)
             if(sorted_time_step_vec[i]==sorted_time_step_vec[i-1])
                 throw runtime_error("time step不能重复");
@@ -95,14 +90,25 @@ namespace unsz
         }
         if(order_id_vec.size()!=time_step_vec.size())
             throw runtime_error("时间顺序没有覆盖全部time step");
+        vector<uint32_t> processing_order;
+        processing_order.reserve(order_id_vec.size());
+        for(uint32_t sorted_id:order_id_vec)
+            processing_order.push_back(sorted_id_vec[sorted_id]);
+        return processing_order;
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::prepare_time_step_order(time_step_order_e order)
+    {
+        vector<uint32_t> processing_order=generate_time_step_processing_order(order);
         vector<uint32_t> ordered_time_step_vec;
         vector<string> ordered_data_path_vec;
-        ordered_time_step_vec.reserve(order_id_vec.size());
-        ordered_data_path_vec.reserve(order_id_vec.size());
-        for(uint32_t id:order_id_vec)
+        ordered_time_step_vec.reserve(processing_order.size());
+        ordered_data_path_vec.reserve(processing_order.size());
+        for(uint32_t id:processing_order)
         {
-            ordered_time_step_vec.push_back(sorted_time_step_vec[id]);
-            ordered_data_path_vec.push_back(sorted_data_path_vec[id]);
+            ordered_time_step_vec.push_back(time_step_vec[id]);
+            ordered_data_path_vec.push_back(original_data_path_vec[id]);
         }
         time_step_vec=move(ordered_time_step_vec);
         original_data_path_vec=move(ordered_data_path_vec);
@@ -176,17 +182,7 @@ namespace unsz
     void param_c<T_coord,T_data>::init()
     {
         load_time_step_coordinates();
-        time_step_order_e label_order=get_time_step_order(label_flow),value_order=get_time_step_order(value_flow);
-        if(point_set_config_vec.size()==1)
-            prepare_time_step_order(value_order);
-        else if(label_order==value_order)
-            prepare_time_step_order(label_order);
-        else if(label_flow=="none")
-            prepare_time_step_order(value_order);
-        else if(value_flow=="none")
-            prepare_time_step_order(label_order);
-        else
-            prepare_time_step_order(time_step_order_e::chronological);
+        prepare_time_step_order(time_step_order_e::chronological);
         if (dim==0)
             throw runtime_error("坐标维数不能为0");
         error_code coord_file_error;

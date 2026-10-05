@@ -67,37 +67,6 @@ namespace unsz
 
     template<typename T_coord,typename T_data>
     template<point_set_codec_e predictor>
-    void param_c<T_coord,T_data>::dispatch_staged_label_compression()
-    {
-        prediction_framework_c framework=get_prediction_framework(2);
-        compression_dispatch::label_mode(framework.label_mode,[&](auto time_ref_num_constant)
-        {
-            constexpr uint32_t time_ref_num=decltype(time_ref_num_constant)::value;
-            if constexpr(time_ref_num==0)
-                two_point_sets::staged::label_spatial::compress<predictor>(*this);
-            else
-                two_point_sets::staged::label_temporal::compress<time_ref_num,predictor>(*this);
-        });
-    }
-
-    template<typename T_coord,typename T_data>
-    template<point_set_codec_e predictor>
-    void param_c<T_coord,T_data>::dispatch_staged_value_compression()
-    {
-        prediction_framework_c framework=get_prediction_framework(2);
-        compression_dispatch::value_mode(framework.value_mode,[&](auto time_ref_num_constant,auto use_spatial_residual_constant)
-        {
-            constexpr uint32_t time_ref_num=decltype(time_ref_num_constant)::value;
-            constexpr bool use_spatial_residual=decltype(use_spatial_residual_constant)::value;
-            if constexpr(time_ref_num==0)
-                two_point_sets::staged::value_spatial::compress<predictor>(*this);
-            else
-                two_point_sets::staged::value_temporal::compress<time_ref_num,use_spatial_residual,predictor>(*this);
-        });
-    }
-
-    template<typename T_coord,typename T_data>
-    template<point_set_codec_e predictor>
     void param_c<T_coord,T_data>::dispatch_fused_compression()
     {
         prediction_framework_c framework=get_prediction_framework(2);
@@ -284,16 +253,14 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution>
+    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
     void param_c<T_coord,T_data>::prepare_current_prediction_state(compression_file_state_c&state)
     {
         prediction_framework_c prediction_framework;
         prediction_framework.has_label=two_point_sets;
         prediction_framework.value_mode=fixed_value_mode;
         prediction_framework.label_mode=fixed_label_mode;
-        prediction_framework.execution=two_point_sets?fixed_execution:label_value_execution_e::no_label;
         current_prediction_framework=prediction_framework;
-        constexpr bool use_fused_two_point_sets_prediction=two_point_sets&&fixed_execution==label_value_execution_e::fused;
         if(prediction_data_uses_prediction_order&&two_point_sets)
         {
             const vector<int>&target_ids=prediction_structure_vec.front().target_ids;
@@ -302,7 +269,7 @@ namespace unsz
                 prediction_order_point_set_id_vec[prediction_index]=point_set_id_vec[target_ids[prediction_index]];
         }
         prepare_temporal_prediction();
-        if constexpr(use_fused_two_point_sets_prediction)
+        if constexpr(two_point_sets)
         {
             if(state.point_set_num!=2)
                 throw runtime_error("融合两点集预测要求当前文件恰好包含两个点集");
@@ -313,17 +280,16 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,label_value_execution_e fixed_execution>
+    template<bool two_point_sets>
     void param_c<T_coord,T_data>::initialize_current_compression_buffers(compression_file_state_c&state)
     {
-        constexpr bool use_fused_two_point_sets_prediction=two_point_sets&&fixed_execution==label_value_execution_e::fused;
         uint32_t point_set_num=state.point_set_num;
         state.has_label=point_set_num==2;
         uint32_t structure_num=prediction_structure_vec.size();
         state.encoded_payload_vec.resize(structure_num);
         state.label_target_num=0;
         state.label_error_num=0;
-        if constexpr(use_fused_two_point_sets_prediction)
+        if constexpr(two_point_sets)
         {
             current_decompressed_data.resize(point_num);
             if(prediction_data_uses_prediction_order)
@@ -332,70 +298,13 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,label_value_execution_e fixed_execution>
+    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
     void param_c<T_coord,T_data>::prepare_current_compression(compression_file_state_c&state)
     {
         classify_current_point_sets<two_point_sets>(state);
         prepare_current_point_set_codecs_and_eb(state);
-        prepare_current_prediction_state<two_point_sets,fixed_value_mode,fixed_label_mode,fixed_execution>(state);
-        initialize_current_compression_buffers<two_point_sets,fixed_execution>(state);
-    }
-
-    template<typename T_coord,typename T_data>
-    template<time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
-    void param_c<T_coord,T_data>::compress_labels(compression_file_state_c&state)
-    {
-        double &label_prediction_time=state.label_prediction_time;
-        const prediction_structure_c<T_calc>&structure=prediction_structure_vec.front();
-        bool standard_reference_layout=structure.uses_standard_reference_layout(prediction_max_ref_num);
-        auto predict_configured_label=[&](uint32_t prediction_index)
-        {
-            typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
-            const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
-            return predict_label(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,prediction_point_set_ids);
-        };
-        auto stage_start_time=chrono::steady_clock::now();
-        vector<uint8_t> label_symbols;
-        if(!state.has_label)
-        {
-            vector<vector<int32_t>> empty_point_set_qbs(state.point_set_num);
-            vector<T_data> empty_unpredictable_values;
-            state.encoded_payload_vec.front()=encode_compression_payload(label_symbols,false,empty_point_set_qbs,empty_unpredictable_values);
-            return;
-        }
-        bool use_causal_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation&&previous_time_label_available;
-        constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
-        label_symbols.resize(point_num);
-        for(uint32_t prediction_index=0;prediction_index<structure.target_ids.size();prediction_index++)
-        {
-            int pred_id=structure.target_ids[prediction_index];
-            uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)pred_id;
-            uint32_t actual_label=point_set_id_vec[pred_id]==0?0:1;
-            uint32_t predicted_label;
-            if(use_causal_time_label)
-            {
-                if(!predict_temporal_label<fixed_label_mode>(storage_id,0,predicted_label))
-                    throw runtime_error("因果时间标签预测缺少历史标签");
-            }
-            else
-            {
-                bool used_time_label=false;
-                if constexpr(try_time_label)
-                    used_time_label=predict_temporal_label<fixed_label_mode>(storage_id,0,predicted_label);
-                if(!used_time_label)
-                    predicted_label=predict_configured_label(prediction_index);
-            }
-            bool prediction_error=actual_label!=predicted_label;
-            state.label_target_num++;
-            state.label_error_num+=prediction_error;
-            label_symbols[pred_id]=prediction_error?1:0;
-        }
-        label_prediction_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
-        vector<vector<int32_t>> empty_point_set_qbs(state.point_set_num);
-        vector<T_data> empty_unpredictable_values;
-        auto encoding_start_time=chrono::steady_clock::now();
-        state.encoded_payload_vec.front()=encode_compression_payload(label_symbols,true,empty_point_set_qbs,empty_unpredictable_values);
-        state.lossless_encoding_time=chrono::duration<double>(chrono::steady_clock::now()-encoding_start_time).count();
+        prepare_current_prediction_state<two_point_sets,fixed_value_mode,fixed_label_mode>(state);
+        initialize_current_compression_buffers<two_point_sets>(state);
     }
 
     template<typename T_coord,typename T_data>

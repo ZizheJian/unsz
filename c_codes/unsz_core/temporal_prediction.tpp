@@ -2,6 +2,80 @@
 
 namespace unsz
 {
+    inline temporal_dependency_c build_temporal_dependency(const string&flow,uint32_t time_step,uint32_t time_step_index,int32_t left_source,int32_t right_source,int32_t&previous_source)
+    {
+        temporal_dependency_c dependency;
+        bool anchor_flow=flow=="anchor_interpolation_stride_8"||flow=="anchor_interpolation_stride_8_spatial_residual";
+        bool constant_flow=flow=="constant_extrapolation"||flow=="constant_extrapolation_spatial_residual";
+        bool interpolation_flow=flow=="linear_interpolation"||flow=="linear_interpolation_spatial_residual";
+        if(anchor_flow)
+        {
+            bool first_anchor=time_step==0;
+            bool regular_anchor=time_step%8==0;
+            bool can_interpolate=left_source>=0&&right_source>=0;
+            if(first_anchor)
+                previous_source=(int32_t)time_step_index;
+            else if(regular_anchor||!can_interpolate)
+            {
+                if(previous_source>=0)
+                {
+                    dependency.source_indices[0]=previous_source;
+                    dependency.source_num=1;
+                }
+                previous_source=(int32_t)time_step_index;
+            }
+            else
+            {
+                dependency.source_indices={{left_source,right_source}};
+                dependency.source_num=2;
+            }
+            return dependency;
+        }
+        if(constant_flow)
+        {
+            if(previous_source>=0)
+            {
+                dependency.source_indices[0]=previous_source;
+                dependency.source_num=1;
+            }
+            previous_source=(int32_t)time_step_index;
+            return dependency;
+        }
+        if(interpolation_flow&&left_source>=0&&right_source>=0)
+        {
+            dependency.source_indices={{left_source,right_source}};
+            dependency.source_num=2;
+        }
+        return dependency;
+    }
+
+    template<typename T_coord,typename T_data>
+    temporal_dependency_plan_c param_c<T_coord,T_data>::generate_temporal_dependency_plan(const string&flow) const
+    {
+        temporal_dependency_plan_c plan;
+        plan.processing_order=generate_time_step_processing_order(get_time_step_order(flow));
+        plan.dependencies.assign(time_step_vec.size(),{});
+        map<uint32_t,uint32_t> processed_time_step_indices;
+        int32_t previous_source=-1;
+        for(uint32_t physical_time_step_index:plan.processing_order)
+        {
+            uint32_t time_step=time_step_vec[physical_time_step_index];
+            int32_t left_source=-1,right_source=-1;
+            auto right_iterator=processed_time_step_indices.lower_bound(time_step);
+            if(right_iterator!=processed_time_step_indices.end())
+                right_source=(int32_t)right_iterator->second;
+            if(right_iterator!=processed_time_step_indices.begin())
+            {
+                auto left_iterator=right_iterator;
+                --left_iterator;
+                left_source=(int32_t)left_iterator->second;
+            }
+            plan.dependencies[physical_time_step_index]=build_temporal_dependency(flow,time_step,physical_time_step_index,left_source,right_source,previous_source);
+            processed_time_step_indices.emplace(time_step,physical_time_step_index);
+        }
+        return plan;
+    }
+
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_temporal_dependencies()
     {
@@ -17,52 +91,6 @@ namespace unsz
         previous_time_label_source=nullptr;
         map<uint32_t,uint32_t> processed_time_step_indices;
         int32_t previous_value_source=-1,previous_label_source=-1;
-        auto build_dependency=[](const string&flow,uint32_t time_step,uint32_t time_step_index,int32_t left_source,int32_t right_source,int32_t&previous_source)
-        {
-            temporal_dependency_c dependency;
-            bool anchor_flow=flow=="anchor_interpolation_stride_8"||flow=="anchor_interpolation_stride_8_spatial_residual";
-            bool constant_flow=flow=="constant_extrapolation"||flow=="constant_extrapolation_spatial_residual";
-            bool interpolation_flow=flow=="linear_interpolation"||flow=="linear_interpolation_spatial_residual";
-            if(anchor_flow)
-            {
-                bool first_anchor=time_step==0;
-                bool regular_anchor=time_step%8==0;
-                bool can_interpolate=left_source>=0&&right_source>=0;
-                if(first_anchor)
-                    previous_source=(int32_t)time_step_index;
-                else if(regular_anchor||!can_interpolate)
-                {
-                    if(previous_source>=0)
-                    {
-                        dependency.source_indices[0]=previous_source;
-                        dependency.source_num=1;
-                    }
-                    previous_source=(int32_t)time_step_index;
-                }
-                else
-                {
-                    dependency.source_indices={{left_source,right_source}};
-                    dependency.source_num=2;
-                }
-                return dependency;
-            }
-            if(constant_flow)
-            {
-                if(previous_source>=0)
-                {
-                    dependency.source_indices[0]=previous_source;
-                    dependency.source_num=1;
-                }
-                previous_source=(int32_t)time_step_index;
-                return dependency;
-            }
-            if(interpolation_flow&&left_source>=0&&right_source>=0)
-            {
-                dependency.source_indices={{left_source,right_source}};
-                dependency.source_num=2;
-            }
-            return dependency;
-        };
         for(uint32_t time_step_index=0;time_step_index<time_step_num;time_step_index++)
         {
             uint32_t time_step=time_step_vec[time_step_index];
@@ -78,8 +106,8 @@ namespace unsz
             }
             temporal_dependency_c&value_dependency=temporal_value_dependency_vec[time_step_index];
             temporal_dependency_c&label_dependency=temporal_label_dependency_vec[time_step_index];
-            value_dependency=build_dependency(value_flow,time_step,time_step_index,left_source,right_source,previous_value_source);
-            label_dependency=build_dependency(label_flow,time_step,time_step_index,left_source,right_source,previous_label_source);
+            value_dependency=build_temporal_dependency(value_flow,time_step,time_step_index,left_source,right_source,previous_value_source);
+            label_dependency=build_temporal_dependency(label_flow,time_step,time_step_index,left_source,right_source,previous_label_source);
             for(uint32_t source_index=0;source_index<value_dependency.source_num;source_index++)
             {
                 uint32_t source_time_step_index=(uint32_t)value_dependency.source_indices[source_index];
