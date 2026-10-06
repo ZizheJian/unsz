@@ -85,7 +85,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count();
     printf("preprocessing time excluding coordinate and transform-file input= %f s\n",preprocessing_time);
     uint32_t validated_file_num=0;
-    double total_decompression_time=0,total_time_prediction_state_update_time=0;
+    double total_decompression_time=0,total_time_prediction_state_update_time=0,total_prediction_order_restore_time=0;
     unsz::reconstruction_statistics_c total_statistics;
     string max_error_data_path;
     using param_type=unsz::param_c<T_coord,float>;
@@ -114,7 +114,7 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
             const vector<int>&target_ids=param.prediction_structure_vec.front().target_ids;
             for(uint32_t prediction_index=0;prediction_index<param.point_num;prediction_index++)
                 param.current_decompressed_data[target_ids[prediction_index]]=param.prediction_order_decompressed_data[prediction_index];
-            printf("prediction order restore time= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-restore_start_time).count());
+            total_prediction_order_restore_time+=chrono::duration<double>(chrono::steady_clock::now()-restore_start_time).count();
         }
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
         param.validate_decoded_point_set_counts();
@@ -152,6 +152,8 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
     if(total_statistics.max_error_ratio>1.01)
         throw runtime_error("全部文件解压完成后误差检查失败：文件="+max_error_data_path+"，点="+to_string(total_statistics.max_error_point_id)+"，点集="+to_string(total_statistics.max_error_point_set_id)+"，误差="+to_string(total_statistics.max_error)+"，绝对误差上限="+to_string(total_statistics.max_error_abs_eb)+"，误差/上限="+to_string(total_statistics.max_error_ratio));
     printf("total time prediction state update time= %.9f s\n",total_time_prediction_state_update_time);
+    if(param.prediction_data_uses_prediction_order)
+        printf("total prediction order restore time= %.9f s\n",total_prediction_order_restore_time);
     printf("total decompression time= %f s\n",total_decompression_time);
     if (validated_file_num>0)
         printf("total decompressed psnr= %f\n",unsz::reconstruction_psnr(total_statistics));

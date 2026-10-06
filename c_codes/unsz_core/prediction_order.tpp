@@ -8,8 +8,14 @@ namespace unsz
         prediction_data_uses_prediction_order=false;
         if(prediction_structure_vec.size()!=1)
             return;
-        if(for_decompression&&(point_set_config_vec.size()!=1||point_set_config_vec.front().codec==point_set_codec_e::constant||time_step_vec.size()!=1||value_flow!="none"))
-            return;
+        if(for_decompression)
+        {
+            bool has_predicted_point_set=false;
+            for(const point_set_config_c&config:point_set_config_vec)
+                has_predicted_point_set|=config.codec!=point_set_codec_e::constant;
+            if(!has_predicted_point_set)
+                return;
+        }
         prediction_structure_c<T_calc>&structure=prediction_structure_vec.front();
         if(structure.target_ids.size()!=point_num)
             return;
