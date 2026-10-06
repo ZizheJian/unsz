@@ -1,2 +1,0 @@
-dataset,task,field,compressor,rel_eb,compression_preprocessing_time,compression_time,decompression_preprocessing_time,decompression_time,total_time
-taps,taps_c11h22,C11H22,unsz,0.001,111.990626000000006,0.5833,109.957391000000001,0.253487,222.784804
