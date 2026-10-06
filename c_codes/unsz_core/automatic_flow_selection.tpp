@@ -187,6 +187,14 @@ namespace unsz
         double excluded_input_time=0;
         double file_statistics_time=0,sample_structure_time=0,sample_value_preparation_time=0,candidate_evaluation_time=0,shared_label_estimation_time=0;
         uint32_t time_step_num=(uint32_t)time_step_vec.size(),structure_num=(uint32_t)prediction_structure_vec.size();
+        vector<int> prediction_to_original;
+        if(prediction_data_uses_prediction_order)
+        {
+            prediction_to_original.resize(point_num);
+            for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
+                for(uint32_t prediction_index=0;prediction_index<structure.target_ids.size();prediction_index++)
+                    prediction_to_original[structure.prediction_order_offset+prediction_index]=structure.target_ids[prediction_index];
+        }
         bool two_point_sets=point_set_config_vec.size()==2;
         double decision_eb_scale=1;
         if(point_set_config_vec[0].error_mode==point_set_error_mode_e::relative&&point_set_config_vec[0].eb>automatic_flow_max_decision_rel_eb)
@@ -343,7 +351,7 @@ namespace unsz
                 {
                     int reference_id=structure.reference_ids[reference_range.begin+ref_offset];
                     if(prediction_data_uses_prediction_order)
-                        reference_id=structure.target_ids[reference_id];
+                        reference_id=prediction_to_original[reference_id];
                     sample_original_ids.push_back((uint32_t)reference_id);
                 }
             }
@@ -384,7 +392,7 @@ namespace unsz
                     uint64_t reference_index=reference_range.begin+ref_offset;
                     int reference_id=structure.reference_ids[reference_index];
                     if(prediction_data_uses_prediction_order)
-                        reference_id=structure.target_ids[reference_id];
+                        reference_id=prediction_to_original[reference_id];
                     target.reference_sample_ids.push_back(original_to_sample[reference_id]);
                     target.reference_weights.push_back(structure.prediction_weights[reference_index]);
                 }

@@ -161,6 +161,12 @@ namespace unsz
         vector<T_calc> prediction_weights;
         vector<uint8_t> rbf_fallback_flags;
         vector<T_calc> eb_multiplier,inverse_eb_multiplier;
+        uint32_t prediction_order_offset=0;
+
+        inline uint32_t get_storage_id(uint32_t prediction_index,int target_id,bool uses_prediction_order) const
+        {
+            return uses_prediction_order?prediction_order_offset+prediction_index:(uint32_t)target_id;
+        }
 
         array_view_c<int> get_reference_ids(uint32_t prediction_id) const
         {

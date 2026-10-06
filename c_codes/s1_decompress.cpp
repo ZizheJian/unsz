@@ -111,9 +111,13 @@ void run_decompression(unsz::param_c<T_coord,float> &param,chrono::steady_clock:
         if(param.prediction_data_uses_prediction_order)
         {
             auto restore_start_time=chrono::steady_clock::now();
-            const vector<int>&target_ids=param.prediction_structure_vec.front().target_ids;
-            for(uint32_t prediction_index=0;prediction_index<param.point_num;prediction_index++)
-                param.current_decompressed_data[target_ids[prediction_index]]=param.prediction_order_decompressed_data[prediction_index];
+#pragma omp parallel for schedule(static) num_threads(param.thread_num) if(param.prediction_structure_vec.size()>1&&param.thread_num>1)
+            for(int64_t structure_index=0;structure_index<(int64_t)param.prediction_structure_vec.size();structure_index++)
+            {
+                const auto&structure=param.prediction_structure_vec[structure_index];
+                for(uint32_t prediction_index=0;prediction_index<structure.target_ids.size();prediction_index++)
+                    param.current_decompressed_data[structure.target_ids[prediction_index]]=param.prediction_order_decompressed_data[structure.prediction_order_offset+prediction_index];
+            }
             total_prediction_order_restore_time+=chrono::duration<double>(chrono::steady_clock::now()-restore_start_time).count();
         }
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();

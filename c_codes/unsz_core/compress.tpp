@@ -264,10 +264,10 @@ namespace unsz
         current_prediction_framework=prediction_framework;
         if(prediction_data_uses_prediction_order&&two_point_sets)
         {
-            const vector<int>&target_ids=prediction_structure_vec.front().target_ids;
             prediction_order_point_set_id_vec.resize(point_num);
-            for(uint32_t prediction_index=0;prediction_index<point_num;prediction_index++)
-                prediction_order_point_set_id_vec[prediction_index]=point_set_id_vec[target_ids[prediction_index]];
+            for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
+                for(uint32_t prediction_index=0;prediction_index<structure.target_ids.size();prediction_index++)
+                    prediction_order_point_set_id_vec[structure.prediction_order_offset+prediction_index]=point_set_id_vec[structure.target_ids[prediction_index]];
         }
         prepare_temporal_prediction();
         if constexpr(two_point_sets)
@@ -336,7 +336,7 @@ namespace unsz
             {
                 for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
                 {
-                    uint32_t reconstructed_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)target_ids[prediction_index];
+                    uint32_t reconstructed_id=prediction_structure.get_storage_id(prediction_index,target_ids[prediction_index],prediction_data_uses_prediction_order);
                     reconstructed_data[reconstructed_id]=point_set_min_data_vec[0];
                 }
                 return result;
@@ -347,7 +347,7 @@ namespace unsz
             {
                 int pred_id=target_ids[prediction_index];
                 T_data point_abs_eb=base_abs_eb*pred_eb_multiplier_vec[prediction_index];
-                uint32_t reconstructed_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)pred_id;
+                uint32_t reconstructed_id=prediction_structure.get_storage_id(prediction_index,pred_id,prediction_data_uses_prediction_order);
                 T_data inverse_double_abs_eb=inverse_double_base_abs_eb[0]*inverse_eb_multiplier_vec[prediction_index];
                 qbs[prediction_index]=quantize_or_store_unpredictable(current_data[pred_id],prediction,point_abs_eb,inverse_double_abs_eb,result.unpredictable_value_vec,reconstructed_data[reconstructed_id]);
             };
@@ -403,7 +403,7 @@ namespace unsz
                 auto quantize_prediction=[&](uint32_t prediction_index,T_data prediction,T_data temporal_prediction)
                 {
                     int pred_id=target_ids[prediction_index];
-                    uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)pred_id;
+                    uint32_t storage_id=prediction_structure.get_storage_id(prediction_index,pred_id,prediction_data_uses_prediction_order);
                     T_data point_abs_eb=base_abs_eb*pred_eb_multiplier_vec[prediction_index];
                     T_data inverse_double_abs_eb=inverse_double_base_abs_eb[0]*inverse_eb_multiplier_vec[prediction_index];
                     qbs[prediction_index]=quantize_or_store_unpredictable(current_data[pred_id],prediction,point_abs_eb,inverse_double_abs_eb,result.unpredictable_value_vec,reconstructed_data[storage_id]);
@@ -413,7 +413,7 @@ namespace unsz
                 uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,(uint32_t)target_ids.size());
                 for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
                 {
-                    uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)target_ids[prediction_index];
+                    uint32_t storage_id=prediction_structure.get_storage_id(prediction_index,target_ids[prediction_index],prediction_data_uses_prediction_order);
                     T_data temporal_prediction=predict_temporal(storage_id);
                     typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
                     T_data spatial_prediction=predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,current_time_spatial_residual_data);
@@ -422,7 +422,7 @@ namespace unsz
                 uint64_t fixed_ref_begin=(uint64_t)prediction_max_ref_num*(prediction_max_ref_num-1)/2;
                 for(uint32_t prediction_index=general_target_num;prediction_index<target_ids.size();prediction_index++,fixed_ref_begin+=10)
                 {
-                    uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)target_ids[prediction_index];
+                    uint32_t storage_id=prediction_structure.get_storage_id(prediction_index,target_ids[prediction_index],prediction_data_uses_prediction_order);
                     T_data temporal_prediction=predict_temporal(storage_id);
                     T_data spatial_prediction=predict_value_one_point_set_10(fixed_ref_begin,reference_ids,prediction_weights,current_time_spatial_residual_data);
                     quantize_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
@@ -435,7 +435,7 @@ namespace unsz
         for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
         {
             int pred_id=target_ids[prediction_index];
-            uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)pred_id;
+            uint32_t storage_id=prediction_structure.get_storage_id(prediction_index,pred_id,prediction_data_uses_prediction_order);
             uint32_t point_set_id=two_point_sets?point_set_id_vec[pred_id]:0;
             if(point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
             {
@@ -553,7 +553,7 @@ namespace unsz
             for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
             {
                 int pred_id=target_ids[prediction_index];
-                uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)pred_id;
+                uint32_t storage_id=prediction_structure.get_storage_id(prediction_index,pred_id,prediction_data_uses_prediction_order);
                 uint32_t actual_point_set_id=point_set_id_vec[pred_id];
                 bool value_requires_prediction=point_set_codec_vec[actual_point_set_id]!=point_set_codec_e::constant;
                 uint32_t predicted_label=0;
