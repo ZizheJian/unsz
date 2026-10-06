@@ -326,26 +326,30 @@ namespace unsz
             vector<unsigned char> delta_bytes;
             if(!label_symbols.empty())
                 delta_bytes=binary_one_position_delta_vec(label_symbols);
+            uint64_t delta_byte_num=delta_bytes.size();
             vector<unsigned char> zstd_bytes;
             if(!delta_bytes.empty())
                 zstd_bytes=zstd_compress(delta_bytes,zstd_compression_level);
+            vector<unsigned char>().swap(delta_bytes);
             append_binary<uint64_t>(result.bytes,label_symbols.size());
             append_binary<uint64_t>(result.bytes,zstd_bytes.size());
             result.bytes.insert(result.bytes.end(),zstd_bytes.begin(),zstd_bytes.end());
-            result.label_position_delta_byte_num+=delta_bytes.size();
+            result.label_position_delta_byte_num+=delta_byte_num;
             result.label_zstd_byte_num+=zstd_bytes.size();
         }
         for(uint32_t point_set_id=0;point_set_id<point_set_qb_vec.size();point_set_id++)
         {
             vector<int32_t> &qb_vec=point_set_qb_vec[point_set_id];
             vector<unsigned char> huffman_bytes=huffman_encode(qb_vec);
+            uint64_t huffman_byte_num=huffman_bytes.size();
             vector<unsigned char> zstd_bytes;
             if(!huffman_bytes.empty())
                 zstd_bytes=zstd_compress(huffman_bytes,zstd_compression_level);
+            vector<unsigned char>().swap(huffman_bytes);
             append_binary<uint64_t>(result.bytes,qb_vec.size());
             append_binary<uint64_t>(result.bytes,zstd_bytes.size());
             result.bytes.insert(result.bytes.end(),zstd_bytes.begin(),zstd_bytes.end());
-            result.value_huffman_byte_num+=huffman_bytes.size();
+            result.value_huffman_byte_num+=huffman_byte_num;
             result.value_zstd_byte_num+=zstd_bytes.size();
         }
         if(!unpredictable_values.empty())
@@ -403,7 +407,10 @@ namespace unsz
             append_binary<uint64_t>(container,payload_begin);
         }
         for(encoded_compression_payload_c &payload:payload_vec)
+        {
             container.insert(container.end(),payload.bytes.begin(),payload.bytes.end());
+            vector<unsigned char>().swap(payload.bytes);
+        }
         current_compressed_bytes=move(container);
         current_label_stream_bytes=state.has_label?(uint64_t)payload_num*2*sizeof(uint64_t)+label_zstd_byte_num:0;
         current_value_stream_bytes=(uint64_t)payload_num*point_set_num*2*sizeof(uint64_t)+value_zstd_byte_num+unpredictable_value_byte_num;

@@ -155,7 +155,6 @@ namespace unsz
             uint32_t num;
         };
 
-        vector<uint32_t> target_group_sizes;
         vector<int> target_ids,reference_ids;
         vector<uint64_t> reference_offsets;
         vector<T_calc> prediction_weights;
@@ -201,7 +200,7 @@ namespace unsz
     class nearest_queue_c
     {
         private:
-            static constexpr uint32_t small_capacity=11;//常用prediction_max_ref_num不超过10，反向查询额外包含目标自身
+            static constexpr uint32_t small_capacity=11;//固定10个RBF参考点，反向查询额外包含目标自身
             struct distance_less_c
             {
                 inline bool operator()(const pair<T_coord,int> &a,const pair<T_coord,int> &b) const{return a.first<b.first;}
@@ -336,11 +335,14 @@ namespace unsz
     {
         public:
             using T_calc=common_type_t<T_coord,T_data>;
+            static constexpr uint32_t rbf_reference_num=10;
+            static constexpr double rbf_shape=0.01;
+            static constexpr double rbf_nugget=1e-6;
 
             param_c()=default;
 
             string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,point_set_config_path;
-            vector<string> original_data_path_vec,compressed_data_path_vec,decompressed_data_path_vec;
+            vector<string> original_data_path_vec;
             uint32_t dim=3;
             uint32_t point_num=0;
             T_data rel_eb=0,abs_eb=0;
@@ -375,17 +377,13 @@ namespace unsz
             double eb_schedule_max_log2_exponent=7;//inverse_rank_log2的最小EB倍率由该指数限制，不依赖预测轮数
             uint32_t prediction_round_num=8;
             double round_size_growth_ratio_experimental=2;
-            uint32_t prediction_min_ref_num=10;
-            uint32_t prediction_max_ref_num=10;
-            string rbf_kernel="exponential";
-            double rbf_shape=0.01;
-            double rbf_nugget=1e-6;
             int zstd_compression_level=3;
 
             Array2D<T_coord> coord_array;
             vector<T_coord> min_coord,max_coord;
             vector<prediction_structure_c<T_calc>> prediction_structure_vec;//未切分时只有一个结构；切分后每个结构独立完整
             vector<T_data> current_data,current_decompressed_data,prediction_order_decompressed_data;
+            vector<int> original_to_prediction_order;
             vector<uint32_t> time_step_vec;
             vector<T_coord> time_step_coordinate_vec;
             vector<vector<T_data>> reconstructed_time_data_vec;
@@ -428,7 +426,6 @@ namespace unsz
             bool uses_anchor_interpolation_stride_8_flow() const;
             bool current_time_step_is_regular_anchor() const;
             void resolve_single_point_set_time_mode();
-            template<point_set_codec_e predictor>
             void dispatch_single_point_set_compression();
             void prepare_coordinate_transform_training_data();
             void train_coordinate_transform();
@@ -445,17 +442,14 @@ namespace unsz
             void generate_global_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf);
             void generate_local_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf);
             template<bool global_order>
-            void sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,vector<vector<int>>&target_id_groups,prediction_structure_c<T_calc>&structure,bool uses_rbf,vector<T_coord>&prediction_ref_coords,vector<T_coord>&prediction_ref_squared_distances);
+            void sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,vector<vector<int>>&target_id_groups,prediction_structure_c<T_calc>&structure);
             T_data predict_value_one_point_set(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
-            T_data predict_value_one_point_set_4(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
             T_data predict_value_one_point_set_10(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);
             uint32_t predict_label(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
-            uint32_t predict_label_4(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
             uint32_t predict_label_10(uint64_t ref_begin,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec);
             T_data predict_value_two_point_sets_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask=nullptr);
             fused_spatial_prediction_c<T_data> predict_fused_spatial_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
-            bool solve_scalar_rbf_weights(int pred_id,array_view_c<int> ref_ids,vector<T_calc> &weights,array_view_c<T_coord> target_ref_squared_distances={});
-            void generate_batched_rbf_weights(const vector<T_coord>&reference_coords,const vector<T_coord>&target_ref_squared_distances,const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback);
+            void generate_batched_rbf_weights(const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback);
             void preprocess_compression();
             double select_automatic_flows();
             void validate_automatic_flow_selection() const;
@@ -464,7 +458,6 @@ namespace unsz
             reconstruction_statistics_c calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset=0) const;
             reconstruction_statistics_c calculate_prediction_order_reconstruction_statistics() const;
             void compress_files(void(param_c<T_coord,T_data>::*compress_file)());
-            template<point_set_codec_e predictor>
             void dispatch_fused_compression();
             template<bool two_point_sets>
             void classify_current_point_sets(compression_file_state_c&state);
@@ -475,11 +468,11 @@ namespace unsz
             void initialize_current_compression_buffers(compression_file_state_c&state);
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void prepare_current_compression(compression_file_state_c&state);
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,point_set_codec_e fixed_predictor>
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode>
             value_compression_result_c<T_data> compress_structure_values(const prediction_structure_c<T_calc>&prediction_structure);
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,point_set_codec_e fixed_predictor>
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode>
             void compress_values(compression_file_state_c&state);
-            template<time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
+            template<time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void compress_labels_and_values(compression_file_state_c&state);
             encoded_compression_payload_c encode_compression_payload(vector<uint8_t>&label_symbols,bool has_label,vector<vector<int32_t>>&point_set_qb_vec,vector<T_data>&unpredictable_value_vec);
             void assemble_current_compression_file(compression_file_state_c&state);
@@ -488,11 +481,11 @@ namespace unsz
             void dispatch_single_point_set_decompression();
             void dispatch_two_point_sets_decompression_by_mode();
             void validate_decoded_point_set_counts() const;
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void decompress_current_file();
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void decompress_values(decompression_file_state_c<T_data>&state);
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
+            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void decompress_labels_and_values(decompression_file_state_c<T_data>&state);
             
     };

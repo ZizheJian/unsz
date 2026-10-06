@@ -123,7 +123,7 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0
 |---|---|
 | `t1_start_c_code.py` | 正式实验通用入口，只接受一个JSON位置参数：`configs/`中的JSON名称或任意JSON路径，例如`./unsz_env/bin/python t1_start_c_code.py katrina`或`./unsz_env/bin/python t1_start_c_code.py /path/to/test.json`。包含UNSZ任务时，入口默认先执行CMake配置、增量构建和安装；临时复用现有安装时可添加`--skip-build`。随后直接构造并执行UNSZ或项目内`third_party/umc`命令，不再调用第二层Python实验入口，结果直接写入CSV。UMC固定为官方commit，`third_party/build_umc.sh`联网核对后安装`third_party/umc_replacements`中的计时文件并构建。 |
 | `py_codes/parse_unsz_output.py`、`py_codes/parse_umc_output.py` | 只解析并核对压缩器输出，不负责调度或启动实验。 |
-| `t3_visualize.py` | 读取C++压缩器生成的`*.unsz.coord_transform.txt`，生成Katrina attr0坐标变换前后的field图像，以及Tsunami最佳与最差field的原网格图像 |
+| `t3_visualize.py` | 读取C++压缩器生成的`*.unsz.coord_transform.txt`，生成坐标变换前后的field可视化；当前正式结果不包含Tsunami |
 | `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h0、E3SM-h4、ADCIRC Haiyan、Tsunami、TAPS和Ocean-large发布数据转换为UNSZ/UMC共用的平坦二进制基准输入；共享工具位于同目录的`prepare_dataset_common.py` |
 | `py_codes/run_spatial_field_benchmark.slurm` | 在Slurm节点上运行环境变量`CONFIG`明确指定的完整task JSON，不在运行时拆分或改写JSON |
 | `py_codes/run_configurations.slurm` | 以Slurm array依次把当前9个正式数据集JSON交给`t1_start_c_code.py`。 |
@@ -159,13 +159,11 @@ RBF权重在DAG生成后统一以批量LDLT和Schur补求解。固定参数为10
 
 UMC任务在独立解压完成后始终逐点读取原始field和磁盘上的`.umc.out`。检查使用NumPy分块计算每个time step的数据范围、最大误差和总MSE，验证逐点REL误差界，并核对磁盘PSNR与UMC压缩端和解压端报告一致；该检查在UMC程序计时之外执行，不计入核心压缩或解压时间。
 
-统一可视化程序默认生成Katrina attr0与Ocean temperature的变换前后图像，以及Tsunami velocity_x和height的原网格图像，也可以只选择一个数据集：
+统一可视化程序读取C++坐标变换结果，生成Katrina attr0与Ocean temperature的变换前后图像：
 
 ```bash
 ./unsz_env/bin/python t3_visualize.py
 ./unsz_env/bin/python t3_visualize.py -dataset katrina
-./unsz_env/bin/python t3_visualize.py -dataset tsunami-velocity-x
-./unsz_env/bin/python t3_visualize.py -dataset tsunami-height
 ```
 
 # 2. 方案描述
@@ -237,7 +235,9 @@ UNSZ目前实现了以下压缩流程：
 
 时间遍历顺序与标签、数值预测公式分开处理。程序统一提供顺序遍历、递归内插和anchor8三种time step顺序；双点集的标签flow和数值flow必须使用同一种顺序。每次遍历开始前会生成time step依赖DAG，直接记录各目标的标签和值参考节点以及各参考节点的剩余出度；目标处理完成后删除已消费的边，某类历史的剩余出度归零时立即释放对应的完整数组，不再扫描或永久保留全部既有time step。
 
-多time step正式压缩自动选择label和value flow。程序在预处理计时开始前读取全部time step，准确计算各点集的ABS EB和点数；该输入统计时间不计入预处理。空间DAG和权重生成后，程序均匀选择最多32个time step，在每个独立partition的DAG上确定4段公共连续采样窗口，并仅用这些time step估算候选码流后按总time step数缩放。程序先合并这些评估步骤及全部候选的直接时间参考，只从该并集中稀疏读取样本值；候选估算复用正式空间预测、时间依赖、量化、Huffman和Zstd函数，覆盖纯空间、零阶外插及anchor8流程。每个partition固定采样512个第一点集目标。候选所需的数据读取不计入预处理时间，分类、候选预测和编码计入。最终选中的label/value flow写入压缩文件；解压端从文件头恢复它们。单time step只有纯空间流程，不执行自动选择。
+多time step正式压缩自动选择label和value flow。程序在预处理计时开始前读取全部time step，准确计算各点集的ABS EB和点数；该输入统计时间不计入预处理。空间DAG和权重生成后，程序均匀选择最多32个time step，把全局2048目标预算按prediction structure均分，并在每个structure内布置公共连续采样窗口；只用这些time step估算候选码流后按总time step数缩放。程序先合并这些评估步骤及全部候选的直接时间参考，只从该并集中稀疏读取样本值；候选估算复用正式空间预测、时间依赖、量化、Huffman和Zstd函数，覆盖纯空间、零阶外插及anchor8流程。候选所需的数据读取不计入预处理时间，分类、候选预测和编码计入。最终选中的label/value flow写入压缩文件；解压端从文件头恢复它们。单time step只有纯空间流程，不执行自动选择。
+
+Katrina四partition测试中，全局2048目标预算相对每partition各2048目标把自动选择时间从`0.358 s`降到`0.173 s`，选中的flow、最终BR和PSNR不变。
 
 时间一阶内插可通过`-time-step-coordinate-file <path>`读取一维float64原始数组，第`i`个数是time step `i`的实际坐标。压缩和解压必须读取同一文件；不传该参数时保持原有的等间距假设。对应task使用`time_step_coordinate_file`记录文件名并同时传给两端，普通等时间间隔数据不需要记录这一项。
 
@@ -337,11 +337,11 @@ $$
 
 其中$c$是候选目标坐标，$c_i$是当前仍可用的评分参考点坐标。该分数只依赖坐标和已确定的剔除状态，因此压缩端和解压端可以独立生成相同DAG，无需保存预测顺序。
 
-当前仍显式配置与反向MSD本身相关的参数：`ordering_scope`决定全局排序或各轮内排序，`ordering_candidate_num`决定每次检查的附近候选数，`ordering_score_max_ref_num`和`ordering_score_min_ref_num`决定MSD评分使用的参考点数量。Tsunami和Katrina当前均使用1点MSD和16个排序候选点。
+反向MSD参数已固定在程序内部：全局排序、16个附近候选和1个评分参考点。正式JSON和命令行不再暴露这些调参项。
 
 生成顺序时会缓存每个候选的MSD参考点，只在缓存中的可用点数低于下限时重新查询kd-tree。全局反向1点MSD还会自动复用排序候选查询的几何信息：只有能严格证明候选集内某点是全局最近可用参考点时才省略额外查询，因此不改变DAG。
 
-正向排序、最近参考距离、`S2`、方向集中度、联合评分和参考数据辅助排序等实现及CLI均已删除。这些方案的历史结果仅保留在`TODO_DETAIL.md`中；如果以后需要消融实验，再从Git历史恢复或重写。
+正向排序、最近参考距离、`S2`、方向集中度、联合评分和参考数据辅助排序等实现及CLI均已删除。历史结论合并保存在`TODO.md`中；被删除实现需要时从Git历史恢复。
 
 ### 2.3.3. 生成DAG
 
@@ -420,6 +420,8 @@ $$
 
 这就是RBF的完整计算。UNSZ固定使用0阶常数趋势：辅助量`μ`和约束`Σwᵢ=1`保证常量field被精确预测，不实现或配置更高阶趋势。
 
+DAG只保存参考编号和最终权重，不长期保存每条边的参考坐标及目标距离。权重生成按32个目标成批从公共坐标数组重新读取所需坐标。LES单partition测试中，该布局把峰值RSS从`3.84 GB`降到`1.85 GB`，完整预处理时间仅从`108.64 s`变为`108.91 s`，码流与误差结果不变。
+
 <table class="fixed-layout-table" width="100%">
   <colgroup>
     <col width="20%">
@@ -437,39 +439,21 @@ $$
   </thead>
   <tbody>
     <tr>
-      <td>在IDW预测器中，权重反比于<code>d^2</code>、最多使用4个参考点、最少使用3个</td>
-      <td>可选</td>
-      <td>IDW预测器允许使用非常少量的参考点，几乎不影响BR，但是大幅加速。</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>局部线性拟合预测器</td>
-      <td>待验证</td>
-      <td>压缩比IDW慢很多，但是在部分field上相对于IDW明显提升压缩比。但当时还没有引入时间预测和RBF。另外，虽然4个参考点足以计算出参数，但并不稳定，需要更多参考点。</td>
-      <td>需要和各种新的预测方法比较。</td>
-    </tr>
-    <tr>
-      <td>局部二次拟合预测器</td>
-      <td>待验证</td>
-      <td>明显比局部线性拟合更好，但压缩更慢。</td>
-      <td>需要和各种新的预测方法比较。</td>
-    </tr>
-    <tr>
       <td>RBF预测器</td>
       <td>已采纳</td>
-      <td>RBF通常需要比IDW更多的参考点。Tsunami momentum_x当前选择原始坐标上的10点Matérn-3/2 RBF；旧的固定adjust矩阵对比已经归档，不再用于说明当前配置。</td>
+      <td>唯一正式数值预测器，固定使用10个参考点、Exponential核、shape 0.01、nugget 1e-6和0阶常数趋势。</td>
       <td></td>
     </tr>
     <tr>
       <td>批量向量化RBF权重生成</td>
       <td>已采纳</td>
-      <td>RBF现在只使用一种正式预处理流程：生成DAG时连续保存参考点坐标和目标距离，DAG完成后按32个目标一批，以SoA布局计算核矩阵、LDLT分解和Schur补。参考点数未达到固定批宽但仍满足RBF下限的少量边界目标使用标量LDLT；不再保留逐目标即时求解流程或general/ldlt配置开关。同节点交替测试中，Tsunami和Katrina的参考生成阶段相对旧逐目标流程分别缩短33.4%和30.0%，完整首次预处理分别缩短8.2%和6.4%。</td>
-      <td>批宽16/32/64的同节点中位权重时间分别为Tsunami 0.090815/0.079755/0.081280秒、Katrina 0.351170/0.316769/0.320254秒，因此固定为32。紧凑下三角矩阵使权重阶段反而慢约4%～6%，已回退。批量浮点运算会造成很小的码流变化，但独立解压误差界检查通过。</td>
+      <td>DAG只长期保存目标和参考编号；权重阶段按32个目标一批，从坐标数组重新读取所需坐标并计算距离，再以SoA布局完成核矩阵、LDLT和Schur补，不再保存每条边的完整临时几何。</td>
+      <td>固定批宽为32；不足10个参考点的开头目标使用最近参考点退化方案。批量浮点路径已通过独立解压误差检查。</td>
     </tr>
     <tr>
       <td>提前计算归一化权重</td>
       <td>已采纳</td>
-      <td>对于加权平均预测器（包括IDW和RBF），在预处理阶段直接计算出归一化后的权重。压缩时直接加权和，可以省掉一次除法。如果是有标签的数据，通常来说参考点都是同类型的，此时依旧可以加权和。但如果有不同类型的参考点，就得加权平均，也不会更慢。</td>
+      <td>预处理阶段直接生成RBF权重，压缩和解压热循环只执行固定10点加权和。多点集参考点不全同类时使用最近同类参考点退化方案。</td>
       <td></td>
     </tr>
     <tr>
@@ -489,24 +473,6 @@ $$
       <td>待验证</td>
       <td>空间DAG中的参考点可能属于不同点集，而预测数值时只能使用与目标相同点集的参考点。如果凑不齐RBF所需数量，就不再用少量参考点做不稳定的加权平均，而是直接复制最近的同类参考点；如果一个同类参考点也没有，则预测为0。Katrina使用这种处理后效果更好</td>
       <td>单点集数据不会触发该规则，需要在更多多点集数据上测试</td>
-    </tr>
-    <tr>
-      <td>为每个目标在IDW和局部拟合之间自动选择</td>
-      <td>放弃</td>
-      <td>在每次预测中，程序依次把每个参考点当作测试点，用其余参考点分别检查IDW和局部拟合，再选择测试误差较小的方法预测真正的目标。这样不需要保存选择结果，但每预测一个点都要重复计算很多次，速度太慢</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>使用IDW控制局部拟合中的拟合误差权重</td>
-      <td>放弃</td>
-      <td>在局部拟合中，各参考点的loss不再等权重地相加，而是按照IDW权重相加。它只对少数平滑field有效，而且比局部拟合更慢</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>让不同空间区域选择不同预测器</td>
-      <td>待验证</td>
-      <td>在单线程中，是指把空间划分成不同区域，每个区域用各自的预测器。DAG依旧是同一个，所以不同区域可能存在相互依赖。在多线程中，是指将每个线程负责的partition再次分为更小的区域。旧实验让各个小区域相互独立，没有什么效果。</td>
-      <td>需要以正确的方式重新实现并验证</td>
     </tr>
     <tr>
       <td>先用一个预测器预测，再用另一个预测器预测之前的误差。</td>
@@ -673,6 +639,10 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
 
 当前OpenMP实现已经支持adjust后的独立partition。程序先按坐标递归中位数切分，只生成顶层partition点集，不建立整场kd-tree；随后每个worker为自己的partition建立局部kd-tree，并独立生成预测顺序、参考关系、权重和EB倍率。每个partition只引用本partition内的数据，单点集以及融合双点集的标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。partition本身始终互相独立。v15容器统一使用`payload_begin[P+1]`定位各预测结构的独立payload，并在文件头记录最终label/value flow；不分区时P=1，分区时每个partition对应一个payload，最终只按结构编号串行拼接字节。REL模式先根据当前完整time step的field range换算统一ABS EB，再由该time step内所有partition共享。正式程序不缓存DAG。
 
+核心partition循环保留OpenMP动态调度：LES p16测试中，静态调度使压缩从`0.1129 s`变为`0.1293 s`，解压仅从`0.0542 s`变为`0.0532 s`。解压恢复原始点序使用“原始编号→预测位置”逆映射，从而连续写输出；LES p16的该阶段中位时间从`0.0347 s`降到`0.0250 s`。
+
+partition会改变空间DAG边界和每段无损编码上下文，因此不保证BR逐partition数单调或完全相同。LES的p1/p4/p8/p16 BR分别为`1.1980/1.1295/1.1508/1.1735`；当前将这一幅度视为可接受的partition代价，不为它引入自动partition调参。
+
 并行实验不使用“多线程UNSZ对串行UMC”作为主要速度结论。单线程实验始终比较一核UNSZ与一核UMC。高速版要求核心压缩与核心解压的耗时之和不超过UMC的`1.1倍`，高压缩比版要求该总和不超过`2倍`；在同一节点上交替运行双方的五个EB，并以逐EB总耗时倍率的几何平均作判断。压缩和解压分项继续报告以定位热点，但不分别设置门槛；暂不把可由全部time step复用的公共预处理计入该限制。对于包含多个独立time step的数据，使用相同数量的进程把不同文件分配给UNSZ和UMC，比较双方相同资源下的总吞吐率；独立进程也避免依赖UMC接口是否线程安全。对于单个大field，单独报告UNSZ从1线程到多线程的strong/weak scaling；UMC官方当前没有通用的单field并行入口，因此只列其官方串行结果，不把二者直接解释为并行算法优劣。如果论文需要同核数的单field比较，再为UMC增加与UNSZ相同partition数量的外部分区，并同时报告两种方法因partition边界造成的BR变化。
 
 <table class="fixed-layout-table" width="100%">
@@ -728,12 +698,12 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
 
 ## 3.1. 数据集
 
-当前已经下载并转换为UNSZ输入格式的数据共有10个。
+下表记录已经转换过的数据。Tsunami、E3SM-h0和Ocean-large不进入当前正式批量实验，只保留转换能力或历史说明。
 
 | 数据集 | field数 | 单个field的总大小 | 每步点数 | time step数 |
 |---|---:|---:|---:|---:|
 | E3SM-h0（弃用） | 8 | 0.09 MB | 21600 | 1 |
-| Tsunami | 6 | 0.46 MB | 113885 | 1 |
+| Tsunami（弃用） | 6 | 0.46 MB | 113885 | 1 |
 | ADCIRC-Haiyan-1.5km depth | 1 | 8.75 MB | 2187832 | 1 |
 | Tpost20 | 1 | 10.49 MB | 131072 | 20 |
 | Ocean | 9 | 29.16 MB | 235160 | 31 |
@@ -800,66 +770,6 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
   </thead>
   <tbody>
     <tr>
-      <td>Tsunami bathy</td>
-      <td>否</td>
-      <td>纯空间</td>
-      <td>否</td>
-      <td>1</td>
-      <td><code>64.90</code></td>
-      <td><code>1.053×</code></td>
-      <td>—</td>
-    </tr>
-    <tr>
-      <td>Tsunami height</td>
-      <td>否</td>
-      <td>纯空间</td>
-      <td>否</td>
-      <td>1</td>
-      <td><code>65.46</code></td>
-      <td><code>0.988×</code></td>
-      <td>—</td>
-    </tr>
-    <tr>
-      <td>Tsunami momentum_x</td>
-      <td>否</td>
-      <td>纯空间</td>
-      <td>否</td>
-      <td>1</td>
-      <td><code>66.49</code></td>
-      <td><code>1.394×</code></td>
-      <td>—</td>
-    </tr>
-    <tr>
-      <td>Tsunami momentum_y</td>
-      <td>否</td>
-      <td>纯空间</td>
-      <td>否</td>
-      <td>1</td>
-      <td><code>66.48</code></td>
-      <td><code>1.316×</code></td>
-      <td>—</td>
-    </tr>
-    <tr>
-      <td>Tsunami velocity_x</td>
-      <td>否</td>
-      <td>纯空间</td>
-      <td>否</td>
-      <td>1</td>
-      <td><code>67.03</code></td>
-      <td><code>1.522×</code></td>
-      <td>—</td>
-    </tr>
-    <tr>
-      <td>Tsunami velocity_y</td>
-      <td>否</td>
-      <td>纯空间</td>
-      <td>否</td>
-      <td>1</td>
-      <td><code>67.16</code></td>
-      <td><code>1.449×</code></td>
-      <td>—</td>
-    </tr>
-    <tr>
       <td>E3SM-h4 AODDUST</td>
       <td>是</td>
       <td>自动选择</td>
@@ -882,7 +792,7 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
   </tbody>
 </table>
 
-Tsunami的`CR/UMC`来自既有1点MSD五点曲线；切换正式配置后尚未统一复测五个REL EB的总时间，因此时间栏暂不填写。E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；相对标签纯空间方案，完整五点曲线的BD-rate增加<code>3.442%</code>，核心压缩与解压总时间减少<code>35.895%</code>。正式配置现改为自动选择flow，表中的既有压缩率和时间待统一复测后更新。
+E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；正式配置现改为自动选择flow，表中的既有压缩率和时间待统一复测后更新。Tsunami不再进入正式结果表。
 
 以下是所有实验通用的其他参数。如果发现其中有些参数在不同数据上有不同的最优值，并且有很大提升，应该移动到上表。
 
@@ -937,19 +847,19 @@ Tsunami的`CR/UMC`来自既有1点MSD五点曲线；切换正式配置后尚未�
 
 UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同一计时口径：压缩时间为field重排与核心压缩之和，解压时间为核心解压与恢复原始顺序之和；读取输入、写出结果、读取原始field进行误差验证和误差统计均不计入。ADCIRC-Haiyan-1.5km的connectivity包含两个连通分量，而UMC的DPFS只遍历0号点所在的连通分量，无法生成覆盖全部点的有效重排。我们不修改UMC算法，也不改用`reorder=0`；因此Haiyan汇报为UMC无法运行，不计算`CR/UMC`和`总时间/UMC`。
 
-数据转换入口见`py_codes/prepare_datasets/prepare_*.py`。当前仓库只保留Tsunami和Katrina的详细实验结果；其他数据集保留可重新运行的正式配置和转换程序。
+数据转换入口见`py_codes/prepare_datasets/prepare_*.py`。当前正式批量实验排除Tsunami和Ocean-large；历史结果不作为当前结论，正式结果以`configs/`和`results/current`为准。
 
 # 4. TODO
 
 ## 4.1. 投稿前主线
 
 - [ ] 冻结bitstream、配置和实验脚本后，统一生成正式五点BR–PSNR、核心压缩＋解压时间和各阶段码流长度；在此之前不再无目的地重复全数据复测。
-- [ ] 把`results/current`整理为与3.1及`configs/`中的task JSON一致的结果集；Tsunami最终使用16候选。
-- [ ] 优先优化仍未达到目标的field，包括Tsunami height、ADCIRC-Haiyan depth和Ocean-large垂直temperature；方案固定后再迁移到其他field验证泛化。
+- [ ] 把`results/current`整理为与3.1及`configs/`中的task JSON一致的结果集，排除Tsunami和Ocean-large。
+- [ ] 优先优化仍未达到目标的正式field，方案固定后再迁移到其他field验证泛化。
 - [ ] 测试一阶内插中“最后一个文件由第一个文件作零阶外插预测”，并实现“空间预测＋时间补偿”。
 - UMC-INP的batch固定为README示例使用的10，不再作为task配置或实验维度。
 - [ ] 研究DAG和RBF权重的紧凑持久化，明确公共metadata需要在多少field或time step之间摊销。
 - [ ] 确认UMC论文Ocean-large的`varnames_91.txt`，核实是否使用58个单高度cell变量及33个多高度cell变量的第0层，再把已经取得的12个月度NetCDF转换为91×12输入；单快照restart不能冒充论文月度输出。
 - [ ] 完成single-core throughput、strong/weak scaling以及端到端压缩—传输—解压实验，再决定投稿路线。
 
-详细历史实验和已经否定的方案见`TODO_DETAIL.md`；日常决策状态见`TODO.md`。
+完整状态、历史实验和已经否定的方案统一见`TODO.md`。日常审阅以本README为准；被删除实现和一次性实验脚本从Git历史恢复。

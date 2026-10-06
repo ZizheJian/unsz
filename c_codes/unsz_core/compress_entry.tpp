@@ -97,8 +97,7 @@ namespace unsz
             current_time_step=time_step_vec[file_id];
             auto &original_data_path=original_data_path_vec[file_id];
             printf("Compressing %s\n",original_data_path.c_str());
-            compressed_data_path_vec.push_back(original_data_path+".unsz");
-            decompressed_data_path_vec.push_back(original_data_path+".unsz.bin");
+            string compressed_data_path=original_data_path+".unsz";
             current_data.resize(point_num);
             read_binary_file_exact(original_data_path,current_data.data(),point_num);
             auto compression_start_time=chrono::steady_clock::now();
@@ -124,7 +123,7 @@ namespace unsz
             total_compression_time+=compression_time;
             printf("time prediction state update time= %.9f s\n",time_state_update_time);
             printf("file compression time= %f s\n",compression_time);
-            write_binary_file(compressed_data_path_vec.back(),current_compressed_bytes.data(),current_compressed_bytes.size());
+            write_binary_file(compressed_data_path,current_compressed_bytes.data(),current_compressed_bytes.size());
         }
         printf("全部文件最大误差/用户误差上限= %.9f\n",total_statistics.max_error_ratio);
         if(total_statistics.max_error_ratio>1.01)
@@ -139,24 +138,6 @@ namespace unsz
         printf("total compression time= %f s\n",total_compression_time);
     }
 
-    template<point_set_codec_e predictor,typename T_coord,typename T_data>
-    void compress_with_predictor(param_c<T_coord,T_data>&param)
-    {
-        if(param.point_set_config_vec.size()==1)
-        {
-            param.resolve_single_point_set_time_mode();
-            param.preprocess_compression();
-            one_point_set::compress<predictor>(param);
-        }
-        else if(param.point_set_config_vec.size()==2)
-        {
-            param.preprocess_compression();
-            two_point_sets::compress<predictor>(param);
-        }
-        else
-            throw runtime_error("unsz::compress只支持一个或两个点集");
-    }
-
     template<typename T_coord,typename T_data>
     void compress(param_c<T_coord,T_data>&param)
     {
@@ -168,6 +149,17 @@ namespace unsz
             if(config.codec!=point_set_codec_e::rbf)
                 throw runtime_error("压缩只支持RBF空间预测器");
         }
-        return compress_with_predictor<point_set_codec_e::rbf>(param);
+        if(param.point_set_config_vec.size()==1)
+        {
+            param.resolve_single_point_set_time_mode();
+            param.preprocess_compression();
+            return one_point_set::compress(param);
+        }
+        if(param.point_set_config_vec.size()==2)
+        {
+            param.preprocess_compression();
+            return two_point_sets::compress(param);
+        }
+        throw runtime_error("unsz::compress只支持一个或两个点集");
     }
 }

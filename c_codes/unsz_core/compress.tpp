@@ -51,7 +51,6 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<point_set_codec_e predictor>
     void param_c<T_coord,T_data>::dispatch_single_point_set_compression()
     {
         prediction_framework_c framework=get_prediction_framework(1);
@@ -60,14 +59,13 @@ namespace unsz
             constexpr uint32_t time_ref_num=decltype(time_ref_num_constant)::value;
             constexpr bool use_spatial_residual=decltype(use_spatial_residual_constant)::value;
             if constexpr(time_ref_num==0)
-                one_point_set::spatial::compress<predictor>(*this);
+                one_point_set::spatial::compress(*this);
             else
-                one_point_set::temporal::compress<time_ref_num,use_spatial_residual,predictor>(*this);
+                one_point_set::temporal::compress<time_ref_num,use_spatial_residual>(*this);
         });
     }
 
     template<typename T_coord,typename T_data>
-    template<point_set_codec_e predictor>
     void param_c<T_coord,T_data>::dispatch_fused_compression()
     {
         prediction_framework_c framework=get_prediction_framework(2);
@@ -79,13 +77,13 @@ namespace unsz
                 constexpr uint32_t value_time_ref_num=decltype(value_time_ref_num_constant)::value;
                 constexpr bool use_spatial_residual=decltype(use_spatial_residual_constant)::value;
                 if constexpr(label_time_ref_num==0&&value_time_ref_num==0)
-                    two_point_sets::fused::label_spatial_value_spatial::compress<predictor>(*this);
+                    two_point_sets::fused::label_spatial_value_spatial::compress(*this);
                 else if constexpr(label_time_ref_num==0)
-                    two_point_sets::fused::label_spatial_value_temporal::compress<value_time_ref_num,use_spatial_residual,predictor>(*this);
+                    two_point_sets::fused::label_spatial_value_temporal::compress<value_time_ref_num,use_spatial_residual>(*this);
                 else if constexpr(value_time_ref_num==0)
-                    two_point_sets::fused::label_temporal_value_spatial::compress<label_time_ref_num,predictor>(*this);
+                    two_point_sets::fused::label_temporal_value_spatial::compress<label_time_ref_num>(*this);
                 else if constexpr(label_time_ref_num==value_time_ref_num)
-                    two_point_sets::fused::label_temporal_value_temporal::compress<label_time_ref_num,use_spatial_residual,predictor>(*this);
+                    two_point_sets::fused::label_temporal_value_temporal::compress<label_time_ref_num,use_spatial_residual>(*this);
                 else
                     throw runtime_error("融合两点集压缩要求label和value使用相同数量的时间参考，或其中一方使用空间预测");
             });
@@ -239,7 +237,7 @@ namespace unsz
                 point_set_codec_vec[point_set_id]=point_set_codec_e::constant;
             else
                 point_set_codec_vec[point_set_id]=config.codec;
-            if (!is_constant && point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
+            if(!is_constant&&point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
                 throw runtime_error("非常量点集不能使用常量编码");
             if (is_constant)
                 point_set_abs_eb_vec[point_set_id]=0;
@@ -247,7 +245,7 @@ namespace unsz
                 point_set_abs_eb_vec[point_set_id]=(T_data)config.eb;
             else
                 point_set_abs_eb_vec[point_set_id]=(T_data)(config.eb*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]));
-            if (!is_constant && !(point_set_abs_eb_vec[point_set_id]>0))
+            if(!is_constant&&!(point_set_abs_eb_vec[point_set_id]>0))
                 throw runtime_error("点集"+to_string(point_set_id)+"的绝对误差上限必须大于0");
         }
         state.point_set_setup_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
@@ -309,7 +307,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,point_set_codec_e fixed_predictor>
+    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode>
     value_compression_result_c<T_data> param_c<T_coord,T_data>::compress_structure_values(const prediction_structure_c<T_calc>&prediction_structure)
     {
         const vector<int>&target_ids=prediction_structure.target_ids;
@@ -318,7 +316,7 @@ namespace unsz
         const vector<uint8_t>&rbf_fallback=prediction_structure.rbf_fallback_flags;
         const vector<T_calc>&pred_eb_multiplier_vec=prediction_structure.eb_multiplier;
         const vector<T_calc>&inverse_eb_multiplier_vec=prediction_structure.inverse_eb_multiplier;
-        bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(prediction_max_ref_num);
+        bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(rbf_reference_num);
         uint32_t point_set_num=(uint32_t)point_set_codec_vec.size();
         array<T_data,2> inverse_double_base_abs_eb{{0,0}};
         for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
@@ -351,19 +349,14 @@ namespace unsz
                 T_data inverse_double_abs_eb=inverse_double_base_abs_eb[0]*inverse_eb_multiplier_vec[prediction_index];
                 qbs[prediction_index]=quantize_or_store_unpredictable(current_data[pred_id],prediction,point_abs_eb,inverse_double_abs_eb,result.unpredictable_value_vec,reconstructed_data[reconstructed_id]);
             };
-            uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,(uint32_t)target_ids.size());
+            uint32_t general_target_num=min<uint32_t>(rbf_reference_num,(uint32_t)target_ids.size());
             for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
             {
-                typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,rbf_reference_num,standard_reference_layout);
                 quantize_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,reconstructed_data));
             }
-            uint64_t fixed_ref_begin=(uint64_t)prediction_max_ref_num*(prediction_max_ref_num-1)/2;
-            if(prediction_max_ref_num==4&&standard_reference_layout)
-            {
-                for(uint32_t prediction_index=general_target_num;prediction_index<target_ids.size();prediction_index++,fixed_ref_begin+=4)
-                    quantize_prediction(prediction_index,predict_value_one_point_set_4(fixed_ref_begin,reference_ids,prediction_weights,reconstructed_data));
-            }
-            else if(prediction_max_ref_num==10&&standard_reference_layout)
+            uint64_t fixed_ref_begin=(uint64_t)rbf_reference_num*(rbf_reference_num-1)/2;
+            if(standard_reference_layout)
             {
                 for(uint32_t prediction_index=general_target_num;prediction_index<target_ids.size();prediction_index++,fixed_ref_begin+=10)
                     quantize_prediction(prediction_index,predict_value_one_point_set_10(fixed_ref_begin,reference_ids,prediction_weights,reconstructed_data));
@@ -372,16 +365,16 @@ namespace unsz
             {
                 for(uint32_t prediction_index=general_target_num;prediction_index<target_ids.size();prediction_index++)
                 {
-                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,rbf_reference_num,false);
                     quantize_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,reconstructed_data));
                 }
             }
             return result;
         }
-        if constexpr(!two_point_sets&&fixed_predictor==point_set_codec_e::rbf&&(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual))
+        if constexpr(!two_point_sets&&(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual))
         {
             bool temporal_prediction_available=fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual?previous_time_value_available:temporal_value_interpolation_available;
-            if(point_set_codec_vec[0]!=point_set_codec_e::constant&&temporal_prediction_available&&prediction_max_ref_num==10&&standard_reference_layout&&prediction_weights.size()==reference_ids.size())
+            if(point_set_codec_vec[0]!=point_set_codec_e::constant&&temporal_prediction_available&&rbf_reference_num==10&&standard_reference_layout&&prediction_weights.size()==reference_ids.size())
             {
                 vector<int32_t>&qbs=result.point_set_qb_vec[0];
                 T_data base_abs_eb=point_set_abs_eb_vec[0];
@@ -410,16 +403,16 @@ namespace unsz
                     current_time_spatial_residual_data[storage_id]=reconstructed_data[storage_id]-temporal_prediction;
                     current_time_spatial_residual_valid[storage_id]=1;
                 };
-                uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,(uint32_t)target_ids.size());
+                uint32_t general_target_num=min<uint32_t>(rbf_reference_num,(uint32_t)target_ids.size());
                 for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
                 {
                     uint32_t storage_id=prediction_structure.get_storage_id(prediction_index,target_ids[prediction_index],prediction_data_uses_prediction_order);
                     T_data temporal_prediction=predict_temporal(storage_id);
-                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,rbf_reference_num,false);
                     T_data spatial_prediction=predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,current_time_spatial_residual_data);
                     quantize_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
                 }
-                uint64_t fixed_ref_begin=(uint64_t)prediction_max_ref_num*(prediction_max_ref_num-1)/2;
+                uint64_t fixed_ref_begin=(uint64_t)rbf_reference_num*(rbf_reference_num-1)/2;
                 for(uint32_t prediction_index=general_target_num;prediction_index<target_ids.size();prediction_index++,fixed_ref_begin+=10)
                 {
                     uint32_t storage_id=prediction_structure.get_storage_id(prediction_index,target_ids[prediction_index],prediction_data_uses_prediction_order);
@@ -444,7 +437,7 @@ namespace unsz
             }
             auto predict_spatial_value=[&](vector<T_data>&data,const vector<uint8_t>*valid_ref_mask=nullptr)
             {
-                typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,rbf_reference_num,standard_reference_layout);
                 array_view_c<int> ref_ids(reference_range.num?reference_ids.data()+reference_range.begin:nullptr,reference_range.num);
                 if constexpr(!two_point_sets)
                     return predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,data);
@@ -477,7 +470,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,point_set_codec_e fixed_predictor>
+    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode>
     void param_c<T_coord,T_data>::compress_values(compression_file_state_c&state)
     {
         constexpr time_dimension_mode_e value_mode=fixed_value_mode;
@@ -494,7 +487,7 @@ namespace unsz
             try
             {
                 auto prediction_start_time=chrono::steady_clock::now();
-                value_compression_result_c<T_data> result=compress_structure_values<two_point_sets,fixed_value_mode,fixed_predictor>(prediction_structure_vec[structure_index]);
+                value_compression_result_c<T_data> result=compress_structure_values<two_point_sets,fixed_value_mode>(prediction_structure_vec[structure_index]);
                 prediction_duration_vec[structure_index]=chrono::duration<double>(chrono::steady_clock::now()-prediction_start_time).count();
                 cross_time_prediction_num_vec[structure_index]=result.cross_time_prediction_num;
                 vector<uint8_t> empty_label_symbols;
@@ -523,7 +516,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
+    template<time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
     void param_c<T_coord,T_data>::compress_labels_and_values(compression_file_state_c&state)
     {
         constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
@@ -544,7 +537,7 @@ namespace unsz
             const vector<uint8_t>&rbf_fallback=prediction_structure.rbf_fallback_flags;
             const vector<T_calc>&eb_multipliers=prediction_structure.eb_multiplier;
             const vector<T_calc>&inverse_eb_multipliers=prediction_structure.inverse_eb_multiplier;
-            bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(prediction_max_ref_num);
+            bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(rbf_reference_num);
             if(label_symbols_use_original_order)
                 label_symbols.assign(target_ids.size(),0);
             else
@@ -565,12 +558,10 @@ namespace unsz
                 {
                     if(value_requires_prediction)
                     {
-                        bool has_rbf_weights=true;
-                        if constexpr(fixed_predictor==point_set_codec_e::rbf)
-                            has_rbf_weights=!rbf_fallback[prediction_index];
+                        bool has_rbf_weights=!rbf_fallback[prediction_index];
                         auto predict_spatial_value=[&](const vector<T_data>&data,const vector<uint8_t>*valid_ref_mask=nullptr)
                         {
-                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,rbf_reference_num,standard_reference_layout);
                             array_view_c<int> ref_ids(reference_range.num?ref_ids_vec.data()+reference_range.begin:nullptr,reference_range.num);
                             array_view_c<T_calc> ref_weights(reference_range.num?weights.data()+reference_range.begin:nullptr,reference_range.num);
                             return predict_value_two_point_sets_rbf(has_rbf_weights,ref_ids,ref_weights,data,actual_point_set_id,valid_ref_mask);
@@ -589,12 +580,10 @@ namespace unsz
                 }
                 else
                 {
-                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,rbf_reference_num,standard_reference_layout);
                     array_view_c<int> ref_ids(reference_range.num?ref_ids_vec.data()+reference_range.begin:nullptr,reference_range.num);
                     array_view_c<T_calc> ref_weights(reference_range.num?weights.data()+reference_range.begin:nullptr,reference_range.num);
-                    bool has_rbf_weights=true;
-                    if constexpr(fixed_predictor==point_set_codec_e::rbf)
-                        has_rbf_weights=!rbf_fallback[prediction_index];
+                    bool has_rbf_weights=!rbf_fallback[prediction_index];
                     if constexpr(try_time_value)
                         if(value_requires_prediction)
                             used_time_value=predict_temporal_value<fixed_value_mode>(storage_id,actual_point_set_id,temporal_prediction);

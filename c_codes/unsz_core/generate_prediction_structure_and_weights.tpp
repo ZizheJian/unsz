@@ -10,8 +10,6 @@ namespace unsz
             throw runtime_error("point_num必须是正数");
         if(prediction_round_num==0||prediction_round_num>63)
             throw runtime_error("prediction_round_num必须在[1,63]内");
-        if(prediction_max_ref_num==0)
-            throw runtime_error("prediction_max_ref_num必须是正数");
         if(ordering_score_min_ref_num>ordering_score_max_ref_num)
             throw runtime_error("MSD排序缓存重查阈值不能大于MSD评分参考点数");
         if(ordering_scope!="global"&&ordering_scope!="local")
@@ -49,7 +47,6 @@ namespace unsz
     void param_c<T_coord,T_data>::generate_global_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf)
     {
         vector<vector<int>> target_id_groups(1,point_ids);
-        structure.target_group_sizes.assign(1,point_ids.size());
         auto&target_ids=structure.target_ids;
         auto&reference_ids=structure.reference_ids;
         auto&reference_offsets=structure.reference_offsets;
@@ -61,28 +58,17 @@ namespace unsz
         reference_offsets.resize((uint64_t)active_point_num+1);
         reference_offsets[0]=0;
         for(uint32_t prediction_index=0;prediction_index<active_point_num;prediction_index++)
-            reference_offsets[prediction_index+1]=reference_offsets[prediction_index]+min<uint32_t>(prediction_index,prediction_max_ref_num);
+            reference_offsets[prediction_index+1]=reference_offsets[prediction_index]+min<uint32_t>(prediction_index,rbf_reference_num);
         reference_ids.resize(reference_offsets.back());
         prediction_weights.clear();
         rbf_fallback_flags.clear();
-        vector<T_coord> prediction_ref_squared_distances;
-        if(uses_rbf)
-            prediction_ref_squared_distances.resize(reference_ids.size());
-        vector<T_coord> prediction_ref_coords;
-        if(uses_rbf)
-            prediction_ref_coords.resize((uint64_t)reference_ids.size()*dim);
-
-        sort_targets_by_reverse_msd<true>(tree,tree,active_min_coord,active_max_coord,target_id_groups,structure,uses_rbf,prediction_ref_coords,prediction_ref_squared_distances);
+        sort_targets_by_reverse_msd<true>(tree,tree,active_min_coord,active_max_coord,target_id_groups,structure);
         target_ids=move(target_id_groups.front());
 
         auto reference_generation_start_time=chrono::steady_clock::now();
-        printf("Preparing prediction weights from sorting geometry\n");
+        printf("Preparing prediction weights from DAG coordinates\n");
         if(uses_rbf)
-        {
-            uint64_t geometry_bytes=(uint64_t)prediction_ref_coords.size()*sizeof(T_coord)+(uint64_t)prediction_ref_squared_distances.size()*sizeof(T_coord);
-            printf("Stored temporary RBF geometry: coordinates=%llu,distances=%llu,bytes=%llu\n",(unsigned long long)prediction_ref_coords.size(),(unsigned long long)prediction_ref_squared_distances.size(),(unsigned long long)geometry_bytes);
-            generate_batched_rbf_weights(prediction_ref_coords,prediction_ref_squared_distances,target_ids,reference_ids,reference_offsets,prediction_weights,rbf_fallback_flags);
-        }
+            generate_batched_rbf_weights(target_ids,reference_ids,reference_offsets,prediction_weights,rbf_fallback_flags);
         printf("Reused sorting candidate queries for prediction references: %llu targets, squared distances: %llu, additional kd-tree queries: 0\n",(unsigned long long)(active_point_num-1),(unsigned long long)reference_ids.size());
         auto end_time=chrono::steady_clock::now();
         printf("Prediction reference generation time: %f s\n",chrono::duration<double>(end_time-reference_generation_start_time).count());
@@ -105,7 +91,6 @@ namespace unsz
         shuffle(shuffled_ids.begin(),shuffled_ids.end(),rng);
         uint64_t previous_end=0;
         vector<uint32_t> round_target_num_vec=get_round_target_num_vec(active_point_num);
-        structure.target_group_sizes=round_target_num_vec;
         printf("Round size growth ratio: %.9g\n",round_size_growth_ratio_experimental);
         for(uint32_t round_id=0;round_id<prediction_round_num;round_id++)
         {
@@ -124,19 +109,12 @@ namespace unsz
         prediction_weights.clear();
         rbf_fallback_flags.clear();
         target_ids.reserve(active_point_num);
-        reference_ids.reserve((uint64_t)active_point_num*prediction_max_ref_num);
+        reference_ids.reserve((uint64_t)active_point_num*rbf_reference_num);
         reference_offsets.reserve((uint64_t)active_point_num+1);
         if(uses_rbf)
-            prediction_weights.reserve((uint64_t)active_point_num*prediction_max_ref_num);
-        vector<T_coord> prediction_ref_coords,prediction_ref_squared_distances;
-        if(uses_rbf)
-        {
-            prediction_ref_coords.reserve((uint64_t)active_point_num*prediction_max_ref_num*dim);
-            prediction_ref_squared_distances.reserve((uint64_t)active_point_num*prediction_max_ref_num);
-        }
-
+            prediction_weights.reserve((uint64_t)active_point_num*rbf_reference_num);
         block_tree_c<T_coord> reference_tree(tree);
-        sort_targets_by_reverse_msd<false>(tree,reference_tree,active_min_coord,active_max_coord,target_id_groups,structure,uses_rbf,prediction_ref_coords,prediction_ref_squared_distances);
+        sort_targets_by_reverse_msd<false>(tree,reference_tree,active_min_coord,active_max_coord,target_id_groups,structure);
 
         // local排序阶段只确定目标顺序；按照正向轮次重新遍历，才能得到真正已经可用的参考点。
         auto reference_generation_start_time=chrono::steady_clock::now();
@@ -147,41 +125,21 @@ namespace unsz
             {
                 target_ids.push_back(pred_id);
                 vector<int> ref_ids;
-                vector<T_coord> current_target_ref_squared_distances;
                 nearest_queue_c<T_coord> nearest_queue;
-                tree.find_original_nearest(nearest_queue,coord_array,prediction_max_ref_num,0,coord_array[pred_id],true);
+                tree.find_original_nearest(nearest_queue,coord_array,rbf_reference_num,0,coord_array[pred_id],true);
                 ref_ids.reserve(nearest_queue.size());
-                current_target_ref_squared_distances.reserve(nearest_queue.size());
                 while(!nearest_queue.empty())
                 {
                     ref_ids.push_back(nearest_queue.top().second);
-                    current_target_ref_squared_distances.push_back(nearest_queue.top().first);
                     nearest_queue.pop();
                 }
                 reverse(ref_ids.begin(),ref_ids.end());
-                reverse(current_target_ref_squared_distances.begin(),current_target_ref_squared_distances.end());
                 reference_ids.insert(reference_ids.end(),ref_ids.begin(),ref_ids.end());
                 reference_offsets.push_back(reference_ids.size());
-                if(uses_rbf)
-                {
-                    uint64_t coordinate_begin=prediction_ref_coords.size();
-                    prediction_ref_coords.resize(coordinate_begin+(uint64_t)ref_ids.size()*dim);
-                    for(uint32_t ref_index=0;ref_index<ref_ids.size();ref_index++)
-                    {
-                        int ref_id=ref_ids[ref_index];
-                        for(uint32_t dimension=0;dimension<dim;dimension++)
-                            prediction_ref_coords[coordinate_begin+(uint64_t)ref_index*dim+dimension]=coord_array[ref_id][dimension];
-                    }
-                    prediction_ref_squared_distances.insert(prediction_ref_squared_distances.end(),current_target_ref_squared_distances.begin(),current_target_ref_squared_distances.end());
-                }
                 tree.update_point_valid_num_to_root(pred_id,1);
             }
         if(uses_rbf)
-        {
-            uint64_t geometry_bytes=(uint64_t)prediction_ref_coords.size()*sizeof(T_coord)+(uint64_t)prediction_ref_squared_distances.size()*sizeof(T_coord);
-            printf("Stored temporary RBF geometry: coordinates=%llu,distances=%llu,bytes=%llu\n",(unsigned long long)prediction_ref_coords.size(),(unsigned long long)prediction_ref_squared_distances.size(),(unsigned long long)geometry_bytes);
-            generate_batched_rbf_weights(prediction_ref_coords,prediction_ref_squared_distances,target_ids,reference_ids,reference_offsets,prediction_weights,rbf_fallback_flags);
-        }
+            generate_batched_rbf_weights(target_ids,reference_ids,reference_offsets,prediction_weights,rbf_fallback_flags);
         auto end_time=chrono::steady_clock::now();
         printf("Prediction reference generation time: %f s\n",chrono::duration<double>(end_time-reference_generation_start_time).count());
         printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)target_ids.size(),chrono::duration<double>(end_time-generation_start_time).count());
@@ -189,12 +147,12 @@ namespace unsz
 
     template<typename T_coord,typename T_data>
     template<bool global_order>
-    void param_c<T_coord,T_data>::sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,vector<vector<int>>&target_id_groups,prediction_structure_c<T_calc>&structure,bool uses_rbf,vector<T_coord>&prediction_ref_coords,vector<T_coord>&prediction_ref_squared_distances)
+    void param_c<T_coord,T_data>::sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,vector<vector<int>>&target_id_groups,prediction_structure_c<T_calc>&structure)
     {
         auto&reference_ids=structure.reference_ids;
         auto&reference_offsets=structure.reference_offsets;
         uint32_t active_point_num=target_tree.structure->tree_id_to_original_id.size();
-        uint32_t ordering_neighbor_query_num=max(ordering_candidate_num,prediction_max_ref_num);
+        uint32_t ordering_neighbor_query_num=max(ordering_candidate_num,rbf_reference_num);
         bool use_candidate_score_geometry_reuse=global_order&&ordering_score_max_ref_num==1&&ordering_score_min_ref_num==1&&ordering_neighbor_query_num>=2;
         bool share_validity_tree=&reference_tree==&target_tree;
         vector<T_coord> center_coord(dim);
@@ -207,7 +165,7 @@ namespace unsz
             printf("Sorting targets in each local round\n");
         if(share_validity_tree)
             printf("Global MSD: target and scoring queries share one kd-tree validity state\n");
-        printf("Using reverse MSD elimination with %u nearby candidates and %u references\n",ordering_candidate_num,prediction_max_ref_num);
+        printf("Using reverse MSD elimination with %u nearby candidates and %u references\n",ordering_candidate_num,rbf_reference_num);
         uint32_t score_query_neighbor_num=min<uint64_t>((uint64_t)ordering_score_max_ref_num+1,active_point_num);
         {
             vector<T_coord> cached_msd_scores;
@@ -286,7 +244,7 @@ namespace unsz
                             nearest_queue_c<T_coord> ref_queue=candidate_queue;
                             if(use_candidate_score_geometry_reuse)
                                 queried_neighbor_group.clear();
-                            uint32_t keep_num=min<uint32_t>(prediction_max_ref_num,ref_queue.size());
+                            uint32_t keep_num=min<uint32_t>(rbf_reference_num,ref_queue.size());
                             while(ref_queue.size()>keep_num)
                             {
                                 if(use_candidate_score_geometry_reuse)
@@ -304,11 +262,6 @@ namespace unsz
                                 uint64_t ref_offset=ref_begin+ref_index-1;
                                 int ref_id=ref_queue.top().second;
                                 reference_ids[ref_offset]=ref_id;
-                                if(uses_rbf)
-                                    prediction_ref_squared_distances[ref_offset]=ref_queue.top().first;
-                                if(uses_rbf)
-                                    for(uint32_t dimension=0;dimension<dim;dimension++)
-                                        prediction_ref_coords[ref_offset*dim+dimension]=coord_array[ref_id][dimension];
                                 ref_queue.pop();
                             }
                         }

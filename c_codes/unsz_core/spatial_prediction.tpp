@@ -5,9 +5,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     __attribute__((always_inline)) inline T_data param_c<T_coord,T_data>::predict_value_one_point_set(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data)
     {
-        ref_num=min<uint32_t>(prediction_max_ref_num,ref_num);
-        if(ref_num==4)
-            return predict_value_one_point_set_4(ref_begin,ref_ids,weights,data);
+        ref_num=min<uint32_t>(rbf_reference_num,ref_num);
         if(ref_num==10)
             return predict_value_one_point_set_10(ref_begin,ref_ids,weights,data);
         T_calc prediction=0;
@@ -17,15 +15,6 @@ namespace unsz
             prediction+=(T_calc)weights[ref_index]*(T_calc)data[ref_ids[ref_index]];
         }
         return (T_data)prediction;
-    }
-
-    template<typename T_coord,typename T_data>
-    __attribute__((always_inline)) inline T_data param_c<T_coord,T_data>::predict_value_one_point_set_4(uint64_t ref_begin,const vector<int>&reference_ids,const vector<T_calc>&weights,const vector<T_data>&data)
-    {
-        const int *ref_ids=reference_ids.data()+ref_begin;
-        const T_calc *ref_weights=weights.data()+ref_begin;
-        T_calc pair0=(T_calc)ref_weights[0]*(T_calc)data[ref_ids[0]]+(T_calc)ref_weights[1]*(T_calc)data[ref_ids[1]],pair1=(T_calc)ref_weights[2]*(T_calc)data[ref_ids[2]]+(T_calc)ref_weights[3]*(T_calc)data[ref_ids[3]];
-        return (T_data)(pair0+pair1);
     }
 
     template<typename T_coord,typename T_data>
@@ -40,9 +29,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     __attribute__((always_inline)) inline uint32_t param_c<T_coord,T_data>::predict_label(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec)
     {
-        ref_num=min<uint32_t>(prediction_max_ref_num,ref_num);
-        if(ref_num==4)
-            return predict_label_4(ref_begin,ref_ids,weights,label_vec);
+        ref_num=min<uint32_t>(rbf_reference_num,ref_num);
         if(ref_num==10)
             return predict_label_10(ref_begin,ref_ids,weights,label_vec);
         T_calc prediction=0;
@@ -52,15 +39,6 @@ namespace unsz
             prediction+=(T_calc)weights[ref_index]*(T_calc)label_vec[ref_ids[ref_index]];
         }
         return prediction>(T_calc)0.5;
-    }
-
-    template<typename T_coord,typename T_data>
-    __attribute__((always_inline)) inline uint32_t param_c<T_coord,T_data>::predict_label_4(uint64_t ref_begin,const vector<int>&reference_ids,const vector<T_calc>&weights,const vector<uint8_t>&label_vec)
-    {
-        const int *ref_ids=reference_ids.data()+ref_begin;
-        const T_calc *ref_weights=weights.data()+ref_begin;
-        T_calc pair0=(T_calc)ref_weights[0]*(T_calc)label_vec[ref_ids[0]]+(T_calc)ref_weights[1]*(T_calc)label_vec[ref_ids[1]],pair1=(T_calc)ref_weights[2]*(T_calc)label_vec[ref_ids[2]]+(T_calc)ref_weights[3]*(T_calc)label_vec[ref_ids[3]];
-        return pair0+pair1>(T_calc)0.5;
     }
 
     template<typename T_coord,typename T_data>
@@ -76,7 +54,7 @@ namespace unsz
     T_data param_c<T_coord,T_data>::predict_value_two_point_sets_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask)
     {
         const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
-        uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
+        uint32_t ref_num=min<uint32_t>(rbf_reference_num,ref_ids.size());
         if(!has_rbf_weights)
         {
             for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
@@ -87,7 +65,7 @@ namespace unsz
             }
             return 0;
         }
-        bool any_missing_ref_forces_nearest=ref_num>0&&prediction_min_ref_num==prediction_max_ref_num&&ref_num==prediction_min_ref_num;
+        bool any_missing_ref_forces_nearest=ref_num==rbf_reference_num;
         bool all_value_refs_match=ref_num>0;
         int nearest_value_ref_id=-1;
         T_calc value_ref_weight_sum=0,weighted_value_sum=0;
@@ -121,7 +99,7 @@ namespace unsz
         }
         if(nearest_value_ref_id<0)
             return 0;
-        if(value_ref_num<prediction_min_ref_num||!isfinite(weighted_value_sum))
+        if(value_ref_num<rbf_reference_num||!isfinite(weighted_value_sum))
             return data[nearest_value_ref_id];
         if(all_value_refs_match)
             return (T_data)weighted_value_sum;
@@ -136,7 +114,7 @@ namespace unsz
     {
         const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
         fused_spatial_prediction_c<T_data> result;
-        uint32_t ref_num=min<uint32_t>(prediction_max_ref_num,ref_ids.size());
+        uint32_t ref_num=min<uint32_t>(rbf_reference_num,ref_ids.size());
         T_calc label_prediction=0,value_weight_sum[2]={0,0},weighted_value_sum[2]={0,0};
         uint32_t value_ref_num[2]={0,0};
         int nearest_ref_id[2]={-1,-1};
@@ -177,7 +155,7 @@ namespace unsz
                 continue;
             if(nearest_ref_id[point_set_id]<0)
                 continue;
-            if(!has_rbf_weights||value_ref_num[point_set_id]<prediction_min_ref_num||!isfinite(weighted_value_sum[point_set_id]))
+            if(!has_rbf_weights||value_ref_num[point_set_id]<rbf_reference_num||!isfinite(weighted_value_sum[point_set_id]))
                 result.values[point_set_id]=(*spatial_value_sources[point_set_id].data)[nearest_ref_id[point_set_id]];
             else if(all_refs_match[point_set_id])
                 result.values[point_set_id]=(T_data)weighted_value_sum[point_set_id];

@@ -33,7 +33,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
+    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
     void param_c<T_coord,T_data>::decompress_current_file()
     {
         decompression_file_state_c<T_data> state;
@@ -73,14 +73,14 @@ namespace unsz
         }
         if constexpr(two_point_sets)
         {
-            decompress_labels_and_values<two_point_sets,fixed_value_mode,fixed_label_mode,fixed_predictor>(state);
+            decompress_labels_and_values<two_point_sets,fixed_value_mode,fixed_label_mode>(state);
             if(print_compression_stage_time)
                 printf("decompression stage time: stream_decode=%f s, label_decode=%f s, value_decode=%f s\n",state.stream_decode_time,state.label_decode_time,state.value_decode_time);
             return;
         }
         else
         {
-            decompress_values<two_point_sets,fixed_value_mode,fixed_label_mode,fixed_predictor>(state);
+            decompress_values<two_point_sets,fixed_value_mode,fixed_label_mode>(state);
             if(print_compression_stage_time)
                 printf("decompression stage time: stream_decode=%f s, label_decode=%f s, value_decode=%f s\n",state.stream_decode_time,state.label_decode_time,state.value_decode_time);
             return;
@@ -88,7 +88,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
+    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
     void param_c<T_coord,T_data>::decompress_labels_and_values(decompression_file_state_c<T_data>&state)
     {
         constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
@@ -106,7 +106,7 @@ namespace unsz
             const vector<T_calc>&weights=prediction_structure.prediction_weights;
             const vector<uint8_t>&rbf_fallback=prediction_structure.rbf_fallback_flags;
             const vector<T_calc>&eb_multipliers=prediction_structure.eb_multiplier;
-            bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(prediction_max_ref_num);
+            bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(rbf_reference_num);
             for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
             {
                 int pred_id=target_ids[prediction_index];
@@ -130,12 +130,10 @@ namespace unsz
                         reconstructed_data[storage_id]=point_set_min_data_vec[point_set_id];
                         continue;
                     }
-                    bool has_rbf_weights=true;
-                    if constexpr(fixed_predictor==point_set_codec_e::rbf)
-                        has_rbf_weights=!rbf_fallback[prediction_index];
+                    bool has_rbf_weights=!rbf_fallback[prediction_index];
                     auto predict_spatial_value=[&](const vector<T_data>&data,const vector<uint8_t>*valid_ref_mask=nullptr)
                     {
-                        typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                        typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,rbf_reference_num,standard_reference_layout);
                         array_view_c<int> ref_ids(reference_range.num?ref_ids_vec.data()+reference_range.begin:nullptr,reference_range.num);
                         array_view_c<T_calc> ref_weights(reference_range.num?weights.data()+reference_range.begin:nullptr,reference_range.num);
                         return predict_value_two_point_sets_rbf(has_rbf_weights,ref_ids,ref_weights,data,point_set_id,valid_ref_mask);
@@ -153,12 +151,10 @@ namespace unsz
                 }
                 else
                 {
-                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,rbf_reference_num,standard_reference_layout);
                     array_view_c<int> ref_ids(reference_range.num?ref_ids_vec.data()+reference_range.begin:nullptr,reference_range.num);
                     array_view_c<T_calc> ref_weights(reference_range.num?weights.data()+reference_range.begin:nullptr,reference_range.num);
-                    bool has_rbf_weights=true;
-                    if constexpr(fixed_predictor==point_set_codec_e::rbf)
-                        has_rbf_weights=!rbf_fallback[prediction_index];
+                    bool has_rbf_weights=!rbf_fallback[prediction_index];
                     array<T_data,2> temporal_value_predictions{{0,0}};
                     array<uint8_t,2> used_time_value_predictions{{0,0}};
                     array<spatial_value_source_c<T_data>,2> spatial_value_sources;
@@ -240,13 +236,13 @@ namespace unsz
 
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode,point_set_codec_e fixed_predictor>
+    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
     void param_c<T_coord,T_data>::decompress_values(decompression_file_state_c<T_data>&state)
     {
         uint32_t point_set_num=state.point_set_num;
         vector<vector<vector<int32_t>>> &structure_point_set_qb_vec=state.structure_point_set_qb_vec;
         vector<const unsigned char*>&structure_unpredictable_value_begin_vec=state.structure_unpredictable_value_begin_vec,&structure_unpredictable_value_end_vec=state.structure_unpredictable_value_end_vec;
-        constexpr bool supports_single_point_set_fast_path=!two_point_sets&&fixed_predictor==point_set_codec_e::rbf&&(fixed_value_mode==time_dimension_mode_e::spatial||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual);
+        constexpr bool supports_single_point_set_fast_path=!two_point_sets&&(fixed_value_mode==time_dimension_mode_e::spatial||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual);
         bool use_single_point_set_fast_path=supports_single_point_set_fast_path&&point_set_codec_vec[0]!=point_set_codec_e::constant;
         if constexpr(supports_single_point_set_fast_path)
             for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
@@ -266,7 +262,7 @@ namespace unsz
             const vector<T_calc>&prediction_weights=prediction_structure.prediction_weights;
             const vector<uint8_t>&rbf_fallback=prediction_structure.rbf_fallback_flags;
             const vector<T_calc>&pred_eb_multiplier_vec=prediction_structure.eb_multiplier;
-            bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(prediction_max_ref_num);
+            bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(rbf_reference_num);
             vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
             for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
             {
@@ -280,7 +276,7 @@ namespace unsz
                 }
                 auto predict_spatial_value=[&](vector<T_data>&data,const vector<uint8_t>*valid_ref_mask=nullptr)
                 {
-                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,rbf_reference_num,standard_reference_layout);
                     array_view_c<int> ref_ids(reference_range.num?reference_ids.data()+reference_range.begin:nullptr,reference_range.num);
                     if constexpr(!two_point_sets)
                         return predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,data);
@@ -336,20 +332,15 @@ namespace unsz
                         else
                             reconstructed_data[reconstructed_id]=prediction+(T_data)qb*((T_data)2*point_abs_eb);
                     };
-                    uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,target_num);
+                    uint32_t general_target_num=min<uint32_t>(rbf_reference_num,target_num);
                     for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
                     {
-                        typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                        typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,false);
                         reconstruct_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,reconstructed_data));
                     }
-                    bool standard_reference_layout=structure.uses_standard_reference_layout(prediction_max_ref_num);
-                    uint64_t fixed_ref_begin=(uint64_t)prediction_max_ref_num*(prediction_max_ref_num-1)/2;
-                    if(prediction_max_ref_num==4&&standard_reference_layout)
-                    {
-                        for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,fixed_ref_begin+=4)
-                            reconstruct_prediction(prediction_index,predict_value_one_point_set_4(fixed_ref_begin,structure.reference_ids,structure.prediction_weights,reconstructed_data));
-                    }
-                    else if(prediction_max_ref_num==10&&standard_reference_layout)
+                    bool standard_reference_layout=structure.uses_standard_reference_layout(rbf_reference_num);
+                    uint64_t fixed_ref_begin=(uint64_t)rbf_reference_num*(rbf_reference_num-1)/2;
+                    if(standard_reference_layout)
                     {
                         for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,fixed_ref_begin+=10)
                             reconstruct_prediction(prediction_index,predict_value_one_point_set_10(fixed_ref_begin,structure.reference_ids,structure.prediction_weights,reconstructed_data));
@@ -358,7 +349,7 @@ namespace unsz
                     {
                         for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++)
                         {
-                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,false);
                             reconstruct_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,reconstructed_data));
                         }
                     }
@@ -393,18 +384,18 @@ namespace unsz
                         current_time_spatial_residual_data[storage_id]=reconstructed_data[storage_id]-temporal_prediction;
                         current_time_spatial_residual_valid[storage_id]=1;
                     };
-                    uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,target_num);
+                    uint32_t general_target_num=min<uint32_t>(rbf_reference_num,target_num);
                     for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
                     {
                         uint32_t storage_id=structure.get_storage_id(prediction_index,structure.target_ids[prediction_index],prediction_data_uses_prediction_order);
                         T_data temporal_prediction=predict_temporal(storage_id);
-                        typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                        typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,false);
                         T_data spatial_prediction=predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,current_time_spatial_residual_data);
                         reconstruct_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
                     }
-                    bool standard_reference_layout=structure.uses_standard_reference_layout(prediction_max_ref_num);
-                    uint64_t fixed_ref_begin=(uint64_t)prediction_max_ref_num*(prediction_max_ref_num-1)/2;
-                    if(prediction_max_ref_num==10&&standard_reference_layout)
+                    bool standard_reference_layout=structure.uses_standard_reference_layout(rbf_reference_num);
+                    uint64_t fixed_ref_begin=(uint64_t)rbf_reference_num*(rbf_reference_num-1)/2;
+                    if(standard_reference_layout)
                     {
                         for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,fixed_ref_begin+=10)
                         {
@@ -420,7 +411,7 @@ namespace unsz
                         {
                             uint32_t storage_id=structure.get_storage_id(prediction_index,structure.target_ids[prediction_index],prediction_data_uses_prediction_order);
                             T_data temporal_prediction=predict_temporal(storage_id);
-                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,false);
                             T_data spatial_prediction=predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,current_time_spatial_residual_data);
                             reconstruct_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
                         }

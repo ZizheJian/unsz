@@ -205,10 +205,10 @@ namespace unsz
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
         {
             uint32_t target_num=(uint32_t)prediction_structure_vec[structure_id].target_ids.size();
-            uint32_t start_num=min<uint32_t>(automatic_flow_start_num,target_num);
+            uint32_t structure_sample_num=automatic_flow_sample_num/structure_num+(structure_id<automatic_flow_sample_num%structure_num);
+            uint32_t start_num=min<uint32_t>(min(automatic_flow_start_num,structure_sample_num),target_num);
             if(start_num==0)
                 continue;
-            uint32_t quota=(automatic_flow_sample_num+start_num-1)/start_num;
             structure_windows[structure_id].resize(start_num);
             for(uint32_t window_id=0;window_id<start_num;window_id++)
             {
@@ -218,7 +218,7 @@ namespace unsz
                 uint32_t region_size=window.region_end-window.region_begin;
                 uint64_t random_value=(uint64_t)(structure_id+1)*11400714819323198485ULL+(uint64_t)(window_id+1)*7046029254386353131ULL;
                 window.start=window.region_begin+(uint32_t)(random_value%region_size);
-                window.quota=quota;
+                window.quota=structure_sample_num/start_num+(window_id<structure_sample_num%start_num);
             }
         }
         sample_structure_time+=chrono::duration<double>(chrono::steady_clock::now()-sample_structure_start_time).count();
@@ -346,7 +346,7 @@ namespace unsz
             {
                 int target_id=structure.target_ids[prediction_index];
                 sample_original_ids.push_back((uint32_t)target_id);
-                typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,structure.uses_standard_reference_layout(prediction_max_ref_num));
+                typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,structure.uses_standard_reference_layout(rbf_reference_num));
                 for(uint32_t ref_offset=0;ref_offset<reference_range.num;ref_offset++)
                 {
                     int reference_id=structure.reference_ids[reference_range.begin+ref_offset];
@@ -371,7 +371,7 @@ namespace unsz
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
         {
             const prediction_structure_c<T_calc>&structure=prediction_structure_vec[structure_id];
-            bool standard_reference_layout=structure.uses_standard_reference_layout(prediction_max_ref_num);
+            bool standard_reference_layout=structure.uses_standard_reference_layout(rbf_reference_num);
             uint32_t window_id=0;
             for(uint32_t prediction_index:structure_window_target_indices[structure_id])
             {
@@ -384,7 +384,7 @@ namespace unsz
                 if(prediction_index<window.region_begin||prediction_index>=window.region_end)
                     throw runtime_error("自动flow采样目标不属于任何采样窗口");
                 target.window_id=window_id;
-                typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,standard_reference_layout);
+                typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,standard_reference_layout);
                 target.reference_sample_ids.reserve(reference_range.num);
                 target.reference_weights.reserve(reference_range.num);
                 for(uint32_t ref_offset=0;ref_offset<reference_range.num;ref_offset++)

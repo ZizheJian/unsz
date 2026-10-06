@@ -183,8 +183,8 @@ namespace unsz
         printf("coordinate transform first sample ratio=%.6f,points=%u/%u,planned second targets=%llu\n",coordinate_transform_first_sample_ratio,first_sample_num,point_num,(unsigned long long)min<uint64_t>(coordinate_transform_second_sample_num,(uint64_t)first_sample_num*coordinate_transform_training_data.size()));
 
         vector<double> coordinate_differences,value_differences;
-        coordinate_differences.reserve((uint64_t)coordinate_transform_second_sample_num*prediction_max_ref_num*dim);
-        value_differences.reserve((uint64_t)coordinate_transform_second_sample_num*prediction_max_ref_num);
+        coordinate_differences.reserve((uint64_t)coordinate_transform_second_sample_num*rbf_reference_num*dim);
+        value_differences.reserve((uint64_t)coordinate_transform_second_sample_num*rbf_reference_num);
         auto value_is_trainable=[&](T_data value)
         {
             if(!isfinite(value))
@@ -230,7 +230,7 @@ namespace unsz
                 if(!value_is_trainable(data[target_id]))
                     continue;
                 nearest_queue_c<T_coord> nearest_queue;
-                tree.find_original_nearest(nearest_queue,coord_array,prediction_max_ref_num+1,0,coord_array[target_id]);
+                tree.find_original_nearest(nearest_queue,coord_array,rbf_reference_num+1,0,coord_array[target_id]);
                 uint32_t geometric_ref_num=0,retained_ref_num=0;
                 while(!nearest_queue.empty())
                 {
@@ -246,10 +246,10 @@ namespace unsz
                     value_differences.push_back((double)data[target_id]-(double)data[reference_id]);
                     retained_ref_num++;
                 }
-                if(geometric_ref_num!=prediction_max_ref_num)
+                if(geometric_ref_num!=rbf_reference_num)
                     throw runtime_error("坐标变换目标点没有找到足够的非自身几何参考点");
                 retained_target_num+=retained_ref_num>0;
-                complete_target_num+=retained_ref_num==prediction_max_ref_num;
+                complete_target_num+=retained_ref_num==rbf_reference_num;
             }
         }
         if(value_differences.empty())

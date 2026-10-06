@@ -1,5 +1,0 @@
-dataset,layout,repeat_num,label_prediction_s,value_prediction_s,total_compression_s,total_decompression_s,sha_equal
-Ocean-temperature,vector,10,,0.0234080,0.0284178,0.0198026,true
-Ocean-temperature,continuous,10,,0.0220276,0.0268169,0.0188455,true
-Katrina-attr0,vector,10,0.0129986,0.0202901,0.0377497,0.0315875,true
-Katrina-attr0,continuous,10,0.0126001,0.0193228,0.0364922,0.0299162,true

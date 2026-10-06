@@ -1,3 +1,0 @@
-name,repeat,br,psnr,compression_time,decompression_time,compression_mb_s,decompression_mb_s,layout_reorder_time,point_set_time,label_prediction_time,value_prediction_time,lossless_encoding_time,validation_time,normalized_fast_hits,value_predictions,normalized_fast_ratio,compressed_sha256
-fused_raw,0,0.605492,81.640594,2.341367,1.87952,115.58718304306844,143.98996339490935,0.0,0.206116,1.841674,2e-06,0.23386,0.058807,0,0,0,6750206091b82e21a36e882219510c23507a90918abd446cbfd792717ac0acff
-fused_normalized,0,0.605492,81.640594,2.251962,1.830595,120.1761024386735,147.83827990352864,0.0,0.202495,1.764465,0.0,0.22522,0.058660000000000004,19010520,20928463,0.908357197563911,6750206091b82e21a36e882219510c23507a90918abd446cbfd792717ac0acff
