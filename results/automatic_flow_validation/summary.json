@@ -1,0 +1,12 @@
+{
+  "sample_num": 70,
+  "same_eb_hits": 62,
+  "equal_psnr_hits": 63,
+  "same_eb_mean_regret": 0.00922397802136263,
+  "same_eb_max_regret": 0.18910548369466196,
+  "equal_psnr_mean_regret": 0.00783504733938115,
+  "equal_psnr_max_regret": 0.18004162601328133,
+  "mean_candidate_ranking_tau_b": 0.88,
+  "mean_selection_time": 0.04368997142857143,
+  "max_selection_time": 0.203919
+}
