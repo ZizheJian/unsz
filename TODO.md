@@ -26,7 +26,7 @@
 - 修改执行布局但声称码流兼容时，必须比较压缩文件SHA。
 - 测速必须使用程序内部计时；坐标和数据读取不计入预处理，自动flow、flatness、坐标变换训练、建树、DAG和权重计入预处理。
 - UNSZ和UMC都必须计入各自的重排时间；核心throughput不包含预处理，但耗时柱状图单独报告预处理。
-- 正式结果记录Git提交、命令、节点、线程数和运行环境；UMC固定使用`third_party/umc`及`third_party/umc_timing.patch`，不直接修改上游源码。
+- 正式结果记录Git提交、命令、节点、线程数和运行环境；UMC固定使用`third_party/umc`及`third_party/umc_replacements`中的计时文件，不修改或推送上游仓库。
 
 ## 暂停项
 
