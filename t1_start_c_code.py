@@ -361,7 +361,7 @@ def run_task(task):
             item={"task":task["name"],"field":field,"compressor":compressor,"label_flow":label_flow or "not_applicable","value_flow":value_flow or "not_applicable","label_value_execution":label_value_execution,"rel_eb":rel_eb if rel_eb is not None else "not_applicable","point_set_config":point_set_config_path or "not_applicable"}
             for column_name in ("br","psnr","command"):
                 write_csv_item(str(result_path),item,column_name,result[column_name])
-            for column_name in ("compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time"):
+            for column_name in ("compression_preprocessing_time","coordinate_transform_time","prediction_structure_time","automatic_flow_selection_time","decompression_preprocessing_time","compression_time","decompression_time"):
                 write_csv_item(str(result_path),item,column_name,result[column_name])
             for column_name,value in (("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("compression_preprocessing_MB_s",calculate_throughput(total_bytes,result["compression_preprocessing_time"],"压缩预处理时间")),("decompression_preprocessing_MB_s",calculate_throughput(total_bytes,result["decompression_preprocessing_time"],"解压预处理时间")),("compression_MB_s",calculate_throughput(total_bytes,result["compression_time"],"压缩时间")),("decompression_MB_s",calculate_throughput(total_bytes,result["decompression_time"],"解压时间"))):
                 write_csv_item(str(result_path),item,column_name,value)
@@ -372,7 +372,6 @@ def run_task(task):
                 write_csv_item(str(result_path),item,"selected_value_flow",result["selected_value_flow"] or value_flow)
                 if result["automatic_flow_candidates"]:
                     write_csv_item(str(result_path),item,"automatic_flow_candidates",json.dumps(result["automatic_flow_candidates"],separators=(",",":")))
-                    write_csv_item(str(result_path),item,"automatic_flow_selection_time",result["automatic_flow_selection_time"])
             for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",task["time_step_num"]),("input_bytes",total_bytes)):
                 write_csv_item(str(result_path),item,column_name,value)
             if task.get("cleanup_after_each_test",False):

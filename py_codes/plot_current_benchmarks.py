@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 project_root=Path(__file__).resolve().parents[1]
 default_configs=("katrina","les","e3sm-h4","adcirc-haiyan-1.5km","ocean","taps","tpost20")
 compressor_styles={"unsz":{"label":"UNSZ","color":"#0072B2","marker":"s"},"umc":{"label":"UMC","color":"#D55E00","marker":"o"}}
-time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
+unsz_time_components=(("coordinate_transform_time","Adjust coordinates","#56B4E9"),("prediction_structure_time","DAG and weights","#009E73"),("automatic_flow_selection_time","Automatic flow","#F0E442"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
+umc_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
 
 
 def load_rows(path):
@@ -128,30 +129,36 @@ def plot_time(dataset,fields,output_dir,summary_rows):
         selected=[row for row in rows if math.isclose(row["rel_eb_value"],1e-3,rel_tol=0,abs_tol=1e-12)]
         compressor_names=[compressor for compressor in ("unsz","umc") if compressor in task["compressor_list"]]
         compressor_labels=[compressor_styles[compressor]["label"] for compressor in compressor_names]
-        bottoms=[0.0]*len(compressor_names)
-        for key,label,color in time_components:
-            values=[]
-            for compressor in compressor_names:
-                row=next(row for row in selected if row["compressor"]==compressor)
-                values.append(float(row[key]))
-            axis.bar(compressor_labels,values,bottom=bottoms,label=label,color=color)
-            bottoms=[bottom+value for bottom,value in zip(bottoms,values)]
+        bottoms=[]
+        summary_by_compressor={}
+        used_labels=set()
+        for compressor,label in zip(compressor_names,compressor_labels):
+            row=next(row for row in selected if row["compressor"]==compressor)
+            bottom=0.0
+            components=unsz_time_components if compressor=="unsz" else umc_time_components
+            summary_by_compressor[compressor]={key:float(row[key]) for key,_,_ in components}
+            for key,component_label,color in components:
+                value=float(row[key])
+                axis.bar(label,value,bottom=bottom,label=component_label if component_label not in used_labels else None,color=color)
+                used_labels.add(component_label)
+                bottom+=value
+            bottoms.append(bottom)
         axis.set_ylabel("Time (s)")
         axis.set_title(field)
         axis.grid(True,axis="y",linestyle=":",alpha=.55)
         for compressor,total in zip(compressor_names,bottoms):
-            row=next(row for row in selected if row["compressor"]==compressor)
-            summary_rows.append({"dataset":dataset,"task":task["name"],"field":field,"compressor":compressor,"rel_eb":1e-3,**{key:row[key] for key,_,_ in time_components},"total_time":total})
+            summary_rows.append({"dataset":dataset,"task":task["name"],"field":field,"compressor":compressor,"rel_eb":1e-3,**summary_by_compressor[compressor],"total_time":total})
     axes[0].legend(frameon=False,fontsize=8)
     finish_subplots(figure,axes,len(fields),f"{dataset}: REL EB=1e-3 timing",output_dir/(dataset+"_releb_1e-3_time"))
 
 
 def write_summary(rows,path):
-    fieldnames=("dataset","task","field","compressor","rel_eb","compression_preprocessing_time","compression_time","decompression_preprocessing_time","decompression_time","total_time")
+    fieldnames=("dataset","task","field","compressor","rel_eb","coordinate_transform_time","prediction_structure_time","automatic_flow_selection_time","compression_preprocessing_time","compression_time","decompression_preprocessing_time","decompression_time","total_time")
     with path.open("w",newline="",encoding="utf-8") as file:
         writer=csv.DictWriter(file,fieldnames=fieldnames,lineterminator="\n")
         writer.writeheader()
-        writer.writerows(rows)
+        for row in rows:
+            writer.writerow({key:row.get(key,"") for key in fieldnames})
 
 
 def main():

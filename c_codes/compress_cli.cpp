@@ -169,9 +169,8 @@ namespace unsz
         param_c<float,float> param;
         parse_args(argc,argv,param);
         param.init();
-        auto preprocessing_start_time=chrono::steady_clock::now();
         printf("使用float处理坐标和距离\n");
-        unsz::compress(param,preprocessing_start_time);
+        unsz::compress(param);
         return 0;
     }
 }

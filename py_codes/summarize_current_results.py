@@ -99,7 +99,6 @@ def main():
             if len(unsz)<2 or umc and len(umc)<2:
                 raise RuntimeError(f"{path}的实验{identity}没有可插值的完整曲线：UNSZ={len(unsz)},UMC={len(umc)}")
             data_dir=unsz[0].get("data_dir",unsz[0].get("dataset",""))
-            staged=label_value_execution=="staged"
             unsz_total_throughput=""
             item={"task":task,"field":field,"label_flow":label_flow,"value_flow":value_flow,"label_value_execution":label_value_execution,"data_dir":data_dir,"time_step_num":time_step_num,"representative_psnr":"","representative_cr_ratio_vs_umc":"","representative_total_time_ratio_vs_umc":"","bd_rate_vs_umc":"","compression_ratio_vs_umc":"","total_time_ratio_vs_umc":"","compression_time_ratio_vs_umc":"","decompression_time_ratio_vs_umc":"","unsz_total_throughput_MB_s":unsz_total_throughput,"umc_total_throughput_MB_s":""}
             if umc:
@@ -109,12 +108,11 @@ def main():
                 unsz_br=interpolate_positive_at_psnr(unsz,representative_psnr,"br")
                 umc_br=interpolate_positive_at_psnr(umc,representative_psnr,"br")
                 item.update({"representative_psnr":representative_psnr,"representative_cr_ratio_vs_umc":umc_br/unsz_br,"bd_rate_vs_umc":bd_rate,"compression_ratio_vs_umc":1/(1+bd_rate/100)})
-                if not staged:
-                    unsz_total_time=interpolate_positive_at_psnr(unsz,representative_psnr,"compression_decompression_time")
-                    umc_total_time=interpolate_positive_at_psnr(umc,representative_psnr,"compression_decompression_time")
-                    throughput_function=lambda row:float(row["input_bytes"])/float(row["compression_decompression_time"])/1e6
-                    umc_total_throughput,unsz_total_throughput=geometric_metric_means_at_same_psnr(umc,unsz,throughput_function,"total throughput")
-                    item.update({"representative_total_time_ratio_vs_umc":unsz_total_time/umc_total_time,"total_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_decompression_time"),"compression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_time"),"decompression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"decompression_time"),"unsz_total_throughput_MB_s":unsz_total_throughput,"umc_total_throughput_MB_s":umc_total_throughput})
+                unsz_total_time=interpolate_positive_at_psnr(unsz,representative_psnr,"compression_decompression_time")
+                umc_total_time=interpolate_positive_at_psnr(umc,representative_psnr,"compression_decompression_time")
+                throughput_function=lambda row:float(row["input_bytes"])/float(row["compression_decompression_time"])/1e6
+                umc_total_throughput,unsz_total_throughput=geometric_metric_means_at_same_psnr(umc,unsz,throughput_function,"total throughput")
+                item.update({"representative_total_time_ratio_vs_umc":unsz_total_time/umc_total_time,"total_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_decompression_time"),"compression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_time"),"decompression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"decompression_time"),"unsz_total_throughput_MB_s":unsz_total_throughput,"umc_total_throughput_MB_s":umc_total_throughput})
             summary.append(item)
     if not summary:
         raise RuntimeError(f"{result_root/'fields'}中没有可汇总的field CSV")

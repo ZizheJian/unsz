@@ -3,12 +3,13 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::preprocess_compression(chrono::steady_clock::time_point preprocessing_start_time)
+    void param_c<T_coord,T_data>::preprocess_compression()
     {
-        double excluded_input_time=0;
+        double coordinate_transform_time=0;
         if(coordinate_transform_mode!="off")
         {
             auto coordinate_transform_start_time=chrono::steady_clock::now();
+            double coordinate_transform_input_time=0;
             vector<double> coordinate_covariance;
             double original_flatness=0,transformed_flatness=0,flatness_ratio=0;
             bool train_transform=true;
@@ -29,7 +30,7 @@ namespace unsz
             {
                 auto training_input_start_time=chrono::steady_clock::now();
                 prepare_coordinate_transform_training_data();
-                excluded_input_time=chrono::duration<double>(chrono::steady_clock::now()-training_input_start_time).count();
+                coordinate_transform_input_time=chrono::duration<double>(chrono::steady_clock::now()-training_input_start_time).count();
                 train_coordinate_transform();
                 if(coordinate_transform_mode=="on")
                     use_coordinate_transform=true;
@@ -46,8 +47,9 @@ namespace unsz
             }
             apply_coordinate_transform();
             write_coordinate_transform_file();
-            printf("coordinate transform decision,training and application time excluding training-data input= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_start_time).count()-excluded_input_time);
+            coordinate_transform_time=chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_start_time).count()-coordinate_transform_input_time;
         }
+        auto prediction_structure_start_time=chrono::steady_clock::now();
         generate_prediction_structures_and_weights();
         for(uint32_t structure_id=0;structure_id<prediction_structure_vec.size();structure_id++)
         {
@@ -59,7 +61,9 @@ namespace unsz
                 structure.inverse_eb_multiplier[prediction_index]=1/structure.eb_multiplier[prediction_index];
         }
         remap_prediction_data_to_prediction_order();
-        excluded_input_time+=select_automatic_flows();
+        double prediction_structure_time=chrono::duration<double>(chrono::steady_clock::now()-prediction_structure_start_time).count();
+        auto automatic_flow_start_time=chrono::steady_clock::now();
+        double automatic_flow_input_time=select_automatic_flows();
         time_step_order_e label_order=get_time_step_order(label_flow),value_order=get_time_step_order(value_flow);
         if(point_set_config_vec.size()==1)
             prepare_time_step_order(value_order);
@@ -71,7 +75,11 @@ namespace unsz
             prepare_time_step_order(label_order);
         else
             prepare_time_step_order(time_step_order_e::chronological);
-        double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-excluded_input_time;
+        double automatic_flow_time=chrono::duration<double>(chrono::steady_clock::now()-automatic_flow_start_time).count()-automatic_flow_input_time;
+        double preprocessing_time=coordinate_transform_time+prediction_structure_time+automatic_flow_time;
+        printf("coordinate transform preprocessing time excluding training-data input= %f s\n",coordinate_transform_time);
+        printf("prediction DAG and weights preprocessing time= %f s\n",prediction_structure_time);
+        printf("automatic flow preprocessing time excluding field-data input= %f s\n",automatic_flow_time);
         printf("preprocessing time excluding coordinate and field-data input= %f s\n",preprocessing_time);
     }
 
@@ -132,17 +140,17 @@ namespace unsz
     }
 
     template<point_set_codec_e predictor,typename T_coord,typename T_data>
-    void compress_with_predictor(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point preprocessing_start_time)
+    void compress_with_predictor(param_c<T_coord,T_data>&param)
     {
         if(param.point_set_config_vec.size()==1)
         {
             param.resolve_single_point_set_time_mode();
-            param.preprocess_compression(preprocessing_start_time);
+            param.preprocess_compression();
             one_point_set::compress<predictor>(param);
         }
         else if(param.point_set_config_vec.size()==2)
         {
-            param.preprocess_compression(preprocessing_start_time);
+            param.preprocess_compression();
             two_point_sets::compress<predictor>(param);
         }
         else
@@ -150,11 +158,9 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void compress(param_c<T_coord,T_data>&param,chrono::steady_clock::time_point preprocessing_start_time)
+    void compress(param_c<T_coord,T_data>&param)
     {
-        auto automatic_flow_precomputation_start=chrono::steady_clock::now();
         param.precompute_automatic_flow_abs_eb();
-        preprocessing_start_time+=chrono::steady_clock::now()-automatic_flow_precomputation_start;
         for(const point_set_config_c&config:param.point_set_config_vec)
         {
             if(config.codec==point_set_codec_e::constant)
@@ -162,6 +168,6 @@ namespace unsz
             if(config.codec!=point_set_codec_e::rbf)
                 throw runtime_error("压缩只支持RBF空间预测器");
         }
-        return compress_with_predictor<point_set_codec_e::rbf>(param,preprocessing_start_time);
+        return compress_with_predictor<point_set_codec_e::rbf>(param);
     }
 }

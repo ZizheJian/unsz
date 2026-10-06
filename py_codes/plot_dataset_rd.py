@@ -145,11 +145,6 @@ def plot(data_dir,dataset,fields,time_step_num,task,label_flow,value_flow,label_
     figure.suptitle(f"{dataset}: UNSZ vs. UMC",fontsize=14)
     save_figure(figure,output_prefix.parent/f"{output_prefix.name}_rd")
 
-    if selected_execution=="staged":
-        for field,bd_rate in summary:
-            print(f"{dataset},{field},{bd_rate:.9f}")
-        return
-
     figure,axes=plt.subplots(row_num,column_num,figsize=(4.25*column_num,3.45*row_num),squeeze=False,layout="constrained")
     for field,axis in zip(fields,axes.ravel()):
         csv_path=resolve_field_csv(data_dir,dataset,field)
@@ -184,7 +179,7 @@ def main():
     parser.add_argument("-task",required=True)
     parser.add_argument("-label-flow",required=True)
     parser.add_argument("-value-flow",required=True)
-    parser.add_argument("-label-value-execution",choices=("staged","fused"))
+    parser.add_argument("-label-value-execution",choices=("fused",))
     parser.add_argument("-output-prefix",type=Path,required=True)
     parser.add_argument("-column-num",type=int,default=6)
     parser.add_argument("-reference-data-dir",type=Path)
