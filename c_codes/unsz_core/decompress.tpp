@@ -246,11 +246,15 @@ namespace unsz
         uint32_t point_set_num=state.point_set_num;
         vector<vector<vector<int32_t>>> &structure_point_set_qb_vec=state.structure_point_set_qb_vec;
         vector<const unsigned char*>&structure_unpredictable_value_begin_vec=state.structure_unpredictable_value_begin_vec,&structure_unpredictable_value_end_vec=state.structure_unpredictable_value_end_vec;
-        constexpr bool supports_single_point_set_spatial_fast_path=!two_point_sets&&fixed_predictor==point_set_codec_e::rbf&&fixed_value_mode==time_dimension_mode_e::spatial;
-        bool use_single_point_set_spatial_fast_path=supports_single_point_set_spatial_fast_path&&point_set_codec_vec[0]!=point_set_codec_e::constant;
-        if constexpr(supports_single_point_set_spatial_fast_path)
+        constexpr bool supports_single_point_set_fast_path=!two_point_sets&&fixed_predictor==point_set_codec_e::rbf&&(fixed_value_mode==time_dimension_mode_e::spatial||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual);
+        bool use_single_point_set_fast_path=supports_single_point_set_fast_path&&point_set_codec_vec[0]!=point_set_codec_e::constant;
+        if constexpr(supports_single_point_set_fast_path)
             for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
-                use_single_point_set_spatial_fast_path&=structure.prediction_weights.size()==structure.reference_ids.size();
+                use_single_point_set_fast_path&=structure.prediction_weights.size()==structure.reference_ids.size();
+        if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
+            use_single_point_set_fast_path&=previous_time_value_available;
+        else if constexpr(fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
+            use_single_point_set_fast_path&=temporal_value_interpolation_available;
         current_decompressed_data.resize(point_num);
         if(prediction_data_uses_prediction_order)
             prediction_order_decompressed_data.resize(point_num);
@@ -307,7 +311,7 @@ namespace unsz
                 store_temporal_residual<fixed_value_mode>(storage_id,use_cross_time_prediction,temporal_prediction);
             }
         };
-        if(use_single_point_set_spatial_fast_path)
+        if(use_single_point_set_fast_path)
         {
             auto decompress_structure=[&](uint32_t structure_index)
             {
@@ -315,49 +319,115 @@ namespace unsz
                 const vector<int32_t>&qb_vec=structure_point_set_qb_vec[structure_index][0];
                 uint32_t target_num=(uint32_t)structure.target_ids.size();
                 if(qb_vec.size()!=target_num)
-                    throw runtime_error("单点集空间快速路径的量化索引数量与目标数量不一致");
-                double base_abs_eb=point_set_abs_eb_vec[0];
+                    throw runtime_error("单点集快速路径的量化索引数量与目标数量不一致");
                 const unsigned char *unpredictable_value_cursor=structure_unpredictable_value_begin_vec[structure_index],*unpredictable_value_end=structure_unpredictable_value_end_vec[structure_index];
                 vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
-                auto reconstruct_prediction=[&](uint32_t prediction_index,T_data prediction)
+                if constexpr(fixed_value_mode==time_dimension_mode_e::spatial)
                 {
-                    uint32_t pred_id=(uint32_t)structure.target_ids[prediction_index];
-                    uint32_t reconstructed_id=prediction_data_uses_prediction_order?prediction_index:pred_id;
-                    T_data point_abs_eb=base_abs_eb*structure.eb_multiplier[prediction_index];
-                    int32_t qb=qb_vec[prediction_index];
-                    if(qb==numeric_limits<int32_t>::min())
-                        reconstructed_data[reconstructed_id]=read_binary<T_data>(unpredictable_value_cursor,unpredictable_value_end);
-                    else
-                        reconstructed_data[reconstructed_id]=prediction+(T_data)qb*((T_data)2*point_abs_eb);
-                };
-                uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,target_num);
-                for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
-                {
-                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
-                    reconstruct_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,reconstructed_data));
-                }
-                bool standard_reference_layout=structure.uses_standard_reference_layout(prediction_max_ref_num);
-                uint64_t fixed_ref_begin=(uint64_t)prediction_max_ref_num*(prediction_max_ref_num-1)/2;
-                if(prediction_max_ref_num==4&&standard_reference_layout)
-                {
-                    for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,fixed_ref_begin+=4)
-                        reconstruct_prediction(prediction_index,predict_value_one_point_set_4(fixed_ref_begin,structure.reference_ids,structure.prediction_weights,reconstructed_data));
-                }
-                else if(prediction_max_ref_num==10&&standard_reference_layout)
-                {
-                    for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,fixed_ref_begin+=10)
-                        reconstruct_prediction(prediction_index,predict_value_one_point_set_10(fixed_ref_begin,structure.reference_ids,structure.prediction_weights,reconstructed_data));
-                }
-                else
-                {
-                    for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++)
+                    double base_abs_eb=point_set_abs_eb_vec[0];
+                    auto reconstruct_prediction=[&](uint32_t prediction_index,T_data prediction)
+                    {
+                        uint32_t pred_id=(uint32_t)structure.target_ids[prediction_index];
+                        uint32_t reconstructed_id=prediction_data_uses_prediction_order?prediction_index:pred_id;
+                        T_data point_abs_eb=base_abs_eb*structure.eb_multiplier[prediction_index];
+                        int32_t qb=qb_vec[prediction_index];
+                        if(qb==numeric_limits<int32_t>::min())
+                            reconstructed_data[reconstructed_id]=read_binary<T_data>(unpredictable_value_cursor,unpredictable_value_end);
+                        else
+                            reconstructed_data[reconstructed_id]=prediction+(T_data)qb*((T_data)2*point_abs_eb);
+                    };
+                    uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,target_num);
+                    for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
                     {
                         typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
                         reconstruct_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,reconstructed_data));
                     }
+                    bool standard_reference_layout=structure.uses_standard_reference_layout(prediction_max_ref_num);
+                    uint64_t fixed_ref_begin=(uint64_t)prediction_max_ref_num*(prediction_max_ref_num-1)/2;
+                    if(prediction_max_ref_num==4&&standard_reference_layout)
+                    {
+                        for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,fixed_ref_begin+=4)
+                            reconstruct_prediction(prediction_index,predict_value_one_point_set_4(fixed_ref_begin,structure.reference_ids,structure.prediction_weights,reconstructed_data));
+                    }
+                    else if(prediction_max_ref_num==10&&standard_reference_layout)
+                    {
+                        for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,fixed_ref_begin+=10)
+                            reconstruct_prediction(prediction_index,predict_value_one_point_set_10(fixed_ref_begin,structure.reference_ids,structure.prediction_weights,reconstructed_data));
+                    }
+                    else
+                    {
+                        for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++)
+                        {
+                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                            reconstruct_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,reconstructed_data));
+                        }
+                    }
+                }
+                else
+                {
+                    const vector<T_data>*left_time_data=nullptr,*right_time_data=nullptr;
+                    if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
+                        left_time_data=previous_time_value_source;
+                    else
+                    {
+                        const temporal_dependency_c&dependency=temporal_value_dependency_vec[current_time_step_index];
+                        left_time_data=&reconstructed_time_data_vec[(uint32_t)dependency.source_indices[0]];
+                        right_time_data=&reconstructed_time_data_vec[(uint32_t)dependency.source_indices[1]];
+                    }
+                    auto predict_temporal=[&](uint32_t storage_id)
+                    {
+                        if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
+                            return (*left_time_data)[storage_id];
+                        return (T_data)(temporal_weights[0]*(T_calc)(*left_time_data)[storage_id]+temporal_weights[1]*(T_calc)(*right_time_data)[storage_id]);
+                    };
+                    auto reconstruct_prediction=[&](uint32_t prediction_index,T_data prediction,T_data temporal_prediction)
+                    {
+                        uint32_t pred_id=(uint32_t)structure.target_ids[prediction_index];
+                        uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:pred_id;
+                        T_data point_abs_eb=point_set_abs_eb_vec[0]*structure.eb_multiplier[prediction_index];
+                        int32_t qb=qb_vec[prediction_index];
+                        if(qb==numeric_limits<int32_t>::min())
+                            reconstructed_data[storage_id]=read_binary<T_data>(unpredictable_value_cursor,unpredictable_value_end);
+                        else
+                            reconstructed_data[storage_id]=prediction+(T_data)qb*((T_data)2*point_abs_eb);
+                        current_time_spatial_residual_data[storage_id]=reconstructed_data[storage_id]-temporal_prediction;
+                        current_time_spatial_residual_valid[storage_id]=1;
+                    };
+                    uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,target_num);
+                    for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
+                    {
+                        uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)structure.target_ids[prediction_index];
+                        T_data temporal_prediction=predict_temporal(storage_id);
+                        typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                        T_data spatial_prediction=predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,current_time_spatial_residual_data);
+                        reconstruct_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
+                    }
+                    bool standard_reference_layout=structure.uses_standard_reference_layout(prediction_max_ref_num);
+                    uint64_t fixed_ref_begin=(uint64_t)prediction_max_ref_num*(prediction_max_ref_num-1)/2;
+                    if(prediction_max_ref_num==10&&standard_reference_layout)
+                    {
+                        for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,fixed_ref_begin+=10)
+                        {
+                            uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)structure.target_ids[prediction_index];
+                            T_data temporal_prediction=predict_temporal(storage_id);
+                            T_data spatial_prediction=predict_value_one_point_set_10(fixed_ref_begin,structure.reference_ids,structure.prediction_weights,current_time_spatial_residual_data);
+                            reconstruct_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
+                        }
+                    }
+                    else
+                    {
+                        for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++)
+                        {
+                            uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)structure.target_ids[prediction_index];
+                            T_data temporal_prediction=predict_temporal(storage_id);
+                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                            T_data spatial_prediction=predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,current_time_spatial_residual_data);
+                            reconstruct_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
+                        }
+                    }
                 }
                 if(unpredictable_value_cursor!=unpredictable_value_end)
-                    throw runtime_error("单点集空间快速路径存在未使用的不可预测值");
+                    throw runtime_error("单点集快速路径存在未使用的不可预测值");
             };
             exception_ptr prediction_exception;
 #pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(prediction_structure_vec.size()>1&&thread_num>1)

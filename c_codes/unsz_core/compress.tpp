@@ -378,6 +378,59 @@ namespace unsz
             }
             return result;
         }
+        if constexpr(!two_point_sets&&fixed_predictor==point_set_codec_e::rbf&&(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual))
+        {
+            bool temporal_prediction_available=fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual?previous_time_value_available:temporal_value_interpolation_available;
+            if(point_set_codec_vec[0]!=point_set_codec_e::constant&&temporal_prediction_available&&prediction_max_ref_num==10&&standard_reference_layout&&prediction_weights.size()==reference_ids.size())
+            {
+                vector<int32_t>&qbs=result.point_set_qb_vec[0];
+                T_data base_abs_eb=point_set_abs_eb_vec[0];
+                const vector<T_data>*left_time_data=nullptr,*right_time_data=nullptr;
+                if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
+                    left_time_data=previous_time_value_source;
+                else
+                {
+                    const temporal_dependency_c&dependency=temporal_value_dependency_vec[current_time_step_index];
+                    left_time_data=&reconstructed_time_data_vec[(uint32_t)dependency.source_indices[0]];
+                    right_time_data=&reconstructed_time_data_vec[(uint32_t)dependency.source_indices[1]];
+                }
+                auto predict_temporal=[&](uint32_t storage_id)
+                {
+                    if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
+                        return (*left_time_data)[storage_id];
+                    return (T_data)(temporal_weights[0]*(T_calc)(*left_time_data)[storage_id]+temporal_weights[1]*(T_calc)(*right_time_data)[storage_id]);
+                };
+                auto quantize_prediction=[&](uint32_t prediction_index,T_data prediction,T_data temporal_prediction)
+                {
+                    int pred_id=target_ids[prediction_index];
+                    uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)pred_id;
+                    T_data point_abs_eb=base_abs_eb*pred_eb_multiplier_vec[prediction_index];
+                    T_data inverse_double_abs_eb=inverse_double_base_abs_eb[0]*inverse_eb_multiplier_vec[prediction_index];
+                    qbs[prediction_index]=quantize_or_store_unpredictable(current_data[pred_id],prediction,point_abs_eb,inverse_double_abs_eb,result.unpredictable_value_vec,reconstructed_data[storage_id]);
+                    current_time_spatial_residual_data[storage_id]=reconstructed_data[storage_id]-temporal_prediction;
+                    current_time_spatial_residual_valid[storage_id]=1;
+                };
+                uint32_t general_target_num=min<uint32_t>(prediction_max_ref_num,(uint32_t)target_ids.size());
+                for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
+                {
+                    uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)target_ids[prediction_index];
+                    T_data temporal_prediction=predict_temporal(storage_id);
+                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,prediction_max_ref_num,false);
+                    T_data spatial_prediction=predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,current_time_spatial_residual_data);
+                    quantize_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
+                }
+                uint64_t fixed_ref_begin=(uint64_t)prediction_max_ref_num*(prediction_max_ref_num-1)/2;
+                for(uint32_t prediction_index=general_target_num;prediction_index<target_ids.size();prediction_index++,fixed_ref_begin+=10)
+                {
+                    uint32_t storage_id=prediction_data_uses_prediction_order?prediction_index:(uint32_t)target_ids[prediction_index];
+                    T_data temporal_prediction=predict_temporal(storage_id);
+                    T_data spatial_prediction=predict_value_one_point_set_10(fixed_ref_begin,reference_ids,prediction_weights,current_time_spatial_residual_data);
+                    quantize_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
+                }
+                result.cross_time_prediction_num=target_ids.size();
+                return result;
+            }
+        }
         constexpr time_dimension_mode_e value_mode=fixed_value_mode;
         for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
         {

@@ -3,6 +3,7 @@
 namespace unsz
 {
     constexpr double automatic_flow_label_weight=0.56;
+    constexpr double automatic_flow_max_decision_rel_eb=1e-3;
 
     template<typename T_data>
     struct automatic_flow_time_statistics_c
@@ -187,6 +188,10 @@ namespace unsz
         double file_statistics_time=0,sample_structure_time=0,sample_value_preparation_time=0,candidate_evaluation_time=0,shared_label_estimation_time=0;
         uint32_t time_step_num=(uint32_t)time_step_vec.size(),structure_num=(uint32_t)prediction_structure_vec.size();
         bool two_point_sets=point_set_config_vec.size()==2;
+        double decision_eb_scale=1;
+        if(point_set_config_vec[0].error_mode==point_set_error_mode_e::relative&&point_set_config_vec[0].eb>automatic_flow_max_decision_rel_eb)
+            decision_eb_scale=automatic_flow_max_decision_rel_eb/point_set_config_vec[0].eb;
+        printf("automatic flow decision EB: configured_mode=%s,configured_eb=%.9g,decision_eb=%.9g\n",point_set_config_vec[0].error_mode==point_set_error_mode_e::relative?"REL":"ABS",point_set_config_vec[0].eb,point_set_config_vec[0].eb*decision_eb_scale);
         auto sample_structure_start_time=chrono::steady_clock::now();
         vector<vector<automatic_flow_window_c>> structure_windows(structure_num);
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
@@ -528,6 +533,7 @@ namespace unsz
         {
             auto candidate_start_time=chrono::steady_clock::now();
             candidate.estimated_label_bytes=estimated_label_bytes_by_flow.at(candidate.label_flow);
+            vector<vector<T_data>> reconstructed_sampled_values=sampled_values;
             bool use_spatial_residual=candidate.value_flow=="constant_extrapolation_spatial_residual"||candidate.value_flow=="linear_interpolation_spatial_residual"||candidate.value_flow=="anchor_interpolation_stride_8_spatial_residual";
             vector<T_data> temporal_baseline(sample_original_ids.size()),temporal_residual(sample_original_ids.size());
             vector<uint8_t> temporal_valid(sample_original_ids.size());
@@ -557,13 +563,13 @@ namespace unsz
                                 valid=false;
                                 break;
                             }
-                            prediction+=time_weights[source_id]*(T_calc)sampled_values[source_time_index][sample_id];
+                            prediction+=time_weights[source_id]*(T_calc)reconstructed_sampled_values[source_time_index][sample_id];
                         }
                         if(valid&&sampled_labels[time_index][sample_id]==0)
                         {
                             temporal_valid[sample_id]=1;
                             temporal_baseline[sample_id]=(T_data)prediction;
-                            temporal_residual[sample_id]=sampled_values[time_index][sample_id]-(T_data)prediction;
+                            temporal_residual[sample_id]=reconstructed_sampled_values[time_index][sample_id]-(T_data)prediction;
                         }
                     }
                 }
@@ -590,11 +596,15 @@ namespace unsz
                             }
                         }
                         else
-                            prediction=predict_value_two_point_sets_rbf(target.has_rbf_weights,reference_ids,reference_weights,sampled_values[time_index],0);
-                        T_data abs_eb=time_statistics[time_index].point_set_abs_eb[0]*prediction_structure_vec[structure_id].eb_multiplier[target.prediction_index];
-                        T_data inverse_double_abs_eb=(T_data)0.5/time_statistics[time_index].point_set_abs_eb[0]*prediction_structure_vec[structure_id].inverse_eb_multiplier[target.prediction_index];
+                            prediction=predict_value_two_point_sets_rbf(target.has_rbf_weights,reference_ids,reference_weights,reconstructed_sampled_values[time_index],0);
+                        T_data decision_base_abs_eb=time_statistics[time_index].point_set_abs_eb[0]*(T_data)decision_eb_scale;
+                        T_data abs_eb=decision_base_abs_eb*prediction_structure_vec[structure_id].eb_multiplier[target.prediction_index];
+                        T_data inverse_double_abs_eb=(T_data)0.5/decision_base_abs_eb*prediction_structure_vec[structure_id].inverse_eb_multiplier[target.prediction_index];
                         T_data reconstructed;
                         qbs.push_back(quantize_or_store_unpredictable(sampled_values[time_index][target_sample_id],prediction,abs_eb,inverse_double_abs_eb,unpredictable_values,reconstructed));
+                        reconstructed_sampled_values[time_index][target_sample_id]=reconstructed;
+                        if(temporal_valid[target_sample_id])
+                            temporal_residual[target_sample_id]=reconstructed-temporal_baseline[target_sample_id];
                     }
                     uint32_t actual_value_num=time_statistics[time_index].structure_point_set_point_num[structure_id][0];
                     if(!qbs.empty()&&time_statistics[time_index].point_set_codec[0]!=point_set_codec_e::constant)

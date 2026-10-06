@@ -9,7 +9,7 @@
     "coordinate_dim":3,
     "unsz":{
       "flow":{"pair":[["spatial","spatial"],["constant_extrapolation","constant_extrapolation"],["constant_extrapolation","constant_extrapolation_spatial_residual"],["anchor_interpolation_stride_8","anchor_interpolation_stride_8"],["anchor_interpolation_stride_8","anchor_interpolation_stride_8_spatial_residual"]]},
-      "point_set_config_path_list":["point_set_configs/Katrina_attr0_rbf_rel_1e-3.json"]
+      "point_set_config_path_list":["point_set_configs/Katrina_attr0_rbf_rel_1e-1.json","point_set_configs/Katrina_attr0_rbf_rel_1e-2.json","point_set_configs/Katrina_attr0_rbf_rel_1e-3.json","point_set_configs/Katrina_attr0_rbf_rel_1e-4.json","point_set_configs/Katrina_attr0_rbf_rel_1e-5.json"]
     }
   },
   {
@@ -22,7 +22,7 @@
     "coordinate_dim":3,
     "unsz":{
       "flow":{"pair":[["spatial","spatial"],["constant_extrapolation","constant_extrapolation"],["constant_extrapolation","constant_extrapolation_spatial_residual"],["anchor_interpolation_stride_8","anchor_interpolation_stride_8"],["anchor_interpolation_stride_8","anchor_interpolation_stride_8_spatial_residual"]]},
-      "point_set_config_path_list":["point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json"]
+      "point_set_config_path_list":["point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-1.json","point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-2.json","point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json","point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-4.json","point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-5.json"]
     }
   },
   {
@@ -30,7 +30,7 @@
     "data_dir":"/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h4",
     "csv_path":"results/flow_speed_screen/{field}.csv",
     "field_list":["Mass_dst_srf"],
-    "rel_eb_list":[0.001],
+    "rel_eb_list":[0.1,0.01,0.001,0.0001,0.00001],
     "compressor_list":["unsz"],
     "time_step_num":720,
     "coordinate_dim":3,
@@ -46,7 +46,7 @@
     "coordinate_dim":3,
     "unsz":{
       "flow":{"pair":[["spatial","spatial"],["constant_extrapolation","constant_extrapolation"],["constant_extrapolation","constant_extrapolation_spatial_residual"],["anchor_interpolation_stride_8","anchor_interpolation_stride_8"],["anchor_interpolation_stride_8","anchor_interpolation_stride_8_spatial_residual"]]},
-      "point_set_config_path_list":["point_set_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-3.json"]
+      "point_set_config_path_list":["point_set_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-1.json","point_set_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-2.json","point_set_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-3.json","point_set_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-4.json","point_set_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-5.json"]
     }
   },
   {
@@ -54,7 +54,7 @@
     "data_dir":"/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean",
     "csv_path":"results/flow_speed_screen/{field}.csv",
     "field_list":["layerThickness","salinity","temperature","velocityMeridional","velocityX","velocityY","velocityZ","velocityZonal","zTop"],
-    "rel_eb_list":[0.001],
+    "rel_eb_list":[0.1,0.01,0.001,0.0001,0.00001],
     "compressor_list":["unsz"],
     "time_step_num":31,
     "coordinate_dim":3,
@@ -65,7 +65,7 @@
     "data_dir":"/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20",
     "csv_path":"results/flow_speed_screen/{field}.csv",
     "field_list":["scalar"],
-    "rel_eb_list":[0.001],
+    "rel_eb_list":[0.1,0.01,0.001,0.0001,0.00001],
     "compressor_list":["unsz"],
     "time_step_num":20,
     "coordinate_dim":3,
