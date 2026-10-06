@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 
 project_root=Path(__file__).resolve().parents[1]
-default_configs=("katrina","tsunami","les","e3sm-h4","adcirc-haiyan-1.5km","ocean","taps","tpost20")
+default_configs=("katrina","les","e3sm-h4","adcirc-haiyan-1.5km","ocean","taps","tpost20")
 compressor_styles={"unsz":{"label":"UNSZ","color":"#0072B2","marker":"s"},"umc":{"label":"UMC","color":"#D55E00","marker":"o"}}
 time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
 
@@ -29,8 +29,12 @@ def read_point_set_rel_eb(path):
 def task_rows(task,field):
     csv_path=project_root/task["csv_path"].format(field=field)
     rows=load_rows(csv_path)
-    label_flow=task["unsz"]["flow"].get("label",[None])[0] or "not_applicable"
-    value_flow=task["unsz"]["flow"]["value"][0]
+    if task["time_step_num"]==1:
+        label_flow,value_flow="not_applicable","spatial"
+    elif "point_set_config_path_list" in task["unsz"]:
+        label_flow,value_flow="auto","auto"
+    else:
+        label_flow,value_flow="not_applicable","auto"
     selected=[]
     for row in rows:
         if row["task"]!=task["name"] or row["field"]!=field:

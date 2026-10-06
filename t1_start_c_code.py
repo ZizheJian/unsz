@@ -8,7 +8,7 @@ from third_party.run_command.run_command import run_command
 
 project_root=Path(__file__).resolve().parent
 config_directory=project_root/"configs"
-umc_root=Path("/home/x-zjian1/umc")
+umc_root=project_root/"third_party/umc"
 umc_inp_batch=10
 build_max_cpus=get_max_cpus(8)
 silent_build=False
@@ -197,7 +197,7 @@ def build_temporal_unsz_arguments(config,data_dir):
     arguments=build_spatial_prediction_arguments(config,data_dir,time_expression)
     if "time_step_coordinate_file" in config:
         arguments.extend(("-time-step-coordinate-file",Path(config["data_dir"])/config["time_step_coordinate_file"]))
-    if config.get("force_flow",False) and value_flow!="spatial":
+    if config.get("force_flow",False):
         arguments.extend(("-value-flow",value_flow))
     if not config.get("force_flow",False):
         return arguments
@@ -209,12 +209,14 @@ def build_temporal_unsz_arguments(config,data_dir):
         arguments.extend(("-label-flow",label_flow))
     elif label_flow=="auto":
         arguments.extend(("-label-flow","auto"))
-    elif label_flow not in (None,"spatial"):
+    elif label_flow=="spatial":
+        arguments.extend(("-label-flow","spatial"))
+    elif label_flow is not None:
         raise ValueError(f"未知标签流程：{label_flow}")
     return arguments
 
 def build_unsz_commands(config,data_dir):
-    if config["value_flow"]!="spatial" or config["label_flow"] not in (None,"spatial"):
+    if config["time_step_num"]>1 and (config.get("force_flow",False) or config["value_flow"]!="spatial" or config["label_flow"] not in (None,"spatial")):
         arguments=build_temporal_unsz_arguments(config,data_dir)
     else:
         arguments=build_spatial_unsz_arguments(config,data_dir)
@@ -239,6 +241,10 @@ def expand_unsz_flows(config):
         label_flow="auto" if has_label and config["time_step_num"]>1 else None
         return [config|{"label_flow":label_flow,"value_flow":value_flow,"force_flow":False}]
     flow=config["flow"]
+    if "pair" in flow:
+        if "label" in flow or "value" in flow:
+            raise ValueError("flow.pair不能与flow.label或flow.value同时使用")
+        return [config|{"label_flow":label_flow,"value_flow":value_flow,"force_flow":True} for label_flow,value_flow in flow["pair"]]
     return [config|{"label_flow":label_flow,"value_flow":value_flow,"force_flow":True} for label_flow in flow.get("label",[None]) for value_flow in flow["value"]]
 
 # 压缩器执行
@@ -364,6 +370,9 @@ def run_task(task):
                     write_csv_item(str(result_path),item,column_name,result[column_name])
                 write_csv_item(str(result_path),item,"selected_label_flow",result["selected_label_flow"] or label_flow or "not_applicable")
                 write_csv_item(str(result_path),item,"selected_value_flow",result["selected_value_flow"] or value_flow)
+                if result["automatic_flow_candidates"]:
+                    write_csv_item(str(result_path),item,"automatic_flow_candidates",json.dumps(result["automatic_flow_candidates"],separators=(",",":")))
+                    write_csv_item(str(result_path),item,"automatic_flow_selection_time",result["automatic_flow_selection_time"])
             for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",task["time_step_num"]),("input_bytes",total_bytes)):
                 write_csv_item(str(result_path),item,column_name,value)
             if task.get("cleanup_after_each_test",False):

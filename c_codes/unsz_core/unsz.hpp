@@ -344,7 +344,7 @@ namespace unsz
             vector<point_set_config_c> point_set_config_vec;
             string value_flow="auto";
             string label_flow="auto";
-            uint32_t automatic_flow_sample_num=512,automatic_flow_start_num=4;
+            uint32_t automatic_flow_sample_num=2048,automatic_flow_start_num=4;
             vector<array<T_data,2>> automatic_flow_abs_eb_vec;
             vector<array<point_set_codec_e,2>> automatic_flow_point_set_codec_vec;
             string coordinate_transform_mode="auto";//off / on / auto；off和on仅用于实验

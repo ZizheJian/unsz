@@ -2,7 +2,7 @@
 
 namespace unsz
 {
-    constexpr double automatic_flow_label_weight=0.25;
+    constexpr double automatic_flow_label_weight=0.56;
 
     template<typename T_data>
     struct automatic_flow_time_statistics_c

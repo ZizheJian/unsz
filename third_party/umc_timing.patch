@@ -1,0 +1,336 @@
+diff --git a/include/compress.hpp b/include/compress.hpp
+index 24c7b63..9c230ca 100644
+--- a/include/compress.hpp
++++ b/include/compress.hpp
+@@ -185,7 +185,9 @@ template <class T>
+ unsigned char *
+ umc_compress_prediction_by_adjacent_nodes_simple(const T invalid_val, const std::vector<int32_t>& index_map, const T * data, size_t num_elements,
+                                                     const std::vector<std::vector<AdjNode<T>>>& processed_adj_nodes, int n_neighbors,
+-                                                        double eb, size_t& compressed_size, bool use_abs_eb){
++                                                        double eb, size_t& compressed_size, bool use_abs_eb,double& core_compression_time){
++    struct timespec core_start,core_end;
++    clock_gettime(CLOCK_MONOTONIC,&core_start);
+     std::vector<T> dec_data(num_elements);
+     memcpy(dec_data.data(), data, num_elements*sizeof(T)); 
+     std::vector<T> refined_data(dec_data);
+@@ -200,8 +202,6 @@ umc_compress_prediction_by_adjacent_nodes_simple(const T invalid_val, const std:
+     const int quant_radius = 32768;
+     SZ3::LinearQuantizer<T> quantizer = SZ3::LinearQuantizer<T>(eb, quant_radius);
+     std::vector<int> quant_inds;
+-    double squared_error = 0;
+-    double max_error = 0;
+     for (int i=0; i<num_elements; i++){
+         T pred = 0;
+         for(int neighbor=0; neighbor<processed_adj_nodes[i].size(); neighbor++){
+@@ -209,11 +209,6 @@ umc_compress_prediction_by_adjacent_nodes_simple(const T invalid_val, const std:
+             pred += processed_adj_nodes[i][neighbor].weight * dec_data[j];
+         }
+         auto quant_ind = quantizer.quantize_and_overwrite(dec_data[i], pred);
+-        {
+-            double error = dec_data[i] - data[i];
+-            if(fabs(error) > max_error) max_error = fabs(error);
+-            squared_error += error*error;               
+-        }
+         quant_inds.push_back(quant_ind);
+     }
+     unsigned char * compressed = (unsigned char *) malloc(num_elements*2 * sizeof(T));
+@@ -229,9 +224,18 @@ umc_compress_prediction_by_adjacent_nodes_simple(const T invalid_val, const std:
+     encoder.encode(quant_inds, compressed_data_pos);
+     encoder.postprocess_encode();
+     auto lossless = SZ3::Lossless_zstd();
+-    std::cout << "size before lossless = " << compressed_data_pos - compressed << std::endl;
++    size_t size_before_lossless=compressed_data_pos-compressed;
+     unsigned char *lossless_data = lossless.compress(compressed, compressed_data_pos - compressed, compressed_size);
+     lossless.postcompress_data(compressed);
++    clock_gettime(CLOCK_MONOTONIC,&core_end);
++    core_compression_time=(double)(core_end.tv_sec-core_start.tv_sec)+(double)(core_end.tv_nsec-core_start.tv_nsec)/(double)1000000000;
++    double squared_error=0,max_error=0;
++    for(size_t i=0;i<num_elements;i++){
++        double error=dec_data[i]-data[i];
++        if(fabs(error)>max_error) max_error=fabs(error);
++        squared_error+=error*error;
++    }
++    std::cout << "size before lossless = " << size_before_lossless << std::endl;
+     std::cout << "compressed_size = " << compressed_size << std::endl;
+     std::cout << "compression_ratio = " << num_elements*sizeof(T) * 1.0 / compressed_size << std::endl;
+     std::cout << "Max value = " << max_val << ", min value = " << min_val << ", valid range = " << valid_range << std::endl;
+@@ -244,23 +248,28 @@ umc_compress_prediction_by_adjacent_nodes_simple(const T invalid_val, const std:
+ 
+ template <class T>
+ unsigned char *
+-umc_compress_prediction_by_adjacent_nodes_simple(const std::vector<int32_t>& index_map, const std::string& data_file, 
+-                                                    const std::vector<std::vector<AdjNode<T>>>& processed_adj_nodes, 
++umc_compress_prediction_by_adjacent_nodes_simple(const std::vector<int32_t>& index_map,const std::string& data_file,
++                                                    const std::vector<std::vector<AdjNode<T>>>& processed_adj_nodes,
+                                                         int n_neighbors, size_t& compressed_size, double eb, bool use_abs_eb){
+-    struct timespec start, end, end1;
++    struct timespec start,end,end1,reorder_start;
+     int err = 0;
+     double reorder_time = 0, compression_time = 0;;
+     err = clock_gettime(CLOCK_REALTIME, &start);
+     size_t num_elements = 0;
+     auto data = readfile<T>(data_file.c_str(), num_elements);
+     assert(num_elements == processed_adj_nodes.size());
+-    if(index_map[0] != -1) data = reorder(data, index_map, num_elements, 1);  
++    clock_gettime(CLOCK_REALTIME,&reorder_start);
++    if(index_map[0] != -1) data = reorder(data,index_map,num_elements,1);
+     err = clock_gettime(CLOCK_REALTIME, &end);
+     const T invalid_val = -99999.0;
+-    auto compressed = umc_compress_prediction_by_adjacent_nodes_simple<T>(invalid_val, index_map, data.data(), num_elements, processed_adj_nodes, n_neighbors, eb, compressed_size, use_abs_eb);
++    double core_compression_time=0;
++    auto compressed = umc_compress_prediction_by_adjacent_nodes_simple<T>(invalid_val,index_map,data.data(),num_elements,processed_adj_nodes,n_neighbors,eb,compressed_size,use_abs_eb,core_compression_time);
+     err = clock_gettime(CLOCK_REALTIME, &end1);
+     reorder_time = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
+     printf("reorder time = %.6f\n", reorder_time);
++    double data_reorder_time=(double)(end.tv_sec-reorder_start.tv_sec)+(double)(end.tv_nsec-reorder_start.tv_nsec)/(double)1000000000;
++    printf("data reorder time = %.6f\n",data_reorder_time);
++    printf("core compression time = %.6f\n",core_compression_time);
+     compression_time = (double)(end1.tv_sec - start.tv_sec) + (double)(end1.tv_nsec - start.tv_nsec)/(double)1000000000;
+     printf("compression time = %.6f\n", compression_time);
+     return compressed;
+@@ -272,12 +281,12 @@ void umc_compress_prediction_by_adjacent_nodes_simple(int reorder_opt, const std
+     struct timespec start, end;
+     int err = 0;
+     double preprocessing_time = 0, _time = 0;
+-    err = clock_gettime(CLOCK_REALTIME, &start);
+     size_t num = 0;
+     auto positions = readfile<T>(position_file.c_str(), num);
+     assert(num % d == 0);
+     size_t num_elements = num / d;
+     auto conn = readfile<int>(conn_file.c_str(), num);
++    err = clock_gettime(CLOCK_REALTIME, &start);
+     auto processed_adj_list = generate_processed_adjacent_list(num_elements, d, conn, from_edge);
+     std::vector<int32_t> index_map(num_elements, -1);
+     if(reorder_opt > 0){
+@@ -460,7 +469,9 @@ unsigned char *
+ umc_compress_prediction_by_adjacent_nodes_dynamic(const T invalid_val, const std::vector<std::set<int32_t>>& original_adj_list, int timestep, int batch_size, int d, const T * data, size_t num_elements, 
+                                                     const std::vector<T>& positions, int n_neighbors, const std::vector<std::vector<AdjNode<T>>>& ref_processed_adj_nodes,
+                                                         std::vector<std::vector<AdjNode<T>>>& current_processed_adj_nodes, unsigned char *& is_invalid,
+-                                                            size_t& compressed_size, double eb, bool use_abs_eb){
++                                                            size_t& compressed_size, double eb, bool use_abs_eb,double& core_compression_time){
++    struct timespec core_start,core_end;
++    clock_gettime(CLOCK_MONOTONIC,&core_start);
+     std::vector<T> dec_data(num_elements);
+     memcpy(dec_data.data(), data, num_elements*sizeof(T)); 
+     std::vector<T> refined_data(dec_data); 
+@@ -475,8 +486,6 @@ umc_compress_prediction_by_adjacent_nodes_dynamic(const T invalid_val, const std
+     const int quant_radius = 32768;
+     SZ3::LinearQuantizer<T> quantizer = SZ3::LinearQuantizer<T>(eb, quant_radius);
+     std::vector<int> quant_inds;
+-    double squared_error = 0;
+-    double max_error = 0; 
+     bool renew = (timestep % batch_size == 0);
+     unsigned char * changed_invalid = (unsigned char *) malloc(num_elements * sizeof(unsigned char));
+     if(renew){        
+@@ -505,11 +514,6 @@ umc_compress_prediction_by_adjacent_nodes_dynamic(const T invalid_val, const std
+             if(denominator > 0) pred /= denominator;
+         }
+         auto quant_ind = quantizer.quantize_and_overwrite(dec_data[i], pred);
+-        {
+-            double error = dec_data[i] - data[i];
+-            if(fabs(error) > max_error) max_error = fabs(error);
+-            squared_error += error*error;                   
+-        }
+         quant_inds.push_back(quant_ind);
+     }
+     unsigned char * compressed = (unsigned char *) malloc(num_elements * 2 * sizeof(T));
+@@ -527,9 +531,18 @@ umc_compress_prediction_by_adjacent_nodes_dynamic(const T invalid_val, const std
+     encoder.encode(quant_inds, compressed_data_pos);
+     encoder.postprocess_encode();
+     auto lossless = SZ3::Lossless_zstd();
+-    std::cout << "size before lossless = " << compressed_data_pos - compressed << std::endl;
++    size_t size_before_lossless=compressed_data_pos-compressed;
+     unsigned char *lossless_data = lossless.compress(compressed, compressed_data_pos - compressed, compressed_size);
+     lossless.postcompress_data(compressed);
++    clock_gettime(CLOCK_MONOTONIC,&core_end);
++    core_compression_time=(double)(core_end.tv_sec-core_start.tv_sec)+(double)(core_end.tv_nsec-core_start.tv_nsec)/(double)1000000000;
++    double squared_error=0,max_error=0;
++    for(size_t i=0;i<num_elements;i++){
++        double error=dec_data[i]-data[i];
++        if(fabs(error)>max_error) max_error=fabs(error);
++        squared_error+=error*error;
++    }
++    std::cout << "size before lossless = " << size_before_lossless << std::endl;
+     std::cout << "compressed_size = " << compressed_size << std::endl;
+     std::cout << "compression_ratio = " << num_elements*sizeof(T) * 1.0 / compressed_size << std::endl;
+     std::cout << "Max value = " << max_val << ", min value = " << min_val << ", valid range = " << valid_range << std::endl;
+@@ -544,21 +557,26 @@ umc_compress_prediction_by_adjacent_nodes_dynamic(const T invalid_val, const std
+ template <class T>
+ unsigned char *
+ umc_compress_prediction_by_adjacent_nodes_dynamic(const std::vector<std::set<int32_t>>& original_adj_list, int timestep, int batch_size, int d, const std::vector<int32_t>& index_map,
+-                                                    const std::string& data_file, const std::vector<T>& positions, int n_neighbors, const std::vector<std::vector<AdjNode<T>>>& ref_processed_adj_nodes, 
++                                                    const std::string& data_file,const std::vector<T>& positions,int n_neighbors,const std::vector<std::vector<AdjNode<T>>>& ref_processed_adj_nodes,
+                                                         std::vector<std::vector<AdjNode<T>>>& current_processed_adj_nodes, unsigned char*& is_invalid, size_t& compressed_size, double eb, bool use_abs_eb){
+-    struct timespec start, end, end1;
++    struct timespec start,end,end1,reorder_start;
+     int err = 0;
+     double reorder_time = 0, compression_time = 0;;
+     err = clock_gettime(CLOCK_REALTIME, &start);
+     size_t num_elements = 0;
+     auto data = readfile<T>(data_file.c_str(), num_elements);
+     const T invalid_val = -99999.0;
+-    if(index_map[0] != -1) data = reorder(data, index_map, num_elements, 1); 
++    clock_gettime(CLOCK_REALTIME,&reorder_start);
++    if(index_map[0] != -1) data = reorder(data,index_map,num_elements,1);
+     err = clock_gettime(CLOCK_REALTIME, &end);
+-    auto compressed = umc_compress_prediction_by_adjacent_nodes_dynamic<T>(invalid_val, original_adj_list, timestep, batch_size, d, data.data(), num_elements, positions, n_neighbors, ref_processed_adj_nodes, current_processed_adj_nodes, is_invalid, compressed_size, eb, use_abs_eb);
++    double core_compression_time=0;
++    auto compressed = umc_compress_prediction_by_adjacent_nodes_dynamic<T>(invalid_val,original_adj_list,timestep,batch_size,d,data.data(),num_elements,positions,n_neighbors,ref_processed_adj_nodes,current_processed_adj_nodes,is_invalid,compressed_size,eb,use_abs_eb,core_compression_time);
+     err = clock_gettime(CLOCK_REALTIME, &end1);
+     reorder_time = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
+     printf("reorder time = %.6f\n", reorder_time);
++    double data_reorder_time=(double)(end.tv_sec-reorder_start.tv_sec)+(double)(end.tv_nsec-reorder_start.tv_nsec)/(double)1000000000;
++    printf("data reorder time = %.6f\n",data_reorder_time);
++    printf("core compression time = %.6f\n",core_compression_time);
+     compression_time = (double)(end1.tv_sec - start.tv_sec) + (double)(end1.tv_nsec - start.tv_nsec)/(double)1000000000;
+     printf("compression time = %.6f\n", compression_time);
+     return compressed;    
+@@ -569,7 +587,6 @@ void umc_compress_prediction_by_adjacent_nodes_dynamic(int reorder_opt, const st
+                                                             const std::vector<std::string>& data_files, int n_neighbors, int batch_size, int d, double eb, bool use_abs_eb){
+     struct timespec start, end;
+     int err = 0;
+-    err = clock_gettime(CLOCK_REALTIME, &start);
+     double preprocessing_time = 0;
+     size_t num = 0;
+     auto positions = readfile<T>(position_file.c_str(), num);
+@@ -577,6 +594,7 @@ void umc_compress_prediction_by_adjacent_nodes_dynamic(int reorder_opt, const st
+     size_t num_elements = num / d;
+     printf("num_elements = %zu\n", num_elements);
+     auto conn = readfile<int>(conn_file.c_str(), num);
++    err = clock_gettime(CLOCK_REALTIME, &start);
+     auto processed_adj_list = generate_processed_adjacent_list(num_elements, d, conn, from_edge);
+     std::vector<int32_t> index_map(num_elements, -1);
+     auto original_adj_list = generate_adjacent_list(num_elements, d, conn, from_edge);
+@@ -1347,4 +1365,4 @@ void umc_compress_sd(int reorder_opt, int d, const std::string& conn_file, int f
+ }
+ 
+ }
+-#endif
+\ No newline at end of file
++#endif
+diff --git a/include/decompress.hpp b/include/decompress.hpp
+index aa1bfd0..2777933 100644
+--- a/include/decompress.hpp
++++ b/include/decompress.hpp
+@@ -153,12 +153,14 @@ void umc_decompress_prediction_by_regression(int reorder_opt, int d, int element
+ 
+ // Decompression Method 2: NBP-IDW
+ template <class T>
+-void umc_decompress_prediction_by_adjacent_nodes_simple(const std::vector<int32_t>& index_map, const std::string& compressed_file, const std::string& data_file, const std::vector<std::vector<AdjNode<T>>>& processed_adj_nodes, T *& data){
++void umc_decompress_prediction_by_adjacent_nodes_simple(const std::vector<int32_t>& index_map,const std::string& compressed_file,const std::string& data_file,const std::vector<std::vector<AdjNode<T>>>& processed_adj_nodes,T *&data,double &core_decompression_time){
+     size_t num_elements = 0;
+     std::vector<T> data_ori = readfile<T>(data_file.c_str(), num_elements);
+     if(index_map[0] != -1) data_ori = reorder(data_ori, index_map, num_elements, 1);
+     size_t input_size = 0;
+     auto input = readfile<unsigned char>(compressed_file.c_str(), input_size);
++    struct timespec core_start,core_end;
++    clock_gettime(CLOCK_MONOTONIC,&core_start);
+     auto lossless = SZ3::Lossless_zstd();
+     size_t remaining_length = input_size;
+     auto compressed_data = lossless.decompress(input.data(), input_size);
+@@ -187,6 +189,8 @@ void umc_decompress_prediction_by_adjacent_nodes_simple(const std::vector<int32_
+     	}
+         data[i] = quantizer.recover(pred, *(quant_inds_pos++));
+     }
++    clock_gettime(CLOCK_MONOTONIC,&core_end);
++    core_decompression_time=(double)(core_end.tv_sec-core_start.tv_sec)+(double)(core_end.tv_nsec-core_start.tv_nsec)/1000000000;
+     const T invalid_val = -99999.0;
+     print_statistics(data_ori.data(), data, num_elements, invalid_val);
+ }
+@@ -196,7 +200,6 @@ void umc_decompress_prediction_by_adjacent_nodes_simple(int reorder_opt, int d,
+                                                             const std::vector<std::string>& compressed_files, const std::vector<std::string>& data_files){
+ 	struct timespec start, end;
+     int err = 0;
+-    err = clock_gettime(CLOCK_REALTIME, &start);
+     double preprocessing_time = 0;
+     // read parameters
+     size_t input_size = 0;
+@@ -213,6 +216,7 @@ void umc_decompress_prediction_by_adjacent_nodes_simple(int reorder_opt, int d,
+     assert(num % d == 0);
+     size_t num_elements = num / d;
+     auto conn = readfile<int>(conn_file.c_str(), num);
++    err = clock_gettime(CLOCK_REALTIME, &start);
+     auto processed_adj_list = generate_processed_adjacent_list(num_elements, d, conn, from_edge);    
+     std::vector<int32_t> index_map(num_elements, -1);
+     if(reorder_opt > 0){
+@@ -228,13 +232,14 @@ void umc_decompress_prediction_by_adjacent_nodes_simple(int reorder_opt, int d,
+     preprocessing_time = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
+     printf("preprocessing time = %.6f\n", preprocessing_time);
+     for(int i=0; i<data_files.size(); i++){
+-        double decompression_time = 0, reorder_time = 0;
++        double decompression_time = 0, reorder_time = 0,core_decompression_time=0;
+         err = clock_gettime(CLOCK_REALTIME, &start);
+         T * dec_data = (T *) malloc(num_elements*sizeof(T));
+-        umc_decompress_prediction_by_adjacent_nodes_simple<T>(index_map, compressed_files[i], data_files[i], processed_adj_nodes, dec_data);
++        umc_decompress_prediction_by_adjacent_nodes_simple<T>(index_map,compressed_files[i],data_files[i],processed_adj_nodes,dec_data,core_decompression_time);
+ 		err = clock_gettime(CLOCK_REALTIME, &end);
+         decompression_time = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
+         printf("decompression time = %.6f\n", decompression_time);
++        printf("core decompression time = %.6f\n",core_decompression_time);
+         err = clock_gettime(CLOCK_REALTIME, &start);
+         std::vector<T> data_recovered(num_elements, 0);
+         if(reorder_opt > 0){
+@@ -379,12 +384,14 @@ void umc_decompress_prediction_by_adjacent_nodes_kriging(int reorder_opt, int d,
+ template <class T>
+ void umc_decompress_prediction_by_adjacent_nodes_dynamic(const std::vector<std::set<int32_t>>& original_adj_list, int timestep, int batch, const std::vector<int32_t>& index_map, const std::string& compressed_file, const std::string& data_file,
+                                                             unsigned char * is_invalid, const std::vector<std::vector<AdjNode<T>>>& ref_processed_adj_nodes,
+-                                                                std::vector<std::vector<AdjNode<T>>>& current_processed_adj_nodes, T *& data){
++                                                                std::vector<std::vector<AdjNode<T>>>& current_processed_adj_nodes,T *& data,double& core_decompression_time){
+     size_t num_elements = 0;
+     std::vector<T> data_ori = readfile<T>(data_file.c_str(), num_elements);
+     if(index_map[0] != -1) data_ori = reorder(data_ori, index_map, num_elements, 1);
+     size_t input_size = 0;
+     auto input = readfile<unsigned char>(compressed_file.c_str(), input_size);
++    struct timespec core_start,core_end;
++    clock_gettime(CLOCK_MONOTONIC,&core_start);
+     auto lossless = SZ3::Lossless_zstd();
+     size_t remaining_length = input_size;
+     auto compressed_data = lossless.decompress(input.data(), input_size);
+@@ -433,6 +440,8 @@ void umc_decompress_prediction_by_adjacent_nodes_dynamic(const std::vector<std::
+         }
+         data[i] = quantizer.recover(pred, *(quant_inds_pos++));
+     }
++    clock_gettime(CLOCK_MONOTONIC,&core_end);
++    core_decompression_time=(double)(core_end.tv_sec-core_start.tv_sec)+(double)(core_end.tv_nsec-core_start.tv_nsec)/1000000000;
+     print_statistics(data_ori.data(), data, num_elements, invalid_val);
+     free(changed_invalid);
+ }
+@@ -442,13 +451,13 @@ void umc_decompress_prediction_by_adjacent_nodes_dynamic(int reorder_opt, int d,
+                                                             const std::vector<std::string>& compressed_files, const std::vector<std::string>& data_files){
+ 	struct timespec start, end;
+     int err = 0;
+-    err = clock_gettime(CLOCK_REALTIME, &start);
+     double preprocessing_time = 0;
+     size_t num = 0;
+     auto positions = readfile<T>(position_file.c_str(), num);
+     assert(num % d == 0);
+     size_t num_elements = num / d;
+     auto conn = readfile<int>(conn_file.c_str(), num);
++    err = clock_gettime(CLOCK_REALTIME, &start);
+     auto processed_adj_list = generate_processed_adjacent_list(num_elements, d, conn, from_edge);
+     std::vector<int32_t> index_map(num_elements, -1);
+     auto original_adj_list = generate_adjacent_list(num_elements, d, conn, from_edge);
+@@ -467,13 +476,14 @@ void umc_decompress_prediction_by_adjacent_nodes_dynamic(int reorder_opt, int d,
+     preprocessing_time = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
+     printf("preprocessing time = %.6f\n", preprocessing_time);
+     for(int i=0; i<data_files.size(); i++){
+-        double decompression_time = 0;
++        double decompression_time=0,core_decompression_time=0;
+         err = clock_gettime(CLOCK_REALTIME, &start);
+         T * dec_data = (T *) malloc(num_elements*sizeof(T));
+-        umc_decompress_prediction_by_adjacent_nodes_dynamic<T>(original_adj_list, i, batch, index_map, compressed_files[i], data_files[i], is_invalid, ref_processed_adj_nodes, current_processed_adj_nodes, dec_data);
++        umc_decompress_prediction_by_adjacent_nodes_dynamic<T>(original_adj_list,i,batch,index_map,compressed_files[i],data_files[i],is_invalid,ref_processed_adj_nodes,current_processed_adj_nodes,dec_data,core_decompression_time);
+ 		err = clock_gettime(CLOCK_REALTIME, &end);
+         decompression_time = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec)/(double)1000000000;
+         printf("decompression time = %.6f\n", decompression_time);
++        printf("core decompression time = %.6f\n",core_decompression_time);
+         double reorder_time = 0;
+         err = clock_gettime(CLOCK_REALTIME, &start);
+         std::vector<T> data_recovered(num_elements, 0);
+@@ -751,4 +761,4 @@ void umc_decompress_sd(int reorder_opt, int d, const std::string& conn_file, int
+ }
+ 
+ }
+-#endif
+\ No newline at end of file
++#endif

@@ -13,3 +13,7 @@
 [submodule "third_party/parsers"]
 	path = third_party/parsers
 	url = git@github.com:ZizheJian/parsers.git
+[submodule "third_party/umc"]
+	path = third_party/umc
+	url = https://github.com/xuanwu02/umc.git
+	ignore = untracked

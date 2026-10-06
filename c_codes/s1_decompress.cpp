@@ -208,13 +208,15 @@ int decompress_main(int argc,char **argv)
         else if (option=="-value-flow")
         {
             param.value_flow=read_option_value(argc,argv,arg_id,option);
-            if(param.value_flow!="auto"&&param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
+            if(param.value_flow=="spatial")param.value_flow="none";
+            if(param.value_flow!="none"&&param.value_flow!="auto"&&param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
                 throw runtime_error("未知的value flow："+param.value_flow);
         }
         else if (option=="-label-flow")
         {
             param.label_flow=read_option_value(argc,argv,arg_id,option);
-            if(param.label_flow!="auto"&&param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
+            if(param.label_flow=="spatial")param.label_flow="none";
+            if(param.label_flow!="none"&&param.label_flow!="auto"&&param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
                 throw runtime_error("未知的label flow："+param.label_flow);
         }
         else if(option=="-coordinate-transform")
