@@ -1,0 +1,7 @@
+{
+  "version":3,
+  "labels":[
+    {"method":"predict","eb_mode":"REL","eb_value":0.0001,"condition":{"operator":"!=","value":-99999}},
+    {"method":"constant"}
+  ]
+}

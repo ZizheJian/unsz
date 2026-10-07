@@ -3,54 +3,11 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
-#include <unordered_set>
-#include "parsers.hpp"
+#include "cli_list_parser.hpp"
 #include "unsz_core/unsz.hpp"
 #include "compress_cli.hpp"
 
 using namespace std;
-
-vector<uint32_t> parse_time_step_vec(string expression)
-{
-    vector<uint32_t> result;
-    if (expression.size()>=5 && expression.front()=='[' && (expression.back()==']' || expression.back()==')'))
-    {
-        uint64_t comma_position=expression.find(',');
-        if (comma_position==string::npos || expression.find(',',comma_position+1)!=string::npos)
-            throw runtime_error("时间步区间必须包含且只包含一个逗号："+expression);
-        uint32_t left=parse_uint32(expression.substr(1,comma_position-1),"时间步左端点");
-        uint32_t right=parse_uint32(expression.substr(comma_position+1,expression.size()-comma_position-2),"时间步右端点");
-        uint64_t end=(uint64_t)right+(expression.back()==']');
-        if ((uint64_t)left>=end)
-            throw runtime_error("时间步区间为空或端点顺序错误："+expression);
-        result.reserve(end-left);
-        for (uint64_t time_step=left;time_step<end;time_step++)
-            result.push_back((uint32_t)time_step);
-    }
-    else if (expression.size()>=3 && expression.front()=='{' && expression.back()=='}')
-    {
-        if (expression[expression.size()-2]==',')
-            throw runtime_error("时间步列表末尾不能有逗号："+expression);
-        unordered_set<uint32_t> used_time_step_set;
-        uint64_t begin=1,end=0;
-        while (begin<expression.size()-1)
-        {
-            end=expression.find(',',begin);
-            if (end==string::npos)
-                end=expression.size()-1;
-            uint32_t time_step=parse_uint32(expression.substr(begin,end-begin),"时间步");
-            if (!used_time_step_set.insert(time_step).second)
-                throw runtime_error("时间步列表中存在重复值："+to_string(time_step));
-            result.push_back(time_step);
-            begin=end+1;
-        }
-        if (result.empty())
-            throw runtime_error("时间步列表不能为空");
-    }
-    else
-        throw runtime_error("时间步必须写成区间'[a,b]'、'[a,b)'或列表'{a1,a2,...}'："+expression);
-    return result;
-}
 
 namespace unsz
 {
@@ -74,7 +31,18 @@ namespace unsz
             {
                 if (arg_id+1>=argc)
                     throw runtime_error("-field后面缺少参数值");
+                if(param.got_field)
+                    throw runtime_error("-field和-field-list不能同时使用");
                 param.field_name=argv[++arg_id];
+                param.got_field=true;
+            }
+            else if(strcmp(argv[arg_id],"-field-list")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-field-list后面缺少参数值");
+                if(param.got_field)
+                    throw runtime_error("-field和-field-list不能同时使用");
+                param.field_name_vec=parse_field_name_list(argv[++arg_id]);
                 param.got_field=true;
             }
             else if (strcmp(argv[arg_id],"-coordinate-dim")==0)
@@ -87,7 +55,7 @@ namespace unsz
             {
                 if (arg_id+1>=argc)
                     throw runtime_error("-time-step后面缺少参数值");
-                time_step_vec=parse_time_step_vec(argv[++arg_id]);
+                time_step_vec=parse_time_step_list(argv[++arg_id]);
                 param.got_time_step=true;
             }
             else if(strcmp(argv[arg_id],"-time-step-coordinate-file")==0)

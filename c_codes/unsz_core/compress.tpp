@@ -91,44 +91,50 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets>
+    template<bool two_point_sets,bool collect_statistics>
     void param_c<T_coord,T_data>::classify_current_point_sets(compression_file_state_c&state)
     {
         uint32_t &point_set_num=state.point_set_num;
         auto stage_start_time=chrono::steady_clock::now();
         uint32_t configured_point_set_num=(uint32_t)point_set_config_vec.size();
         point_set_point_num_vec.assign(configured_point_set_num,0);
-        point_set_min_data_vec.assign(configured_point_set_num,numeric_limits<T_data>::infinity());
-        point_set_max_data_vec.assign(configured_point_set_num,-numeric_limits<T_data>::infinity());
+        if constexpr(collect_statistics)
+        {
+            point_set_min_data_vec.assign(configured_point_set_num,numeric_limits<T_data>::infinity());
+            point_set_max_data_vec.assign(configured_point_set_num,-numeric_limits<T_data>::infinity());
+        }
         if constexpr(!two_point_sets)
         {
             point_set_num=1;
             point_set_id_vec.clear();
             point_set_point_num_vec[0]=point_num;
-            T_data minimum[4]={numeric_limits<T_data>::infinity(),numeric_limits<T_data>::infinity(),numeric_limits<T_data>::infinity(),numeric_limits<T_data>::infinity()};
-            T_data maximum[4]={-numeric_limits<T_data>::infinity(),-numeric_limits<T_data>::infinity(),-numeric_limits<T_data>::infinity(),-numeric_limits<T_data>::infinity()};
-            uint32_t point_id=0;
-            for(;point_id+3<point_num;point_id+=4)
+            if constexpr(collect_statistics)
             {
-                for(uint32_t lane=0;lane<4;lane++)
+                T_data minimum[4]={numeric_limits<T_data>::infinity(),numeric_limits<T_data>::infinity(),numeric_limits<T_data>::infinity(),numeric_limits<T_data>::infinity()};
+                T_data maximum[4]={-numeric_limits<T_data>::infinity(),-numeric_limits<T_data>::infinity(),-numeric_limits<T_data>::infinity(),-numeric_limits<T_data>::infinity()};
+                uint32_t point_id=0;
+                for(;point_id+3<point_num;point_id+=4)
                 {
-                    T_data value=current_data[point_id+lane];
-                    minimum[lane]=min(minimum[lane],value);
-                    maximum[lane]=max(maximum[lane],value);
+                    for(uint32_t lane=0;lane<4;lane++)
+                    {
+                        T_data value=current_data[point_id+lane];
+                        minimum[lane]=min(minimum[lane],value);
+                        maximum[lane]=max(maximum[lane],value);
+                    }
                 }
+                for(;point_id<point_num;point_id++)
+                {
+                    minimum[0]=min(minimum[0],current_data[point_id]);
+                    maximum[0]=max(maximum[0],current_data[point_id]);
+                }
+                for(uint32_t lane=1;lane<4;lane++)
+                {
+                    minimum[0]=min(minimum[0],minimum[lane]);
+                    maximum[0]=max(maximum[0],maximum[lane]);
+                }
+                point_set_min_data_vec[0]=minimum[0];
+                point_set_max_data_vec[0]=maximum[0];
             }
-            for(;point_id<point_num;point_id++)
-            {
-                minimum[0]=min(minimum[0],current_data[point_id]);
-                maximum[0]=max(maximum[0],current_data[point_id]);
-            }
-            for(uint32_t lane=1;lane<4;lane++)
-            {
-                minimum[0]=min(minimum[0],minimum[lane]);
-                maximum[0]=max(maximum[0],maximum[lane]);
-            }
-            point_set_min_data_vec[0]=minimum[0];
-            point_set_max_data_vec[0]=maximum[0];
         }
         else if(point_set_rule_vec.size()==1)
         {
@@ -138,12 +144,13 @@ namespace unsz
             {
                 uint32_t point_num_per_set[4][2]={{0,0},{0,0},{0,0},{0,0}};
                 T_data minimum[4][2],maximum[4][2];
-                for(uint32_t lane=0;lane<4;lane++)
-                    for(uint32_t point_set_id=0;point_set_id<2;point_set_id++)
-                    {
-                        minimum[lane][point_set_id]=numeric_limits<T_data>::infinity();
-                        maximum[lane][point_set_id]=-numeric_limits<T_data>::infinity();
-                    }
+                if constexpr(collect_statistics)
+                    for(uint32_t lane=0;lane<4;lane++)
+                        for(uint32_t point_set_id=0;point_set_id<2;point_set_id++)
+                        {
+                            minimum[lane][point_set_id]=numeric_limits<T_data>::infinity();
+                            maximum[lane][point_set_id]=-numeric_limits<T_data>::infinity();
+                        }
                 uint32_t point_id=0;
                 for(;point_id+3<point_num;point_id+=4)
                 {
@@ -153,8 +160,11 @@ namespace unsz
                         uint32_t point_set_id=matches((double)value)?0:1;
                         point_set_id_vec[point_id+lane]=(uint8_t)point_set_id;
                         point_num_per_set[lane][point_set_id]++;
-                        minimum[lane][point_set_id]=min(minimum[lane][point_set_id],value);
-                        maximum[lane][point_set_id]=max(maximum[lane][point_set_id],value);
+                        if constexpr(collect_statistics)
+                        {
+                            minimum[lane][point_set_id]=min(minimum[lane][point_set_id],value);
+                            maximum[lane][point_set_id]=max(maximum[lane][point_set_id],value);
+                        }
                     }
                 }
                 for(;point_id<point_num;point_id++)
@@ -163,21 +173,30 @@ namespace unsz
                     uint32_t point_set_id=matches((double)value)?0:1;
                     point_set_id_vec[point_id]=(uint8_t)point_set_id;
                     point_num_per_set[0][point_set_id]++;
-                    minimum[0][point_set_id]=min(minimum[0][point_set_id],value);
-                    maximum[0][point_set_id]=max(maximum[0][point_set_id],value);
+                    if constexpr(collect_statistics)
+                    {
+                        minimum[0][point_set_id]=min(minimum[0][point_set_id],value);
+                        maximum[0][point_set_id]=max(maximum[0][point_set_id],value);
+                    }
                 }
                 for(uint32_t lane=1;lane<4;lane++)
                     for(uint32_t point_set_id=0;point_set_id<2;point_set_id++)
                     {
                         point_num_per_set[0][point_set_id]+=point_num_per_set[lane][point_set_id];
-                        minimum[0][point_set_id]=min(minimum[0][point_set_id],minimum[lane][point_set_id]);
-                        maximum[0][point_set_id]=max(maximum[0][point_set_id],maximum[lane][point_set_id]);
+                        if constexpr(collect_statistics)
+                        {
+                            minimum[0][point_set_id]=min(minimum[0][point_set_id],minimum[lane][point_set_id]);
+                            maximum[0][point_set_id]=max(maximum[0][point_set_id],maximum[lane][point_set_id]);
+                        }
                     }
                 for(uint32_t point_set_id=0;point_set_id<2;point_set_id++)
                 {
                     point_set_point_num_vec[point_set_id]=point_num_per_set[0][point_set_id];
-                    point_set_min_data_vec[point_set_id]=minimum[0][point_set_id];
-                    point_set_max_data_vec[point_set_id]=maximum[0][point_set_id];
+                    if constexpr(collect_statistics)
+                    {
+                        point_set_min_data_vec[point_set_id]=minimum[0][point_set_id];
+                        point_set_max_data_vec[point_set_id]=maximum[0][point_set_id];
+                    }
                 }
                 point_set_num=2;
             };
@@ -252,6 +271,77 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::precompute_current_field_point_set_statistics()
+    {
+        compression_file_point_set_min_data_vec.resize(original_data_path_vec.size());
+        compression_file_point_set_max_data_vec.resize(original_data_path_vec.size());
+        compression_file_point_set_abs_eb_vec.resize(original_data_path_vec.size());
+        compression_file_point_set_codec_vec.resize(original_data_path_vec.size());
+        current_data.resize(point_num);
+        bool two_point_sets=point_set_config_vec.size()==2;
+        for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
+        {
+            read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
+            compression_file_state_c state;
+            if(two_point_sets)
+                classify_current_point_sets<true,true>(state);
+            else
+                classify_current_point_sets<false,true>(state);
+            prepare_current_point_set_codecs_and_eb(state);
+            for(uint32_t point_set_id=0;point_set_id<state.point_set_num;point_set_id++)
+            {
+                compression_file_point_set_min_data_vec[time_index][point_set_id]=point_set_min_data_vec[point_set_id];
+                compression_file_point_set_max_data_vec[time_index][point_set_id]=point_set_max_data_vec[point_set_id];
+                compression_file_point_set_abs_eb_vec[time_index][point_set_id]=point_set_abs_eb_vec[point_set_id];
+                compression_file_point_set_codec_vec[time_index][point_set_id]=point_set_codec_vec[point_set_id];
+            }
+        }
+        current_data.clear();
+        point_set_id_vec.clear();
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::precompute_compression_file_point_set_statistics()
+    {
+        auto start_time=chrono::steady_clock::now();
+        compression_field_statistics_vec.clear();
+        compression_field_statistics_vec.resize(field_name_vec.size());
+        for(uint32_t field_id=0;field_id<field_name_vec.size();field_id++)
+        {
+            activate_field(field_id);
+            precompute_current_field_point_set_statistics();
+            compression_field_statistics_c<T_data>&statistics=compression_field_statistics_vec[field_id];
+            statistics.point_set_min_data_vec=move(compression_file_point_set_min_data_vec);
+            statistics.point_set_max_data_vec=move(compression_file_point_set_max_data_vec);
+            statistics.point_set_abs_eb_vec=move(compression_file_point_set_abs_eb_vec);
+            statistics.point_set_codec_vec=move(compression_file_point_set_codec_vec);
+        }
+        activate_field(0);
+        printf("compression file point-set statistics precomputation time excluded from reported time= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::load_current_point_set_statistics(compression_file_state_c&state)
+    {
+        auto stage_start_time=chrono::steady_clock::now();
+        uint32_t point_set_num=state.point_set_num;
+        if(current_time_step_index>=compression_file_point_set_abs_eb_vec.size())
+            throw runtime_error("当前time step缺少预计算的点集统计结果");
+        point_set_min_data_vec.resize(point_set_num);
+        point_set_max_data_vec.resize(point_set_num);
+        point_set_abs_eb_vec.resize(point_set_num);
+        point_set_codec_vec.resize(point_set_num);
+        for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+        {
+            point_set_min_data_vec[point_set_id]=compression_file_point_set_min_data_vec[current_time_step_index][point_set_id];
+            point_set_max_data_vec[point_set_id]=compression_file_point_set_max_data_vec[current_time_step_index][point_set_id];
+            point_set_abs_eb_vec[point_set_id]=compression_file_point_set_abs_eb_vec[current_time_step_index][point_set_id];
+            point_set_codec_vec[point_set_id]=compression_file_point_set_codec_vec[current_time_step_index][point_set_id];
+        }
+        state.point_set_setup_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
+    }
+
+    template<typename T_coord,typename T_data>
     template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
     void param_c<T_coord,T_data>::prepare_current_prediction_state(compression_file_state_c&state)
     {
@@ -300,8 +390,8 @@ namespace unsz
     template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
     void param_c<T_coord,T_data>::prepare_current_compression(compression_file_state_c&state)
     {
-        classify_current_point_sets<two_point_sets>(state);
-        prepare_current_point_set_codecs_and_eb(state);
+        classify_current_point_sets<two_point_sets,false>(state);
+        load_current_point_set_statistics(state);
         prepare_current_prediction_state<two_point_sets,fixed_value_mode,fixed_label_mode>(state);
         initialize_current_compression_buffers<two_point_sets>(state);
     }

@@ -101,6 +101,23 @@ namespace unsz
     void param_c<T_coord,T_data>::prepare_time_step_order(time_step_order_e order)
     {
         vector<uint32_t> processing_order=generate_time_step_processing_order(order);
+        auto reorder_file_values=[&](auto&values)
+        {
+            if(values.empty())
+                return;
+            if(values.size()!=processing_order.size())
+                throw runtime_error("逐文件预计算结果数量与time step数量不一致");
+            using value_type=typename decay_t<decltype(values)>::value_type;
+            vector<value_type> ordered_values;
+            ordered_values.reserve(values.size());
+            for(uint32_t id:processing_order)
+                ordered_values.push_back(values[id]);
+            values=move(ordered_values);
+        };
+        reorder_file_values(compression_file_point_set_min_data_vec);
+        reorder_file_values(compression_file_point_set_max_data_vec);
+        reorder_file_values(compression_file_point_set_abs_eb_vec);
+        reorder_file_values(compression_file_point_set_codec_vec);
         vector<uint32_t> ordered_time_step_vec;
         vector<string> ordered_data_path_vec;
         ordered_time_step_vec.reserve(processing_order.size());
@@ -123,6 +140,18 @@ namespace unsz
         for(uint32_t time_step:time_step_vec)
             printf(" %u",time_step);
         printf("\n");
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::prepare_time_step_order_from_flows()
+    {
+        time_step_order_e label_order=get_time_step_order(label_flow),value_order=get_time_step_order(value_flow);
+        if(point_set_config_vec.size()==1||label_flow=="none")
+            prepare_time_step_order(value_order);
+        else if(label_order==value_order||value_flow=="none")
+            prepare_time_step_order(label_order);
+        else
+            prepare_time_step_order(time_step_order_e::chronological);
     }
 
     template<typename T_coord,typename T_data>

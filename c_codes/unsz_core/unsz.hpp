@@ -128,6 +128,13 @@ namespace unsz
         double value=0;
     };
 
+    template<typename T_data>
+    struct compression_field_statistics_c
+    {
+        vector<array<T_data,2>> point_set_min_data_vec,point_set_max_data_vec,point_set_abs_eb_vec;
+        vector<array<point_set_codec_e,2>> point_set_codec_vec;
+    };
+
     template<typename T>
     class array_view_c
     {
@@ -342,6 +349,7 @@ namespace unsz
             param_c()=default;
 
             string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,point_set_config_path;
+            vector<string> field_name_vec;
             vector<string> original_data_path_vec;
             uint32_t dim=3;
             uint32_t point_num=0;
@@ -352,16 +360,19 @@ namespace unsz
             vector<point_set_config_c> point_set_config_vec;
             string value_flow="auto";
             string label_flow="auto";
+            string configured_value_flow="auto",configured_label_flow="auto";
             uint32_t automatic_flow_sample_num=2048,automatic_flow_start_num=4;
-            vector<array<T_data,2>> automatic_flow_abs_eb_vec;
-            vector<array<point_set_codec_e,2>> automatic_flow_point_set_codec_vec;
+            vector<array<T_data,2>> compression_file_point_set_min_data_vec,compression_file_point_set_max_data_vec,compression_file_point_set_abs_eb_vec;
+            vector<array<point_set_codec_e,2>> compression_file_point_set_codec_vec;
+            vector<compression_field_statistics_c<T_data>> compression_field_statistics_vec;
             string coordinate_transform_mode="auto";//off / on / auto；off和on仅用于实验
             double coordinate_transform_first_sample_ratio=0.3;
-            uint32_t coordinate_transform_second_sample_num=3000;
-            uint32_t coordinate_transform_sample_file_num=3;
             bool use_coordinate_transform=false;
             vector<double> coordinate_transform_diagonal;
-            vector<vector<T_data>> coordinate_transform_training_data;
+            vector<double> coordinate_transform_training_coordinate_differences,coordinate_transform_training_value_differences;
+            vector<uint32_t> coordinate_transform_training_pair_group_ids;
+            uint32_t coordinate_transform_training_group_num=0;
+            double coordinate_transform_training_input_time=0;
             bool print_compression_stage_time=false,prediction_data_uses_prediction_order=false;
             string ordering_scope="global";//正式压缩固定使用global
             uint32_t ordering_score_min_ref_num=1;
@@ -385,6 +396,7 @@ namespace unsz
             vector<T_data> current_data,current_decompressed_data,prediction_order_decompressed_data;
             vector<int> original_to_prediction_order;
             vector<uint32_t> time_step_vec;
+            vector<uint32_t> configured_time_step_vec;
             vector<T_coord> time_step_coordinate_vec;
             vector<vector<T_data>> reconstructed_time_data_vec;
             vector<vector<uint8_t>> reconstructed_time_point_set_id_vec;
@@ -410,8 +422,10 @@ namespace unsz
             time_step_order_e get_time_step_order(const string &flow) const;
             vector<uint32_t> generate_time_step_processing_order(time_step_order_e order) const;
             void prepare_time_step_order(time_step_order_e order);
+            void prepare_time_step_order_from_flows();
             void configure_point_sets();
             void prepare_cli_parameters(const vector<uint32_t>&selected_time_step_vec,T_data error_bound);
+            void activate_field(uint32_t field_id);
             void prepare_temporal_dependencies();
             temporal_dependency_plan_c generate_temporal_dependency_plan(const string&flow) const;
             void prepare_temporal_prediction();
@@ -427,6 +441,7 @@ namespace unsz
             bool current_time_step_is_regular_anchor() const;
             void resolve_single_point_set_time_mode();
             void dispatch_single_point_set_compression();
+            bool coordinate_transform_value_is_trainable(T_data value) const;
             void prepare_coordinate_transform_training_data();
             void train_coordinate_transform();
             void apply_coordinate_transform();
@@ -450,18 +465,21 @@ namespace unsz
             T_data predict_value_two_point_sets_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask=nullptr);
             fused_spatial_prediction_c<T_data> predict_fused_spatial_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
             void generate_batched_rbf_weights(const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback);
-            void preprocess_compression();
+            pair<double,double> preprocess_shared_compression_geometry();
+            double preprocess_current_compression_field();
             double select_automatic_flows();
             void validate_automatic_flow_selection() const;
-            void precompute_automatic_flow_abs_eb();
+            void precompute_current_field_point_set_statistics();
+            void precompute_compression_file_point_set_statistics();
             void read_compressed_flows();
             reconstruction_statistics_c calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset=0) const;
             reconstruction_statistics_c calculate_prediction_order_reconstruction_statistics() const;
             void compress_files(void(param_c<T_coord,T_data>::*compress_file)());
             void dispatch_fused_compression();
-            template<bool two_point_sets>
+            template<bool two_point_sets,bool collect_statistics>
             void classify_current_point_sets(compression_file_state_c&state);
             void prepare_current_point_set_codecs_and_eb(compression_file_state_c&state);
+            void load_current_point_set_statistics(compression_file_state_c&state);
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void prepare_current_prediction_state(compression_file_state_c&state);
             template<bool two_point_sets>

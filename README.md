@@ -28,7 +28,7 @@ Ocean/
 
 ## 1.2. 安装
 
-需要CMake、支持C++17和AVX2的C++编译器以及Python 3。C++依赖的Zstd和参数解析库均作为submodule提供；Python坐标变换训练需要NumPy和SciPy，绘图脚本还需要PyVista。
+需要CMake、支持C++17和AVX2的C++编译器以及Python 3。C++依赖的Zstd和参数解析库均作为submodule提供；基准结果处理需要NumPy和Matplotlib，坐标可视化脚本还需要PyVista。
 
 克隆项目并初始化submodule：
 
@@ -251,13 +251,13 @@ Katrina四partition测试中，全局2048目标预算相对每partition各2048�
 
 训练固定使用最多3个均匀分布的time step。每个训练文件先以固定随机种子保留30%的点建立kd-tree，再在这些点中总共选取最多3000个目标；每个目标使用10个近邻形成训练点对。当前只学习各坐标轴的对角缩放，不混合坐标轴，也不执行第二轮重新采样。
 
-对每个训练点对，令数值差为`Δv`、原始坐标差为`Δc`，训练对角向量`s`使以下损失最小：
+对REL任务，每个采样`field×time step`直接复用压缩开始前预计算的对应可预测点集value range来归一化`Δv`，避免重复扫描数据，也避免不同time step的绝对幅度直接决定训练权重。令归一化数值差为`Δv`、原始坐标差为`Δc`。程序在训练前令$d_i=\lVert\Delta c_i\rVert_2$，并用闭式解$a=\sum_i|\Delta v_i|d_i/\sum_i d_i^2$消除数值差和坐标距离之间的全局尺度，然后用对角矩阵$(a,a,a)$计算各采样time step的均方loss。若最大值与最小值之比不小于`1.5`，说明存在普通平均难以兼顾的困难时间模式，令`p=3`；否则令`p=1`。随后只执行一轮训练：
 
 $$
-L_{\mathrm{diag}}=\min_{s,a}\sum_i\left(|\Delta v_i|-a\lVert\Delta c_i\odot s\rVert_2\right)^2.
+L_{\mathrm{diag}}=\min_s\sum_t\left[\frac{1}{N_t}\sum_{i\in t}\left(|\Delta v_i|-\lVert\Delta c_i\odot s\rVert_2\right)^2\right]^p.
 $$
 
-训练使用Gauss–Newton法；求解后把`s`归一化，使其平方和等于坐标维数。`auto`模式首先计算原始坐标协方差矩阵的flatness：
+Katrina会在训练前选择`p=3`，Ocean salinity和temperature选择`p=1`。训练使用Gauss–Newton法；求解后把`s`归一化，使其平方和等于坐标维数。`auto`模式首先计算原始坐标协方差矩阵的flatness：
 
 $$
 f=\sqrt{\frac{\lambda_{\min}}{\lambda_{\max}}}.
@@ -266,10 +266,12 @@ $$
 当原始flatness不大于`0.05`时确定启用并继续训练；当它不小于`0.75`时直接拒绝，不读取训练数据也不训练。其余情况完成训练，并用`DCD`直接计算变换后协方差，其中`C`是原始协方差，`D`是训练出的对角矩阵。仅当
 
 $$
-\frac{f_{\mathrm{transformed}}}{f_{\mathrm{original}}}\ge 1.075
+\frac{f_{\mathrm{transformed}}}{f_{\mathrm{original}}}\ge 1.0
 $$
 
 时才应用变换，否则关闭。flatness计算、训练和坐标变换都计入预处理时间；坐标和训练数据的文件读取不计时。变换后的坐标用于建树、生成DAG和计算预测权重；数据值本身不变。
+
+多个field共享同一组坐标时可用`-field-list`一次传入；压缩器只生成一次坐标变换、空间DAG和RBF权重，然后分别为每个field选择flow并压缩。多field REL训练同样按照每个`field×time step`各自的可预测点集value range归一化，每个训练文件形成一个独立group；ABS任务不归一化。单field与多field使用完全相同的flatness判断、group loss选择和矩阵训练流程。
 
 压缩器把本次训练结果写到数据目录中的`<field>.unsz.coord_transform.txt`。文件以明文记录维数、是否启用和每个坐标轴的缩放值；解压器读取同一文件，不重新训练。例：
 
@@ -810,7 +812,7 @@ E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；正式配置现改为�
   <tbody>
     <tr>
       <td>坐标变换</td>
-      <td>C++内置的一轮对角缩放训练；自动flatness判据，第一轮采样比例<code>0.3</code>，第二轮采样<code>3000</code>点，最多使用<code>3</code>个文件</td>
+      <td>C++内置对角缩放训练；REL按time step range归一化并自动处理困难时间模式，自动flatness判据，第一轮采样比例<code>0.3</code>，第二轮采样<code>3000</code>点，最多使用<code>3</code>个文件</td>
     </tr>
     <tr>
       <td>预测器</td>

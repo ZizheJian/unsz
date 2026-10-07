@@ -11,11 +11,14 @@
 
 set -euo pipefail
 : "${CONFIG:?必须通过sbatch --export传入CONFIG}"
-: "${FIELD:?必须通过sbatch --export传入FIELD}"
+: "${TASK:?必须通过sbatch --export传入TASK}"
 cd /home/x-zjian1/unsz
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 echo "git_commit=$(git rev-parse HEAD)"
-echo "node=$(hostname),config=$CONFIG,field=$FIELD"
-./unsz_env/bin/python t1_start_c_code.py "$CONFIG" --field "$FIELD" --skip-build
+git_dirty=0
+[[ -n "$(git status --short --untracked-files=no)" ]]&&git_dirty=1
+echo "git_dirty=$git_dirty"
+echo "node=$(hostname),config=$CONFIG,task=$TASK"
+./unsz_env/bin/python t1_start_c_code.py "$CONFIG" --task "$TASK" --compressor unsz --skip-build

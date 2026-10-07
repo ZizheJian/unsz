@@ -144,44 +144,13 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::precompute_automatic_flow_abs_eb()
-    {
-        if(label_flow!="auto"&&value_flow!="auto")
-            return;
-        validate_automatic_flow_selection();
-        auto start_time=chrono::steady_clock::now();
-        automatic_flow_abs_eb_vec.resize(original_data_path_vec.size());
-        automatic_flow_point_set_codec_vec.resize(original_data_path_vec.size());
-        current_data.resize(point_num);
-        bool two_point_sets=point_set_config_vec.size()==2;
-        for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
-        {
-            read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
-            compression_file_state_c state;
-            if(two_point_sets)
-                classify_current_point_sets<true>(state);
-            else
-                classify_current_point_sets<false>(state);
-            prepare_current_point_set_codecs_and_eb(state);
-            for(uint32_t point_set_id=0;point_set_id<state.point_set_num;point_set_id++)
-            {
-                automatic_flow_abs_eb_vec[time_index][point_set_id]=point_set_abs_eb_vec[point_set_id];
-                automatic_flow_point_set_codec_vec[time_index][point_set_id]=point_set_codec_vec[point_set_id];
-            }
-        }
-        current_data.clear();
-        point_set_id_vec.clear();
-        printf("automatic flow ABS EB precomputation time excluded from reported time= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
-    }
-
-    template<typename T_coord,typename T_data>
     double param_c<T_coord,T_data>::select_automatic_flows()
     {
         bool automatic_label=label_flow=="auto",automatic_value=value_flow=="auto";
         if(!automatic_label&&!automatic_value)
             return 0;
         validate_automatic_flow_selection();
-        if(automatic_flow_abs_eb_vec.size()!=time_step_vec.size()||automatic_flow_point_set_codec_vec.size()!=time_step_vec.size())
+        if(compression_file_point_set_abs_eb_vec.size()!=time_step_vec.size()||compression_file_point_set_codec_vec.size()!=time_step_vec.size())
             throw runtime_error("自动flow选择缺少逐time step预统计");
         auto selection_start_time=chrono::steady_clock::now();
         double excluded_input_time=0;
@@ -279,14 +248,14 @@ namespace unsz
             auto statistics_start_time=chrono::steady_clock::now();
             compression_file_state_c state;
             if(two_point_sets)
-                classify_current_point_sets<true>(state);
+                classify_current_point_sets<true,false>(state);
             else
-                classify_current_point_sets<false>(state);
+                classify_current_point_sets<false,false>(state);
             file_statistics_time+=chrono::duration<double>(chrono::steady_clock::now()-statistics_start_time).count();
             sample_structure_start_time=chrono::steady_clock::now();
             automatic_flow_time_statistics_c<T_data>&statistics=time_statistics[time_index];
-            statistics.point_set_abs_eb=automatic_flow_abs_eb_vec[time_index];
-            statistics.point_set_codec=automatic_flow_point_set_codec_vec[time_index];
+            statistics.point_set_abs_eb=compression_file_point_set_abs_eb_vec[time_index];
+            statistics.point_set_codec=compression_file_point_set_codec_vec[time_index];
             statistics.structure_point_set_point_num.resize(structure_num);
             for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
             {
@@ -443,8 +412,8 @@ namespace unsz
                 for(uint32_t sample_id=0;sample_id<sample_original_ids.size();sample_id++)
                     sampled_labels[time_index][sample_id]=classify_value(sampled_values[time_index][sample_id]);
             automatic_flow_time_statistics_c<T_data>&statistics=time_statistics[time_index];
-            statistics.point_set_abs_eb=automatic_flow_abs_eb_vec[time_index];
-            statistics.point_set_codec=automatic_flow_point_set_codec_vec[time_index];
+            statistics.point_set_abs_eb=compression_file_point_set_abs_eb_vec[time_index];
+            statistics.point_set_codec=compression_file_point_set_codec_vec[time_index];
         }
         sample_value_preparation_time=chrono::duration<double>(chrono::steady_clock::now()-sample_value_start_time).count()-(excluded_input_time-sample_value_input_begin);
         auto temporal_weights_for=[&](const temporal_dependency_c&dependency,uint32_t time_index)

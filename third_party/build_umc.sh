@@ -6,7 +6,7 @@ umc_root="$project_root/third_party/umc"
 replacement_root="$project_root/third_party/umc_replacements"
 upstream_url="https://github.com/xuanwu02/umc.git"
 upstream_commit="52a86589de096cadfd8ab83719dc4c3e697e5886"
-replacement_paths=(include/compress.hpp include/decompress.hpp)
+replacement_paths=(include/compress.hpp include/decompress.hpp parallel_src/mpas_parutils.hpp parallel_src/test_par_compress.cpp parallel_src/test_par_decompress.cpp)
 
 if [[ ! -d "$umc_root/.git" && ! -f "$umc_root/.git" ]];then
     echo "没有找到UMC子模块，请先执行git submodule update --init third_party/umc" >&2
@@ -27,23 +27,30 @@ if [[ "$(git -C "$umc_root" rev-parse HEAD)" != "$upstream_commit" ]];then
 fi
 
 mapfile -t changed_paths < <(git -C "$umc_root" diff --name-only "$upstream_commit" --)
-if (( ${#changed_paths[@]}==0 ));then
-    for path in "${replacement_paths[@]}";do
-        cp "$replacement_root/$path" "$umc_root/$path"
-    done
-    echo "已安装UNSZ保存的UMC计时替换文件"
-else
-    if (( ${#changed_paths[@]}!=${#replacement_paths[@]} ));then
-        printf 'UMC包含未知源码修改，停止构建：\n%s\n' "${changed_paths[*]}" >&2
-        exit 1
-    fi
-    for path in "${replacement_paths[@]}";do
-        if ! printf '%s\n' "${changed_paths[@]}" | grep -Fxq "$path"||! cmp -s "$replacement_root/$path" "$umc_root/$path";then
-            echo "UMC包含未知源码修改，停止构建：$path" >&2
-            exit 1
+for changed_path in "${changed_paths[@]}";do
+    recognized=false
+    for replacement_path in "${replacement_paths[@]}";do
+        if [[ "$changed_path" == "$replacement_path" ]];then
+            recognized=true
+            if ! cmp -s "$replacement_root/$replacement_path" "$umc_root/$replacement_path";then
+                echo "UMC包含未知源码修改，停止构建：$changed_path" >&2
+                exit 1
+            fi
+            break
         fi
     done
-    echo "UMC计时替换文件已经安装"
+    if [[ "$recognized" == false ]];then
+        echo "UMC包含未知源码修改，停止构建：$changed_path" >&2
+        exit 1
+    fi
+done
+for path in "${replacement_paths[@]}";do
+    cp "$replacement_root/$path" "$umc_root/$path"
+done
+if (( ${#changed_paths[@]}==${#replacement_paths[@]} ));then
+    echo "UMC替换文件已经安装"
+else
+    echo "已安装UNSZ保存的UMC替换文件"
 fi
 
 if [[ ! -d "$umc_root/external/SZ3/install" ]];then
@@ -52,4 +59,4 @@ if [[ ! -d "$umc_root/external/SZ3/install" ]];then
 fi
 
 cmake -S "$umc_root" -B "$umc_root/build" -DCMAKE_BUILD_TYPE=Release
-cmake --build "$umc_root/build" --target test_compress test_decompress --parallel "${1:-8}"
+cmake --build "$umc_root/build" --target test_compress test_decompress test_par_compress test_par_decompress test_partition --parallel "${1:-8}"

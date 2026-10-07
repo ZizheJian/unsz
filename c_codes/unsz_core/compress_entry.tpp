@@ -3,7 +3,7 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::preprocess_compression()
+    pair<double,double> param_c<T_coord,T_data>::preprocess_shared_compression_geometry()
     {
         double coordinate_transform_time=0;
         if(coordinate_transform_mode!="off")
@@ -13,12 +13,12 @@ namespace unsz
             vector<double> coordinate_covariance;
             double original_flatness=0,transformed_flatness=0,flatness_ratio=0;
             bool train_transform=true;
-            if(coordinate_transform_mode=="auto")
+            if(coordinate_transform_mode=="auto"||coordinate_transform_mode=="on")
             {
                 coordinate_covariance=calculate_coordinate_covariance(coord_array,dim);
                 original_flatness=calculate_coordinate_flatness(coordinate_covariance,dim);
                 printf("coordinate transform original flatness=%.9f\n",original_flatness);
-                if(original_flatness>=coordinate_transform_original_flatness_reject_threshold)
+                if(coordinate_transform_mode=="auto"&&original_flatness>=coordinate_transform_original_flatness_reject_threshold)
                 {
                     train_transform=false;
                     use_coordinate_transform=false;
@@ -28,22 +28,16 @@ namespace unsz
             }
             if(train_transform)
             {
-                auto training_input_start_time=chrono::steady_clock::now();
                 prepare_coordinate_transform_training_data();
-                coordinate_transform_input_time=chrono::duration<double>(chrono::steady_clock::now()-training_input_start_time).count();
+                coordinate_transform_input_time=coordinate_transform_training_input_time;
                 train_coordinate_transform();
+                transformed_flatness=calculate_coordinate_flatness(coordinate_covariance,dim,&coordinate_transform_diagonal);
+                flatness_ratio=original_flatness>0?transformed_flatness/original_flatness:numeric_limits<double>::infinity();
                 if(coordinate_transform_mode=="on")
                     use_coordinate_transform=true;
-                else
-                {
-                    transformed_flatness=calculate_coordinate_flatness(coordinate_covariance,dim,&coordinate_transform_diagonal);
-                    flatness_ratio=original_flatness>0?transformed_flatness/original_flatness:numeric_limits<double>::infinity();
-                    use_coordinate_transform=original_flatness<=coordinate_transform_original_flatness_enable_threshold||flatness_ratio>=coordinate_transform_relative_flatness_enable_threshold;
-                }
                 if(coordinate_transform_mode=="auto")
-                {
-                    printf("coordinate transform transformed flatness=%.9f,ratio=%.9f,use=%u\n",transformed_flatness,flatness_ratio,(uint32_t)use_coordinate_transform);
-                }
+                    use_coordinate_transform=original_flatness<=coordinate_transform_original_flatness_enable_threshold||flatness_ratio>=coordinate_transform_relative_flatness_enable_threshold;
+                printf("coordinate transform transformed flatness=%.9f,ratio=%.9f,use=%u\n",transformed_flatness,flatness_ratio,(uint32_t)use_coordinate_transform);
             }
             apply_coordinate_transform();
             write_coordinate_transform_file();
@@ -62,25 +56,16 @@ namespace unsz
         }
         remap_prediction_data_to_prediction_order();
         double prediction_structure_time=chrono::duration<double>(chrono::steady_clock::now()-prediction_structure_start_time).count();
+        return {coordinate_transform_time,prediction_structure_time};
+    }
+
+    template<typename T_coord,typename T_data>
+    double param_c<T_coord,T_data>::preprocess_current_compression_field()
+    {
         auto automatic_flow_start_time=chrono::steady_clock::now();
         double automatic_flow_input_time=select_automatic_flows();
-        time_step_order_e label_order=get_time_step_order(label_flow),value_order=get_time_step_order(value_flow);
-        if(point_set_config_vec.size()==1)
-            prepare_time_step_order(value_order);
-        else if(label_order==value_order)
-            prepare_time_step_order(label_order);
-        else if(label_flow=="none")
-            prepare_time_step_order(value_order);
-        else if(value_flow=="none")
-            prepare_time_step_order(label_order);
-        else
-            prepare_time_step_order(time_step_order_e::chronological);
-        double automatic_flow_time=chrono::duration<double>(chrono::steady_clock::now()-automatic_flow_start_time).count()-automatic_flow_input_time;
-        double preprocessing_time=coordinate_transform_time+prediction_structure_time+automatic_flow_time;
-        printf("coordinate transform preprocessing time excluding training-data input= %f s\n",coordinate_transform_time);
-        printf("prediction DAG and weights preprocessing time= %f s\n",prediction_structure_time);
-        printf("automatic flow preprocessing time excluding field-data input= %f s\n",automatic_flow_time);
-        printf("preprocessing time excluding coordinate and field-data input= %f s\n",preprocessing_time);
+        prepare_time_step_order_from_flows();
+        return chrono::duration<double>(chrono::steady_clock::now()-automatic_flow_start_time).count()-automatic_flow_input_time;
     }
 
     template<typename T_coord,typename T_data>
@@ -141,7 +126,6 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void compress(param_c<T_coord,T_data>&param)
     {
-        param.precompute_automatic_flow_abs_eb();
         for(const point_set_config_c&config:param.point_set_config_vec)
         {
             if(config.codec==point_set_codec_e::constant)
@@ -149,17 +133,34 @@ namespace unsz
             if(config.codec!=point_set_codec_e::rbf)
                 throw runtime_error("压缩只支持RBF空间预测器");
         }
-        if(param.point_set_config_vec.size()==1)
+        if(param.point_set_config_vec.size()!=1&&param.point_set_config_vec.size()!=2)
+            throw runtime_error("unsz::compress只支持一个或两个点集");
+        param.precompute_compression_file_point_set_statistics();
+        auto [coordinate_transform_time,prediction_structure_time]=param.preprocess_shared_compression_geometry();
+        uint32_t field_num=(uint32_t)param.field_name_vec.size();
+        if(field_num>1)
         {
-            param.resolve_single_point_set_time_mode();
-            param.preprocess_compression();
-            return one_point_set::compress(param);
+            printf("shared coordinate transform preprocessing time excluding training-data input= %f s\n",coordinate_transform_time);
+            printf("shared prediction DAG and weights preprocessing time= %f s\n",prediction_structure_time);
         }
-        if(param.point_set_config_vec.size()==2)
+        for(uint32_t field_id=0;field_id<field_num;field_id++)
         {
-            param.preprocess_compression();
-            return two_point_sets::compress(param);
+            param.activate_field(field_id);
+            if(field_num>1)
+                printf("BEGIN UNSZ FIELD %s\n",param.field_name.c_str());
+            double automatic_flow_time=param.preprocess_current_compression_field();
+            double allocated_coordinate_transform_time=coordinate_transform_time/field_num;
+            double allocated_prediction_structure_time=prediction_structure_time/field_num;
+            printf("coordinate transform preprocessing time excluding training-data input= %f s\n",allocated_coordinate_transform_time);
+            printf("prediction DAG and weights preprocessing time= %f s\n",allocated_prediction_structure_time);
+            printf("automatic flow preprocessing time excluding field-data input= %f s\n",automatic_flow_time);
+            printf("preprocessing time excluding coordinate and field-data input= %f s\n",allocated_coordinate_transform_time+allocated_prediction_structure_time+automatic_flow_time);
+            if(param.point_set_config_vec.size()==1)
+                one_point_set::compress(param);
+            else
+                two_point_sets::compress(param);
+            if(field_num>1)
+                printf("END UNSZ FIELD %s\n",param.field_name.c_str());
         }
-        throw runtime_error("unsz::compress只支持一个或两个点集");
     }
 }
