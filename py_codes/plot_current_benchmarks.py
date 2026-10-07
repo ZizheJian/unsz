@@ -10,8 +10,9 @@ project_root=Path(__file__).resolve().parents[1]
 default_configs=("katrina","les","e3sm-h4","adcirc-haiyan-1.5km","ocean","taps","tpost20")
 dataset_labels={"katrina":"Katrina","les":"LES","e3sm-h4":"E3SM-h4","adcirc-haiyan-1.5km":"Haiyan","ocean":"Ocean","taps":"TAPS","tpost20":"Tpost20"}
 compressor_styles={"unsz":{"label":"UNSZ","color":"#0072B2","marker":"s"},"umc":{"label":"UMC","color":"#D55E00","marker":"o"}}
-unsz_time_components=(("coordinate_transform_time","Adjust coordinates","#56B4E9"),("prediction_structure_time","DAG and weights","#009E73"),("automatic_flow_selection_time","Automatic flow","#F0E442"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
+unsz_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
 umc_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
+timing_summary_keys=("coordinate_transform_time","prediction_structure_time","automatic_flow_selection_time","compression_preprocessing_time","compression_time","decompression_preprocessing_time","decompression_time")
 
 
 def load_rows(path):
@@ -168,7 +169,7 @@ def plot_time(fields,output_dir,summary_rows,subplot_num=6):
                 row=next(row for row in selected if row["compressor"]==compressor)
                 bottom=0.0
                 components=unsz_time_components if compressor=="unsz" else umc_time_components
-                summary={key:float(row[key]) for key,_,_ in components}
+                summary={key:float(row[key]) if row.get(key) else "" for key in timing_summary_keys}
                 for key,_,color in components:
                     value=float(row[key])
                     axis.bar(x,value,width=bar_width,bottom=bottom,color=color,edgecolor="black",linewidth=.35,hatch=compressor_hatches[compressor])
