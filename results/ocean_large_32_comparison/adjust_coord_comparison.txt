@@ -1,0 +1,22 @@
+{
+  "auto_on": {
+    "field_count": 90,
+    "compression_time": 12.723408,
+    "coordinate_transform_time": 2.181696,
+    "dag_and_weight_time": 1.836015,
+    "automatic_flow_time": 2.815966,
+    "compressed_bytes": 421660404,
+    "bit_rate": 0.8457135430416506
+  },
+  "forced_off": {
+    "field_count": 90,
+    "compression_time": 12.951148,
+    "coordinate_transform_time": 0.0,
+    "dag_and_weight_time": 1.451522,
+    "automatic_flow_time": 2.310524,
+    "compressed_bytes": 417898195,
+    "bit_rate": 0.8381677761807594
+  },
+  "off_over_on_bit_rate": 0.9910776327008405,
+  "on_bit_rate_reduction": -0.00900269262948128
+}

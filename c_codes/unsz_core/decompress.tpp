@@ -454,7 +454,8 @@ namespace unsz
                     if constexpr(!two_point_sets)
                     {
                         const vector<int32_t>&qb_vec=structure_point_set_qb_vec[structure_index][0];
-                        if(qb_vec.size()!=prediction_structure_vec[structure_index].target_ids.size())
+                        bool constant_point_set=point_set_codec_vec[0]==point_set_codec_e::constant;
+                        if((constant_point_set&&!qb_vec.empty())||(!constant_point_set&&qb_vec.size()!=prediction_structure_vec[structure_index].target_ids.size()))
                             throw runtime_error("单点集数值流的量化索引数量与目标数量不一致");
                         auto get_qb=[&](uint32_t prediction_index,uint32_t)
                         {

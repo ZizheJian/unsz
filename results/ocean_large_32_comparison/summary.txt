@@ -1,0 +1,67 @@
+{
+  "point_num": 3693225,
+  "field_num": 91,
+  "time_step_num": 12,
+  "original_bytes": 16132006800,
+  "umc": {
+    "compressed_bytes": 587960650,
+    "bit_rate": 1.1662988389020514,
+    "compression_preprocessing_time": 7.548065,
+    "decompression_preprocessing_time": 6.605075,
+    "compression_preprocessing_statistics": {
+      "count": 12,
+      "total_time": 7.548065,
+      "mean_time": 0.6290054166666667,
+      "min_time": 0.569664,
+      "max_time": 0.706658
+    },
+    "decompression_preprocessing_statistics": {
+      "count": 12,
+      "total_time": 6.605075,
+      "mean_time": 0.5504229166666667,
+      "min_time": 0.546168,
+      "max_time": 0.557076
+    },
+    "compression_time": 29.197048,
+    "decompression_time": 14.710008
+  },
+  "unsz": {
+    "compressed_bytes": 421698400,
+    "bit_rate": 0.8364953577877242,
+    "coordinate_transform_time": 2.68,
+    "dag_and_weight_time": 3.281268,
+    "automatic_flow_time": 3.004947,
+    "compression_preprocessing_time": 8.966215,
+    "decompression_preprocessing_time": 2.990395,
+    "coordinate_transform_statistics": {
+      "count": 2,
+      "total_time": 2.68,
+      "mean_time": 1.34,
+      "min_time": 0.498304,
+      "max_time": 2.181696
+    },
+    "dag_and_weight_statistics": {
+      "count": 2,
+      "total_time": 3.281268,
+      "mean_time": 1.640634,
+      "min_time": 1.445253,
+      "max_time": 1.836015
+    },
+    "automatic_flow_statistics": {
+      "count": 91,
+      "total_time": 3.004947,
+      "mean_time": 0.033021395604395605,
+      "min_time": 0.016772,
+      "max_time": 0.188981
+    },
+    "decompression_preprocessing_statistics": {
+      "count": 2,
+      "total_time": 2.990395,
+      "mean_time": 1.4951975,
+      "min_time": 1.478367,
+      "max_time": 1.512028
+    },
+    "compression_time": 13.392309,
+    "decompression_time": 17.948128
+  }
+}

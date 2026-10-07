@@ -1,0 +1,40 @@
+{
+  "rel_eb": 0.001,
+  "point_num": 3693225,
+  "field_num": 91,
+  "time_step_num": 12,
+  "original_bytes": 16132006800,
+  "unsz": {
+    "compressed_bytes": 421698400,
+    "bit_rate": 0.8364953577877242,
+    "coordinate_transform_time": 2.68,
+    "coordinate_transform_count": 2,
+    "dag_and_weight_time": 3.281268,
+    "dag_and_weight_count": 2,
+    "automatic_flow_time": 3.004947,
+    "automatic_flow_count": 91,
+    "compression_preprocessing_time": 8.966215,
+    "compression_time": 13.392309,
+    "decompression_preprocessing_time": 2.990395,
+    "decompression_preprocessing_count": 2,
+    "decompression_time": 17.948128,
+    "normalized_psnr": 70.3040208951366,
+    "maximum_error_over_eb": 1.000000152183486,
+    "compression_MB_s": 1204.5724751422626,
+    "decompression_MB_s": 898.8127786920173
+  },
+  "umc": {
+    "compressed_bytes": 587960650,
+    "bit_rate": 1.1662988389020514,
+    "compression_preprocessing_time": 7.548065,
+    "compression_preprocessing_count": 12,
+    "compression_time": 29.197048,
+    "decompression_preprocessing_time": 6.605075,
+    "decompression_preprocessing_count": 12,
+    "decompression_time": 14.710008,
+    "normalized_psnr": 66.67562132831569,
+    "maximum_error_over_eb": 1.0000000297888576,
+    "compression_MB_s": 552.5218439891595,
+    "decompression_MB_s": 1096.6687985485798
+  }
+}
