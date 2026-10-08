@@ -242,6 +242,9 @@ namespace unsz
                 max_coord[d]=max(max_coord[d],coord_array[i][d]);
                 min_coord[d]=min(min_coord[d],coord_array[i][d]);
             }
+        original_coord_array=coord_array;
+        original_min_coord=min_coord;
+        original_max_coord=max_coord;
         printf("Coord range: [");
         for (uint32_t d=0;d<dim;d++)
             printf("%s[%f, %f]",d==0?"":", ",(double)min_coord[d],(double)max_coord[d]);

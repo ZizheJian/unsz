@@ -20,20 +20,25 @@ string read_option_value(int argc,char **argv,int &arg_id,string option)
 }
 
 template<typename T_coord>
-void prepare_shared_decompression_geometry(unsz::param_c<T_coord,float>&param)
+void prepare_current_decompression_geometry(unsz::param_c<T_coord,float>&param)
 {
+    param.restore_original_coordinates();
     param.apply_coordinate_transform();
-    param.generate_prediction_structures_and_weights();
-    for(auto&structure:param.prediction_structure_vec)
-        if(structure.eb_multiplier.size()!=structure.target_ids.size())
-            structure.eb_multiplier=param.generate_pred_eb_multiplier_vec((uint32_t)structure.target_ids.size());
-    param.remap_prediction_data_to_prediction_order(true);
+    bool uses_spatial_prediction=any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c&config){return config.codec!=unsz::point_set_codec_e::constant;});
+    if(uses_spatial_prediction&&!param.use_coordinate_transform&&param.activate_shared_spatial_prediction_state())
+        printf("Reusing shared spatial prediction DAG and weights\n");
+    else
+    {
+        param.generate_prediction_structures_and_weights();
+        param.finalize_current_spatial_prediction_state(true);
+        param.current_spatial_prediction_state_is_shared=uses_spatial_prediction&&!param.use_coordinate_transform;
+    }
 }
 
 template<typename T_coord>
 double prepare_current_decompression_field(unsz::param_c<T_coord,float>&param)
 {
-    param.read_compressed_flows();
+    param.read_compressed_field_metadata();
     auto preprocessing_start_time=chrono::steady_clock::now();
     param.prepare_time_step_order_from_flows();
     return chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count();
@@ -201,18 +206,19 @@ int decompress_main(int argc,char **argv)
     }
     param.prepare_cli_parameters(time_step_vec,error_bound);
     param.init();
-    param.read_coordinate_transform_file();
-    auto preprocessing_start_time=chrono::steady_clock::now();
-    prepare_shared_decompression_geometry(param);
-    double shared_preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count();
-    printf("shared decompression preprocessing time excluding coordinate and transform-file input= %f s\n",shared_preprocessing_time);
+    param.precompute_temporal_dependency_plans();
     for(uint32_t field_id=0;field_id<param.field_name_vec.size();field_id++)
     {
         param.activate_field(field_id);
         printf("BEGIN UNSZ FIELD %s\n",param.field_name.c_str());
+        param.read_coordinate_transform_file();
         double field_preprocessing_time=prepare_current_decompression_field(param);
-        printf("preprocessing time excluding coordinate and transform-file input= %f s\n",shared_preprocessing_time/param.field_name_vec.size()+field_preprocessing_time);
+        auto preprocessing_start_time=chrono::steady_clock::now();
+        prepare_current_decompression_geometry(param);
+        double preprocessing_time=field_preprocessing_time+chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count();
+        printf("preprocessing time excluding coordinate and transform-file input= %f s\n",preprocessing_time);
         run_decompression_field(param);
+        param.release_current_spatial_prediction_state();
         printf("END UNSZ FIELD %s\n",param.field_name.c_str());
     }
     return 0;

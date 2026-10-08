@@ -239,6 +239,12 @@ UNSZ目前实现了以下压缩流程：
 
 Katrina四partition测试中，全局2048目标预算相对每partition各2048目标把自动选择时间从`0.358 s`降到`0.173 s`，选中的flow、最终BR和PSNR不变。
 
+## 2.2. 二维tensor切片DAG
+
+二维tensor预测目前与正式一维码流隔离开发。输入逻辑上是`[axis0,axis1,unstructured_point]`；程序先把前两个轴的切片展平为一维`slice_id=axis0_index*axis1_size+axis1_index`，再生成切片级DAG。每个切片仍只执行一次已有的一维tensor baseline预测，随后可选地执行非结构空间残差预测，不新增“二维数值预测器”。切片依赖直接保存最多两个参考`slice_id`及其权重，因此非均匀高度轴按真实坐标间距计算权重，不会按展平后的编号计算。
+
+结构化flow共有33种候选：纯空间1种；只启用一个轴时，轴、外插/anchor8和是否使用空间残差组成8种；两个轴都启用时，两轴模式、先后顺序和空间残差组成16种；两个轴都使用anchor8时，另有锚点建立顺序、逐层内插顺序和空间残差组成的8种交错候选。切片DAG生成器已经实现并独立验证完整覆盖、拓扑顺序和非均匀坐标权重；正式自动选择、码流元数据和二维文件入口尚未接入。
+
 时间一阶内插可通过`-time-step-coordinate-file <path>`读取一维float64原始数组，第`i`个数是time step `i`的实际坐标。压缩和解压必须读取同一文件；不传该参数时保持原有的等间距假设。对应task使用`time_step_coordinate_file`记录文件名并同时传给两端，普通等时间间隔数据不需要记录这一项。
 
 ## 2.2. 生成坐标变换矩阵
@@ -639,7 +645,7 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
 
 ## 2.7. 并行设计
 
-当前OpenMP实现已经支持adjust后的独立partition。程序先按坐标递归中位数切分，只生成顶层partition点集，不建立整场kd-tree；随后每个worker为自己的partition建立局部kd-tree，并独立生成预测顺序、参考关系、权重和EB倍率。每个partition只引用本partition内的数据，单点集以及融合双点集的标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。partition本身始终互相独立。v15容器统一使用`payload_begin[P+1]`定位各预测结构的独立payload，并在文件头记录最终label/value flow；不分区时P=1，分区时每个partition对应一个payload，最终只按结构编号串行拼接字节。REL模式先根据当前完整time step的field range换算统一ABS EB，再由该time step内所有partition共享。正式程序不缓存DAG。
+当前OpenMP实现已经支持adjust后的独立partition。程序先按坐标递归中位数切分，只生成顶层partition点集，不建立整场kd-tree；随后每个worker为自己的partition建立局部kd-tree，并独立生成预测顺序、参考关系、权重和EB倍率。每个partition只引用本partition内的数据，单点集以及融合双点集的标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。partition本身始终互相独立。v16容器统一使用`payload_begin[P+1]`定位各预测结构的独立payload，并在文件头记录最终label/value flow及field级有效点集配置；不分区时P=1，分区时每个partition对应一个payload，最终只按结构编号串行拼接字节。配置为双点集、但整个field只出现一个点集时会自动降级为单点集并省略标签流。REL模式先根据当前完整time step的field range换算统一ABS EB，再由该time step内所有partition共享。正式程序不缓存DAG。
 
 核心partition循环保留OpenMP动态调度：LES p16测试中，静态调度使压缩从`0.1129 s`变为`0.1293 s`，解压仅从`0.0542 s`变为`0.0532 s`。解压恢复原始点序使用“原始编号→预测位置”逆映射，从而连续写输出；LES p16的该阶段中位时间从`0.0347 s`降到`0.0250 s`。
 

@@ -135,8 +135,8 @@ namespace unsz::one_point_set
             throw runtime_error("单点集解压要求field恰好配置一个点集");
         param.resolve_single_point_set_time_mode();
         prediction_framework_c framework=param.get_prediction_framework(1);
-        if(param.point_set_config_vec[0].codec!=point_set_codec_e::rbf)
-            throw runtime_error("单点集解压只支持RBF空间预测器");
+        if(param.point_set_config_vec[0].codec!=point_set_codec_e::rbf&&param.point_set_config_vec[0].codec!=point_set_codec_e::constant)
+            throw runtime_error("单点集解压只支持constant或RBF空间预测器");
         return decompression_flow::dispatch_one_point_set(param,framework.value_mode);
     }
 }

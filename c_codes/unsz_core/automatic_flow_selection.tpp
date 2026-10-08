@@ -30,7 +30,7 @@ namespace unsz
     struct automatic_flow_candidate_c
     {
         string label_flow,value_flow;
-        temporal_dependency_plan_c dependency_plan;
+        const temporal_dependency_plan_c*dependency_plan=nullptr;
         double estimated_label_bytes=0,estimated_value_bytes=0,evaluation_time=0;
 
         double estimated_total_bytes() const{return estimated_label_bytes+estimated_value_bytes;}
@@ -210,7 +210,7 @@ namespace unsz
             automatic_flow_candidate_c candidate;
             candidate.label_flow=candidate_label_flow;
             candidate.value_flow=candidate_value_flow;
-            candidate.dependency_plan=generate_temporal_dependency_plan(candidate_value_flow);
+            candidate.dependency_plan=&get_temporal_dependency_plan(candidate_value_flow);
             candidates.push_back(move(candidate));
         };
         add_candidate("none","none");
@@ -227,10 +227,10 @@ namespace unsz
         vector<uint8_t> read_sampled_time_step=evaluate_time_step;
         for(const automatic_flow_candidate_c&candidate:candidates)
         {
-            temporal_dependency_plan_c label_dependency_plan=generate_temporal_dependency_plan(candidate.label_flow);
+            const temporal_dependency_plan_c&label_dependency_plan=get_temporal_dependency_plan(candidate.label_flow);
             for(uint32_t time_index:full_scan_time_indices)
             {
-                const temporal_dependency_c&value_dependency=candidate.dependency_plan.dependencies[time_index];
+                const temporal_dependency_c&value_dependency=candidate.dependency_plan->dependencies[time_index];
                 const temporal_dependency_c&label_dependency=label_dependency_plan.dependencies[time_index];
                 for(uint32_t source_id=0;source_id<value_dependency.source_num;source_id++)
                     read_sampled_time_step[(uint32_t)value_dependency.source_indices[source_id]]=1;
@@ -416,19 +416,6 @@ namespace unsz
             statistics.point_set_codec=compression_file_point_set_codec_vec[time_index];
         }
         sample_value_preparation_time=chrono::duration<double>(chrono::steady_clock::now()-sample_value_start_time).count()-(excluded_input_time-sample_value_input_begin);
-        auto temporal_weights_for=[&](const temporal_dependency_c&dependency,uint32_t time_index)
-        {
-            array<T_calc,2> weights{{1,0}};
-            if(dependency.source_num!=2)
-                return weights;
-            uint32_t left_source=(uint32_t)dependency.source_indices[0],right_source=(uint32_t)dependency.source_indices[1];
-            T_coord left_coordinate=time_step_coordinate_vec.empty()?(T_coord)time_step_vec[left_source]:time_step_coordinate_vec[time_step_vec[left_source]];
-            T_coord right_coordinate=time_step_coordinate_vec.empty()?(T_coord)time_step_vec[right_source]:time_step_coordinate_vec[time_step_vec[right_source]];
-            T_coord current_coordinate=time_step_coordinate_vec.empty()?(T_coord)time_step_vec[time_index]:time_step_coordinate_vec[time_step_vec[time_index]];
-            weights[1]=(T_calc)((current_coordinate-left_coordinate)/(right_coordinate-left_coordinate));
-            weights[0]=(T_calc)1-weights[1];
-            return weights;
-        };
         sample_structure_start_time=chrono::steady_clock::now();
         vector<vector<vector<uint32_t>>> selected_target_indices(time_step_num,vector<vector<uint32_t>>(structure_num));
         for(uint32_t time_index=0;time_index<time_step_num;time_index++)
@@ -464,7 +451,7 @@ namespace unsz
         {
             if(estimated_label_bytes_by_flow.count(candidate.label_flow))
                 continue;
-            temporal_dependency_plan_c label_dependency_plan=generate_temporal_dependency_plan(candidate.label_flow);
+            const temporal_dependency_plan_c&label_dependency_plan=get_temporal_dependency_plan(candidate.label_flow);
             double estimated_label_bytes=0;
             for(uint32_t time_index:label_dependency_plan.processing_order)
             {
@@ -518,13 +505,13 @@ namespace unsz
             vector<vector<T_data>> unpredictable_value_vec(structure_num);
             for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
                 qb_vec[structure_id].reserve(structure_targets[structure_id].size());
-            for(uint32_t time_index:candidate.dependency_plan.processing_order)
+            for(uint32_t time_index:candidate.dependency_plan->processing_order)
             {
                 if(!evaluate_time_step[time_index])
                     continue;
                 point_set_id_vec=sampled_labels[time_index];
-                const temporal_dependency_c&dependency=candidate.dependency_plan.dependencies[time_index];
-                array<T_calc,2> time_weights=temporal_weights_for(dependency,time_index);
+                const temporal_dependency_c&dependency=candidate.dependency_plan->dependencies[time_index];
+                array<T_calc,2> time_weights{{(T_calc)dependency.source_weights[0],(T_calc)dependency.source_weights[1]}};
                 fill(temporal_valid.begin(),temporal_valid.end(),0);
                 if(candidate.value_flow!="none"&&dependency.source_num>0)
                 {

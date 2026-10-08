@@ -279,6 +279,8 @@ namespace unsz
         compression_file_point_set_codec_vec.resize(original_data_path_vec.size());
         current_data.resize(point_num);
         bool two_point_sets=point_set_config_vec.size()==2;
+        array<uint64_t,2> field_point_set_point_num{{0,0}};
+        array<bool,2> point_set_is_always_constant{{true,true}};
         for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
         {
             read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
@@ -290,11 +292,39 @@ namespace unsz
             prepare_current_point_set_codecs_and_eb(state);
             for(uint32_t point_set_id=0;point_set_id<state.point_set_num;point_set_id++)
             {
+                field_point_set_point_num[point_set_id]+=point_set_point_num_vec[point_set_id];
+                if(point_set_point_num_vec[point_set_id]>0&&point_set_codec_vec[point_set_id]!=point_set_codec_e::constant)
+                    point_set_is_always_constant[point_set_id]=false;
                 compression_file_point_set_min_data_vec[time_index][point_set_id]=point_set_min_data_vec[point_set_id];
                 compression_file_point_set_max_data_vec[time_index][point_set_id]=point_set_max_data_vec[point_set_id];
                 compression_file_point_set_abs_eb_vec[time_index][point_set_id]=point_set_abs_eb_vec[point_set_id];
                 compression_file_point_set_codec_vec[time_index][point_set_id]=point_set_codec_vec[point_set_id];
             }
+        }
+        if(two_point_sets&&(field_point_set_point_num[0]==0||field_point_set_point_num[1]==0))
+        {
+            uint32_t source_point_set_id=field_point_set_point_num[0]>0?0:1;
+            for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
+            {
+                compression_file_point_set_min_data_vec[time_index][0]=compression_file_point_set_min_data_vec[time_index][source_point_set_id];
+                compression_file_point_set_max_data_vec[time_index][0]=compression_file_point_set_max_data_vec[time_index][source_point_set_id];
+                compression_file_point_set_abs_eb_vec[time_index][0]=compression_file_point_set_abs_eb_vec[time_index][source_point_set_id];
+                compression_file_point_set_codec_vec[time_index][0]=compression_file_point_set_codec_vec[time_index][source_point_set_id];
+            }
+            point_set_config_vec={point_set_config_vec[source_point_set_id]};
+            if(point_set_is_always_constant[source_point_set_id])
+                point_set_config_vec[0].codec=point_set_codec_e::constant;
+            point_set_rule_vec.clear();
+            point_set_source_id_vec={(uint8_t)source_point_set_id};
+            printf("effective point-set configuration: configured=2,effective=1,source=%u\n",source_point_set_id);
+        }
+        else
+        {
+            if(point_set_config_vec.size()==1&&point_set_is_always_constant[0])
+                point_set_config_vec[0].codec=point_set_codec_e::constant;
+            point_set_source_id_vec.resize(point_set_config_vec.size());
+            iota(point_set_source_id_vec.begin(),point_set_source_id_vec.end(),0);
+            printf("effective point-set configuration: configured=%u,effective=%u\n",(uint32_t)configured_point_set_config_vec.size(),(uint32_t)point_set_config_vec.size());
         }
         current_data.clear();
         point_set_id_vec.clear();
@@ -315,6 +345,9 @@ namespace unsz
             statistics.point_set_max_data_vec=move(compression_file_point_set_max_data_vec);
             statistics.point_set_abs_eb_vec=move(compression_file_point_set_abs_eb_vec);
             statistics.point_set_codec_vec=move(compression_file_point_set_codec_vec);
+            statistics.point_set_configs=point_set_config_vec;
+            statistics.point_set_rules=point_set_rule_vec;
+            statistics.point_set_source_ids=point_set_source_id_vec;
         }
         activate_field(0);
         printf("compression file point-set statistics precomputation time excluded from reported time= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-start_time).count());

@@ -3,7 +3,7 @@
 namespace unsz
 {
     inline constexpr unsigned char compression_file_magic[8]={'U','N','S','Z','P','S','1','1'};
-    inline constexpr uint32_t compression_file_version=15;
+    inline constexpr uint32_t compression_file_version=16;
 
     inline uint8_t encode_prediction_flow(const string&flow)
     {
@@ -230,6 +230,12 @@ namespace unsz
         uint64_t metadata_point_num=0;
         for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {
+            uint8_t source_point_set_id=read_binary<uint8_t>(cursor,end);
+            if(point_set_id>=point_set_source_id_vec.size()||source_point_set_id!=point_set_source_id_vec[point_set_id])
+                throw runtime_error("压缩文件的原始点集编号与当前field配置不一致");
+            uint8_t effective_codec=read_binary<uint8_t>(cursor,end);
+            if(effective_codec!=(uint8_t)point_set_config_vec[point_set_id].codec)
+                throw runtime_error("压缩文件的effective codec与当前field配置不一致");
             uint8_t codec=read_binary<uint8_t>(cursor,end);
             if(codec!=(uint8_t)point_set_codec_e::constant&&codec!=(uint8_t)point_set_codec_e::rbf)
                 throw runtime_error("压缩文件包含未知的点集编码方式");
@@ -380,7 +386,7 @@ namespace unsz
             unpredictable_value_byte_num+=payload.unpredictable_value_byte_num;
         }
         vector<unsigned char> container;
-        uint64_t container_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t)+(uint64_t)point_set_num*(sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data))+sizeof(uint32_t)+(uint64_t)(payload_num+1)*sizeof(uint64_t);
+        uint64_t container_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t)+(uint64_t)point_set_num*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data))+sizeof(uint32_t)+(uint64_t)(payload_num+1)*sizeof(uint64_t);
         for(const encoded_compression_payload_c&payload:payload_vec)
             container_byte_num+=payload.bytes.size();
         container.reserve((size_t)container_byte_num);
@@ -393,6 +399,8 @@ namespace unsz
         append_binary<uint8_t>(container,encode_prediction_flow(value_flow));
         for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {
+            append_binary<uint8_t>(container,point_set_source_id_vec[point_set_id]);
+            append_binary<uint8_t>(container,(uint8_t)point_set_config_vec[point_set_id].codec);
             append_binary<uint8_t>(container,(uint8_t)point_set_codec_vec[point_set_id]);
             append_binary<uint32_t>(container,point_set_point_num_vec[point_set_id]);
             append_binary<T_data>(container,point_set_min_data_vec[point_set_id]);
@@ -445,22 +453,22 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::read_compressed_flows()
+    void param_c<T_coord,T_data>::read_compressed_field_metadata()
     {
-        if(label_flow!="auto"&&value_flow!="auto")
-            return;
         if(original_data_path_vec.empty())
             throw runtime_error("自动flow解压缺少数据文件路径");
-        constexpr uint64_t flow_header_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t);
-        vector<unsigned char> bytes(flow_header_byte_num);
+        constexpr uint64_t maximum_header_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t)+2*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data));
+        vector<unsigned char> bytes(maximum_header_byte_num);
         string compressed_path=original_data_path_vec.front()+".unsz";
         FILE*file=fopen(compressed_path.c_str(),"rb");
         if(!file)
             throw runtime_error("找不到文件："+compressed_path);
-        bool read_failed=fread(bytes.data(),1,bytes.size(),file)!=bytes.size();
+        uint64_t read_byte_num=fread(bytes.data(),1,bytes.size(),file);
         fclose(file);
-        if(read_failed)
+        constexpr uint64_t fixed_header_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t);
+        if(read_byte_num<fixed_header_byte_num)
             throw runtime_error("UNSZ压缩文件头不完整："+compressed_path);
+        bytes.resize(read_byte_num);
         const unsigned char*cursor=bytes.data(),*end=bytes.data()+bytes.size();
         if((uint64_t)(end-cursor)<8||memcmp(cursor,compression_file_magic,8)!=0)
             throw runtime_error("不是受支持的UNSZ点集文件");
@@ -470,7 +478,9 @@ namespace unsz
             throw runtime_error("不支持的UNSZ文件版本："+to_string(version));
         read_binary<uint32_t>(cursor,end);
         read_binary<uint32_t>(cursor,end);
-        read_binary<uint32_t>(cursor,end);
+        uint32_t point_set_num=read_binary<uint32_t>(cursor,end);
+        if(point_set_num==0||point_set_num>2)
+            throw runtime_error("压缩文件包含无效点集数量");
         string file_label_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
         string file_value_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
         if(label_flow=="auto")
@@ -481,6 +491,34 @@ namespace unsz
             value_flow=file_value_flow;
         else if(value_flow!=file_value_flow)
             throw runtime_error("压缩文件记录的value flow与解压参数不一致");
+        vector<uint8_t> source_ids(point_set_num),effective_codecs(point_set_num);
+        for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+        {
+            source_ids[point_set_id]=read_binary<uint8_t>(cursor,end);
+            effective_codecs[point_set_id]=read_binary<uint8_t>(cursor,end);
+            read_binary<uint8_t>(cursor,end);
+            read_binary<uint32_t>(cursor,end);
+            read_binary<T_data>(cursor,end);
+            read_binary<T_data>(cursor,end);
+            if(source_ids[point_set_id]>=configured_point_set_config_vec.size())
+                throw runtime_error("压缩文件的原始点集编号越界");
+            if(effective_codecs[point_set_id]!=(uint8_t)point_set_codec_e::constant&&effective_codecs[point_set_id]!=(uint8_t)point_set_codec_e::rbf)
+                throw runtime_error("压缩文件包含未知的effective codec");
+        }
+        point_set_config_vec.clear();
+        for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+        {
+            point_set_config_vec.push_back(configured_point_set_config_vec[source_ids[point_set_id]]);
+            point_set_config_vec.back().codec=(point_set_codec_e)effective_codecs[point_set_id];
+        }
+        point_set_source_id_vec=move(source_ids);
+        if(point_set_num==1)
+        {
+            point_set_rule_vec.clear();
+            label_flow="none";
+        }
+        else
+            point_set_rule_vec=configured_point_set_rule_vec;
         printf("compressed flow: label=%s,value=%s\n",label_flow.c_str(),value_flow.c_str());
     }
 

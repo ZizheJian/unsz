@@ -15,6 +15,16 @@ namespace unsz
         if(ordering_scope!="global"&&ordering_scope!="local")
             throw runtime_error("ordering_scope必须是global或local");
         bool uses_rbf=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec==point_set_codec_e::rbf;});
+        if(!uses_rbf)
+        {
+            prediction_structure_vec.assign(1,{});
+            prediction_structure_c<T_calc>&structure=prediction_structure_vec.front();
+            structure.target_ids.resize(point_num);
+            iota(structure.target_ids.begin(),structure.target_ids.end(),0);
+            structure.reference_offsets.assign((uint64_t)point_num+1,0);
+            printf("Generated identity prediction structure for constant field\n");
+            return;
+        }
         if(partition_size>0||partition_num>0)
         {
             generate_partition_prediction_structures(uses_rbf);

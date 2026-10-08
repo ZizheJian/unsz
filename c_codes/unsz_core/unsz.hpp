@@ -13,6 +13,7 @@
 #include <limits>
 #include <queue>
 #include <map>
+#include <functional>
 #include <memory>
 #include <exception>
 #include <stdexcept>
@@ -38,6 +39,17 @@ namespace unsz
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
     enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,label_linear_interpolation_spatial_residual=5,linear_interpolation=6,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
     enum class time_step_order_e:uint8_t{chronological=0,interpolation=1,anchor_stride_8=2};
+    enum class tensor_axis_mode_e:uint8_t{none=0,constant_extrapolation=1,anchor_interpolation_stride_8=2};
+    enum class tensor_schedule_e:uint8_t{separable=0,interleaved_anchor=1};
+
+    struct tensor_flow_c
+    {
+        array<tensor_axis_mode_e,2> axis_modes{{tensor_axis_mode_e::none,tensor_axis_mode_e::none}};
+        array<uint8_t,2> axis_order{{0,1}};
+        array<uint8_t,2> interpolation_axis_order{{0,1}};
+        tensor_schedule_e schedule=tensor_schedule_e::separable;
+        bool use_spatial_residual=false;
+    };
 
     struct prediction_framework_c
     {
@@ -49,6 +61,7 @@ namespace unsz
     struct temporal_dependency_c
     {
         array<int32_t,2> source_indices{{-1,-1}};
+        array<double,2> source_weights{{0,0}};
         uint8_t source_num=0;
     };
 
@@ -133,6 +146,9 @@ namespace unsz
     {
         vector<array<T_data,2>> point_set_min_data_vec,point_set_max_data_vec,point_set_abs_eb_vec;
         vector<array<point_set_codec_e,2>> point_set_codec_vec;
+        vector<point_set_config_c> point_set_configs;
+        vector<point_set_rule_c> point_set_rules;
+        vector<uint8_t> point_set_source_ids;
     };
 
     template<typename T>
@@ -201,6 +217,15 @@ namespace unsz
             return {begin,(uint32_t)(reference_offsets[prediction_index+1]-begin)};
         }
 
+    };
+
+    template<typename T_calc>
+    struct spatial_prediction_state_c
+    {
+        vector<prediction_structure_c<T_calc>> structures;
+        vector<int> original_to_prediction_order;
+        bool uses_prediction_order=false;
+        bool valid=false;
     };
 
     template<typename T_coord>
@@ -358,6 +383,9 @@ namespace unsz
             bool got_data_dir=false,got_field=false,got_time_step=false,got_error_mode=false;
             vector<point_set_rule_c> point_set_rule_vec;
             vector<point_set_config_c> point_set_config_vec;
+            vector<point_set_rule_c> configured_point_set_rule_vec;
+            vector<point_set_config_c> configured_point_set_config_vec;
+            vector<uint8_t> point_set_source_id_vec;
             string value_flow="auto";
             string label_flow="auto";
             string configured_value_flow="auto",configured_label_flow="auto";
@@ -373,7 +401,7 @@ namespace unsz
             vector<uint32_t> coordinate_transform_training_pair_group_ids;
             uint32_t coordinate_transform_training_group_num=0;
             double coordinate_transform_training_input_time=0;
-            bool print_compression_stage_time=false,prediction_data_uses_prediction_order=false;
+            bool print_compression_stage_time=false,prediction_data_uses_prediction_order=false,coordinates_are_original=true;
             string ordering_scope="global";//正式压缩固定使用global
             uint32_t ordering_score_min_ref_num=1;
             uint32_t ordering_candidate_num=16;
@@ -390,9 +418,11 @@ namespace unsz
             double round_size_growth_ratio_experimental=2;
             int zstd_compression_level=3;
 
-            Array2D<T_coord> coord_array;
-            vector<T_coord> min_coord,max_coord;
+            Array2D<T_coord> coord_array,original_coord_array;
+            vector<T_coord> min_coord,max_coord,original_min_coord,original_max_coord;
             vector<prediction_structure_c<T_calc>> prediction_structure_vec;//未切分时只有一个结构；切分后每个结构独立完整
+            spatial_prediction_state_c<T_calc> shared_spatial_prediction_state;
+            bool current_spatial_prediction_state_is_shared=false;
             vector<T_data> current_data,current_decompressed_data,prediction_order_decompressed_data;
             vector<int> original_to_prediction_order;
             vector<uint32_t> time_step_vec;
@@ -401,6 +431,7 @@ namespace unsz
             vector<vector<T_data>> reconstructed_time_data_vec;
             vector<vector<uint8_t>> reconstructed_time_point_set_id_vec;
             vector<temporal_dependency_c> temporal_value_dependency_vec,temporal_label_dependency_vec;
+            map<string,temporal_dependency_plan_c> temporal_dependency_plan_cache;
             vector<uint32_t> temporal_value_remaining_outdegree_vec,temporal_label_remaining_outdegree_vec;
             const vector<T_data>*previous_time_value_source=nullptr;
             const vector<uint8_t>*previous_time_value_point_set_source=nullptr,*previous_time_label_source=nullptr;
@@ -426,8 +457,10 @@ namespace unsz
             void configure_point_sets();
             void prepare_cli_parameters(const vector<uint32_t>&selected_time_step_vec,T_data error_bound);
             void activate_field(uint32_t field_id);
+            void precompute_temporal_dependency_plans();
             void prepare_temporal_dependencies();
             temporal_dependency_plan_c generate_temporal_dependency_plan(const string&flow) const;
+            const temporal_dependency_plan_c&get_temporal_dependency_plan(const string&flow) const;
             void prepare_temporal_prediction();
             template<time_dimension_mode_e value_mode>
             bool predict_temporal_value(uint32_t storage_id,uint32_t point_set_id,T_data &prediction);
@@ -444,10 +477,14 @@ namespace unsz
             bool coordinate_transform_value_is_trainable(T_data value) const;
             void prepare_coordinate_transform_training_data();
             void train_coordinate_transform();
+            void restore_original_coordinates();
             void apply_coordinate_transform();
             void write_coordinate_transform_file() const;
             void read_coordinate_transform_file();
             void remap_prediction_data_to_prediction_order(bool for_decompression=false);
+            void finalize_current_spatial_prediction_state(bool for_decompression);
+            bool activate_shared_spatial_prediction_state();
+            void release_current_spatial_prediction_state();
             vector<vector<int>> build_partitions();
             vector<uint32_t> get_round_target_num_vec(uint32_t local_point_num) const;
             void generate_partition_prediction_structures(bool uses_rbf);
@@ -465,13 +502,13 @@ namespace unsz
             T_data predict_value_two_point_sets_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask=nullptr);
             fused_spatial_prediction_c<T_data> predict_fused_spatial_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources);
             void generate_batched_rbf_weights(const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback);
-            pair<double,double> preprocess_shared_compression_geometry();
+            pair<double,double> preprocess_current_compression_geometry();
             double preprocess_current_compression_field();
             double select_automatic_flows();
             void validate_automatic_flow_selection() const;
             void precompute_current_field_point_set_statistics();
             void precompute_compression_file_point_set_statistics();
-            void read_compressed_flows();
+            void read_compressed_field_metadata();
             reconstruction_statistics_c calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset=0) const;
             reconstruction_statistics_c calculate_prediction_order_reconstruction_statistics() const;
             void compress_files(void(param_c<T_coord,T_data>::*compress_file)());
@@ -522,11 +559,13 @@ namespace unsz
 #include "cli_parameter.tpp"
 #include "spatial_prediction.tpp"
 #include "temporal_prediction.tpp"
+#include "tensor_dependency.tpp"
 #include "prediction_framework.tpp"
 #include "compression_format.tpp"
 #include "reconstruction_statistics.tpp"
 #include "prediction_weights.tpp"
 #include "prediction_order.tpp"
+#include "spatial_prediction_state.tpp"
 #include "compression_flows.tpp"
 #include "decompression_flows.tpp"
 #include "one_point_set_compress_entry.tpp"

@@ -5,6 +5,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::remap_prediction_data_to_prediction_order(bool for_decompression)
     {
+        (void)for_decompression;
         prediction_data_uses_prediction_order=false;
         original_to_prediction_order.clear();
         uint64_t total_target_num=0;
@@ -12,14 +13,11 @@ namespace unsz
             total_target_num+=structure.target_ids.size();
         if(total_target_num!=point_num)
             return;
-        if(for_decompression)
-        {
-            bool has_predicted_point_set=false;
-            for(const point_set_config_c&config:point_set_config_vec)
-                has_predicted_point_set|=config.codec!=point_set_codec_e::constant;
-            if(!has_predicted_point_set)
-                return;
-        }
+        bool has_predicted_point_set=false;
+        for(const point_set_config_c&config:point_set_config_vec)
+            has_predicted_point_set|=config.codec!=point_set_codec_e::constant;
+        if(!has_predicted_point_set)
+            return;
         original_to_prediction_order.assign(point_num,-1);
         uint32_t prediction_order_offset=0;
         for(prediction_structure_c<T_calc>&structure:prediction_structure_vec)

@@ -39,8 +39,14 @@ namespace unsz
             got_abs_eb=true;
         }
         configure_point_sets();
+        configured_point_set_rule_vec=point_set_rule_vec;
+        configured_point_set_config_vec=point_set_config_vec;
+        point_set_source_id_vec.resize(point_set_config_vec.size());
+        iota(point_set_source_id_vec.begin(),point_set_source_id_vec.end(),0);
         if(point_set_config_vec.size()==1)
             label_flow="none";
+        if(point_set_config_vec.size()==1&&point_set_config_vec[0].codec==point_set_codec_e::constant)
+            value_flow="none";
         if(label_flow=="anchor_interpolation_stride_8"&&point_set_config_vec.size()==1)
             throw runtime_error("label锚点内插流程要求field包含两个点集");
         if(point_set_config_vec.size()==1)
@@ -57,6 +63,10 @@ namespace unsz
         if(field_id>=field_name_vec.size())
             throw runtime_error("field下标越界");
         field_name=field_name_vec[field_id];
+        point_set_rule_vec=configured_point_set_rule_vec;
+        point_set_config_vec=configured_point_set_config_vec;
+        point_set_source_id_vec.resize(point_set_config_vec.size());
+        iota(point_set_source_id_vec.begin(),point_set_source_id_vec.end(),0);
         time_step_vec=configured_time_step_vec;
         original_data_path_vec.clear();
         original_data_path_vec.reserve(time_step_vec.size());
@@ -75,7 +85,17 @@ namespace unsz
             compression_file_point_set_max_data_vec=statistics.point_set_max_data_vec;
             compression_file_point_set_abs_eb_vec=statistics.point_set_abs_eb_vec;
             compression_file_point_set_codec_vec=statistics.point_set_codec_vec;
+            if(!statistics.point_set_configs.empty())
+            {
+                point_set_config_vec=statistics.point_set_configs;
+                point_set_rule_vec=statistics.point_set_rules;
+                point_set_source_id_vec=statistics.point_set_source_ids;
+            }
         }
+        if(point_set_config_vec.size()==1)
+            label_flow="none";
+        if(point_set_config_vec.size()==1&&point_set_config_vec[0].codec==point_set_codec_e::constant)
+            value_flow="none";
         reconstructed_time_data_vec.clear();
         reconstructed_time_point_set_id_vec.clear();
         temporal_value_dependency_vec.clear();

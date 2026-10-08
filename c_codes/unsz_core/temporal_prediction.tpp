@@ -70,10 +70,50 @@ namespace unsz
                 --left_iterator;
                 left_source=(int32_t)left_iterator->second;
             }
-            plan.dependencies[physical_time_step_index]=build_temporal_dependency(flow,time_step,physical_time_step_index,left_source,right_source,previous_source);
+            temporal_dependency_c&dependency=plan.dependencies[physical_time_step_index];
+            dependency=build_temporal_dependency(flow,time_step,physical_time_step_index,left_source,right_source,previous_source);
+            if(dependency.source_num==1)
+                dependency.source_weights[0]=1;
+            else if(dependency.source_num==2)
+            {
+                uint32_t left_index=(uint32_t)dependency.source_indices[0],right_index=(uint32_t)dependency.source_indices[1];
+                uint32_t left_time_step=time_step_vec[left_index],right_time_step=time_step_vec[right_index];
+                double left_coordinate=time_step_coordinate_vec.empty()?(double)left_time_step:(double)time_step_coordinate_vec[left_time_step];
+                double right_coordinate=time_step_coordinate_vec.empty()?(double)right_time_step:(double)time_step_coordinate_vec[right_time_step];
+                double current_coordinate=time_step_coordinate_vec.empty()?(double)time_step:(double)time_step_coordinate_vec[time_step];
+                double right_weight=(current_coordinate-left_coordinate)/(right_coordinate-left_coordinate);
+                dependency.source_weights={{1-right_weight,right_weight}};
+            }
             processed_time_step_indices.emplace(time_step,physical_time_step_index);
         }
         return plan;
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::precompute_temporal_dependency_plans()
+    {
+        temporal_dependency_plan_cache.clear();
+        vector<uint32_t> sorted_time_steps=time_step_vec;
+        sort(sorted_time_steps.begin(),sorted_time_steps.end());
+        bool anchor_compatible=!sorted_time_steps.empty()&&sorted_time_steps.front()==0;
+        for(uint32_t time_step_index=1;time_step_index<sorted_time_steps.size();time_step_index++)
+            anchor_compatible&=sorted_time_steps[time_step_index]==sorted_time_steps[time_step_index-1]+1;
+        constexpr const char*flow_names[]={"none","constant_extrapolation","constant_extrapolation_spatial_residual","linear_interpolation","linear_interpolation_spatial_residual","anchor_interpolation_stride_8","anchor_interpolation_stride_8_spatial_residual"};
+        for(const char*flow:flow_names)
+        {
+            bool anchor_flow=string(flow).find("anchor_interpolation_stride_8")!=string::npos;
+            if(!anchor_flow||anchor_compatible)
+                temporal_dependency_plan_cache.emplace(flow,generate_temporal_dependency_plan(flow));
+        }
+    }
+
+    template<typename T_coord,typename T_data>
+    const temporal_dependency_plan_c&param_c<T_coord,T_data>::get_temporal_dependency_plan(const string&flow) const
+    {
+        auto iterator=temporal_dependency_plan_cache.find(flow);
+        if(iterator==temporal_dependency_plan_cache.end())
+            throw runtime_error("没有预生成的时间依赖计划："+flow);
+        return iterator->second;
     }
 
     template<typename T_coord,typename T_data>
@@ -89,25 +129,36 @@ namespace unsz
         previous_time_value_source=nullptr;
         previous_time_value_point_set_source=nullptr;
         previous_time_label_source=nullptr;
-        map<uint32_t,uint32_t> processed_time_step_indices;
-        int32_t previous_value_source=-1,previous_label_source=-1;
+        map<uint32_t,uint32_t> configured_index_by_time_step,current_index_by_time_step;
+        for(uint32_t index=0;index<configured_time_step_vec.size();index++)
+            configured_index_by_time_step.emplace(configured_time_step_vec[index],index);
+        for(uint32_t index=0;index<time_step_vec.size();index++)
+            current_index_by_time_step.emplace(time_step_vec[index],index);
+        auto map_dependencies=[&](const string&flow,vector<temporal_dependency_c>&dependencies)
+        {
+            const temporal_dependency_plan_c&plan=get_temporal_dependency_plan(flow);
+            for(uint32_t current_index=0;current_index<time_step_num;current_index++)
+            {
+                uint32_t configured_index=configured_index_by_time_step.at(time_step_vec[current_index]);
+                dependencies[current_index]=plan.dependencies[configured_index];
+                temporal_dependency_c&dependency=dependencies[current_index];
+                for(uint32_t source_id=0;source_id<dependency.source_num;source_id++)
+                {
+                    uint32_t source_configured_index=(uint32_t)dependency.source_indices[source_id];
+                    uint32_t source_time_step=configured_time_step_vec[source_configured_index];
+                    uint32_t source_current_index=current_index_by_time_step.at(source_time_step);
+                    if(source_current_index>=current_index)
+                        throw runtime_error("时间依赖计划的参考切片尚未重建");
+                    dependency.source_indices[source_id]=(int32_t)source_current_index;
+                }
+            }
+        };
+        map_dependencies(value_flow,temporal_value_dependency_vec);
+        map_dependencies(label_flow,temporal_label_dependency_vec);
         for(uint32_t time_step_index=0;time_step_index<time_step_num;time_step_index++)
         {
-            uint32_t time_step=time_step_vec[time_step_index];
-            int32_t left_source=-1,right_source=-1;
-            auto right_iterator=processed_time_step_indices.lower_bound(time_step);
-            if(right_iterator!=processed_time_step_indices.end())
-                right_source=(int32_t)right_iterator->second;
-            if(right_iterator!=processed_time_step_indices.begin())
-            {
-                auto left_iterator=right_iterator;
-                --left_iterator;
-                left_source=(int32_t)left_iterator->second;
-            }
             temporal_dependency_c&value_dependency=temporal_value_dependency_vec[time_step_index];
             temporal_dependency_c&label_dependency=temporal_label_dependency_vec[time_step_index];
-            value_dependency=build_temporal_dependency(value_flow,time_step,time_step_index,left_source,right_source,previous_value_source);
-            label_dependency=build_temporal_dependency(label_flow,time_step,time_step_index,left_source,right_source,previous_label_source);
             for(uint32_t source_index=0;source_index<value_dependency.source_num;source_index++)
             {
                 uint32_t source_time_step_index=(uint32_t)value_dependency.source_indices[source_index];
@@ -117,7 +168,6 @@ namespace unsz
             }
             for(uint32_t source_index=0;source_index<label_dependency.source_num;source_index++)
                 temporal_label_remaining_outdegree_vec[(uint32_t)label_dependency.source_indices[source_index]]++;
-            processed_time_step_indices.emplace(time_step,time_step_index);
         }
     }
 
@@ -167,17 +217,8 @@ namespace unsz
                 const vector<uint8_t>&left_point_set_ids=reconstructed_time_point_set_id_vec[left_source],&right_point_set_ids=reconstructed_time_point_set_id_vec[right_source];
                 temporal_value_interpolation_available&=left_point_set_ids.size()==point_num&&right_point_set_ids.size()==point_num;
             }
-            uint32_t left_time_step=time_step_vec[left_source],right_time_step=time_step_vec[right_source];
-            T_calc right_weight;
-            if(time_step_coordinate_vec.empty())
-                right_weight=(T_calc)(current_time_step-left_time_step)/(right_time_step-left_time_step);
-            else
-            {
-                T_coord left_coordinate=time_step_coordinate_vec[left_time_step],right_coordinate=time_step_coordinate_vec[right_time_step],current_coordinate=time_step_coordinate_vec[current_time_step];
-                right_weight=(T_calc)((current_coordinate-left_coordinate)/(right_coordinate-left_coordinate));
-            }
-            temporal_weights[0]=(T_calc)1-right_weight;
-            temporal_weights[1]=right_weight;
+            temporal_weights[0]=(T_calc)value_dependency.source_weights[0];
+            temporal_weights[1]=(T_calc)value_dependency.source_weights[1];
         }
         if(framework.label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual&&label_dependency.source_num==2)
         {

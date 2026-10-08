@@ -3,13 +3,17 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    pair<double,double> param_c<T_coord,T_data>::preprocess_shared_compression_geometry()
+    pair<double,double> param_c<T_coord,T_data>::preprocess_current_compression_geometry()
     {
+        auto coordinate_transform_start_time=chrono::steady_clock::now();
+        restore_original_coordinates();
         double coordinate_transform_time=0;
-        if(coordinate_transform_mode!="off")
+        double coordinate_transform_input_time=0;
+        use_coordinate_transform=false;
+        coordinate_transform_diagonal.assign(dim,1);
+        bool uses_spatial_prediction=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec!=point_set_codec_e::constant;});
+        if(coordinate_transform_mode!="off"&&uses_spatial_prediction)
         {
-            auto coordinate_transform_start_time=chrono::steady_clock::now();
-            double coordinate_transform_input_time=0;
             vector<double> coordinate_covariance;
             double original_flatness=0,transformed_flatness=0,flatness_ratio=0;
             bool train_transform=true;
@@ -40,21 +44,19 @@ namespace unsz
                 printf("coordinate transform transformed flatness=%.9f,ratio=%.9f,use=%u\n",transformed_flatness,flatness_ratio,(uint32_t)use_coordinate_transform);
             }
             apply_coordinate_transform();
+        }
+        if(coordinate_transform_mode!="off")
             write_coordinate_transform_file();
-            coordinate_transform_time=chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_start_time).count()-coordinate_transform_input_time;
-        }
+        coordinate_transform_time=chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_start_time).count()-coordinate_transform_input_time;
         auto prediction_structure_start_time=chrono::steady_clock::now();
-        generate_prediction_structures_and_weights();
-        for(uint32_t structure_id=0;structure_id<prediction_structure_vec.size();structure_id++)
+        if(uses_spatial_prediction&&!use_coordinate_transform&&activate_shared_spatial_prediction_state())
+            printf("Reusing shared spatial prediction DAG and weights\n");
+        else
         {
-            prediction_structure_c<T_calc>&structure=prediction_structure_vec[structure_id];
-            if(structure.eb_multiplier.size()!=structure.target_ids.size())
-                structure.eb_multiplier=generate_pred_eb_multiplier_vec((uint32_t)structure.target_ids.size(),structure_id==0);
-            structure.inverse_eb_multiplier.resize(structure.eb_multiplier.size());
-            for(uint32_t prediction_index=0;prediction_index<structure.eb_multiplier.size();prediction_index++)
-                structure.inverse_eb_multiplier[prediction_index]=1/structure.eb_multiplier[prediction_index];
+            generate_prediction_structures_and_weights();
+            finalize_current_spatial_prediction_state(false);
+            current_spatial_prediction_state_is_shared=uses_spatial_prediction&&!use_coordinate_transform;
         }
-        remap_prediction_data_to_prediction_order();
         double prediction_structure_time=chrono::duration<double>(chrono::steady_clock::now()-prediction_structure_start_time).count();
         return {coordinate_transform_time,prediction_structure_time};
     }
@@ -135,30 +137,25 @@ namespace unsz
         }
         if(param.point_set_config_vec.size()!=1&&param.point_set_config_vec.size()!=2)
             throw runtime_error("unsz::compress只支持一个或两个点集");
+        param.precompute_temporal_dependency_plans();
         param.precompute_compression_file_point_set_statistics();
-        auto [coordinate_transform_time,prediction_structure_time]=param.preprocess_shared_compression_geometry();
         uint32_t field_num=(uint32_t)param.field_name_vec.size();
-        if(field_num>1)
-        {
-            printf("shared coordinate transform preprocessing time excluding training-data input= %f s\n",coordinate_transform_time);
-            printf("shared prediction DAG and weights preprocessing time= %f s\n",prediction_structure_time);
-        }
         for(uint32_t field_id=0;field_id<field_num;field_id++)
         {
             param.activate_field(field_id);
             if(field_num>1)
                 printf("BEGIN UNSZ FIELD %s\n",param.field_name.c_str());
+            auto [coordinate_transform_time,prediction_structure_time]=param.preprocess_current_compression_geometry();
             double automatic_flow_time=param.preprocess_current_compression_field();
-            double allocated_coordinate_transform_time=coordinate_transform_time/field_num;
-            double allocated_prediction_structure_time=prediction_structure_time/field_num;
-            printf("coordinate transform preprocessing time excluding training-data input= %f s\n",allocated_coordinate_transform_time);
-            printf("prediction DAG and weights preprocessing time= %f s\n",allocated_prediction_structure_time);
+            printf("coordinate transform preprocessing time excluding training-data input= %f s\n",coordinate_transform_time);
+            printf("prediction DAG and weights preprocessing time= %f s\n",prediction_structure_time);
             printf("automatic flow preprocessing time excluding field-data input= %f s\n",automatic_flow_time);
-            printf("preprocessing time excluding coordinate and field-data input= %f s\n",allocated_coordinate_transform_time+allocated_prediction_structure_time+automatic_flow_time);
+            printf("preprocessing time excluding coordinate and field-data input= %f s\n",coordinate_transform_time+prediction_structure_time+automatic_flow_time);
             if(param.point_set_config_vec.size()==1)
                 one_point_set::compress(param);
             else
                 two_point_sets::compress(param);
+            param.release_current_spatial_prediction_state();
             if(field_num>1)
                 printf("END UNSZ FIELD %s\n",param.field_name.c_str());
         }

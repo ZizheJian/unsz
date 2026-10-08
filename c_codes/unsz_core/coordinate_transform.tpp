@@ -128,22 +128,15 @@ namespace unsz
         if(coordinate_transform_mode=="off")
             return;
         coordinate_transform_training_input_time=0;
-        struct training_file_c
-        {
-            string path;
-            uint32_t field_id,time_index;
-        };
+        struct training_file_c{string path;uint32_t time_index;};
         vector<training_file_c>training_files;
-        for(uint32_t field_id=0;field_id<field_name_vec.size();field_id++)
+        uint32_t sample_file_num=min<uint32_t>(coordinate_transform_sample_file_num,configured_time_step_vec.size());
+        for(uint32_t sample_file_id=0;sample_file_id<sample_file_num;sample_file_id++)
         {
-            uint32_t sample_file_num=min<uint32_t>(coordinate_transform_sample_file_num,configured_time_step_vec.size());
-            for(uint32_t sample_file_id=0;sample_file_id<sample_file_num;sample_file_id++)
-            {
-                double position=(sample_file_id+0.5)*(configured_time_step_vec.size()-1)/sample_file_num;
-                uint32_t time_id=(uint32_t)llround(position);
-                uint32_t time_step=configured_time_step_vec[time_id];
-                training_files.push_back({data_dir+field_name_vec[field_id]+".dat."+to_string(time_step),field_id,time_id});
-            }
+            double position=(sample_file_id+0.5)*(configured_time_step_vec.size()-1)/sample_file_num;
+            uint32_t time_id=(uint32_t)llround(position);
+            uint32_t time_step=configured_time_step_vec[time_id];
+            training_files.push_back({data_dir+field_name+".dat."+to_string(time_step),time_id});
         }
         if(training_files.empty())
             throw runtime_error("坐标变换缺少训练文件");
@@ -190,19 +183,16 @@ namespace unsz
             minimum_by_group.assign(normalization_group_num,numeric_limits<T_data>::infinity());
             maximum_by_group.assign(normalization_group_num,-numeric_limits<T_data>::infinity());
             pair_group_ids.reserve((uint64_t)coordinate_transform_second_sample_num*rbf_reference_num);
-            if(compression_field_statistics_vec.size()!=field_name_vec.size())
-                throw runtime_error("坐标变换缺少预计算的逐field值域");
+            if(compression_file_point_set_min_data_vec.size()!=time_step_vec.size()||compression_file_point_set_max_data_vec.size()!=time_step_vec.size())
+                throw runtime_error("坐标变换缺少当前field的预计算值域");
             for(uint32_t sample_file_id=0;sample_file_id<training_files.size();sample_file_id++)
             {
                 const training_file_c&training_file=training_files[sample_file_id];
-                const compression_field_statistics_c<T_data>&statistics=compression_field_statistics_vec[training_file.field_id];
-                if(statistics.point_set_min_data_vec.size()!=time_step_vec.size()||statistics.point_set_max_data_vec.size()!=time_step_vec.size())
-                    throw runtime_error("坐标变换预计算值域的time step数量不正确");
                 for(uint32_t point_set_id=0;point_set_id<point_set_config_vec.size();point_set_id++)
                     if(point_set_config_vec[point_set_id].codec!=point_set_codec_e::constant)
                     {
-                        minimum_by_group[sample_file_id]=min(minimum_by_group[sample_file_id],statistics.point_set_min_data_vec[training_file.time_index][point_set_id]);
-                        maximum_by_group[sample_file_id]=max(maximum_by_group[sample_file_id],statistics.point_set_max_data_vec[training_file.time_index][point_set_id]);
+                        minimum_by_group[sample_file_id]=min(minimum_by_group[sample_file_id],compression_file_point_set_min_data_vec[training_file.time_index][point_set_id]);
+                        maximum_by_group[sample_file_id]=max(maximum_by_group[sample_file_id],compression_file_point_set_max_data_vec[training_file.time_index][point_set_id]);
                     }
             }
         }
@@ -269,6 +259,17 @@ namespace unsz
         const char*normalization_name=normalize_by_sample_file?"per-field-time-step predicted-value range":"none";
         printf("coordinate transform training normalization=%s,sample_files=%llu,value_scale_range=[%.12g,%.12g]\n",normalization_name,(unsigned long long)training_files.size(),minimum_value_scale,maximum_value_scale);
         printf("coordinate transform sampled targets=%u,retained targets=%u,complete targets=%u,pairs=%llu\n",sampled_target_num,retained_target_num,complete_target_num,(unsigned long long)value_differences.size());
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::restore_original_coordinates()
+    {
+        if(coordinates_are_original)
+            return;
+        coord_array=original_coord_array;
+        min_coord=original_min_coord;
+        max_coord=original_max_coord;
+        coordinates_are_original=true;
     }
 
     inline bool solve_coordinate_transform_normal_equation(vector<double> matrix,vector<double> right_hand_side,vector<double>&solution)
@@ -549,6 +550,7 @@ namespace unsz
                 min_coord[d]=min(min_coord[d],coord_array[point_id][d]);
                 max_coord[d]=max(max_coord[d],coord_array[point_id][d]);
             }
+        coordinates_are_original=false;
     }
 
     template<typename T_coord,typename T_data>
@@ -556,58 +558,49 @@ namespace unsz
     {
         if(coordinate_transform_mode=="off")
             return;
-        for(const string&output_field:field_name_vec)
-        {
-            string path=data_dir+output_field+".unsz.coord_transform.txt";
-            ofstream file(path);
-            if(!file)
-                throw runtime_error("无法写入坐标变换文件："+path);
-            file<<"UNSZ_COORDINATE_TRANSFORM 3\n";
-            file<<"dimension "<<dim<<"\n";
-            file<<"enabled "<<(uint32_t)use_coordinate_transform<<"\n";
-            file<<"diagonal";
-            for(double value:coordinate_transform_diagonal)
-                file<<" "<<setprecision(17)<<value;
-            file<<"\n";
-        }
+        string path=data_dir+field_name+".unsz.coord_transform.txt";
+        ofstream file(path);
+        if(!file)
+            throw runtime_error("无法写入坐标变换文件："+path);
+        file<<"UNSZ_COORDINATE_TRANSFORM 3\n";
+        file<<"dimension "<<dim<<"\n";
+        file<<"enabled "<<(uint32_t)use_coordinate_transform<<"\n";
+        file<<"diagonal";
+        for(double value:coordinate_transform_diagonal)
+            file<<" "<<setprecision(17)<<value;
+        file<<"\n";
     }
 
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::read_coordinate_transform_file()
     {
         if(coordinate_transform_mode=="off")
-            return;
-        bool got_transform=false;
-        for(const string&input_field:field_name_vec)
         {
-            string path=data_dir+input_field+".unsz.coord_transform.txt";
-            ifstream file(path);
-            if(!file)
-                throw runtime_error("找不到坐标变换文件："+path);
-            string magic,key;
-            uint32_t version,file_dim,enabled;
-            if(!(file>>magic>>version)||magic!="UNSZ_COORDINATE_TRANSFORM"||version!=3)
-                throw runtime_error("坐标变换文件格式不正确："+path);
-            if(!(file>>key>>file_dim)||key!="dimension"||file_dim!=dim)
-                throw runtime_error("坐标变换文件维数不正确："+path);
-            if(!(file>>key>>enabled)||key!="enabled"||enabled>1)
-                throw runtime_error("坐标变换文件enabled字段不正确："+path);
-            if(!(file>>key)||key!="diagonal")
-                throw runtime_error("坐标变换文件缺少diagonal字段："+path);
-            vector<double> diagonal(dim);
-            for(double&value:diagonal)
-                if(!(file>>value)||!isfinite(value))
-                    throw runtime_error("坐标变换文件的对角元素不正确："+path);
-            if(file>>key)
-                throw runtime_error("坐标变换文件末尾存在多余内容："+path);
-            if(!got_transform)
-            {
-                use_coordinate_transform=enabled;
-                coordinate_transform_diagonal=move(diagonal);
-                got_transform=true;
-            }
-            else if(use_coordinate_transform!=(bool)enabled||coordinate_transform_diagonal!=diagonal)
-                throw runtime_error("field list中的坐标变换不一致："+path);
+            use_coordinate_transform=false;
+            coordinate_transform_diagonal.assign(dim,1);
+            return;
         }
+        string path=data_dir+field_name+".unsz.coord_transform.txt";
+        ifstream file(path);
+        if(!file)
+            throw runtime_error("找不到坐标变换文件："+path);
+        string magic,key;
+        uint32_t version,file_dim,enabled;
+        if(!(file>>magic>>version)||magic!="UNSZ_COORDINATE_TRANSFORM"||version!=3)
+            throw runtime_error("坐标变换文件格式不正确："+path);
+        if(!(file>>key>>file_dim)||key!="dimension"||file_dim!=dim)
+            throw runtime_error("坐标变换文件维数不正确："+path);
+        if(!(file>>key>>enabled)||key!="enabled"||enabled>1)
+            throw runtime_error("坐标变换文件enabled字段不正确："+path);
+        if(!(file>>key)||key!="diagonal")
+            throw runtime_error("坐标变换文件缺少diagonal字段："+path);
+        vector<double> diagonal(dim);
+        for(double&value:diagonal)
+            if(!(file>>value)||!isfinite(value))
+                throw runtime_error("坐标变换文件的对角元素不正确："+path);
+        if(file>>key)
+            throw runtime_error("坐标变换文件末尾存在多余内容："+path);
+        use_coordinate_transform=enabled;
+        coordinate_transform_diagonal=move(diagonal);
     }
 }
