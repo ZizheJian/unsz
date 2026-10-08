@@ -84,7 +84,7 @@ install/bin/s1_compress -data-dir /path/to/data -field field -time-step '[0,9]' 
 
 `-time-step`支持闭区间`[a,b]`、右开区间`[a,b)`和显式列表`{a1,a2,...}`。例如`[0,31)`和`{0,3,7}`分别处理0至30以及0、3、7号time step。包含括号或花括号的表达式建议使用引号，避免被shell解释。
 
-压缩文件写到原数据旁边，名称为`<field>.dat.<time_step>.unsz`；解压结果为`<field>.dat.<time_step>.unsz.bin`。程序打印总BR、PSNR、最大误差比例、压缩端与解压端各自的预处理时间，以及核心压缩和核心解压时间。
+压缩文件写到原数据旁边，名称为`<field>.dat.<time_step>.unsz`；解压结果为`<field>.dat.<time_step>.unsz.bin`。程序打印总BR、PSNR、最大误差比例、压缩端与解压端各自的预处理时间，以及核心压缩和核心解压时间。仅做内存误差验证和性能实验时，解压命令可添加`-skip-decompressed-output`，此时仍完成解压与逐点误差验证，但不写`.unsz.bin`；默认行为仍然写出结果。
 
 当前bitstream不保存用户error bound或坐标变换结果。解压时必须提供与压缩时相同的error bound或点集配置；空间DAG由压缩端和解压端分别现场生成，不提供DAG缓存命令行选项。
 
@@ -128,6 +128,8 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0
 | `py_codes/run_spatial_field_benchmark.slurm` | 在Slurm节点上运行环境变量`CONFIG`明确指定的完整task JSON，不在运行时拆分或改写JSON |
 | `py_codes/run_configurations.slurm` | 以Slurm array依次把当前8个正式数据集JSON交给`t1_start_c_code.py`。 |
 | `py_codes/plot_dataset_rd.py` | 为一个数据集的各field分别绘制UNSZ/UMC空间RD与核心吞吐率，并计算同PSNR下的平均BR变化 |
+| `results/ocean_large_curves/run_benchmark.slurm` | 使用32核从头运行Ocean-large的UMC与UNSZ五点实验并更新正式指标和图片 |
+| `results/ocean_large_curves/run_unsz.slurm` | 复用正式UMC指标，只重跑指定Ocean-large UNSZ误差点；支持`EXPONENTS`和`FORCE`环境变量 |
 
 JSON最外层是task list；同一个JSON可以包含不同数据目录的任务。每个task都必须自行记录描述实验用途的唯一`name`、绝对`data_dir`和CSV文件路径`csv_path`，即使相邻task使用同一数据目录也不从外层继承。相对`csv_path`以项目根目录为基准；一个task包含多个field时，路径使用`{field}`作为field名称占位符。同一数据、同一field需要测试不同固定参数时，应写成名称不同的多个task。
 
@@ -272,12 +274,12 @@ $$
 当原始flatness不大于`0.05`时确定启用并继续训练；当它不小于`0.75`时直接拒绝，不读取训练数据也不训练。其余情况完成训练，并用`DCD`直接计算变换后协方差，其中`C`是原始协方差，`D`是训练出的对角矩阵。仅当
 
 $$
-\frac{f_{\mathrm{transformed}}}{f_{\mathrm{original}}}\ge 1.0
+\frac{f_{\mathrm{transformed}}}{f_{\mathrm{original}}}\ge 1.21
 $$
 
-时才应用变换，否则关闭。flatness计算、训练和坐标变换都计入预处理时间；坐标和训练数据的文件读取不计时。变换后的坐标用于建树、生成DAG和计算预测权重；数据值本身不变。
+时才应用变换，否则关闭。该阈值统一用于单field和多field；它会拒绝收益不足以抵消额外DAG成本的弱变换。flatness计算、训练和坐标变换都计入预处理时间；坐标和训练数据的文件读取不计时。变换后的坐标用于建树、生成DAG和计算预测权重；数据值本身不变。
 
-多个field共享同一组坐标时可用`-field-list`一次传入；压缩器只生成一次坐标变换、空间DAG和RBF权重，然后分别为每个field选择flow并压缩。多field REL训练同样按照每个`field×time step`各自的可预测点集value range归一化，每个训练文件形成一个独立group；ABS任务不归一化。单field与多field使用完全相同的flatness判断、group loss选择和矩阵训练流程。
+多个field共享同一组坐标时可用`-field-list`一次传入。每个field独立训练并判断坐标变换；各field复用只依赖原始坐标的训练采样几何。未启用坐标变换的field共享原始坐标上的空间DAG和RBF权重，启用变换的field生成自己的空间DAG和权重。REL训练按照当前field的每个采样time step分别使用可预测点集value range归一化，每个训练文件形成一个独立group；ABS任务不归一化。单field与多field使用相同的flatness判断、group loss选择和矩阵训练流程。
 
 压缩器把本次训练结果写到数据目录中的`<field>.unsz.coord_transform.txt`。文件以明文记录维数、是否启用和每个坐标轴的缩放值；解压器读取同一文件，不重新训练。例：
 
@@ -671,14 +673,14 @@ partition会改变空间DAG边界和每段无损编码上下文，因此不保�
   <tbody>
     <tr>
       <td>OpenMP独立partition</td>
-      <td>已实现原型</td>
-      <td>预测DAG、标签、数值、Huffman、Zstd和重建均已并行；Katrina的1/4线程v10码流均能独立往返</td>
-      <td>在大型数据上测试扩展性并减少小partition调度开销</td>
+      <td>已实现</td>
+      <td>预测DAG、标签、数值、Huffman、Zstd、重建和恢复原始点序均按独立partition并行；串行与并行统一使用v16容器。</td>
+      <td>补充独占节点上的正式扩展性实验</td>
     </tr>
     <tr>
       <td>每partition独立无损码流</td>
-      <td>已实现原型</td>
-      <td>Katrina第0步4分区BR为<code>0.200938</code>；1/4线程核心压缩为<code>0.0356/0.0287 s</code>、解压为<code>0.0304/0.0252 s</code></td>
+      <td>已实现</td>
+      <td>LES的p1/p4/p8/p16 BR分别为<code>1.1980/1.1295/1.1508/1.1735</code>；partition会同时改变DAG边界和无损编码上下文。</td>
       <td>在更多field和更多partition上统计树头、frame开销与BR变化</td>
     </tr>
     <tr>
@@ -717,10 +719,9 @@ partition会改变空间DAG边界和每段无损编码上下文，因此不保�
 | E3SM-h4 | 2 | 62.21 MB | 21600 | 720 |
 | TAPS | 7 | 64.01 MB | 16002271 | 1 |
 | ADCIRC-Haiyan-1.5km zeta | 1 | 210.03 MB | 2187832 | 24 |
-| Ocean-large | 91 | 177.27 MB | 3693225 | 12 |
 | Katrina | 1 | 270.63 MB | 417642 | 162 |
 | Ocean-large单快照restart | 24 | 详情见下方说明 | | |
-| Ocean-large月度输出 | 91 | 详情见下方说明 | | |
+| Ocean-large月度输出 | 91 | 177.27 MB | 3693225 | 12 |
 
 单个field的总大小是该field全部`<field>.dat.<time_step>`文件的大小之和，不包含坐标、connectivity、标签以及各种格式的metadata。ADCIRC-Haiyan-1.5km的depth和zeta因time step数不同而分成两行。
 
@@ -747,7 +748,11 @@ Ocean-large有两套不同的输入。第一套此前被误称为“初始状态
 
 月度输出由12个NetCDF文件组成，每个文件对应一个真实time step。同名变量跨12个文件组成一个12步field。每个文件中有58个单层cell变量和33个80层cell变量，此外还有网格、edge和区域统计等变量。
 
-UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有12个真实time step。目前怀疑UMC使用了58个单层cell变量，并取33个80层cell变量的第0层，正好得到91个单层field。这个判断尚未确认，因为公开仓库没有`varnames_91.txt`和NetCDF转换程序。
+UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有12个真实time step。当前可复现实验定义使用58个单层cell变量，并取33个80层cell变量的第0层，正好得到91个单层field；公开仓库没有论文实验使用的`varnames_91.txt`和NetCDF转换程序，因此不能声称该列表与论文逐项相同。
+
+这91个field在UNSZ中使用同一个field list和同一份双点集配置。`timeMonthly_avg_bruntVaisalaFreqML`中的71个缺失值被统一转换为常量标记`-99999`，该field保留“RBF普通值＋常量异常值”两个点集；其余90个field没有该标记，预扫描后自动折叠为空标签流的单点集。所有field因此可以在同一进程中复用坐标采样几何和未变换坐标上的空间DAG。
+
+当前五点结果保存在`results/ocean_large_curves/metrics_*.json`，图位于同目录的`figures/`。五点共同PSNR区间内，UNSZ相对UMC的压缩率几何优势为`2.112×`，核心压缩＋解压速度为`1.882×`，计入两端预处理后速度为`1.687×`。`run_benchmark.slurm`从头运行UMC与UNSZ；`run_unsz.slurm`复用正式UMC指标并只更新UNSZ，设置`EXPONENTS="1 3"`可选择EB，设置`FORCE=true`可覆盖已经完成的结果。
 
 ## 3.2. 方案
 
@@ -850,7 +855,7 @@ E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；正式配置现改为�
 
 `configs/`中的task JSON是当前运行配置的权威记录，3.2节只汇总已经选定或正在调优的方案。主要baseline为UMC；SZ3和ZFP留到正式实验阶段补充。
 
-单点集RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点；多点集RD曲线由`point_set_config_path_list`中的完整误差配置构成，每个点集可以使用不同EB。UNSZ与UMC曲线不要求使用相同EB，而是在共同PSNR范围内对`log(BR)`和`log(time)`作分段线性插值后比较；BD-rate为`log(BR)`差的区间积分均值取指数，因而不受额外插入EB采样点影响。UMC合并多个time step的MSE时所需的数据范围，在每个task的每个field开始实验前计算一次，并传给该field的全部UMC实验，不随REL EB重复读取输入。速度统计压缩与解压的程序内部核心时间之和；压缩端与解压端的完整预处理时间分别记录。正式实验中两个压缩器都不保存预测DAG，压缩端和解压端分别现场重新生成各自的预测结构；UNSZ压缩预处理包含坐标变换训练与应用、DAG生成和RBF权重计算、自动flow选择，并分别输出这三段的程序内部计时。解压预处理读取可复用的坐标变换参数并包含变换应用、DAG生成和RBF权重计算。坐标、connectivity、坐标变换训练数据、自动flow采样数据及坐标变换参数文件的读取不计时，输入正确性验证也不计时。坐标变换参数是field级可复用预处理结果，不计入每个压缩码流的大小。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
+单点集RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点；多点集RD曲线由`point_set_config_path_list`中的完整误差配置构成，每个点集可以使用不同EB。UNSZ与UMC曲线不要求使用相同EB，而是在共同PSNR范围内对`log(BR)`和`log(time)`作分段线性插值后比较；BD-rate为`log(BR)`差的区间积分均值取指数，因而不受额外插入EB采样点影响。UMC合并多个time step的MSE时所需的数据范围，在每个task的每个field开始实验前计算一次，并传给该field的全部UMC实验，不随REL EB重复读取输入。速度统计压缩与解压的程序内部核心时间之和；压缩端与解压端的完整预处理时间分别记录。正式实验中两个压缩器都不保存预测DAG，压缩端和解压端分别现场重新生成各自的预测结构；UNSZ压缩预处理包含坐标变换训练与应用、DAG生成和RBF权重计算、自动flow选择、时间依赖计划生成以及最终flow的时间依赖和历史容器初始化。解压预处理读取可复用的坐标变换参数，并包含码流头解析、时间依赖计划和历史容器初始化、坐标变换应用、DAG生成和RBF权重计算。坐标、connectivity、坐标变换训练数据、自动flow采样数据、压缩码流头及坐标变换参数文件的读取不计时，输入正确性验证、逐点误差统计和输出文件写入也不计时。坐标变换参数是field级可复用预处理结果，不计入每个压缩码流的大小。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
 
 UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同一计时口径：压缩时间为field重排与核心压缩之和，解压时间为核心解压与恢复原始顺序之和；读取输入、写出结果、读取原始field进行误差验证和误差统计均不计入。ADCIRC-Haiyan-1.5km的connectivity包含两个连通分量，而UMC的DPFS只遍历0号点所在的连通分量，无法生成覆盖全部点的有效重排。我们不修改UMC算法，也不改用`reorder=0`；因此Haiyan汇报为UMC无法运行，不计算`CR/UMC`和`总时间/UMC`。
 
@@ -866,7 +871,7 @@ UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同�
 - [ ] 测试一阶内插中“最后一个文件由第一个文件作零阶外插预测”，并实现“空间预测＋时间补偿”。
 - UMC-INP的batch固定为README示例使用的10，不再作为task配置或实验维度。
 - [ ] 研究DAG和RBF权重的紧凑持久化，明确公共metadata需要在多少field或time step之间摊销。
-- [ ] 确认UMC论文Ocean-large的`varnames_91.txt`，核实是否使用58个单高度cell变量及33个多高度cell变量的第0层，再把已经取得的12个月度NetCDF转换为91×12输入；单快照restart不能冒充论文月度输出。
+- [ ] 取得UMC论文实验原始的`varnames_91.txt`以核对当前58个单层变量＋33个多层变量第0层的91-field定义；12个月度NetCDF已经按当前定义转换，单快照restart不作为月度输出使用。
 - [ ] 完成single-core throughput、strong/weak scaling以及端到端压缩—传输—解压实验，再决定投稿路线。
 
 日常审阅以本README为准；被删除实现、历史实验和一次性脚本从Git历史恢复。

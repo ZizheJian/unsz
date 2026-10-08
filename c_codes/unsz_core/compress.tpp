@@ -283,7 +283,9 @@ namespace unsz
         array<bool,2> point_set_is_always_constant{{true,true}};
         for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
         {
+            auto input_start_time=chrono::steady_clock::now();
             read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
+            point_set_statistics_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start_time).count();
             compression_file_state_c state;
             if(two_point_sets)
                 classify_current_point_sets<true,true>(state);
@@ -326,31 +328,16 @@ namespace unsz
             iota(point_set_source_id_vec.begin(),point_set_source_id_vec.end(),0);
             printf("effective point-set configuration: configured=%u,effective=%u\n",(uint32_t)configured_point_set_config_vec.size(),(uint32_t)point_set_config_vec.size());
         }
+        if(point_set_config_vec.size()==1)
+        {
+            label_flow="none";
+            if(point_set_config_vec[0].codec==point_set_codec_e::constant)
+                value_flow="none";
+            else
+                resolve_single_point_set_time_mode();
+        }
         current_data.clear();
         point_set_id_vec.clear();
-    }
-
-    template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::precompute_compression_file_point_set_statistics()
-    {
-        auto start_time=chrono::steady_clock::now();
-        compression_field_statistics_vec.clear();
-        compression_field_statistics_vec.resize(field_name_vec.size());
-        for(uint32_t field_id=0;field_id<field_name_vec.size();field_id++)
-        {
-            activate_field(field_id);
-            precompute_current_field_point_set_statistics();
-            compression_field_statistics_c<T_data>&statistics=compression_field_statistics_vec[field_id];
-            statistics.point_set_min_data_vec=move(compression_file_point_set_min_data_vec);
-            statistics.point_set_max_data_vec=move(compression_file_point_set_max_data_vec);
-            statistics.point_set_abs_eb_vec=move(compression_file_point_set_abs_eb_vec);
-            statistics.point_set_codec_vec=move(compression_file_point_set_codec_vec);
-            statistics.point_set_configs=point_set_config_vec;
-            statistics.point_set_rules=point_set_rule_vec;
-            statistics.point_set_source_ids=point_set_source_id_vec;
-        }
-        activate_field(0);
-        printf("compression file point-set statistics precomputation time excluded from reported time= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
     }
 
     template<typename T_coord,typename T_data>
@@ -596,7 +583,6 @@ namespace unsz
     template<bool two_point_sets,time_dimension_mode_e fixed_value_mode>
     void param_c<T_coord,T_data>::compress_values(compression_file_state_c&state)
     {
-        constexpr time_dimension_mode_e value_mode=fixed_value_mode;
         current_decompressed_data.resize(point_num);
         if(prediction_data_uses_prediction_order)
             prediction_order_decompressed_data.resize(point_num);
@@ -628,8 +614,6 @@ namespace unsz
         if(prediction_exception)
             rethrow_exception(prediction_exception);
         state.cross_time_prediction_num=accumulate(cross_time_prediction_num_vec.begin(),cross_time_prediction_num_vec.end(),(uint64_t)0);
-        if constexpr(value_mode==time_dimension_mode_e::constant_extrapolation||value_mode==time_dimension_mode_e::linear_interpolation||value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-            printf("cross_time_prediction_num=%llu, ratio=%f\n",(unsigned long long)state.cross_time_prediction_num,(double)state.cross_time_prediction_num/point_num);
         double combined_wall_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
         double prediction_cpu_time=accumulate(prediction_duration_vec.begin(),prediction_duration_vec.end(),0.0);
         double encoding_cpu_time=accumulate(encoding_duration_vec.begin(),encoding_duration_vec.end(),0.0);
@@ -793,8 +777,6 @@ namespace unsz
         double measured_cpu_time=prediction_cpu_time+encoding_cpu_time;
         state.label_prediction_time=measured_cpu_time>0?combined_wall_time*prediction_cpu_time/measured_cpu_time:0;
         state.lossless_encoding_time=combined_wall_time-state.label_prediction_time;
-        if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation||fixed_value_mode==time_dimension_mode_e::linear_interpolation||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-            printf("cross_time_prediction_num=%llu, ratio=%f\n",(unsigned long long)state.cross_time_prediction_num,(double)state.cross_time_prediction_num/point_num);
     }
 
 }

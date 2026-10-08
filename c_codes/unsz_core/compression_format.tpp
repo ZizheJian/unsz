@@ -424,15 +424,33 @@ namespace unsz
         current_value_stream_bytes=(uint64_t)payload_num*point_set_num*2*sizeof(uint64_t)+value_zstd_byte_num+unpredictable_value_byte_num;
         current_shared_metadata_bytes=current_compressed_bytes.size()-current_label_stream_bytes-current_value_stream_bytes;
         state.lossless_encoding_time+=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
-        double label_prediction_error_ratio=0;
-        if(state.label_target_num>0)
-            label_prediction_error_ratio=(double)state.label_error_num/state.label_target_num;
-        printf("label_prediction_error_ratio=%f, label_position_delta_bytes=%llu, label_zstd_bytes=%llu, zstd_level=%d\n",label_prediction_error_ratio,(unsigned long long)label_position_delta_byte_num,(unsigned long long)label_zstd_byte_num,zstd_compression_level);
-        printf("value_huffman_bytes=%llu, value_zstd_bytes=%llu, unpredictable_value_bytes=%llu, file_bytes=%llu\n",(unsigned long long)value_huffman_byte_num,(unsigned long long)value_zstd_byte_num,(unsigned long long)unpredictable_value_byte_num,(unsigned long long)current_compressed_bytes.size());
-        printf("label_stream_bytes=%llu, value_stream_bytes=%llu, shared_metadata_bytes=%llu\n",(unsigned long long)current_label_stream_bytes,(unsigned long long)current_value_stream_bytes,(unsigned long long)current_shared_metadata_bytes);
+        current_compression_diagnostics.point_set_classification_time=state.point_set_classification_time;
+        current_compression_diagnostics.point_set_setup_time=state.point_set_setup_time;
+        current_compression_diagnostics.label_prediction_time=state.label_prediction_time;
+        current_compression_diagnostics.value_prediction_time=state.value_prediction_time;
+        current_compression_diagnostics.lossless_encoding_time=state.lossless_encoding_time;
+        current_compression_diagnostics.label_target_num=state.label_target_num;
+        current_compression_diagnostics.label_error_num=state.label_error_num;
+        current_compression_diagnostics.cross_time_prediction_num=state.cross_time_prediction_num;
+        current_compression_diagnostics.label_position_delta_byte_num=label_position_delta_byte_num;
+        current_compression_diagnostics.label_zstd_byte_num=label_zstd_byte_num;
+        current_compression_diagnostics.value_huffman_byte_num=value_huffman_byte_num;
+        current_compression_diagnostics.value_zstd_byte_num=value_zstd_byte_num;
+        current_compression_diagnostics.unpredictable_value_byte_num=unpredictable_value_byte_num;
+    }
 
-        printf("point_set_num=%u",point_set_num);
-        for (uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::print_current_compression_diagnostics() const
+    {
+        const compression_diagnostics_c&diagnostics=current_compression_diagnostics;
+        double label_prediction_error_ratio=diagnostics.label_target_num?(double)diagnostics.label_error_num/diagnostics.label_target_num:0;
+        if(current_prediction_framework.value_mode!=time_dimension_mode_e::spatial)
+            printf("cross_time_prediction_num=%llu, ratio=%f\n",(unsigned long long)diagnostics.cross_time_prediction_num,(double)diagnostics.cross_time_prediction_num/point_num);
+        printf("label_prediction_error_ratio=%f, label_position_delta_bytes=%llu, label_zstd_bytes=%llu, zstd_level=%d\n",label_prediction_error_ratio,(unsigned long long)diagnostics.label_position_delta_byte_num,(unsigned long long)diagnostics.label_zstd_byte_num,zstd_compression_level);
+        printf("value_huffman_bytes=%llu, value_zstd_bytes=%llu, unpredictable_value_bytes=%llu, file_bytes=%llu\n",(unsigned long long)diagnostics.value_huffman_byte_num,(unsigned long long)diagnostics.value_zstd_byte_num,(unsigned long long)diagnostics.unpredictable_value_byte_num,(unsigned long long)current_compressed_bytes.size());
+        printf("label_stream_bytes=%llu, value_stream_bytes=%llu, shared_metadata_bytes=%llu\n",(unsigned long long)current_label_stream_bytes,(unsigned long long)current_value_stream_bytes,(unsigned long long)current_shared_metadata_bytes);
+        printf("point_set_num=%u",(uint32_t)point_set_codec_vec.size());
+        for(uint32_t point_set_id=0;point_set_id<point_set_codec_vec.size();point_set_id++)
         {
             const char *codec_name;
             if(point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
@@ -444,27 +462,29 @@ namespace unsz
             printf(", set%u_num=%u, set%u_codec=%s",point_set_id,point_set_point_num_vec[point_set_id],point_set_id,codec_name);
         }
         printf("\n");
-        if (print_compression_stage_time)
+        if(print_compression_stage_time)
         {
-            double point_set_time=state.point_set_classification_time+state.point_set_setup_time;
-            printf("compression stage time: point_set=%f s, label_prediction=%f s, value_prediction=%f s, lossless_encoding=%f s\n",point_set_time,state.label_prediction_time,state.value_prediction_time,state.lossless_encoding_time);
-            printf("point set stage time: classification=%f s, setup=%f s\n",state.point_set_classification_time,state.point_set_setup_time);
+            double point_set_time=diagnostics.point_set_classification_time+diagnostics.point_set_setup_time;
+            printf("compression stage time: point_set=%f s, label_prediction=%f s, value_prediction=%f s, lossless_encoding=%f s\n",point_set_time,diagnostics.label_prediction_time,diagnostics.value_prediction_time,diagnostics.lossless_encoding_time);
+            printf("point set stage time: classification=%f s, setup=%f s\n",diagnostics.point_set_classification_time,diagnostics.point_set_setup_time);
         }
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::read_compressed_field_metadata()
+    double param_c<T_coord,T_data>::read_compressed_field_metadata()
     {
         if(original_data_path_vec.empty())
             throw runtime_error("自动flow解压缺少数据文件路径");
         constexpr uint64_t maximum_header_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t)+2*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data));
         vector<unsigned char> bytes(maximum_header_byte_num);
         string compressed_path=original_data_path_vec.front()+".unsz";
+        auto input_start_time=chrono::steady_clock::now();
         FILE*file=fopen(compressed_path.c_str(),"rb");
         if(!file)
             throw runtime_error("找不到文件："+compressed_path);
         uint64_t read_byte_num=fread(bytes.data(),1,bytes.size(),file);
         fclose(file);
+        double input_time=chrono::duration<double>(chrono::steady_clock::now()-input_start_time).count();
         constexpr uint64_t fixed_header_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t);
         if(read_byte_num<fixed_header_byte_num)
             throw runtime_error("UNSZ压缩文件头不完整："+compressed_path);
@@ -519,7 +539,7 @@ namespace unsz
         }
         else
             point_set_rule_vec=configured_point_set_rule_vec;
-        printf("compressed flow: label=%s,value=%s\n",label_flow.c_str(),value_flow.c_str());
+        return input_time;
     }
 
 }

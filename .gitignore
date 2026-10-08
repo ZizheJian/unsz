@@ -8,3 +8,6 @@ __pycache__/
 *.log
 *.dag
 *.pred
+*.unsz
+*.unsz.bin
+*.unsz.coord_transform.txt

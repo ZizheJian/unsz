@@ -28,6 +28,43 @@ namespace unsz
         return 10*log10(pow(statistics.maximum-statistics.minimum,2)/mse);
     }
 
+    inline double normalized_reconstruction_psnr(double normalized_squared_error,uint64_t value_num)
+    {
+        if(value_num==0)
+            return numeric_limits<double>::quiet_NaN();
+        if(normalized_squared_error==0)
+            return numeric_limits<double>::infinity();
+        return -10*log10(normalized_squared_error/value_num);
+    }
+
+    template<typename T_data>
+    double full_data_range(const vector<uint32_t>&point_set_point_num_vec,const vector<T_data>&point_set_min_data_vec,const vector<T_data>&point_set_max_data_vec)
+    {
+        if(point_set_point_num_vec.size()!=point_set_min_data_vec.size()||point_set_point_num_vec.size()!=point_set_max_data_vec.size())
+            throw runtime_error("点集数量和值域数量不一致");
+        double minimum=numeric_limits<double>::infinity(),maximum=-numeric_limits<double>::infinity();
+        for(uint32_t point_set_id=0;point_set_id<point_set_point_num_vec.size();point_set_id++)
+            if(point_set_point_num_vec[point_set_id]>0)
+            {
+                minimum=min(minimum,(double)point_set_min_data_vec[point_set_id]);
+                maximum=max(maximum,(double)point_set_max_data_vec[point_set_id]);
+            }
+        if(!isfinite(minimum)||!isfinite(maximum)||maximum<minimum)
+            throw runtime_error("无法计算完整数据值域");
+        return maximum-minimum;
+    }
+
+    template<typename T_data>
+    void add_normalized_reconstruction_error(double&normalized_squared_error,uint64_t&normalized_value_num,const reconstruction_statistics_c&statistics,const vector<uint32_t>&point_set_point_num_vec,const vector<T_data>&point_set_min_data_vec,const vector<T_data>&point_set_max_data_vec)
+    {
+        double data_range=full_data_range(point_set_point_num_vec,point_set_min_data_vec,point_set_max_data_vec);
+        if(data_range>0)
+            normalized_squared_error+=statistics.squared_error/(data_range*data_range);
+        else if(statistics.squared_error!=0)
+            throw runtime_error("常量文件未被精确恢复");
+        normalized_value_num+=statistics.point_num;
+    }
+
     template<typename T_coord,typename T_data>
     reconstruction_statistics_c param_c<T_coord,T_data>::calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset) const
     {

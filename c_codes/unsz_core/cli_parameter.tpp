@@ -78,20 +78,6 @@ namespace unsz
         compression_file_point_set_max_data_vec.clear();
         compression_file_point_set_abs_eb_vec.clear();
         compression_file_point_set_codec_vec.clear();
-        if(field_id<compression_field_statistics_vec.size())
-        {
-            const compression_field_statistics_c<T_data>&statistics=compression_field_statistics_vec[field_id];
-            compression_file_point_set_min_data_vec=statistics.point_set_min_data_vec;
-            compression_file_point_set_max_data_vec=statistics.point_set_max_data_vec;
-            compression_file_point_set_abs_eb_vec=statistics.point_set_abs_eb_vec;
-            compression_file_point_set_codec_vec=statistics.point_set_codec_vec;
-            if(!statistics.point_set_configs.empty())
-            {
-                point_set_config_vec=statistics.point_set_configs;
-                point_set_rule_vec=statistics.point_set_rules;
-                point_set_source_id_vec=statistics.point_set_source_ids;
-            }
-        }
         if(point_set_config_vec.size()==1)
             label_flow="none";
         if(point_set_config_vec.size()==1&&point_set_config_vec[0].codec==point_set_codec_e::constant)

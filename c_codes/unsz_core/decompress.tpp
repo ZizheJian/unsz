@@ -15,6 +15,13 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::print_current_decompression_diagnostics() const
+    {
+        if(print_compression_stage_time)
+            printf("decompression stage time: stream_decode=%f s, label_decode=%f s, value_decode=%f s\n",current_decompression_diagnostics.stream_decode_time,current_decompression_diagnostics.label_decode_time,current_decompression_diagnostics.value_decode_time);
+    }
+
+    template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::validate_decoded_point_set_counts() const
     {
         if(point_set_point_num_vec.size()==1)
@@ -74,17 +81,12 @@ namespace unsz
         if constexpr(two_point_sets)
         {
             decompress_labels_and_values<two_point_sets,fixed_value_mode,fixed_label_mode>(state);
-            if(print_compression_stage_time)
-                printf("decompression stage time: stream_decode=%f s, label_decode=%f s, value_decode=%f s\n",state.stream_decode_time,state.label_decode_time,state.value_decode_time);
-            return;
         }
         else
-        {
             decompress_values<two_point_sets,fixed_value_mode,fixed_label_mode>(state);
-            if(print_compression_stage_time)
-                printf("decompression stage time: stream_decode=%f s, label_decode=%f s, value_decode=%f s\n",state.stream_decode_time,state.label_decode_time,state.value_decode_time);
-            return;
-        }
+        current_decompression_diagnostics.stream_decode_time=state.stream_decode_time;
+        current_decompression_diagnostics.label_decode_time=state.label_decode_time;
+        current_decompression_diagnostics.value_decode_time=state.value_decode_time;
     }
 
     template<typename T_coord,typename T_data>

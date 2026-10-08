@@ -168,7 +168,6 @@ namespace unsz
         double decision_eb_scale=1;
         if(point_set_config_vec[0].error_mode==point_set_error_mode_e::relative&&point_set_config_vec[0].eb>automatic_flow_max_decision_rel_eb)
             decision_eb_scale=automatic_flow_max_decision_rel_eb/point_set_config_vec[0].eb;
-        printf("automatic flow decision EB: configured_mode=%s,configured_eb=%.9g,decision_eb=%.9g\n",point_set_config_vec[0].error_mode==point_set_error_mode_e::relative?"REL":"ABS",point_set_config_vec[0].eb,point_set_config_vec[0].eb*decision_eb_scale);
         auto sample_structure_start_time=chrono::steady_clock::now();
         vector<vector<automatic_flow_window_c>> structure_windows(structure_num);
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
@@ -239,19 +238,20 @@ namespace unsz
             }
         }
         uint32_t sampled_time_step_num=accumulate(read_sampled_time_step.begin(),read_sampled_time_step.end(),0U);
-        current_data.resize(point_num);
+        if(two_point_sets)
+            current_data.resize(point_num);
         for(uint32_t time_index:full_scan_time_indices)
         {
-            auto input_start=chrono::steady_clock::now();
-            read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
-            excluded_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start).count();
-            auto statistics_start_time=chrono::steady_clock::now();
-            compression_file_state_c state;
             if(two_point_sets)
+            {
+                auto input_start=chrono::steady_clock::now();
+                read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
+                excluded_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start).count();
+                auto statistics_start_time=chrono::steady_clock::now();
+                compression_file_state_c state;
                 classify_current_point_sets<true,false>(state);
-            else
-                classify_current_point_sets<false,false>(state);
-            file_statistics_time+=chrono::duration<double>(chrono::steady_clock::now()-statistics_start_time).count();
+                file_statistics_time+=chrono::duration<double>(chrono::steady_clock::now()-statistics_start_time).count();
+            }
             sample_structure_start_time=chrono::steady_clock::now();
             automatic_flow_time_statistics_c<T_data>&statistics=time_statistics[time_index];
             statistics.point_set_abs_eb=compression_file_point_set_abs_eb_vec[time_index];
@@ -333,7 +333,6 @@ namespace unsz
             sampled_target_num+=structure_window_target_indices[structure_id].size();
             sampled_window_num+=structure_windows[structure_id].size();
         }
-        printf("automatic flow sampling: full_scan_time_steps=%u,read_time_steps=%u,structures=%u,windows=%llu,target_candidates=%llu,read_points=%llu\n",(uint32_t)full_scan_time_indices.size(),sampled_time_step_num,structure_num,(unsigned long long)sampled_window_num,(unsigned long long)sampled_target_num,(unsigned long long)sample_original_ids.size());
         vector<int> original_to_sample(point_num,-1);
         for(uint32_t sample_id=0;sample_id<sample_original_ids.size();sample_id++)
             original_to_sample[sample_original_ids[sample_id]]=(int)sample_id;
@@ -587,20 +586,24 @@ namespace unsz
             candidate.estimated_value_bytes*=(double)time_step_num/full_scan_time_indices.size();
             candidate.evaluation_time=chrono::duration<double>(chrono::steady_clock::now()-candidate_start_time).count();
             candidate_evaluation_time+=candidate.evaluation_time;
-            double point_time_num=(double)point_num*time_step_num;
-            printf("automatic flow candidate: label=%s,value=%s,estimated_label_bytes=%.3f,estimated_value_bytes=%.3f,estimated_total_bytes=%.3f,selection_score=%.3f,estimated_label_br=%.6f,estimated_value_br=%.6f,evaluation_time=%.6f s\n",candidate.label_flow.c_str(),candidate.value_flow.c_str(),candidate.estimated_label_bytes,candidate.estimated_value_bytes,candidate.estimated_total_bytes(),candidate.selection_score(),candidate.estimated_label_bytes*8/point_time_num,candidate.estimated_value_bytes*8/point_time_num,candidate.evaluation_time);
         }
         prediction_data_uses_prediction_order=saved_prediction_order;
         auto best=min_element(candidates.begin(),candidates.end(),[](const automatic_flow_candidate_c&a,const automatic_flow_candidate_c&b){return a.selection_score()<b.selection_score();});
         label_flow=best->label_flow;
         value_flow=best->value_flow;
-        printf("automatic flow selected: label=%s,value=%s,selection_score=%.3f\n",label_flow.c_str(),value_flow.c_str(),best->selection_score());
         current_data.clear();
         point_set_id_vec.clear();
         double selection_time=chrono::duration<double>(chrono::steady_clock::now()-selection_start_time).count()-excluded_input_time;
         double other_time=selection_time-file_statistics_time-sample_structure_time-sample_value_preparation_time-candidate_evaluation_time;
+        printf("automatic flow decision EB: configured_mode=%s,configured_eb=%.9g,decision_eb=%.9g\n",point_set_config_vec[0].error_mode==point_set_error_mode_e::relative?"REL":"ABS",point_set_config_vec[0].eb,point_set_config_vec[0].eb*decision_eb_scale);
+        printf("automatic flow sampling: full_scan_time_steps=%u,read_time_steps=%u,structures=%u,windows=%llu,target_candidates=%llu,read_points=%llu\n",(uint32_t)full_scan_time_indices.size(),sampled_time_step_num,structure_num,(unsigned long long)sampled_window_num,(unsigned long long)sampled_target_num,(unsigned long long)sample_original_ids.size());
+        double point_time_num=(double)point_num*time_step_num;
+        for(const automatic_flow_candidate_c&candidate:candidates)
+            printf("automatic flow candidate: label=%s,value=%s,estimated_label_bytes=%.3f,estimated_value_bytes=%.3f,estimated_total_bytes=%.3f,selection_score=%.3f,estimated_label_br=%.6f,estimated_value_br=%.6f,evaluation_time=%.6f s\n",candidate.label_flow.c_str(),candidate.value_flow.c_str(),candidate.estimated_label_bytes,candidate.estimated_value_bytes,candidate.estimated_total_bytes(),candidate.selection_score(),candidate.estimated_label_bytes*8/point_time_num,candidate.estimated_value_bytes*8/point_time_num,candidate.evaluation_time);
+        printf("automatic flow selected: label=%s,value=%s,selection_score=%.3f\n",label_flow.c_str(),value_flow.c_str(),best->selection_score());
         printf("automatic flow selection breakdown: file_statistics=%.6f s,sample_structure=%.6f s,sample_value_preparation=%.6f s,candidate_evaluation=%.6f s,shared_label_estimation=%.6f s,other=%.6f s\n",file_statistics_time,sample_structure_time,sample_value_preparation_time,candidate_evaluation_time,shared_label_estimation_time,other_time);
         printf("automatic flow selection time excluding data input= %f s\n",selection_time);
-        return excluded_input_time;
+        printf("automatic flow data input time excluded from reported time= %f s\n",excluded_input_time);
+        return selection_time;
     }
 }

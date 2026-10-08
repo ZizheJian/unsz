@@ -235,7 +235,7 @@ def build_unsz_commands(config,data_dir):
         compression_error=["-M","REL",rel_eb]
         decompression_error=["-M","REL",rel_eb]
     compression_command=[project_root/"install/bin/s1_compress",*compression_error,*arguments]
-    decompression_command=[project_root/"install/bin/s1_decompress",*decompression_error,*arguments]
+    decompression_command=[project_root/"install/bin/s1_decompress",*decompression_error,*arguments,"-skip-decompressed-output"]
     return compression_command,decompression_command
 
 def expand_unsz_flows(config):

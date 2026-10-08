@@ -4,7 +4,7 @@ namespace unsz
 {
     inline constexpr double coordinate_transform_original_flatness_enable_threshold=0.05;
     inline constexpr double coordinate_transform_original_flatness_reject_threshold=0.75;
-    inline constexpr double coordinate_transform_relative_flatness_enable_threshold=1.0;
+    inline constexpr double coordinate_transform_relative_flatness_enable_threshold=1.21;
     inline constexpr double coordinate_transform_group_mse_ratio_threshold=1.5;
     inline constexpr double coordinate_transform_difficult_group_loss_power=3;
     inline constexpr uint32_t coordinate_transform_sample_file_num=3;
@@ -123,6 +123,61 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::prepare_coordinate_transform_sample_geometry(uint32_t sample_file_num)
+    {
+        if(coordinate_transform_sample_target_offsets.size()==sample_file_num+1)
+            return;
+        uint32_t first_sample_num=max<uint32_t>(1,(uint32_t)ceil(point_num*coordinate_transform_first_sample_ratio));
+        vector<int>first_sample_ids(point_num);
+        iota(first_sample_ids.begin(),first_sample_ids.end(),0);
+        mt19937 random_generator(0);
+        shuffle(first_sample_ids.begin(),first_sample_ids.end(),random_generator);
+        first_sample_ids.resize(first_sample_num);
+        sort(first_sample_ids.begin(),first_sample_ids.end());
+        vector<T_coord>active_min_coord(dim,numeric_limits<T_coord>::infinity()),active_max_coord(dim,-numeric_limits<T_coord>::infinity());
+        for(int point_id:first_sample_ids)
+            for(uint32_t d=0;d<dim;d++)
+            {
+                active_min_coord[d]=min(active_min_coord[d],coord_array[point_id][d]);
+                active_max_coord[d]=max(active_max_coord[d],coord_array[point_id][d]);
+            }
+        block_tree_c<T_coord>tree(coord_array,active_min_coord,active_max_coord,first_sample_ids,kd_tree_leaf_size);
+        coordinate_transform_sample_target_offsets.assign(sample_file_num+1,0);
+        coordinate_transform_sample_target_ids.clear();
+        coordinate_transform_sample_reference_ids.clear();
+        uint32_t remaining_target_num=coordinate_transform_second_sample_num;
+        for(uint32_t sample_file_id=0;sample_file_id<sample_file_num;sample_file_id++)
+        {
+            uint32_t remaining_file_num=sample_file_num-sample_file_id;
+            uint32_t target_num=min<uint32_t>(first_sample_ids.size(),(remaining_target_num+remaining_file_num-1)/remaining_file_num);
+            vector<int>target_ids=first_sample_ids;
+            shuffle(target_ids.begin(),target_ids.end(),random_generator);
+            target_ids.resize(target_num);
+            remaining_target_num-=target_num;
+            coordinate_transform_sample_target_ids.insert(coordinate_transform_sample_target_ids.end(),target_ids.begin(),target_ids.end());
+            coordinate_transform_sample_target_offsets[sample_file_id+1]=(uint32_t)coordinate_transform_sample_target_ids.size();
+            for(int target_id:target_ids)
+            {
+                nearest_queue_c<T_coord>nearest_queue;
+                tree.find_original_nearest(nearest_queue,coord_array,rbf_reference_num+1,0,coord_array[target_id]);
+                uint32_t geometric_ref_num=0;
+                while(!nearest_queue.empty())
+                {
+                    int reference_id=nearest_queue.top().second;
+                    nearest_queue.pop();
+                    if(reference_id==target_id)
+                        continue;
+                    coordinate_transform_sample_reference_ids.push_back(reference_id);
+                    geometric_ref_num++;
+                }
+                if(geometric_ref_num!=rbf_reference_num)
+                    throw runtime_error("坐标变换目标点没有找到足够的非自身几何参考点");
+            }
+        }
+        printf("coordinate transform shared sample geometry: first_sample_points=%u/%u,targets=%llu,references=%llu\n",first_sample_num,point_num,(unsigned long long)coordinate_transform_sample_target_ids.size(),(unsigned long long)coordinate_transform_sample_reference_ids.size());
+    }
+
+    template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_coordinate_transform_training_data()
     {
         if(coordinate_transform_mode=="off")
@@ -149,22 +204,10 @@ namespace unsz
             }
         if(has_relative_prediction&&has_absolute_prediction)
             throw runtime_error("坐标变换训练暂不支持预测点集混用REL和ABS误差模式");
-        uint32_t first_sample_num=max<uint32_t>(1,(uint32_t)ceil(point_num*coordinate_transform_first_sample_ratio));
-        vector<int> first_sample_ids(point_num);
-        iota(first_sample_ids.begin(),first_sample_ids.end(),0);
-        mt19937 random_generator(0);
-        shuffle(first_sample_ids.begin(),first_sample_ids.end(),random_generator);
-        first_sample_ids.resize(first_sample_num);
-        sort(first_sample_ids.begin(),first_sample_ids.end());
-        printf("coordinate transform first sample ratio=%.6f,points=%u/%u,planned second targets=%llu\n",coordinate_transform_first_sample_ratio,first_sample_num,point_num,(unsigned long long)min<uint64_t>(coordinate_transform_second_sample_num,(uint64_t)first_sample_num*training_files.size()));
-        vector<T_coord> active_min_coord(dim,numeric_limits<T_coord>::infinity()),active_max_coord(dim,-numeric_limits<T_coord>::infinity());
-        for(int point_id:first_sample_ids)
-            for(uint32_t d=0;d<dim;d++)
-            {
-                active_min_coord[d]=min(active_min_coord[d],coord_array[point_id][d]);
-                active_max_coord[d]=max(active_max_coord[d],coord_array[point_id][d]);
-            }
-        block_tree_c<T_coord> tree(coord_array,active_min_coord,active_max_coord,first_sample_ids,kd_tree_leaf_size);
+        auto sample_geometry_start_time=chrono::steady_clock::now();
+        prepare_coordinate_transform_sample_geometry((uint32_t)training_files.size());
+        double sample_geometry_time=chrono::duration<double>(chrono::steady_clock::now()-sample_geometry_start_time).count();
+        printf("coordinate transform first sample ratio=%.6f,planned second targets=%llu\n",coordinate_transform_first_sample_ratio,(unsigned long long)coordinate_transform_sample_target_ids.size());
         vector<double>&coordinate_differences=coordinate_transform_training_coordinate_differences;
         vector<double>&value_differences=coordinate_transform_training_value_differences;
         coordinate_differences.clear();
@@ -197,34 +240,25 @@ namespace unsz
             }
         }
         vector<T_data> data(point_num);
-        uint32_t sampled_target_num=0,retained_target_num=0,complete_target_num=0,remaining_target_num=coordinate_transform_second_sample_num;
+        uint32_t sampled_target_num=0,retained_target_num=0,complete_target_num=0;
+        auto pair_assembly_start_time=chrono::steady_clock::now();
         for(uint32_t sample_file_id=0;sample_file_id<training_files.size();sample_file_id++)
         {
             auto input_start_time=chrono::steady_clock::now();
             read_binary_file_exact(training_files[sample_file_id].path,data.data(),point_num);
             coordinate_transform_training_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start_time).count();
             uint32_t normalization_group_id=sample_file_id;
-            uint32_t remaining_file_num=(uint32_t)training_files.size()-sample_file_id;
-            uint32_t target_num=min<uint32_t>(first_sample_ids.size(),(remaining_target_num+remaining_file_num-1)/remaining_file_num);
-            vector<int> target_ids=first_sample_ids;
-            shuffle(target_ids.begin(),target_ids.end(),random_generator);
-            target_ids.resize(target_num);
-            remaining_target_num-=target_num;
-            for(int target_id:target_ids)
+            uint32_t target_begin=coordinate_transform_sample_target_offsets[sample_file_id],target_end=coordinate_transform_sample_target_offsets[sample_file_id+1];
+            for(uint32_t target_index=target_begin;target_index<target_end;target_index++)
             {
+                int target_id=coordinate_transform_sample_target_ids[target_index];
                 sampled_target_num++;
                 if(!coordinate_transform_value_is_trainable(data[target_id]))
                     continue;
-                nearest_queue_c<T_coord> nearest_queue;
-                tree.find_original_nearest(nearest_queue,coord_array,rbf_reference_num+1,0,coord_array[target_id]);
-                uint32_t geometric_ref_num=0,retained_ref_num=0;
-                while(!nearest_queue.empty())
+                uint32_t retained_ref_num=0;
+                for(uint32_t ref_offset=0;ref_offset<rbf_reference_num;ref_offset++)
                 {
-                    int reference_id=nearest_queue.top().second;
-                    nearest_queue.pop();
-                    if(reference_id==target_id)
-                        continue;
-                    geometric_ref_num++;
+                    int reference_id=coordinate_transform_sample_reference_ids[(uint64_t)target_index*rbf_reference_num+ref_offset];
                     if(!coordinate_transform_value_is_trainable(data[reference_id]))
                         continue;
                     for(uint32_t d=0;d<dim;d++)
@@ -234,8 +268,6 @@ namespace unsz
                         pair_group_ids.push_back(normalization_group_id);
                     retained_ref_num++;
                 }
-                if(geometric_ref_num!=rbf_reference_num)
-                    throw runtime_error("坐标变换目标点没有找到足够的非自身几何参考点");
                 retained_target_num+=retained_ref_num>0;
                 complete_target_num+=retained_ref_num==rbf_reference_num;
             }
@@ -259,6 +291,8 @@ namespace unsz
         const char*normalization_name=normalize_by_sample_file?"per-field-time-step predicted-value range":"none";
         printf("coordinate transform training normalization=%s,sample_files=%llu,value_scale_range=[%.12g,%.12g]\n",normalization_name,(unsigned long long)training_files.size(),minimum_value_scale,maximum_value_scale);
         printf("coordinate transform sampled targets=%u,retained targets=%u,complete targets=%u,pairs=%llu\n",sampled_target_num,retained_target_num,complete_target_num,(unsigned long long)value_differences.size());
+        double pair_assembly_time=chrono::duration<double>(chrono::steady_clock::now()-pair_assembly_start_time).count()-coordinate_transform_training_input_time;
+        printf("coordinate transform training-data breakdown: shared_geometry=%.6f s,pair_assembly=%.6f s,input_excluded=%.6f s\n",sample_geometry_time,pair_assembly_time,coordinate_transform_training_input_time);
     }
 
     template<typename T_coord,typename T_data>

@@ -36,19 +36,23 @@ void prepare_current_decompression_geometry(unsz::param_c<T_coord,float>&param)
 }
 
 template<typename T_coord>
-double prepare_current_decompression_field(unsz::param_c<T_coord,float>&param)
+pair<double,double> prepare_current_decompression_field(unsz::param_c<T_coord,float>&param)
 {
-    param.read_compressed_field_metadata();
     auto preprocessing_start_time=chrono::steady_clock::now();
+    double metadata_input_time=param.read_compressed_field_metadata();
     param.prepare_time_step_order_from_flows();
-    return chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count();
+    param.prepare_temporal_dependencies();
+    double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-metadata_input_time;
+    printf("compressed flow: label=%s,value=%s\n",param.label_flow.c_str(),param.value_flow.c_str());
+    return {preprocessing_time,metadata_input_time};
 }
 
 template<typename T_coord>
 void run_decompression_field(unsz::param_c<T_coord,float>&param)
 {
     uint32_t validated_file_num=0;
-    double total_decompression_time=0,total_time_prediction_state_update_time=0,total_prediction_order_restore_time=0;
+    double total_decompression_time=0,total_time_prediction_state_update_time=0,total_prediction_order_restore_time=0,total_normalized_squared_error=0;
+    uint64_t total_normalized_value_num=0;
     unsz::reconstruction_statistics_c total_statistics;
     string max_error_data_path;
     using param_type=unsz::param_c<T_coord,float>;
@@ -59,7 +63,6 @@ void run_decompression_field(unsz::param_c<T_coord,float>&param)
         decompress_field=&param_type::dispatch_single_point_set_decompression;
     else
         decompress_field=&param_type::dispatch_two_point_sets_decompression_by_mode;
-    param.prepare_temporal_dependencies();
     vector<float> original_data(param.point_num);
     for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
@@ -80,12 +83,14 @@ void run_decompression_field(unsz::param_c<T_coord,float>&param)
             total_prediction_order_restore_time+=chrono::duration<double>(chrono::steady_clock::now()-restore_start_time).count();
         }
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
+        param.print_current_decompression_diagnostics();
         param.validate_decoded_point_set_counts();
-        unsz::write_binary_file(decompressed_path,param.current_decompressed_data.data(),param.point_num);
+        if(param.write_decompressed_output)
+            unsz::write_binary_file(decompressed_path,param.current_decompressed_data.data(),param.point_num);
 
         if(!unsz::try_read_binary_file_exact(param.original_data_path_vec[file_id],original_data.data(),param.point_num))
         {
-            printf("Decompressed %s（原始文件不存在，跳过误差验证）\n",decompressed_path.c_str());
+            printf("Decompressed %s（原始文件不存在，跳过误差验证）\n",param.write_decompressed_output?decompressed_path.c_str():compressed_path.c_str());
             auto time_state_update_start=chrono::steady_clock::now();
             param.update_time_prediction_state();
             double time_state_update_time=chrono::duration<double>(chrono::steady_clock::now()-time_state_update_start).count();
@@ -100,7 +105,8 @@ void run_decompression_field(unsz::param_c<T_coord,float>&param)
         if(file_statistics.max_error_ratio>total_statistics.max_error_ratio)
             max_error_data_path=param.original_data_path_vec[file_id];
         unsz::merge_reconstruction_statistics(total_statistics,file_statistics);
-        printf("Decompressed %s, psnr= %f\n",decompressed_path.c_str(),unsz::reconstruction_psnr(file_statistics));
+        unsz::add_normalized_reconstruction_error(total_normalized_squared_error,total_normalized_value_num,file_statistics,param.point_set_point_num_vec,param.point_set_min_data_vec,param.point_set_max_data_vec);
+        printf("Decompressed %s, psnr= %f\n",param.write_decompressed_output?decompressed_path.c_str():compressed_path.c_str(),unsz::reconstruction_psnr(file_statistics));
         validated_file_num++;
         auto time_state_update_start=chrono::steady_clock::now();
         param.update_time_prediction_state();
@@ -118,8 +124,11 @@ void run_decompression_field(unsz::param_c<T_coord,float>&param)
     if(param.prediction_data_uses_prediction_order)
         printf("total prediction order restore time= %.9f s\n",total_prediction_order_restore_time);
     printf("total decompression time= %f s\n",total_decompression_time);
-    if (validated_file_num>0)
+    if(validated_file_num>0)
+    {
         printf("total decompressed psnr= %f\n",unsz::reconstruction_psnr(total_statistics));
+        printf("normalized squared error sum= %.17g, normalized value count= %llu, normalized psnr= %.17g, maximum error over eb= %.17g\n",total_normalized_squared_error,(unsigned long long)total_normalized_value_num,unsz::normalized_reconstruction_psnr(total_normalized_squared_error,total_normalized_value_num),total_statistics.max_error_ratio);
+    }
 }
 
 namespace unsz
@@ -201,26 +210,36 @@ int decompress_main(int argc,char **argv)
         }
         else if(option=="-decompression-stage-time")
             param.print_compression_stage_time=true;
+        else if(option=="-skip-decompressed-output")
+            param.write_decompressed_output=false;
         else
             throw runtime_error("未知参数："+option);
     }
     param.prepare_cli_parameters(time_step_vec,error_bound);
     param.init();
+    auto temporal_dependency_plan_start_time=chrono::steady_clock::now();
     param.precompute_temporal_dependency_plans();
+    double temporal_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-temporal_dependency_plan_start_time).count();
+    printf("temporal dependency plan preprocessing time= %f s\n",temporal_dependency_plan_time);
+    double total_preprocessing_time=temporal_dependency_plan_time,total_metadata_input_time=0;
     for(uint32_t field_id=0;field_id<param.field_name_vec.size();field_id++)
     {
         param.activate_field(field_id);
         printf("BEGIN UNSZ FIELD %s\n",param.field_name.c_str());
         param.read_coordinate_transform_file();
-        double field_preprocessing_time=prepare_current_decompression_field(param);
+        auto [field_preprocessing_time,metadata_input_time]=prepare_current_decompression_field(param);
+        total_metadata_input_time+=metadata_input_time;
         auto preprocessing_start_time=chrono::steady_clock::now();
         prepare_current_decompression_geometry(param);
         double preprocessing_time=field_preprocessing_time+chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count();
+        total_preprocessing_time+=preprocessing_time;
         printf("preprocessing time excluding coordinate and transform-file input= %f s\n",preprocessing_time);
         run_decompression_field(param);
         param.release_current_spatial_prediction_state();
         printf("END UNSZ FIELD %s\n",param.field_name.c_str());
     }
+    printf("total decompression preprocessing time excluding coordinate, transform-file and compressed-metadata input= %f s\n",total_preprocessing_time);
+    printf("compressed metadata input time excluded from reported time= %f s\n",total_metadata_input_time);
     return 0;
 }
 }
