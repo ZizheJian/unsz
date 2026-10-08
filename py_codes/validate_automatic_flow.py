@@ -46,7 +46,7 @@ def configurations(config_path):
             label_flow=None
         for field in task["field_list"]:
             for rel_eb,error_config in error_configs:
-                yield base|error_config|{"field":field,"label_flow":label_flow,"value_flow":"auto","force_flow":False},rel_eb
+                yield base|error_config|{"field":field,"field_list":[field],"label_flow":label_flow,"value_flow":"auto","force_flow":False},rel_eb
 
 
 def prepare_data_view(config,output_dir):

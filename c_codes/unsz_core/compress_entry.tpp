@@ -63,14 +63,7 @@ namespace unsz
         if(coordinate_transform_mode!="off")
             printf("coordinate transform metadata output time excluded from reported time= %f s\n",coordinate_transform_output_time);
         auto prediction_structure_start_time=chrono::steady_clock::now();
-        if(uses_spatial_prediction&&!use_coordinate_transform&&activate_shared_spatial_prediction_state())
-            printf("Reusing shared spatial prediction DAG and weights\n");
-        else
-        {
-            generate_prediction_structures_and_weights();
-            finalize_current_spatial_prediction_state(false);
-            current_spatial_prediction_state_is_shared=uses_spatial_prediction&&!use_coordinate_transform;
-        }
+        prepare_current_spatial_prediction_state(false);
         double prediction_structure_time=chrono::duration<double>(chrono::steady_clock::now()-prediction_structure_start_time).count();
         return {coordinate_transform_time,prediction_structure_time};
     }
@@ -99,7 +92,11 @@ namespace unsz
             current_time_step_index=file_id;
             current_time_step=time_step_vec[file_id];
             auto &original_data_path=original_data_path_vec[file_id];
-            printf("Compressing %s\n",original_data_path.c_str());
+            bool print_file_details=original_data_path_vec.size()<=32||print_compression_stage_time;
+            if(print_file_details)
+                printf("Compressing %s\n",original_data_path.c_str());
+            else if(file_id%128==0)
+                printf("Compression progress: %u/%u slices\n",file_id,(uint32_t)original_data_path_vec.size());
             string compressed_data_path=original_data_path+".unsz";
             current_data.resize(point_num);
             auto input_start_time=chrono::steady_clock::now();
@@ -108,7 +105,8 @@ namespace unsz
             auto compression_start_time=chrono::steady_clock::now();
             (this->*compress_file)();
             double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count();
-            print_current_compression_diagnostics();
+            if(print_file_details)
+                print_current_compression_diagnostics();
             total_original_bytes+=(uint64_t)point_num*sizeof(T_data);
             total_compressed_bytes+=current_compressed_bytes.size();
             total_label_stream_bytes+=current_label_stream_bytes;
@@ -121,15 +119,19 @@ namespace unsz
             add_normalized_reconstruction_error(total_normalized_squared_error,total_normalized_value_num,file_statistics,point_set_point_num_vec,point_set_min_data_vec,point_set_max_data_vec);
             double file_cr=(double)point_num*sizeof(T_data)/current_compressed_bytes.size();
             double file_br=sizeof(T_data)*8/file_cr;
-            printf("cr= %f, br= %f, psnr= %f\n",file_cr,file_br,reconstruction_psnr(file_statistics));
+            if(print_file_details)
+                printf("cr= %f, br= %f, psnr= %f\n",file_cr,file_br,reconstruction_psnr(file_statistics));
             auto time_state_update_start=chrono::steady_clock::now();
             update_time_prediction_state();
             double time_state_update_time=chrono::duration<double>(chrono::steady_clock::now()-time_state_update_start).count();
             total_time_prediction_state_update_time+=time_state_update_time;
             compression_time+=time_state_update_time;
             total_compression_time+=compression_time;
-            printf("time prediction state update time= %.9f s\n",time_state_update_time);
-            printf("file compression time= %f s\n",compression_time);
+            if(print_file_details)
+            {
+                printf("time prediction state update time= %.9f s\n",time_state_update_time);
+                printf("file compression time= %f s\n",compression_time);
+            }
             auto output_start_time=chrono::steady_clock::now();
             write_binary_file(compressed_data_path,current_compressed_bytes.data(),current_compressed_bytes.size());
             total_compressed_output_time+=chrono::duration<double>(chrono::steady_clock::now()-output_start_time).count();
@@ -162,9 +164,13 @@ namespace unsz
         }
         if(param.point_set_config_vec.size()!=1&&param.point_set_config_vec.size()!=2)
             throw runtime_error("unsz::compress只支持一个或两个点集");
+        double temporal_dependency_plan_time=0;
         auto temporal_dependency_plan_start_time=chrono::steady_clock::now();
-        param.precompute_temporal_dependency_plans();
-        double temporal_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-temporal_dependency_plan_start_time).count();
+        if(param.tensor_field_config_map.empty())
+            param.precompute_temporal_dependency_plans();
+        else
+            param.precompute_all_tensor_dependency_plans();
+        temporal_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-temporal_dependency_plan_start_time).count();
         printf("temporal dependency plan preprocessing time= %f s\n",temporal_dependency_plan_time);
         uint32_t field_num=(uint32_t)param.field_name_vec.size();
         param.point_set_statistics_input_time=0;
@@ -180,7 +186,10 @@ namespace unsz
             auto [coordinate_transform_time,prediction_structure_time]=param.preprocess_current_compression_geometry();
             auto [automatic_flow_time,temporal_dependency_time]=param.preprocess_current_compression_field();
             bool has_predicted_value=any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec!=point_set_codec_e::constant;});
-            printf("selected flow: label=%s,value=%s\n",param.label_flow.c_str(),has_predicted_value?param.value_flow.c_str():"not_applicable");
+            if(param.current_field_uses_tensor)
+                printf("selected tensor flow: %s\n",has_predicted_value?tensor_flow_name(param.selected_tensor_flow).c_str():"not_applicable");
+            else
+                printf("selected flow: label=%s,value=%s\n",param.label_flow.c_str(),has_predicted_value?param.value_flow.c_str():"not_applicable");
             printf("coordinate transform preprocessing time excluding training-data input= %f s\n",coordinate_transform_time);
             printf("prediction DAG and weights preprocessing time= %f s\n",prediction_structure_time);
             printf("automatic flow preprocessing time excluding field-data input= %f s\n",automatic_flow_time);

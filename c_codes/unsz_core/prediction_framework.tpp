@@ -66,6 +66,29 @@ namespace unsz
             throw runtime_error("点集数量不能为0");
         prediction_framework_c framework;
         framework.has_label=point_set_num>1;
+        if(current_field_uses_tensor)
+        {
+            if(!tensor_flow_selected)
+                throw runtime_error("尚未选择tensor flow");
+            uint8_t value_ref_num=temporal_value_dependency_vec[current_time_step_index].source_num;
+            uint8_t label_ref_num=temporal_label_dependency_vec[current_time_step_index].source_num;
+            if(value_ref_num==0)
+                framework.value_mode=time_dimension_mode_e::spatial;
+            else if(value_ref_num==1)
+                framework.value_mode=selected_tensor_flow.use_spatial_residual?time_dimension_mode_e::constant_extrapolation_spatial_residual:time_dimension_mode_e::constant_extrapolation;
+            else
+                framework.value_mode=selected_tensor_flow.use_spatial_residual?time_dimension_mode_e::linear_interpolation_spatial_residual:time_dimension_mode_e::linear_interpolation;
+            if(framework.has_label)
+            {
+                if(label_ref_num==0)
+                    framework.label_mode=time_dimension_mode_e::spatial;
+                else if(label_ref_num==1)
+                    framework.label_mode=time_dimension_mode_e::constant_extrapolation;
+                else
+                    framework.label_mode=time_dimension_mode_e::label_linear_interpolation_spatial_residual;
+            }
+            return framework;
+        }
         bool uses_anchor_flow=uses_anchor_interpolation_stride_8_flow();
         bool first_anchor=uses_anchor_flow&&current_time_step==0;
         bool regular_anchor=uses_anchor_flow&&current_time_step_is_regular_anchor();

@@ -30,7 +30,9 @@ namespace unsz
     struct automatic_flow_candidate_c
     {
         string label_flow,value_flow;
-        const temporal_dependency_plan_c*dependency_plan=nullptr;
+        const temporal_dependency_plan_c*dependency_plan=nullptr,*label_dependency_plan=nullptr;
+        tensor_flow_c tensor_flow;
+        bool use_spatial_residual=false;
         double estimated_label_bytes=0,estimated_value_bytes=0,evaluation_time=0;
 
         double estimated_total_bytes() const{return estimated_label_bytes+estimated_value_bytes;}
@@ -156,20 +158,21 @@ namespace unsz
         double excluded_input_time=0;
         double file_statistics_time=0,sample_structure_time=0,sample_value_preparation_time=0,candidate_evaluation_time=0,shared_label_estimation_time=0;
         uint32_t time_step_num=(uint32_t)time_step_vec.size(),structure_num=(uint32_t)prediction_structure_vec.size();
-        vector<int> prediction_to_original;
-        if(prediction_data_uses_prediction_order)
-        {
-            prediction_to_original.resize(point_num);
-            for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
-                for(uint32_t prediction_index=0;prediction_index<structure.target_ids.size();prediction_index++)
-                    prediction_to_original[structure.prediction_order_offset+prediction_index]=structure.target_ids[prediction_index];
-        }
         bool two_point_sets=point_set_config_vec.size()==2;
         double decision_eb_scale=1;
         if(point_set_config_vec[0].error_mode==point_set_error_mode_e::relative&&point_set_config_vec[0].eb>automatic_flow_max_decision_rel_eb)
             decision_eb_scale=automatic_flow_max_decision_rel_eb/point_set_config_vec[0].eb;
         auto sample_structure_start_time=chrono::steady_clock::now();
         vector<vector<automatic_flow_window_c>> structure_windows(structure_num);
+        auto reference_original_id=[&](const prediction_structure_c<T_calc>&structure,int reference_id)
+        {
+            if(!prediction_data_uses_prediction_order)
+                return reference_id;
+            int64_t local_reference_index=(int64_t)reference_id-structure.prediction_order_offset;
+            if(local_reference_index<0||local_reference_index>=(int64_t)structure.target_ids.size())
+                throw runtime_error("自动flow的空间参考点跨越prediction structure");
+            return structure.target_ids[(uint32_t)local_reference_index];
+        };
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
         {
             uint32_t target_num=(uint32_t)prediction_structure_vec[structure_id].target_ids.size();
@@ -210,23 +213,42 @@ namespace unsz
             candidate.label_flow=candidate_label_flow;
             candidate.value_flow=candidate_value_flow;
             candidate.dependency_plan=&get_temporal_dependency_plan(candidate_value_flow);
+            candidate.label_dependency_plan=&get_temporal_dependency_plan(candidate_label_flow);
+            candidate.use_spatial_residual=candidate_value_flow=="constant_extrapolation_spatial_residual"||candidate_value_flow=="linear_interpolation_spatial_residual"||candidate_value_flow=="anchor_interpolation_stride_8_spatial_residual";
             candidates.push_back(move(candidate));
         };
-        add_candidate("none","none");
-        add_candidate(two_point_sets?"constant_extrapolation":"none","constant_extrapolation");
-        add_candidate(two_point_sets?"constant_extrapolation":"none","constant_extrapolation_spatial_residual");
-        bool anchor_compatible=time_step_vec.front()==0;
-        for(uint32_t time_index=1;time_index<time_step_num;time_index++)
-            anchor_compatible&=time_step_vec[time_index]==time_step_vec[time_index-1]+1;
-        if(anchor_compatible)
+        if(current_field_uses_tensor)
         {
-            add_candidate(two_point_sets?"anchor_interpolation_stride_8":"none","anchor_interpolation_stride_8");
-            add_candidate(two_point_sets?"anchor_interpolation_stride_8":"none","anchor_interpolation_stride_8_spatial_residual");
+            for(const tensor_flow_c&flow:generate_tensor_flow_candidates(current_tensor_shape))
+            {
+                automatic_flow_candidate_c candidate;
+                candidate.label_flow=tensor_flow_name(flow);
+                candidate.value_flow=candidate.label_flow;
+                candidate.dependency_plan=&get_tensor_dependency_plan(flow);
+                candidate.label_dependency_plan=candidate.dependency_plan;
+                candidate.tensor_flow=flow;
+                candidate.use_spatial_residual=flow.use_spatial_residual;
+                candidates.push_back(move(candidate));
+            }
+        }
+        else
+        {
+            add_candidate("none","none");
+            add_candidate(two_point_sets?"constant_extrapolation":"none","constant_extrapolation");
+            add_candidate(two_point_sets?"constant_extrapolation":"none","constant_extrapolation_spatial_residual");
+            bool anchor_compatible=time_step_vec.front()==0;
+            for(uint32_t time_index=1;time_index<time_step_num;time_index++)
+                anchor_compatible&=time_step_vec[time_index]==time_step_vec[time_index-1]+1;
+            if(anchor_compatible)
+            {
+                add_candidate(two_point_sets?"anchor_interpolation_stride_8":"none","anchor_interpolation_stride_8");
+                add_candidate(two_point_sets?"anchor_interpolation_stride_8":"none","anchor_interpolation_stride_8_spatial_residual");
+            }
         }
         vector<uint8_t> read_sampled_time_step=evaluate_time_step;
         for(const automatic_flow_candidate_c&candidate:candidates)
         {
-            const temporal_dependency_plan_c&label_dependency_plan=get_temporal_dependency_plan(candidate.label_flow);
+            const temporal_dependency_plan_c&label_dependency_plan=*candidate.label_dependency_plan;
             for(uint32_t time_index:full_scan_time_indices)
             {
                 const temporal_dependency_c&value_dependency=candidate.dependency_plan->dependencies[time_index];
@@ -242,6 +264,7 @@ namespace unsz
             current_data.resize(point_num);
         for(uint32_t time_index:full_scan_time_indices)
         {
+            current_time_step=time_step_vec[time_index];
             if(two_point_sets)
             {
                 auto input_start=chrono::steady_clock::now();
@@ -318,9 +341,7 @@ namespace unsz
                 typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,structure.uses_standard_reference_layout(rbf_reference_num));
                 for(uint32_t ref_offset=0;ref_offset<reference_range.num;ref_offset++)
                 {
-                    int reference_id=structure.reference_ids[reference_range.begin+ref_offset];
-                    if(prediction_data_uses_prediction_order)
-                        reference_id=prediction_to_original[reference_id];
+                    int reference_id=reference_original_id(structure,structure.reference_ids[reference_range.begin+ref_offset]);
                     sample_original_ids.push_back((uint32_t)reference_id);
                 }
             }
@@ -333,9 +354,13 @@ namespace unsz
             sampled_target_num+=structure_window_target_indices[structure_id].size();
             sampled_window_num+=structure_windows[structure_id].size();
         }
-        vector<int> original_to_sample(point_num,-1);
-        for(uint32_t sample_id=0;sample_id<sample_original_ids.size();sample_id++)
-            original_to_sample[sample_original_ids[sample_id]]=(int)sample_id;
+        auto find_sample_id=[&](uint32_t original_id)
+        {
+            auto iterator=lower_bound(sample_original_ids.begin(),sample_original_ids.end(),original_id);
+            if(iterator==sample_original_ids.end()||*iterator!=original_id)
+                throw runtime_error("自动flow采样编号映射不完整");
+            return (uint32_t)(iterator-sample_original_ids.begin());
+        };
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
         {
             const prediction_structure_c<T_calc>&structure=prediction_structure_vec[structure_id];
@@ -345,7 +370,7 @@ namespace unsz
             {
                 automatic_flow_sample_target_c<T_calc> target;
                 target.prediction_index=prediction_index;
-                target.target_sample_id=(uint32_t)original_to_sample[structure.target_ids[prediction_index]];
+                target.target_sample_id=find_sample_id((uint32_t)structure.target_ids[prediction_index]);
                 while(window_id+1<structure_windows[structure_id].size()&&prediction_index>=structure_windows[structure_id][window_id].region_end)
                     window_id++;
                 const automatic_flow_window_c&window=structure_windows[structure_id][window_id];
@@ -358,10 +383,8 @@ namespace unsz
                 for(uint32_t ref_offset=0;ref_offset<reference_range.num;ref_offset++)
                 {
                     uint64_t reference_index=reference_range.begin+ref_offset;
-                    int reference_id=structure.reference_ids[reference_index];
-                    if(prediction_data_uses_prediction_order)
-                        reference_id=prediction_to_original[reference_id];
-                    target.reference_sample_ids.push_back(original_to_sample[reference_id]);
+                    int reference_id=reference_original_id(structure,structure.reference_ids[reference_index]);
+                    target.reference_sample_ids.push_back((int)find_sample_id((uint32_t)reference_id));
                     target.reference_weights.push_back(structure.prediction_weights[reference_index]);
                 }
                 target.has_rbf_weights=structure.rbf_fallback_flags.empty()||!structure.rbf_fallback_flags[prediction_index];
@@ -384,21 +407,6 @@ namespace unsz
         sample_structure_time+=chrono::duration<double>(chrono::steady_clock::now()-sample_structure_start_time).count();
         vector<vector<T_data>> sampled_values(time_step_num);
         vector<vector<uint8_t>> sampled_labels(time_step_num);
-        auto classify_value=[this](T_data value)
-        {
-            const point_set_rule_c&rule=point_set_rule_vec.front();
-            double x=(double)value;
-            switch(rule.operator_type)
-            {
-                case point_set_rule_operator_e::less:return (uint8_t)(x<rule.value?0:1);
-                case point_set_rule_operator_e::less_equal:return (uint8_t)(x<=rule.value?0:1);
-                case point_set_rule_operator_e::greater:return (uint8_t)(x>rule.value?0:1);
-                case point_set_rule_operator_e::greater_equal:return (uint8_t)(x>=rule.value?0:1);
-                case point_set_rule_operator_e::equal:return (uint8_t)(x==rule.value?0:1);
-                case point_set_rule_operator_e::not_equal:return (uint8_t)(x!=rule.value?0:1);
-            }
-            return (uint8_t)1;
-        };
         auto sample_value_start_time=chrono::steady_clock::now();
         double sample_value_input_begin=excluded_input_time;
         for(uint32_t time_index=0;time_index<time_step_num;time_index++)
@@ -409,7 +417,7 @@ namespace unsz
             sampled_labels[time_index].resize(sample_original_ids.size());
             if(two_point_sets)
                 for(uint32_t sample_id=0;sample_id<sample_original_ids.size();sample_id++)
-                    sampled_labels[time_index][sample_id]=classify_value(sampled_values[time_index][sample_id]);
+                    sampled_labels[time_index][sample_id]=classify_point_set(sampled_values[time_index][sample_id],sample_original_ids[sample_id],time_step_vec[time_index]);
             automatic_flow_time_statistics_c<T_data>&statistics=time_statistics[time_index];
             statistics.point_set_abs_eb=compression_file_point_set_abs_eb_vec[time_index];
             statistics.point_set_codec=compression_file_point_set_codec_vec[time_index];
@@ -445,12 +453,13 @@ namespace unsz
         unordered_map<string,double> estimated_label_bytes_by_flow;
         auto shared_label_start_time=chrono::steady_clock::now();
         if(!two_point_sets)
-            estimated_label_bytes_by_flow["none"]=0;
+            for(const automatic_flow_candidate_c&candidate:candidates)
+                estimated_label_bytes_by_flow[candidate.label_flow]=0;
         else for(const automatic_flow_candidate_c&candidate:candidates)
         {
             if(estimated_label_bytes_by_flow.count(candidate.label_flow))
                 continue;
-            const temporal_dependency_plan_c&label_dependency_plan=get_temporal_dependency_plan(candidate.label_flow);
+            const temporal_dependency_plan_c&label_dependency_plan=*candidate.label_dependency_plan;
             double estimated_label_bytes=0;
             for(uint32_t time_index:label_dependency_plan.processing_order)
             {
@@ -467,9 +476,9 @@ namespace unsz
                         const automatic_flow_sample_target_c<T_calc>&target=targets[target_index];
                         array_view_c<int> reference_ids(target.reference_sample_ids);
                         uint32_t target_sample_id=target.target_sample_id,predicted_label;
-                        if(candidate.label_flow!="none"&&dependency.source_num==1)
+                        if(dependency.source_num==1)
                             predicted_label=sampled_labels[(uint32_t)dependency.source_indices[0]][target_sample_id];
-                        else if(candidate.label_flow!="none"&&dependency.source_num==2)
+                        else if(dependency.source_num==2)
                         {
                             uint8_t left_label=sampled_labels[(uint32_t)dependency.source_indices[0]][target_sample_id],right_label=sampled_labels[(uint32_t)dependency.source_indices[1]][target_sample_id];
                             predicted_label=left_label==right_label?left_label:predict_label(0,reference_ids.size(),target.reference_sample_ids,target.reference_weights,sampled_labels[time_index]);
@@ -497,7 +506,7 @@ namespace unsz
             auto candidate_start_time=chrono::steady_clock::now();
             candidate.estimated_label_bytes=estimated_label_bytes_by_flow.at(candidate.label_flow);
             vector<vector<T_data>> reconstructed_sampled_values=sampled_values;
-            bool use_spatial_residual=candidate.value_flow=="constant_extrapolation_spatial_residual"||candidate.value_flow=="linear_interpolation_spatial_residual"||candidate.value_flow=="anchor_interpolation_stride_8_spatial_residual";
+            bool use_spatial_residual=candidate.use_spatial_residual;
             vector<T_data> temporal_baseline(sample_original_ids.size()),temporal_residual(sample_original_ids.size());
             vector<uint8_t> temporal_valid(sample_original_ids.size());
             vector<vector<int32_t>> qb_vec(structure_num);
@@ -512,7 +521,7 @@ namespace unsz
                 const temporal_dependency_c&dependency=candidate.dependency_plan->dependencies[time_index];
                 array<T_calc,2> time_weights{{(T_calc)dependency.source_weights[0],(T_calc)dependency.source_weights[1]}};
                 fill(temporal_valid.begin(),temporal_valid.end(),0);
-                if(candidate.value_flow!="none"&&dependency.source_num>0)
+                if(dependency.source_num>0)
                 {
                     for(uint32_t sample_id=0;sample_id<sample_original_ids.size();sample_id++)
                     {
@@ -589,8 +598,16 @@ namespace unsz
         }
         prediction_data_uses_prediction_order=saved_prediction_order;
         auto best=min_element(candidates.begin(),candidates.end(),[](const automatic_flow_candidate_c&a,const automatic_flow_candidate_c&b){return a.selection_score()<b.selection_score();});
-        label_flow=best->label_flow;
-        value_flow=best->value_flow;
+        if(current_field_uses_tensor)
+        {
+            selected_tensor_flow=best->tensor_flow;
+            tensor_flow_selected=true;
+        }
+        else
+        {
+            label_flow=best->label_flow;
+            value_flow=best->value_flow;
+        }
         current_data.clear();
         point_set_id_vec.clear();
         double selection_time=chrono::duration<double>(chrono::steady_clock::now()-selection_start_time).count()-excluded_input_time;
@@ -600,7 +617,10 @@ namespace unsz
         double point_time_num=(double)point_num*time_step_num;
         for(const automatic_flow_candidate_c&candidate:candidates)
             printf("automatic flow candidate: label=%s,value=%s,estimated_label_bytes=%.3f,estimated_value_bytes=%.3f,estimated_total_bytes=%.3f,selection_score=%.3f,estimated_label_br=%.6f,estimated_value_br=%.6f,evaluation_time=%.6f s\n",candidate.label_flow.c_str(),candidate.value_flow.c_str(),candidate.estimated_label_bytes,candidate.estimated_value_bytes,candidate.estimated_total_bytes(),candidate.selection_score(),candidate.estimated_label_bytes*8/point_time_num,candidate.estimated_value_bytes*8/point_time_num,candidate.evaluation_time);
-        printf("automatic flow selected: label=%s,value=%s,selection_score=%.3f\n",label_flow.c_str(),value_flow.c_str(),best->selection_score());
+        if(current_field_uses_tensor)
+            printf("automatic tensor flow selected: %s,selection_score=%.3f\n",tensor_flow_name(selected_tensor_flow).c_str(),best->selection_score());
+        else
+            printf("automatic flow selected: label=%s,value=%s,selection_score=%.3f\n",label_flow.c_str(),value_flow.c_str(),best->selection_score());
         printf("automatic flow selection breakdown: file_statistics=%.6f s,sample_structure=%.6f s,sample_value_preparation=%.6f s,candidate_evaluation=%.6f s,shared_label_estimation=%.6f s,other=%.6f s\n",file_statistics_time,sample_structure_time,sample_value_preparation_time,candidate_evaluation_time,shared_label_estimation_time,other_time);
         printf("automatic flow selection time excluding data input= %f s\n",selection_time);
         printf("automatic flow data input time excluded from reported time= %f s\n",excluded_input_time);

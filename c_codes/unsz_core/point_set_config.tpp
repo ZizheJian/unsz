@@ -2,6 +2,40 @@
 
 namespace unsz
 {
+    template<typename T_data>
+    __attribute__((always_inline)) inline uint8_t classify_structural_point_set(T_data value,uint32_t active_level_count,uint32_t height_index,uint32_t active_level_count_offset)
+    {
+        bool structurally_active=height_index<(uint64_t)active_level_count+active_level_count_offset;
+        bool explicit_anomaly=!isfinite(value)||value==(T_data)-99999;
+        return structurally_active&&!explicit_anomaly?0:1;
+    }
+
+    template<typename T_coord,typename T_data>
+    uint8_t param_c<T_coord,T_data>::classify_point_set(T_data value,uint32_t point_id,uint32_t slice_id) const
+    {
+        if(current_active_level_counts)
+        {
+            if(point_id>=current_active_level_counts->size())
+                throw runtime_error("结构点集分类的point id越界");
+            return classify_structural_point_set(value,(*current_active_level_counts)[point_id],slice_id%current_tensor_shape[1],current_active_level_count_offset);
+        }
+        if(point_set_rule_vec.size()!=1)
+            throw runtime_error("双点集分类要求恰好一条规则");
+        const point_set_rule_c&rule=point_set_rule_vec[0];
+        double x=(double)value;
+        bool matches=false;
+        switch(rule.operator_type)
+        {
+            case point_set_rule_operator_e::less:matches=x<rule.value;break;
+            case point_set_rule_operator_e::less_equal:matches=x<=rule.value;break;
+            case point_set_rule_operator_e::greater:matches=x>rule.value;break;
+            case point_set_rule_operator_e::greater_equal:matches=x>=rule.value;break;
+            case point_set_rule_operator_e::equal:matches=x==rule.value;break;
+            case point_set_rule_operator_e::not_equal:matches=x!=rule.value;break;
+        }
+        return matches?0:1;
+    }
+
     inline const json_value_c&require_json_field(const json_value_c &object,const string &field,const string &location)
     {
         if(object.type!=json_type_e::object_value)

@@ -3,7 +3,7 @@
 namespace unsz
 {
     inline constexpr unsigned char compression_file_magic[8]={'U','N','S','Z','P','S','1','1'};
-    inline constexpr uint32_t compression_file_version=16;
+    inline constexpr uint32_t compression_file_version=17;
 
     inline uint8_t encode_prediction_flow(const string&flow)
     {
@@ -201,10 +201,23 @@ namespace unsz
         uint32_t file_point_num=read_binary<uint32_t>(cursor,end);
         uint32_t data_type_bytes=read_binary<uint32_t>(cursor,end);
         point_set_num=read_binary<uint32_t>(cursor,end);
-        string file_label_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
-        string file_value_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
-        if(file_label_flow!=label_flow||file_value_flow!=value_flow)
-            throw runtime_error("压缩文件记录的预测flow与解压参数不一致");
+        bool file_uses_tensor=read_binary<uint8_t>(cursor,end)!=0;
+        if(file_uses_tensor!=current_field_uses_tensor)
+            throw runtime_error("压缩文件的tensor模式与解压参数不一致");
+        if(file_uses_tensor)
+        {
+            tensor_flow_c file_tensor_flow=decode_tensor_flow(read_binary<uint8_t>(cursor,end));
+            array<uint32_t,2> file_tensor_shape{{read_binary<uint32_t>(cursor,end),read_binary<uint32_t>(cursor,end)}};
+            if(!tensor_flow_selected||encode_tensor_flow(file_tensor_flow)!=encode_tensor_flow(selected_tensor_flow)||file_tensor_shape!=current_tensor_shape)
+                throw runtime_error("压缩文件记录的tensor flow或形状与解压参数不一致");
+        }
+        else
+        {
+            string file_label_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
+            string file_value_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
+            if(file_label_flow!=label_flow||file_value_flow!=value_flow)
+                throw runtime_error("压缩文件记录的预测flow与解压参数不一致");
+        }
         if (file_point_num!=point_num)
             throw runtime_error("压缩文件点数与坐标点数不一致");
         if (data_type_bytes!=sizeof(T_data))
@@ -386,7 +399,8 @@ namespace unsz
             unpredictable_value_byte_num+=payload.unpredictable_value_byte_num;
         }
         vector<unsigned char> container;
-        uint64_t container_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t)+(uint64_t)point_set_num*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data))+sizeof(uint32_t)+(uint64_t)(payload_num+1)*sizeof(uint64_t);
+        uint64_t temporal_metadata_byte_num=current_field_uses_tensor?2*sizeof(uint8_t)+2*sizeof(uint32_t):3*sizeof(uint8_t);
+        uint64_t container_byte_num=8+4*sizeof(uint32_t)+temporal_metadata_byte_num+(uint64_t)point_set_num*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data))+sizeof(uint32_t)+(uint64_t)(payload_num+1)*sizeof(uint64_t);
         for(const encoded_compression_payload_c&payload:payload_vec)
             container_byte_num+=payload.bytes.size();
         container.reserve((size_t)container_byte_num);
@@ -395,8 +409,20 @@ namespace unsz
         append_binary<uint32_t>(container,point_num);
         append_binary<uint32_t>(container,sizeof(T_data));
         append_binary<uint32_t>(container,point_set_num);
-        append_binary<uint8_t>(container,encode_prediction_flow(label_flow));
-        append_binary<uint8_t>(container,encode_prediction_flow(value_flow));
+        append_binary<uint8_t>(container,current_field_uses_tensor?1:0);
+        if(current_field_uses_tensor)
+        {
+            if(!tensor_flow_selected)
+                throw runtime_error("写入压缩文件前尚未选择tensor flow");
+            append_binary<uint8_t>(container,encode_tensor_flow(selected_tensor_flow));
+            append_binary<uint32_t>(container,current_tensor_shape[0]);
+            append_binary<uint32_t>(container,current_tensor_shape[1]);
+        }
+        else
+        {
+            append_binary<uint8_t>(container,encode_prediction_flow(label_flow));
+            append_binary<uint8_t>(container,encode_prediction_flow(value_flow));
+        }
         for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {
             append_binary<uint8_t>(container,point_set_source_id_vec[point_set_id]);
@@ -475,7 +501,7 @@ namespace unsz
     {
         if(original_data_path_vec.empty())
             throw runtime_error("自动flow解压缺少数据文件路径");
-        constexpr uint64_t maximum_header_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t)+2*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data));
+        constexpr uint64_t maximum_header_byte_num=8+6*sizeof(uint32_t)+3*sizeof(uint8_t)+2*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data));
         vector<unsigned char> bytes(maximum_header_byte_num);
         string compressed_path=original_data_path_vec.front()+".unsz";
         auto input_start_time=chrono::steady_clock::now();
@@ -496,21 +522,39 @@ namespace unsz
         uint32_t version=read_binary<uint32_t>(cursor,end);
         if(version!=compression_file_version)
             throw runtime_error("不支持的UNSZ文件版本："+to_string(version));
-        read_binary<uint32_t>(cursor,end);
-        read_binary<uint32_t>(cursor,end);
+        uint32_t file_point_num=read_binary<uint32_t>(cursor,end);
+        if(file_point_num!=point_num)
+            throw runtime_error("压缩文件的点数与坐标文件不一致");
+        uint32_t file_data_type_size=read_binary<uint32_t>(cursor,end);
+        if(file_data_type_size!=sizeof(T_data))
+            throw runtime_error("压缩文件的数据类型大小与解压程序不一致");
         uint32_t point_set_num=read_binary<uint32_t>(cursor,end);
         if(point_set_num==0||point_set_num>2)
             throw runtime_error("压缩文件包含无效点集数量");
-        string file_label_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
-        string file_value_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
-        if(label_flow=="auto")
-            label_flow=file_label_flow;
-        else if(label_flow!=file_label_flow)
-            throw runtime_error("压缩文件记录的label flow与解压参数不一致");
-        if(value_flow=="auto")
-            value_flow=file_value_flow;
-        else if(value_flow!=file_value_flow)
-            throw runtime_error("压缩文件记录的value flow与解压参数不一致");
+        bool file_uses_tensor=read_binary<uint8_t>(cursor,end)!=0;
+        if(file_uses_tensor!=current_field_uses_tensor)
+            throw runtime_error("压缩文件的tensor模式与解压参数不一致");
+        if(file_uses_tensor)
+        {
+            selected_tensor_flow=decode_tensor_flow(read_binary<uint8_t>(cursor,end));
+            tensor_flow_selected=true;
+            array<uint32_t,2> file_tensor_shape{{read_binary<uint32_t>(cursor,end),read_binary<uint32_t>(cursor,end)}};
+            if(file_tensor_shape!=current_tensor_shape)
+                throw runtime_error("压缩文件记录的tensor形状与metadata不一致");
+        }
+        else
+        {
+            string file_label_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
+            string file_value_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
+            if(label_flow=="auto")
+                label_flow=file_label_flow;
+            else if(label_flow!=file_label_flow)
+                throw runtime_error("压缩文件记录的label flow与解压参数不一致");
+            if(value_flow=="auto")
+                value_flow=file_value_flow;
+            else if(value_flow!=file_value_flow)
+                throw runtime_error("压缩文件记录的value flow与解压参数不一致");
+        }
         vector<uint8_t> source_ids(point_set_num),effective_codecs(point_set_num);
         for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
         {

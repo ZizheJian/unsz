@@ -2,6 +2,25 @@
 
 namespace unsz
 {
+    inline string temporal_dependency_plan_name(const string&flow)
+    {
+        if(flow=="constant_extrapolation_spatial_residual")return "constant_extrapolation";
+        if(flow=="linear_interpolation_spatial_residual")return "linear_interpolation";
+        if(flow=="anchor_interpolation_stride_8_spatial_residual")return "anchor_interpolation_stride_8";
+        return flow;
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::precompute_all_tensor_dependency_plans()
+    {
+        for(const string&field_name:field_name_vec)
+        {
+            const tensor_field_config_c&config=tensor_field_config_map.at(field_name);
+            if(!tensor_dependency_plan_cache.count(config.dependency_plan_key))
+                tensor_dependency_plan_cache.emplace(config.dependency_plan_key,generate_all_tensor_dependency_plans(config.shape,config.axis_coordinates));
+        }
+    }
+
     inline temporal_dependency_c build_temporal_dependency(const string&flow,uint32_t time_step,uint32_t time_step_index,int32_t left_source,int32_t right_source,int32_t&previous_source)
     {
         temporal_dependency_c dependency;
@@ -93,12 +112,20 @@ namespace unsz
     void param_c<T_coord,T_data>::precompute_temporal_dependency_plans()
     {
         temporal_dependency_plan_cache.clear();
+        if(current_field_uses_tensor)
+        {
+            if(current_tensor_dependency_plan_key.empty())
+                throw runtime_error("当前field缺少tensor依赖计划缓存键");
+            if(!tensor_dependency_plan_cache.count(current_tensor_dependency_plan_key))
+                tensor_dependency_plan_cache.emplace(current_tensor_dependency_plan_key,generate_all_tensor_dependency_plans(current_tensor_shape,current_tensor_axis_coordinates));
+            return;
+        }
         vector<uint32_t> sorted_time_steps=time_step_vec;
         sort(sorted_time_steps.begin(),sorted_time_steps.end());
         bool anchor_compatible=!sorted_time_steps.empty()&&sorted_time_steps.front()==0;
         for(uint32_t time_step_index=1;time_step_index<sorted_time_steps.size();time_step_index++)
             anchor_compatible&=sorted_time_steps[time_step_index]==sorted_time_steps[time_step_index-1]+1;
-        constexpr const char*flow_names[]={"none","constant_extrapolation","constant_extrapolation_spatial_residual","linear_interpolation","linear_interpolation_spatial_residual","anchor_interpolation_stride_8","anchor_interpolation_stride_8_spatial_residual"};
+        constexpr const char*flow_names[]={"none","constant_extrapolation","linear_interpolation","anchor_interpolation_stride_8"};
         for(const char*flow:flow_names)
         {
             bool anchor_flow=string(flow).find("anchor_interpolation_stride_8")!=string::npos;
@@ -108,9 +135,21 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
+    const temporal_dependency_plan_c&param_c<T_coord,T_data>::get_tensor_dependency_plan(const tensor_flow_c&flow) const
+    {
+        auto cache_iterator=tensor_dependency_plan_cache.find(current_tensor_dependency_plan_key);
+        if(cache_iterator==tensor_dependency_plan_cache.end())
+            throw runtime_error("没有预生成当前形状的tensor依赖计划");
+        auto iterator=cache_iterator->second.find(tensor_dependency_plan_id(flow));
+        if(iterator==cache_iterator->second.end())
+            throw runtime_error("没有预生成的tensor依赖计划："+tensor_flow_name(flow));
+        return iterator->second;
+    }
+
+    template<typename T_coord,typename T_data>
     const temporal_dependency_plan_c&param_c<T_coord,T_data>::get_temporal_dependency_plan(const string&flow) const
     {
-        auto iterator=temporal_dependency_plan_cache.find(flow);
+        auto iterator=temporal_dependency_plan_cache.find(temporal_dependency_plan_name(flow));
         if(iterator==temporal_dependency_plan_cache.end())
             throw runtime_error("没有预生成的时间依赖计划："+flow);
         return iterator->second;
@@ -134,9 +173,8 @@ namespace unsz
             configured_index_by_time_step.emplace(configured_time_step_vec[index],index);
         for(uint32_t index=0;index<time_step_vec.size();index++)
             current_index_by_time_step.emplace(time_step_vec[index],index);
-        auto map_dependencies=[&](const string&flow,vector<temporal_dependency_c>&dependencies)
+        auto map_plan_dependencies=[&](const temporal_dependency_plan_c&plan,vector<temporal_dependency_c>&dependencies)
         {
-            const temporal_dependency_plan_c&plan=get_temporal_dependency_plan(flow);
             for(uint32_t current_index=0;current_index<time_step_num;current_index++)
             {
                 uint32_t configured_index=configured_index_by_time_step.at(time_step_vec[current_index]);
@@ -153,8 +191,19 @@ namespace unsz
                 }
             }
         };
-        map_dependencies(value_flow,temporal_value_dependency_vec);
-        map_dependencies(label_flow,temporal_label_dependency_vec);
+        if(current_field_uses_tensor)
+        {
+            if(!tensor_flow_selected)
+                throw runtime_error("尚未选择tensor flow");
+            const temporal_dependency_plan_c&plan=get_tensor_dependency_plan(selected_tensor_flow);
+            map_plan_dependencies(plan,temporal_value_dependency_vec);
+            map_plan_dependencies(plan,temporal_label_dependency_vec);
+        }
+        else
+        {
+            map_plan_dependencies(get_temporal_dependency_plan(value_flow),temporal_value_dependency_vec);
+            map_plan_dependencies(get_temporal_dependency_plan(label_flow),temporal_label_dependency_vec);
+        }
         for(uint32_t time_step_index=0;time_step_index<time_step_num;time_step_index++)
         {
             temporal_dependency_c&value_dependency=temporal_value_dependency_vec[time_step_index];

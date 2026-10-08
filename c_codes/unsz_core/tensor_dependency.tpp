@@ -31,9 +31,15 @@ namespace unsz
     inline uint8_t encode_tensor_flow(const tensor_flow_c&flow)
     {
         uint8_t axis0_mode=(uint8_t)flow.axis_modes[0],axis1_mode=(uint8_t)flow.axis_modes[1];
-        if(axis0_mode>2||axis1_mode>2||flow.axis_order[0]>1||flow.interpolation_axis_order[0]>1)
+        if(axis0_mode>2||axis1_mode>2||flow.axis_order[0]>1||flow.axis_order[1]>1||flow.axis_order[0]==flow.axis_order[1]||flow.interpolation_axis_order[0]>1||flow.interpolation_axis_order[1]>1||flow.interpolation_axis_order[0]==flow.interpolation_axis_order[1]||(uint8_t)flow.schedule>1)
             throw runtime_error("不能编码无效tensor flow");
         return axis0_mode|(axis1_mode<<2)|(flow.axis_order[0]<<4)|(flow.interpolation_axis_order[0]<<5)|((uint8_t)flow.schedule<<6)|((uint8_t)flow.use_spatial_residual<<7);
+    }
+
+    inline uint8_t tensor_dependency_plan_id(tensor_flow_c flow)
+    {
+        flow.use_spatial_residual=false;
+        return encode_tensor_flow(flow);
     }
 
     inline tensor_flow_c decode_tensor_flow(uint8_t encoded)
@@ -335,5 +341,29 @@ namespace unsz
         if(flows.size()!=33)
             throw runtime_error("二维tensor flow候选数量不是33");
         return flows;
+    }
+
+    inline bool tensor_flow_applies_to_shape(const tensor_flow_c&flow,const array<uint32_t,2>&shape)
+    {
+        return (shape[0]>1||flow.axis_modes[0]==tensor_axis_mode_e::none)&&(shape[1]>1||flow.axis_modes[1]==tensor_axis_mode_e::none);
+    }
+
+    inline vector<tensor_flow_c> generate_tensor_flow_candidates(const array<uint32_t,2>&shape)
+    {
+        vector<tensor_flow_c> flows=generate_tensor_flow_candidates();
+        flows.erase(remove_if(flows.begin(),flows.end(),[&](const tensor_flow_c&flow){return !tensor_flow_applies_to_shape(flow,shape);}),flows.end());
+        return flows;
+    }
+
+    inline map<uint8_t,temporal_dependency_plan_c> generate_all_tensor_dependency_plans(const array<uint32_t,2>&shape,const array<vector<double>,2>&axis_coordinates)
+    {
+        map<uint8_t,temporal_dependency_plan_c> plans;
+        for(const tensor_flow_c&flow:generate_tensor_flow_candidates(shape))
+        {
+            uint8_t plan_id=tensor_dependency_plan_id(flow);
+            if(!plans.count(plan_id))
+                plans.emplace(plan_id,generate_tensor_dependency_plan(shape,axis_coordinates,flow));
+        }
+        return plans;
     }
 }

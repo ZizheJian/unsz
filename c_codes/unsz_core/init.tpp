@@ -137,14 +137,29 @@ namespace unsz
         else
             order_name="Anchor stride 8";
         printf("%s processing order:",order_name);
-        for(uint32_t time_step:time_step_vec)
-            printf(" %u",time_step);
+        if(time_step_vec.size()<=32)
+            for(uint32_t time_step:time_step_vec)
+                printf(" %u",time_step);
+        else
+        {
+            for(uint32_t index=0;index<8;index++)
+                printf(" %u",time_step_vec[index]);
+            printf(" ...");
+            for(uint32_t index=(uint32_t)time_step_vec.size()-8;index<time_step_vec.size();index++)
+                printf(" %u",time_step_vec[index]);
+            printf(" (%u total)",(uint32_t)time_step_vec.size());
+        }
         printf("\n");
     }
 
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_time_step_order_from_flows()
     {
+        if(current_field_uses_tensor)
+        {
+            prepare_tensor_slice_order();
+            return;
+        }
         time_step_order_e label_order=get_time_step_order(label_flow),value_order=get_time_step_order(value_flow);
         if(point_set_config_vec.size()==1||label_flow=="none")
             prepare_time_step_order(value_order);
@@ -152,6 +167,44 @@ namespace unsz
             prepare_time_step_order(label_order);
         else
             prepare_time_step_order(time_step_order_e::chronological);
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::prepare_tensor_slice_order()
+    {
+        if(!tensor_flow_selected)
+            throw runtime_error("尚未选择tensor flow");
+        const temporal_dependency_plan_c&plan=get_tensor_dependency_plan(selected_tensor_flow);
+        const vector<uint32_t>&processing_order=plan.processing_order;
+        auto reorder_file_values=[&](auto&values)
+        {
+            if(values.empty())
+                return;
+            if(values.size()!=processing_order.size())
+                throw runtime_error("逐切片预计算结果数量与tensor切片数量不一致");
+            using value_type=typename decay_t<decltype(values)>::value_type;
+            vector<value_type> ordered_values;
+            ordered_values.reserve(values.size());
+            for(uint32_t id:processing_order)
+                ordered_values.push_back(values[id]);
+            values=move(ordered_values);
+        };
+        reorder_file_values(compression_file_point_set_min_data_vec);
+        reorder_file_values(compression_file_point_set_max_data_vec);
+        reorder_file_values(compression_file_point_set_abs_eb_vec);
+        reorder_file_values(compression_file_point_set_codec_vec);
+        vector<uint32_t> ordered_slice_ids;
+        vector<string> ordered_data_paths;
+        ordered_slice_ids.reserve(processing_order.size());
+        ordered_data_paths.reserve(processing_order.size());
+        for(uint32_t slice_id:processing_order)
+        {
+            ordered_slice_ids.push_back(slice_id);
+            ordered_data_paths.push_back(original_data_path_vec[slice_id]);
+        }
+        time_step_vec=move(ordered_slice_ids);
+        original_data_path_vec=move(ordered_data_paths);
+        printf("Tensor processing order selected: %s, slices=%u\n",tensor_flow_name(selected_tensor_flow).c_str(),(uint32_t)time_step_vec.size());
     }
 
     template<typename T_coord,typename T_data>

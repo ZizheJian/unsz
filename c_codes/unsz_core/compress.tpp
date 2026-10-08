@@ -136,6 +136,37 @@ namespace unsz
                 point_set_max_data_vec[0]=maximum[0];
             }
         }
+        else if(current_active_level_counts)
+        {
+            point_set_id_vec.resize(point_num);
+            uint32_t point_num_per_set[2]={0,0};
+            T_data minimum[2]={numeric_limits<T_data>::infinity(),numeric_limits<T_data>::infinity()};
+            T_data maximum[2]={-numeric_limits<T_data>::infinity(),-numeric_limits<T_data>::infinity()};
+            const uint32_t*active_level_counts=current_active_level_counts->data();
+            uint32_t height_index=current_time_step%current_tensor_shape[1];
+            for(uint32_t point_id=0;point_id<point_num;point_id++)
+            {
+                T_data value=current_data[point_id];
+                uint32_t point_set_id=classify_structural_point_set(value,active_level_counts[point_id],height_index,current_active_level_count_offset);
+                point_set_id_vec[point_id]=(uint8_t)point_set_id;
+                point_num_per_set[point_set_id]++;
+                if constexpr(collect_statistics)
+                {
+                    minimum[point_set_id]=min(minimum[point_set_id],value);
+                    maximum[point_set_id]=max(maximum[point_set_id],value);
+                }
+            }
+            for(uint32_t point_set_id=0;point_set_id<2;point_set_id++)
+            {
+                point_set_point_num_vec[point_set_id]=point_num_per_set[point_set_id];
+                if constexpr(collect_statistics)
+                {
+                    point_set_min_data_vec[point_set_id]=minimum[point_set_id];
+                    point_set_max_data_vec[point_set_id]=maximum[point_set_id];
+                }
+            }
+            point_set_num=2;
+        }
         else if(point_set_rule_vec.size()==1)
         {
             point_set_id_vec.resize(point_num);
@@ -283,6 +314,7 @@ namespace unsz
         array<bool,2> point_set_is_always_constant{{true,true}};
         for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
         {
+            current_time_step=time_step_vec[time_index];
             auto input_start_time=chrono::steady_clock::now();
             read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
             point_set_statistics_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start_time).count();
@@ -335,6 +367,11 @@ namespace unsz
                 value_flow="none";
             else
                 resolve_single_point_set_time_mode();
+        }
+        if(current_field_uses_tensor&&value_flow=="none")
+        {
+            selected_tensor_flow={};
+            tensor_flow_selected=true;
         }
         current_data.clear();
         point_set_id_vec.clear();
@@ -442,11 +479,7 @@ namespace unsz
         {
             if(point_set_codec_vec[0]==point_set_codec_e::constant)
             {
-                for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
-                {
-                    uint32_t reconstructed_id=prediction_structure.get_storage_id(prediction_index,target_ids[prediction_index],prediction_data_uses_prediction_order);
-                    reconstructed_data[reconstructed_id]=point_set_min_data_vec[0];
-                }
+                fill(reconstructed_data.begin(),reconstructed_data.end(),point_set_min_data_vec[0]);
                 return result;
             }
             vector<int32_t>&qbs=result.point_set_qb_vec[0];

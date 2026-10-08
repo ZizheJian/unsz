@@ -64,6 +64,12 @@ namespace unsz
                     throw runtime_error("-time-step-coordinate-file后面缺少文件路径");
                 param.time_step_coordinate_path=argv[++arg_id];
             }
+            else if(strcmp(argv[arg_id],"-tensor-metadata")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-tensor-metadata后面缺少文件路径");
+                param.tensor_metadata_path=argv[++arg_id];
+            }
             else if (strcmp(argv[arg_id],"-M")==0)
             {
                 if (arg_id+2>=argc)

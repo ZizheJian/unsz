@@ -71,9 +71,33 @@ def read_point_set_rel_eb_list(path):
     return list(dict.fromkeys(rel_eb_vec))
 
 # 公共路径和程序
+def resolve_tensor_metadata_path(config):
+    path=Path(config["tensor_metadata"])
+    return path if path.is_absolute() else Path(config["data_dir"])/path
+
+def load_tensor_field_config(config,field=None):
+    path=resolve_tensor_metadata_path(config)
+    if not path.is_file():
+        raise FileNotFoundError(f"找不到tensor metadata：{path}")
+    with path.open(encoding="utf-8") as file:
+        metadata=json.load(file)
+    field=field or config["field"]
+    try:
+        return metadata["fields"][field]
+    except KeyError as error:
+        raise ValueError(f"tensor metadata中没有field：{field}") from error
+
+def field_slice_num(config,field=None):
+    if "tensor_metadata" not in config:
+        return config["time_step_num"]
+    shape=load_tensor_field_config(config,field)["shape"]
+    if not isinstance(shape,list) or len(shape)!=2 or any(not isinstance(value,int)or value<=0 for value in shape):
+        raise ValueError("tensor metadata的shape必须包含两个正整数")
+    return math.prod(shape)
+
 def generate_input_file_paths(config):
     directory=Path(config["data_dir"])
-    return [directory/f"{config['field']}.dat.{time_step}" for time_step in range(config["time_step_num"])]
+    return [directory/f"{config['field']}.dat.{slice_id}" for slice_id in range(field_slice_num(config))]
 
 def calculate_data_range(data_paths):
     minimum=math.inf
@@ -166,7 +190,12 @@ def build_spatial_prediction_arguments(config,data_dir,time_expression):
         field_arguments=["-field-list","{"+",".join(config["field_list"])+"}"]
     else:
         field_arguments=["-field",config["field"]]
-    arguments=["-data-dir",data_dir,*field_arguments,"-time-step",time_expression,"-coordinate-dim",config["coordinate_dim"]]
+    arguments=["-data-dir",data_dir,*field_arguments]
+    if "tensor_metadata" in config:
+        arguments.extend(("-tensor-metadata",config["tensor_metadata"]))
+    else:
+        arguments.extend(("-time-step",time_expression))
+    arguments.extend(("-coordinate-dim",config["coordinate_dim"]))
     if "coordinate_transform" in config:
         coordinate_transform=config["coordinate_transform"]
         if coordinate_transform not in ("off","on","auto"):
@@ -220,7 +249,11 @@ def build_temporal_unsz_arguments(config,data_dir):
     return arguments
 
 def build_unsz_commands(config,data_dir):
-    if config["time_step_num"]>1 and (config.get("force_flow",False) or config["value_flow"]!="spatial" or config["label_flow"] not in (None,"spatial")):
+    if "tensor_metadata" in config:
+        if config.get("force_flow",False):
+            raise ValueError("二维tensor暂不支持通过实验配置强制指定flow")
+        arguments=build_spatial_prediction_arguments(config,data_dir,None)
+    elif config["time_step_num"]>1 and (config.get("force_flow",False) or config["value_flow"]!="spatial" or config["label_flow"] not in (None,"spatial")):
         arguments=build_temporal_unsz_arguments(config,data_dir)
     else:
         arguments=build_spatial_unsz_arguments(config,data_dir)
@@ -240,9 +273,10 @@ def build_unsz_commands(config,data_dir):
 
 def expand_unsz_flows(config):
     if "flow" not in config:
-        value_flow="auto" if config["time_step_num"]>1 else "spatial"
+        has_multiple_slices=any(field_slice_num(config,field)>1 for field in config["field_list"])
+        value_flow="auto" if has_multiple_slices else "spatial"
         has_label="point_set_config_path_list" in config or "point_set_config_path" in config
-        label_flow="auto" if has_label and config["time_step_num"]>1 else None
+        label_flow="auto" if has_label and has_multiple_slices else None
         return [config|{"label_flow":label_flow,"value_flow":value_flow,"force_flow":False}]
     flow=config["flow"]
     if "pair" in flow:
@@ -266,6 +300,8 @@ def run_unsz_fields(config):
     field_list=config["field_list"] if "field_list" in config else [config["field"]]
     source_data_paths=[path for field in field_list for path in generate_input_file_paths(config|{"field":field})]
     required_paths=[source_data_dir/"coords.dat",*source_data_paths]
+    if "tensor_metadata" in config:
+        required_paths.append(resolve_tensor_metadata_path(config))
     missing_paths=[str(path) for path in required_paths if not path.is_file()]
     if missing_paths:
         raise FileNotFoundError("缺少测试文件："+", ".join(missing_paths))
@@ -280,8 +316,8 @@ def run_unsz_fields(config):
             field_compression_output=compression_output
             field_decompression_output=decompression_output
         else:
-            field_compression_output=extract_unsz_field_output(compression_output,field,True)
-            field_decompression_output=extract_unsz_field_output(decompression_output,field,False)
+            field_compression_output=extract_unsz_field_output(compression_output,field,field==field_list[0])
+            field_decompression_output=extract_unsz_field_output(decompression_output,field,field==field_list[0])
         result=parse_unsz_output(field_compression_output,field_decompression_output)
         error_configuration=config["point_set_config_path"] if "point_set_config_path" in config else f"REL {config['rel_eb']}"
         selected_label_flow=result["selected_label_flow"] or config.get("label_flow") or "not_applicable"
@@ -292,6 +328,8 @@ def run_unsz_fields(config):
     return result_by_field
 
 def run_umc(config,rel_eb,data_range):
+    if "tensor_metadata" in config:
+        raise ValueError("UMC实验入口不接受UNSZ二维tensor metadata；需要使用单独的UMC数据适配器")
     source_data_dir=Path(config["data_dir"])
     field=config["field"]
     time_step_num=config["time_step_num"]
@@ -373,7 +411,7 @@ def write_benchmark_result(task,field,compressor,config,result,metadata):
         write_csv_item(str(result_path),item,"selected_value_flow",result["selected_value_flow"] or value_flow)
         if result["automatic_flow_candidates"]:
             write_csv_item(str(result_path),item,"automatic_flow_candidates",json.dumps(result["automatic_flow_candidates"],separators=(",",":")))
-    for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",task["time_step_num"]),("input_bytes",total_bytes)):
+    for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",field_slice_num(config,field)),("input_bytes",total_bytes)):
         write_csv_item(str(result_path),item,column_name,value)
 
 def run_task(task):

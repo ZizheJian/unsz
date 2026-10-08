@@ -3,6 +3,20 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::prepare_current_spatial_prediction_state(bool for_decompression)
+    {
+        bool uses_spatial_prediction=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec!=point_set_codec_e::constant;});
+        if(uses_spatial_prediction&&!use_coordinate_transform&&activate_shared_spatial_prediction_state())
+        {
+            printf("Reusing shared spatial prediction DAG and weights\n");
+            return;
+        }
+        generate_prediction_structures_and_weights();
+        finalize_current_spatial_prediction_state(for_decompression);
+        current_spatial_prediction_state_is_shared=uses_spatial_prediction&&!use_coordinate_transform;
+    }
+
+    template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::finalize_current_spatial_prediction_state(bool for_decompression)
     {
         for(uint32_t structure_id=0;structure_id<prediction_structure_vec.size();structure_id++)

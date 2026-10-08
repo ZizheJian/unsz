@@ -257,6 +257,21 @@ namespace unsz
         if(prediction_data_uses_prediction_order)
             prediction_order_decompressed_data.resize(point_num);
         auto stage_start_time=chrono::steady_clock::now();
+        if constexpr(!two_point_sets)
+            if(point_set_codec_vec[0]==point_set_codec_e::constant)
+            {
+                for(uint32_t structure_id=0;structure_id<prediction_structure_vec.size();structure_id++)
+                {
+                    if(!structure_point_set_qb_vec[structure_id][0].empty())
+                        throw runtime_error("常量点集的数值流不能包含量化索引");
+                    if(structure_unpredictable_value_begin_vec[structure_id]!=structure_unpredictable_value_end_vec[structure_id])
+                        throw runtime_error("常量点集的数值流不能包含不可预测值");
+                }
+                vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
+                fill(reconstructed_data.begin(),reconstructed_data.end(),point_set_min_data_vec[0]);
+                state.value_decode_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
+                return;
+            }
         auto decompress_targets=[&](const prediction_structure_c<T_calc>&prediction_structure,auto get_qb,auto get_unpredictable_value)
         {
             const vector<int>&target_ids=prediction_structure.target_ids;

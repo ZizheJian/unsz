@@ -24,15 +24,7 @@ void prepare_current_decompression_geometry(unsz::param_c<T_coord,float>&param)
 {
     param.restore_original_coordinates();
     param.apply_coordinate_transform();
-    bool uses_spatial_prediction=any_of(param.point_set_config_vec.begin(),param.point_set_config_vec.end(),[](const unsz::point_set_config_c&config){return config.codec!=unsz::point_set_codec_e::constant;});
-    if(uses_spatial_prediction&&!param.use_coordinate_transform&&param.activate_shared_spatial_prediction_state())
-        printf("Reusing shared spatial prediction DAG and weights\n");
-    else
-    {
-        param.generate_prediction_structures_and_weights();
-        param.finalize_current_spatial_prediction_state(true);
-        param.current_spatial_prediction_state_is_shared=uses_spatial_prediction&&!param.use_coordinate_transform;
-    }
+    param.prepare_current_spatial_prediction_state(true);
 }
 
 template<typename T_coord>
@@ -43,7 +35,10 @@ pair<double,double> prepare_current_decompression_field(unsz::param_c<T_coord,fl
     param.prepare_time_step_order_from_flows();
     param.prepare_temporal_dependencies();
     double preprocessing_time=chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count()-metadata_input_time;
-    printf("compressed flow: label=%s,value=%s\n",param.label_flow.c_str(),param.value_flow.c_str());
+    if(param.current_field_uses_tensor)
+        printf("compressed tensor flow: %s\n",unsz::tensor_flow_name(param.selected_tensor_flow).c_str());
+    else
+        printf("compressed flow: label=%s,value=%s\n",param.label_flow.c_str(),param.value_flow.c_str());
     return {preprocessing_time,metadata_input_time};
 }
 
@@ -66,6 +61,9 @@ void run_decompression_field(unsz::param_c<T_coord,float>&param)
     vector<float> original_data(param.point_num);
     for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
+        bool print_file_details=param.original_data_path_vec.size()<=32||param.print_compression_stage_time;
+        if(!print_file_details&&file_id%128==0)
+            printf("Decompression progress: %u/%u slices\n",file_id,(uint32_t)param.original_data_path_vec.size());
         param.current_time_step_index=file_id;
         param.current_time_step=param.time_step_vec[file_id];
         string compressed_path=param.original_data_path_vec[file_id]+".unsz";
@@ -83,22 +81,27 @@ void run_decompression_field(unsz::param_c<T_coord,float>&param)
             total_prediction_order_restore_time+=chrono::duration<double>(chrono::steady_clock::now()-restore_start_time).count();
         }
         double decompression_time=chrono::duration<double>(chrono::steady_clock::now()-decompression_start_time).count();
-        param.print_current_decompression_diagnostics();
+        if(print_file_details)
+            param.print_current_decompression_diagnostics();
         param.validate_decoded_point_set_counts();
         if(param.write_decompressed_output)
             unsz::write_binary_file(decompressed_path,param.current_decompressed_data.data(),param.point_num);
 
         if(!unsz::try_read_binary_file_exact(param.original_data_path_vec[file_id],original_data.data(),param.point_num))
         {
-            printf("Decompressed %s（原始文件不存在，跳过误差验证）\n",param.write_decompressed_output?decompressed_path.c_str():compressed_path.c_str());
+            if(print_file_details)
+                printf("Decompressed %s（原始文件不存在，跳过误差验证）\n",param.write_decompressed_output?decompressed_path.c_str():compressed_path.c_str());
             auto time_state_update_start=chrono::steady_clock::now();
             param.update_time_prediction_state();
             double time_state_update_time=chrono::duration<double>(chrono::steady_clock::now()-time_state_update_start).count();
             total_time_prediction_state_update_time+=time_state_update_time;
             decompression_time+=time_state_update_time;
             total_decompression_time+=decompression_time;
-            printf("time prediction state update time= %.9f s\n",time_state_update_time);
-            printf("file decompression time= %f s\n",decompression_time);
+            if(print_file_details)
+            {
+                printf("time prediction state update time= %.9f s\n",time_state_update_time);
+                printf("file decompression time= %f s\n",decompression_time);
+            }
             continue;
         }
         unsz::reconstruction_statistics_c file_statistics=param.calculate_reconstruction_statistics(original_data.data(),param.current_decompressed_data.data(),param.point_num);
@@ -106,7 +109,8 @@ void run_decompression_field(unsz::param_c<T_coord,float>&param)
             max_error_data_path=param.original_data_path_vec[file_id];
         unsz::merge_reconstruction_statistics(total_statistics,file_statistics);
         unsz::add_normalized_reconstruction_error(total_normalized_squared_error,total_normalized_value_num,file_statistics,param.point_set_point_num_vec,param.point_set_min_data_vec,param.point_set_max_data_vec);
-        printf("Decompressed %s, psnr= %f\n",param.write_decompressed_output?decompressed_path.c_str():compressed_path.c_str(),unsz::reconstruction_psnr(file_statistics));
+        if(print_file_details)
+            printf("Decompressed %s, psnr= %f\n",param.write_decompressed_output?decompressed_path.c_str():compressed_path.c_str(),unsz::reconstruction_psnr(file_statistics));
         validated_file_num++;
         auto time_state_update_start=chrono::steady_clock::now();
         param.update_time_prediction_state();
@@ -114,8 +118,11 @@ void run_decompression_field(unsz::param_c<T_coord,float>&param)
         total_time_prediction_state_update_time+=time_state_update_time;
         decompression_time+=time_state_update_time;
         total_decompression_time+=decompression_time;
-        printf("time prediction state update time= %.9f s\n",time_state_update_time);
-        printf("file decompression time= %f s\n",decompression_time);
+        if(print_file_details)
+        {
+            printf("time prediction state update time= %.9f s\n",time_state_update_time);
+            printf("file decompression time= %f s\n",decompression_time);
+        }
     }
     printf("全部文件最大误差/用户误差上限= %.9f\n",total_statistics.max_error_ratio);
     if(total_statistics.max_error_ratio>1.01)
@@ -172,6 +179,8 @@ int decompress_main(int argc,char **argv)
         }
         else if(option=="-time-step-coordinate-file")
             param.time_step_coordinate_path=read_option_value(argc,argv,arg_id,option);
+        else if(option=="-tensor-metadata")
+            param.tensor_metadata_path=read_option_value(argc,argv,arg_id,option);
         else if (option=="-M")
         {
             param.error_mode=read_option_value(argc,argv,arg_id,option);
@@ -217,9 +226,13 @@ int decompress_main(int argc,char **argv)
     }
     param.prepare_cli_parameters(time_step_vec,error_bound);
     param.init();
+    double temporal_dependency_plan_time=0;
     auto temporal_dependency_plan_start_time=chrono::steady_clock::now();
-    param.precompute_temporal_dependency_plans();
-    double temporal_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-temporal_dependency_plan_start_time).count();
+    if(param.tensor_field_config_map.empty())
+        param.precompute_temporal_dependency_plans();
+    else
+        param.precompute_all_tensor_dependency_plans();
+    temporal_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-temporal_dependency_plan_start_time).count();
     printf("temporal dependency plan preprocessing time= %f s\n",temporal_dependency_plan_time);
     double total_preprocessing_time=temporal_dependency_plan_time,total_metadata_input_time=0;
     for(uint32_t field_id=0;field_id<param.field_name_vec.size();field_id++)

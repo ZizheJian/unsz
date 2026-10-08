@@ -51,6 +51,21 @@ namespace unsz
         bool use_spatial_residual=false;
     };
 
+    struct tensor_field_config_c
+    {
+        array<uint32_t,2> shape{{0,0}};
+        array<vector<double>,2> axis_coordinates;
+        string dependency_plan_key;
+        string active_level_count_path;
+        uint32_t active_level_count_offset=0;
+    };
+
+    struct active_level_count_data_c
+    {
+        vector<uint32_t> counts;
+        uint32_t maximum=0;
+    };
+
     struct prediction_framework_c
     {
         bool has_label=false;
@@ -374,9 +389,18 @@ namespace unsz
 
             param_c()=default;
 
-            string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,point_set_config_path;
+            string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,point_set_config_path,tensor_metadata_path;
             vector<string> field_name_vec;
             vector<string> original_data_path_vec;
+            map<string,tensor_field_config_c> tensor_field_config_map;
+            bool current_field_uses_tensor=false;
+            array<uint32_t,2> current_tensor_shape{{0,0}};
+            array<vector<double>,2> current_tensor_axis_coordinates;
+            string current_tensor_dependency_plan_key;
+            string current_active_level_count_path;
+            uint32_t current_active_level_count_offset=0;
+            map<string,active_level_count_data_c> active_level_count_cache;
+            const vector<uint32_t>*current_active_level_counts=nullptr;
             uint32_t dim=3;
             uint32_t point_num=0;
             T_data rel_eb=0,abs_eb=0;
@@ -436,6 +460,9 @@ namespace unsz
             vector<vector<uint8_t>> reconstructed_time_point_set_id_vec;
             vector<temporal_dependency_c> temporal_value_dependency_vec,temporal_label_dependency_vec;
             map<string,temporal_dependency_plan_c> temporal_dependency_plan_cache;
+            map<string,map<uint8_t,temporal_dependency_plan_c>> tensor_dependency_plan_cache;
+            tensor_flow_c selected_tensor_flow;
+            bool tensor_flow_selected=false;
             vector<uint32_t> temporal_value_remaining_outdegree_vec,temporal_label_remaining_outdegree_vec;
             const vector<T_data>*previous_time_value_source=nullptr;
             const vector<uint8_t>*previous_time_value_point_set_source=nullptr,*previous_time_label_source=nullptr;
@@ -459,14 +486,21 @@ namespace unsz
             time_step_order_e get_time_step_order(const string &flow) const;
             vector<uint32_t> generate_time_step_processing_order(time_step_order_e order) const;
             void prepare_time_step_order(time_step_order_e order);
+            void prepare_tensor_slice_order();
             void prepare_time_step_order_from_flows();
             void configure_point_sets();
+            uint8_t classify_point_set(T_data value,uint32_t point_id,uint32_t slice_id) const;
+            void load_tensor_metadata();
+            void activate_tensor_field(const tensor_field_config_c&config);
+            void load_current_active_level_counts();
             void prepare_cli_parameters(const vector<uint32_t>&selected_time_step_vec,T_data error_bound);
             void activate_field(uint32_t field_id);
+            void precompute_all_tensor_dependency_plans();
             void precompute_temporal_dependency_plans();
             void prepare_temporal_dependencies();
             temporal_dependency_plan_c generate_temporal_dependency_plan(const string&flow) const;
             const temporal_dependency_plan_c&get_temporal_dependency_plan(const string&flow) const;
+            const temporal_dependency_plan_c&get_tensor_dependency_plan(const tensor_flow_c&flow) const;
             void prepare_temporal_prediction();
             template<time_dimension_mode_e value_mode>
             bool predict_temporal_value(uint32_t storage_id,uint32_t point_set_id,T_data &prediction);
@@ -490,6 +524,7 @@ namespace unsz
             void read_coordinate_transform_file();
             void remap_prediction_data_to_prediction_order(bool for_decompression=false);
             void finalize_current_spatial_prediction_state(bool for_decompression);
+            void prepare_current_spatial_prediction_state(bool for_decompression);
             bool activate_shared_spatial_prediction_state();
             void release_current_spatial_prediction_state();
             vector<vector<int>> build_partitions();
@@ -557,6 +592,7 @@ namespace unsz
 #include "distance.tpp"
 #include "binary_file.tpp"
 #include "tree.tpp"
+#include "tensor_dependency.tpp"
 #include "init.tpp"
 #include "coordinate_transform.tpp"
 #include "prediction_round.tpp"
@@ -564,10 +600,10 @@ namespace unsz
 #include "eb_schedule.tpp"
 #include "generate_prediction_structure_and_weights.tpp"
 #include "point_set_config.tpp"
+#include "tensor_config.tpp"
 #include "cli_parameter.tpp"
 #include "spatial_prediction.tpp"
 #include "temporal_prediction.tpp"
-#include "tensor_dependency.tpp"
 #include "prediction_framework.tpp"
 #include "compression_format.tpp"
 #include "reconstruction_statistics.tpp"

@@ -124,7 +124,8 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0
 | `t1_start_c_code.py` | 正式实验通用入口，只接受一个JSON位置参数：`configs/`中的JSON名称或任意JSON路径，例如`./unsz_env/bin/python t1_start_c_code.py katrina`或`./unsz_env/bin/python t1_start_c_code.py /path/to/test.json`。包含UNSZ任务时，入口默认先执行CMake配置、增量构建和安装；临时复用现有安装时可添加`--skip-build`。随后直接构造并执行UNSZ或项目内`third_party/umc`命令，不再调用第二层Python实验入口，结果直接写入CSV。UMC固定为官方commit，`third_party/build_umc.sh`联网核对后安装`third_party/umc_replacements`中的计时文件并构建。 |
 | `py_codes/parse_unsz_output.py`、`py_codes/parse_umc_output.py` | 只解析并核对压缩器输出，不负责调度或启动实验。 |
 | `t3_visualize.py` | 读取C++压缩器生成的`*.unsz.coord_transform.txt`，生成Katrina坐标变换前后的field可视化 |
-| `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h4、ADCIRC Haiyan、TAPS和Ocean-large发布数据转换为UNSZ/UMC共用的平坦二进制基准输入；共享工具位于同目录的`prepare_dataset_common.py` |
+| `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h4、ADCIRC Haiyan、TAPS和Ocean-large发布数据转换为平坦二进制基准输入；`prepare_ocean_large_tensor.py`另外生成完整Ocean-large的`[time,height,point]`切片和tensor metadata，共享工具位于同目录的`prepare_dataset_common.py` |
+| `py_codes/prepare_datasets/prepare_ocean_large_tensor.slurm` | 申请单CPU和16GiB内存执行约499GiB的完整Ocean-large tensor转换；这是大型I/O任务，提交前应再次确认输出目录配额 |
 | `py_codes/run_spatial_field_benchmark.slurm` | 在Slurm节点上运行环境变量`CONFIG`明确指定的完整task JSON，不在运行时拆分或改写JSON |
 | `py_codes/run_configurations.slurm` | 以Slurm array依次把当前8个正式数据集JSON交给`t1_start_c_code.py`。 |
 | `py_codes/plot_dataset_rd.py` | 为一个数据集的各field分别绘制UNSZ/UMC空间RD与核心吞吐率，并计算同PSNR下的平均BR变化 |
@@ -237,19 +238,38 @@ UNSZ目前实现了以下压缩流程：
 
 时间遍历顺序与标签、数值预测公式分开处理。程序统一提供顺序遍历、递归内插和anchor8三种time step顺序；双点集的标签flow和数值flow必须使用同一种顺序。每次遍历开始前会生成time step依赖DAG，直接记录各目标的标签和值参考节点以及各参考节点的剩余出度；目标处理完成后删除已消费的边，某类历史的剩余出度归零时立即释放对应的完整数组，不再扫描或永久保留全部既有time step。
 
-多time step正式压缩自动选择label和value flow。程序在预处理计时开始前读取全部time step，准确计算各点集的ABS EB和点数；该输入统计时间不计入预处理。空间DAG和权重生成后，程序均匀选择最多32个time step，把全局2048目标预算按prediction structure均分，并在每个structure内布置公共连续采样窗口；只用这些time step估算候选码流后按总time step数缩放。程序先合并这些评估步骤及全部候选的直接时间参考，只从该并集中稀疏读取样本值；候选估算复用正式空间预测、时间依赖、量化、Huffman和Zstd函数，覆盖纯空间、零阶外插及anchor8流程。候选所需的数据读取不计入预处理时间，分类、候选预测和编码计入。最终选中的label/value flow写入压缩文件；解压端从文件头恢复它们。单time step只有纯空间流程，不执行自动选择。
+多time step正式压缩自动选择label和value flow。程序在预处理计时开始前读取全部time step，准确计算各点集的ABS EB和点数；该输入统计时间不计入预处理。空间DAG和权重生成后，程序均匀选择最多32个time step，把全局2048目标预算按prediction structure均分，并在每个structure内布置公共连续采样窗口；只用这些time step估算候选码流后按总time step数缩放。程序先合并这些评估步骤及全部候选的直接时间参考，只从该并集中稀疏读取样本值；候选估算复用正式空间预测、时间依赖、量化、Huffman和Zstd函数，覆盖纯空间、零阶外插及anchor8流程。候选内已量化的采样目标使用重建值继续后续空间和时间预测；REL EB宽于`1e-3`时统一临时使用`1e-3`决策，正式压缩仍使用用户指定EB。候选所需的数据读取不计入预处理时间，分类、候选预测和编码计入。最终选中的label/value flow写入压缩文件；解压端从文件头恢复它们。单time step只有纯空间流程，不执行自动选择。
 
 Katrina四partition测试中，全局2048目标预算相对每partition各2048目标把自动选择时间从`0.358 s`降到`0.173 s`，选中的flow、最终BR和PSNR不变。
 
 ## 2.2. 二维tensor切片DAG
 
-二维tensor预测目前与正式一维码流隔离开发。输入逻辑上是`[axis0,axis1,unstructured_point]`；程序先把前两个轴的切片展平为一维`slice_id=axis0_index*axis1_size+axis1_index`，再生成切片级DAG。每个切片仍只执行一次已有的一维tensor baseline预测，随后可选地执行非结构空间残差预测，不新增“二维数值预测器”。切片依赖直接保存最多两个参考`slice_id`及其权重，因此非均匀高度轴按真实坐标间距计算权重，不会按展平后的编号计算。
+二维tensor预测已经接入正式压缩、解压、自动flow选择和V17码流。输入逻辑上是`[axis0,axis1,unstructured_point]`；程序先把前两个轴的切片展平为一维`slice_id=axis0_index*axis1_size+axis1_index`，再生成切片级DAG。每个切片仍只执行一次已有的一维tensor baseline预测，随后可选地执行非结构空间残差预测，不新增“二维数值预测器”。切片依赖直接保存最多两个参考`slice_id`及其权重，因此非均匀高度轴按真实坐标间距计算权重，不会按展平后的编号计算。
 
-结构化flow共有33种候选：纯空间1种；只启用一个轴时，轴、外插/anchor8和是否使用空间残差组成8种；两个轴都启用时，两轴模式、先后顺序和空间残差组成16种；两个轴都使用anchor8时，另有锚点建立顺序、逐层内插顺序和空间残差组成的8种交错候选。切片DAG生成器已经实现并独立验证完整覆盖、拓扑顺序和非均匀坐标权重；正式自动选择、码流元数据和二维文件入口尚未接入。
+结构化flow最多有33种候选：纯空间1种；只启用一个轴时，轴、外插/anchor8和是否使用空间残差组成8种；两个轴都启用时，两轴模式、先后顺序和空间残差组成16种；两个轴都使用anchor8时，另有锚点建立顺序、逐层内插顺序和空间残差组成的8种交错候选。长度为1的轴不会生成或评估无意义的预测，因此`12×1`field只保留与原一维流程等价的5种候选。空间残差不改变切片依赖，所以成对候选共享依赖计划：完整二维只保存17份不同计划，`12×1`只保存3份。自动选择器使用与一维流程相同的采样目标、正式量化、Huffman和Zstd路径比较这些候选；选中的二维flow、tensor形状和切片依赖解释写入码流，解压端重新生成同一依赖计划并检查每个切片的文件头。同一进程中形状和轴坐标文件相同的field共享候选切片依赖计划，因此完整Ocean-large只分别生成`12×1`、`12×80`和`12×81`三套。
+
+压缩和解压使用`-tensor-metadata <path>`读取field级tensor定义；该选项与`-time-step`、`-time-step-coordinate-file`互斥。task JSON在最外层记录`"tensor_metadata":"tensor_metadata.json"`，同一个field list可以包含`[12,1]`、`[12,80]`和`[12,81]`等不同形状。metadata版本1示例：
+
+```json
+{
+  "version":1,
+  "fields":{
+    "timeMonthly_avg_velocityMeridional":{
+      "shape":[12,80],
+      "axis0_coordinates":"time_12.f64",
+      "axis1_coordinates":"height_center_80.f64",
+      "active_level_count_file":"active_level_count.u32",
+      "active_level_count_offset":0
+    }
+  }
+}
+```
+
+坐标文件是严格递增的float64原始数组；有效层计数文件为每个水平点一个uint32。中心层使用offset 0，界面层使用offset 1。配置有效层后，程序以`height_index<maxLevelCell+offset`判断结构有效性，并把非有限值或显式`-99999`标记归入第二点集；有效区域中的有限0仍是普通数值。完整Ocean-large转换器会在写文件前检查有效有限值是否与`-99999`冲突。该结构标签和现有普通数值点集规则相互隔离，未配置有效层的已有数据行为不变。
 
 时间一阶内插可通过`-time-step-coordinate-file <path>`读取一维float64原始数组，第`i`个数是time step `i`的实际坐标。压缩和解压必须读取同一文件；不传该参数时保持原有的等间距假设。对应task使用`time_step_coordinate_file`记录文件名并同时传给两端，普通等时间间隔数据不需要记录这一项。
 
-## 2.2. 生成坐标变换矩阵
+## 2.3. 生成坐标变换矩阵
 
 坐标变换已并入C++预处理，不再使用独立的Python训练程序或预先生成的下三角矩阵。task中的`coordinate_transform`支持：
 
@@ -292,7 +312,7 @@ diagonal 1.31 0.74 0.08
 
 `t3_visualize.py`也直接读取该文件，因此可视化和实际压缩使用完全相同的C++训练结果。
 
-## 2.3. 生成DAG
+## 2.4. 生成DAG
 
 预测前需要根据公共坐标生成一套所有time step都能复用的有向无环图（DAG）。整体分为三步：
 
@@ -300,7 +320,7 @@ diagonal 1.31 0.74 0.08
 2. 对所有点生成一个预测目标的顺序。
 3. 根据这个顺序，对每个预测目标寻找合适的参考点。
 
-### 2.3.1. 生成kd-tree
+### 2.4.1. 生成kd-tree
 
 程序在变换后的坐标上建立一棵公共kd-tree。这个树包含所有点，无论它的标签是什么。
 
@@ -337,7 +357,7 @@ diagonal 1.31 0.74 0.08
   </tbody>
 </table>
 
-### 2.3.2. 预测目标排序
+### 2.4.2. 预测目标排序
 
 当前预测目标排序固定为反向MSD，不再把排序方向或评分公式作为可调配置。先假定所有点均可作为参考点，每次只在上一个被剔除点附近的固定数量候选点中，选择MSD最小的点剔除；完成后反转剔除序列，得到正向预测顺序。MSD定义为：
 
@@ -353,7 +373,7 @@ $$
 
 正向排序、最近参考距离、`S2`、方向集中度、联合评分和参考数据辅助排序等实现及CLI均已删除；被删除实现和历史结论需要时从Git历史恢复。
 
-### 2.3.3. 生成DAG
+### 2.4.3. 生成DAG
 
 得到预测目标的顺序后，程序按这个次序逐点选择参考点。每个目标只能引用已经恢复的点。
 
@@ -396,7 +416,7 @@ $$
   </tbody>
 </table>
 
-## 2.4. 数值预测、量化与无损编码
+## 2.5. 数值预测、量化与无损编码
 
 当前数值预测固定使用RBF。以下统一把预测目标的坐标和值记为`c`和`v`，把第`i`个参考点的坐标和值记为`cᵢ`和`vᵢ`。RBF先根据坐标计算目标与各参考点、参考点彼此之间的相似度，再求出一组与这些相似度匹配的权重，最后对参考值加权求和。首先用目标到参考点的均方距离统一缩放当前局部邻域：
 
@@ -533,7 +553,7 @@ DAG只保存参考编号和最终权重，不长期保存每条边的参考坐�
   </tbody>
 </table>
 
-## 2.5. 点集与标签
+## 2.6. 点集与标签
 
 当前Katrina实现使用两个点集：
 
@@ -604,7 +624,7 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
   </tbody>
 </table>
 
-## 2.6. 跨time step预测
+## 2.7. 跨time step预测
 
 2.1节中已经涉及了很多关于跨time step预测的内容，这里仅作补充。另外，很多预测方案对标签无效，因为标签只有0和1。
 
@@ -645,9 +665,9 @@ REL error bound根据各点集自身的最大值和最小值转换为ABS error b
   </tbody>
 </table>
 
-## 2.7. 并行设计
+## 2.8. 并行设计
 
-当前OpenMP实现已经支持adjust后的独立partition。程序先按坐标递归中位数切分，只生成顶层partition点集，不建立整场kd-tree；随后每个worker为自己的partition建立局部kd-tree，并独立生成预测顺序、参考关系、权重和EB倍率。每个partition只引用本partition内的数据，单点集以及融合双点集的标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。partition本身始终互相独立。v16容器统一使用`payload_begin[P+1]`定位各预测结构的独立payload，并在文件头记录最终label/value flow及field级有效点集配置；不分区时P=1，分区时每个partition对应一个payload，最终只按结构编号串行拼接字节。配置为双点集、但整个field只出现一个点集时会自动降级为单点集并省略标签流。REL模式先根据当前完整time step的field range换算统一ABS EB，再由该time step内所有partition共享。正式程序不缓存DAG。
+当前OpenMP实现已经支持adjust后的独立partition。程序先按坐标递归中位数切分，只生成顶层partition点集，不建立整场kd-tree；随后每个worker为自己的partition建立局部kd-tree，并独立生成预测顺序、参考关系、权重和EB倍率。每个partition只引用本partition内的数据，单点集以及融合双点集的标签预测、数值预测、量化、Huffman、Zstd和重建均按partition并行。partition本身始终互相独立。V17容器统一使用`payload_begin[P+1]`定位各预测结构的独立payload，并在文件头记录一维label/value flow或二维tensor flow、field级有效点集配置及tensor形状；不分区时P=1，分区时每个partition对应一个payload，最终只按结构编号串行拼接字节。配置为双点集、但整个field只出现一个点集时会自动降级为单点集并省略标签流。REL模式先根据当前完整切片的field range换算统一ABS EB，再由该切片内所有partition共享。正式程序不缓存DAG。
 
 核心partition循环保留OpenMP动态调度：LES p16测试中，静态调度使压缩从`0.1129 s`变为`0.1293 s`，解压仅从`0.0542 s`变为`0.0532 s`。解压恢复原始点序使用“原始编号→预测位置”逆映射，从而连续写输出；LES p16的该阶段中位时间从`0.0347 s`降到`0.0250 s`。
 
@@ -674,7 +694,7 @@ partition会改变空间DAG边界和每段无损编码上下文，因此不保�
     <tr>
       <td>OpenMP独立partition</td>
       <td>已实现</td>
-      <td>预测DAG、标签、数值、Huffman、Zstd、重建和恢复原始点序均按独立partition并行；串行与并行统一使用v16容器。</td>
+      <td>预测DAG、标签、数值、Huffman、Zstd、重建和恢复原始点序均按独立partition并行；串行与并行统一使用V17容器。</td>
       <td>补充独占节点上的正式扩展性实验</td>
     </tr>
     <tr>
@@ -746,11 +766,13 @@ Ocean-large有两套不同的输入。第一套此前被误称为“初始状态
 
 ### Ocean-large完整版
 
-月度输出由12个NetCDF文件组成，每个文件对应一个真实time step。同名变量跨12个文件组成一个12步field。每个文件中有58个单层cell变量和33个80层cell变量，此外还有网格、edge和区域统计等变量。
+月度输出由12个NetCDF文件组成，每个文件对应一个真实time step。同名变量跨12个文件组成一个field。完整cell数据包含58个单层field、33个80个中心层field和4个81个界面层field。转换器按`slice_id=time_index*height_num+height_index`生成切片文件，因此分别形成`[12,1]`、`[12,80]`和`[12,81]`三类tensor形状；预计共36264个切片、约499GiB。
 
 UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有12个真实time step。当前可复现实验定义使用58个单层cell变量，并取33个80层cell变量的第0层，正好得到91个单层field；公开仓库没有论文实验使用的`varnames_91.txt`和NetCDF转换程序，因此不能声称该列表与论文逐项相同。
 
 这91个field在UNSZ中使用同一个field list和同一份双点集配置。`timeMonthly_avg_bruntVaisalaFreqML`中的71个缺失值被统一转换为常量标记`-99999`，该field保留“RBF普通值＋常量异常值”两个点集；其余90个field没有该标记，预扫描后自动折叠为空标签流的单点集。所有field因此可以在同一进程中复用坐标采样几何和未变换坐标上的空间DAG。
+
+完整垂直版本由`prepare_ocean_large_tensor.py`转换。深于`maxLevelCell`的结构无效层、NetCDF非有限值和fill value统一写为`-99999`；分类时仍以`maxLevelCell`决定结构有效区域，不能把合法0误判为无效。转换器以一个field的一个月为原子提交单元：先写`.tmp`切片，全部高度切片通过尺寸检查后再替换正式文件，并在`conversion_progress.json`保存统计；中断后重跑会跳过已经完整提交的组。二维入口、最多33种flow和结构标签已经通过`[2,2]`真实依赖、12×80与12×81缩小点集以及普通一维V17回归；完整约499GiB数据尚未转换和正式运行。
 
 当前五点结果保存在`results/ocean_large_curves/metrics_*.json`，图位于同目录的`figures/`。五点共同PSNR区间内，UNSZ相对UMC的压缩率几何优势为`2.112×`，核心压缩＋解压速度为`1.882×`，计入两端预处理后速度为`1.687×`。`run_benchmark.slurm`从头运行UMC与UNSZ；`run_unsz.slurm`复用正式UMC指标并只更新UNSZ，设置`EXPONENTS="1 3"`可选择EB，设置`FORCE=true`可覆盖已经完成的结果。
 

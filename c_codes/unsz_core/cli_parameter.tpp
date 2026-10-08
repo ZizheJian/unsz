@@ -5,8 +5,8 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_cli_parameters(const vector<uint32_t>&selected_time_step_vec,T_data error_bound)
     {
-        if(!got_data_dir||!got_field||!got_time_step)
-            throw runtime_error("必须设置-data-dir、field和-time-step");
+        if(!got_data_dir||!got_field||(!got_time_step&&tensor_metadata_path.empty()))
+            throw runtime_error("必须设置-data-dir、field，并通过-time-step或-tensor-metadata定义切片");
         if(data_dir.empty())
             throw runtime_error("-data-dir的参数值不能为空");
         if(field_name_vec.empty())
@@ -21,13 +21,17 @@ namespace unsz
         if(data_dir.back()!='/')
             data_dir+="/";
         coord_path=data_dir+"coords.dat";
-        configured_time_step_vec=selected_time_step_vec;
-        time_step_vec=configured_time_step_vec;
-        if(time_step_vec.size()==1)
+        if(!tensor_metadata_path.empty()&&got_time_step)
+            throw runtime_error("-time-step和-tensor-metadata不能同时使用");
+        if(!tensor_metadata_path.empty()&&!time_step_coordinate_path.empty())
+            throw runtime_error("tensor metadata已经定义轴坐标，不能再使用-time-step-coordinate-file");
+        if(tensor_metadata_path.empty())
         {
-            label_flow="none";
-            value_flow="none";
+            configured_time_step_vec=selected_time_step_vec;
+            time_step_vec=configured_time_step_vec;
         }
+        else
+            load_tensor_metadata();
         if(got_error_mode&&error_mode=="REL")
         {
             rel_eb=error_bound;
@@ -49,8 +53,6 @@ namespace unsz
             value_flow="none";
         if(label_flow=="anchor_interpolation_stride_8"&&point_set_config_vec.size()==1)
             throw runtime_error("label锚点内插流程要求field包含两个点集");
-        if(point_set_config_vec.size()==1)
-            resolve_single_point_set_time_mode();
         configured_label_flow=label_flow;
         configured_value_flow=value_flow;
         activate_field(0);
@@ -67,7 +69,19 @@ namespace unsz
         point_set_config_vec=configured_point_set_config_vec;
         point_set_source_id_vec.resize(point_set_config_vec.size());
         iota(point_set_source_id_vec.begin(),point_set_source_id_vec.end(),0);
-        time_step_vec=configured_time_step_vec;
+        current_field_uses_tensor=false;
+        current_tensor_shape={{0,0}};
+        current_tensor_axis_coordinates={};
+        current_tensor_dependency_plan_key.clear();
+        current_active_level_count_path.clear();
+        current_active_level_count_offset=0;
+        current_active_level_counts=nullptr;
+        tensor_flow_selected=false;
+        auto tensor_config_iterator=tensor_field_config_map.find(field_name);
+        if(tensor_config_iterator==tensor_field_config_map.end())
+            time_step_vec=configured_time_step_vec;
+        else
+            activate_tensor_field(tensor_config_iterator->second);
         original_data_path_vec.clear();
         original_data_path_vec.reserve(time_step_vec.size());
         for(uint32_t time_step:time_step_vec)
@@ -82,6 +96,13 @@ namespace unsz
             label_flow="none";
         if(point_set_config_vec.size()==1&&point_set_config_vec[0].codec==point_set_codec_e::constant)
             value_flow="none";
+        if(time_step_vec.size()==1)
+        {
+            label_flow="none";
+            value_flow="none";
+        }
+        else if(point_set_config_vec.size()==1)
+            resolve_single_point_set_time_mode();
         reconstructed_time_data_vec.clear();
         reconstructed_time_point_set_id_vec.clear();
         temporal_value_dependency_vec.clear();
