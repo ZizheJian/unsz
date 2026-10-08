@@ -1,5 +1,0 @@
-UNSZ_ADJUST_COORD_MATRIX 2
-training_type spatial
-field momentum_y
-coordinate_dim 2
-lower_triangular 0.98579498338542515 -0.028922560927465094 1.0135934767950741

@@ -123,10 +123,10 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0
 |---|---|
 | `t1_start_c_code.py` | 正式实验通用入口，只接受一个JSON位置参数：`configs/`中的JSON名称或任意JSON路径，例如`./unsz_env/bin/python t1_start_c_code.py katrina`或`./unsz_env/bin/python t1_start_c_code.py /path/to/test.json`。包含UNSZ任务时，入口默认先执行CMake配置、增量构建和安装；临时复用现有安装时可添加`--skip-build`。随后直接构造并执行UNSZ或项目内`third_party/umc`命令，不再调用第二层Python实验入口，结果直接写入CSV。UMC固定为官方commit，`third_party/build_umc.sh`联网核对后安装`third_party/umc_replacements`中的计时文件并构建。 |
 | `py_codes/parse_unsz_output.py`、`py_codes/parse_umc_output.py` | 只解析并核对压缩器输出，不负责调度或启动实验。 |
-| `t3_visualize.py` | 读取C++压缩器生成的`*.unsz.coord_transform.txt`，生成坐标变换前后的field可视化；当前正式结果不包含Tsunami |
-| `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h0、E3SM-h4、ADCIRC Haiyan、Tsunami、TAPS和Ocean-large发布数据转换为UNSZ/UMC共用的平坦二进制基准输入；共享工具位于同目录的`prepare_dataset_common.py` |
+| `t3_visualize.py` | 读取C++压缩器生成的`*.unsz.coord_transform.txt`，生成Katrina坐标变换前后的field可视化 |
+| `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h4、ADCIRC Haiyan、TAPS和Ocean-large发布数据转换为UNSZ/UMC共用的平坦二进制基准输入；共享工具位于同目录的`prepare_dataset_common.py` |
 | `py_codes/run_spatial_field_benchmark.slurm` | 在Slurm节点上运行环境变量`CONFIG`明确指定的完整task JSON，不在运行时拆分或改写JSON |
-| `py_codes/run_configurations.slurm` | 以Slurm array依次把当前9个正式数据集JSON交给`t1_start_c_code.py`。 |
+| `py_codes/run_configurations.slurm` | 以Slurm array依次把当前8个正式数据集JSON交给`t1_start_c_code.py`。 |
 | `py_codes/plot_dataset_rd.py` | 为一个数据集的各field分别绘制UNSZ/UMC空间RD与核心吞吐率，并计算同PSNR下的平均BR变化 |
 
 JSON最外层是task list；同一个JSON可以包含不同数据目录的任务。每个task都必须自行记录描述实验用途的唯一`name`、绝对`data_dir`和CSV文件路径`csv_path`，即使相邻task使用同一数据目录也不从外层继承。相对`csv_path`以项目根目录为基准；一个task包含多个field时，路径使用`{field}`作为field名称占位符。同一数据、同一field需要测试不同固定参数时，应写成名称不同的多个task。
@@ -343,7 +343,7 @@ $$
 
 生成顺序时会缓存每个候选的MSD参考点，只在缓存中的可用点数低于下限时重新查询kd-tree。全局反向1点MSD还会自动复用排序候选查询的几何信息：只有能严格证明候选集内某点是全局最近可用参考点时才省略额外查询，因此不改变DAG。
 
-正向排序、最近参考距离、`S2`、方向集中度、联合评分和参考数据辅助排序等实现及CLI均已删除。历史结论合并保存在`TODO.md`中；被删除实现需要时从Git历史恢复。
+正向排序、最近参考距离、`S2`、方向集中度、联合评分和参考数据辅助排序等实现及CLI均已删除；被删除实现和历史结论需要时从Git历史恢复。
 
 ### 2.3.3. 生成DAG
 
@@ -700,12 +700,10 @@ partition会改变空间DAG边界和每段无损编码上下文，因此不保�
 
 ## 3.1. 数据集
 
-下表记录已经转换过的数据。Tsunami、E3SM-h0和Ocean-large不进入当前正式批量实验，只保留转换能力或历史说明。
+下表记录当前正式实验使用的数据；Ocean-large采用91个field、12个月度time step的独立大规模实验。
 
 | 数据集 | field数 | 单个field的总大小 | 每步点数 | time step数 |
 |---|---:|---:|---:|---:|
-| E3SM-h0（弃用） | 8 | 0.09 MB | 21600 | 1 |
-| Tsunami（弃用） | 6 | 0.46 MB | 113885 | 1 |
 | ADCIRC-Haiyan-1.5km depth | 1 | 8.75 MB | 2187832 | 1 |
 | Tpost20 | 1 | 10.49 MB | 131072 | 20 |
 | Ocean | 9 | 29.16 MB | 235160 | 31 |
@@ -713,6 +711,7 @@ partition会改变空间DAG边界和每段无损编码上下文，因此不保�
 | E3SM-h4 | 2 | 62.21 MB | 21600 | 720 |
 | TAPS | 7 | 64.01 MB | 16002271 | 1 |
 | ADCIRC-Haiyan-1.5km zeta | 1 | 210.03 MB | 2187832 | 24 |
+| Ocean-large | 91 | 177.27 MB | 3693225 | 12 |
 | Katrina | 1 | 270.63 MB | 417642 | 162 |
 | Ocean-large单快照restart | 24 | 详情见下方说明 | | |
 | Ocean-large月度输出 | 91 | 详情见下方说明 | | |
@@ -794,7 +793,7 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
   </tbody>
 </table>
 
-E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；正式配置现改为自动选择flow，表中的既有压缩率和时间待统一复测后更新。Tsunami不再进入正式结果表。
+E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；正式配置现改为自动选择flow，表中的既有压缩率和时间待统一复测后更新。
 
 以下是所有实验通用的其他参数。如果发现其中有些参数在不同数据上有不同的最优值，并且有很大提升，应该移动到上表。
 
@@ -849,14 +848,14 @@ E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；正式配置现改为�
 
 UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同一计时口径：压缩时间为field重排与核心压缩之和，解压时间为核心解压与恢复原始顺序之和；读取输入、写出结果、读取原始field进行误差验证和误差统计均不计入。ADCIRC-Haiyan-1.5km的connectivity包含两个连通分量，而UMC的DPFS只遍历0号点所在的连通分量，无法生成覆盖全部点的有效重排。我们不修改UMC算法，也不改用`reorder=0`；因此Haiyan汇报为UMC无法运行，不计算`CR/UMC`和`总时间/UMC`。
 
-数据转换入口见`py_codes/prepare_datasets/prepare_*.py`。当前正式批量实验排除Tsunami和Ocean-large；历史结果不作为当前结论，正式结果以`configs/`和`results/current`为准。
+数据转换入口见`py_codes/prepare_datasets/prepare_*.py`。常规结果以`configs/`和`results/current`为准，Ocean-large结果单独保存在`results/ocean_large_curves`。
 
 # 4. TODO
 
 ## 4.1. 投稿前主线
 
 - [ ] 冻结bitstream、配置和实验脚本后，统一生成正式五点BR–PSNR、核心压缩＋解压时间和各阶段码流长度；在此之前不再无目的地重复全数据复测。
-- [ ] 把`results/current`整理为与3.1及`configs/`中的task JSON一致的结果集，排除Tsunami和Ocean-large。
+- [ ] 把`results/current`整理为与3.1及`configs/`中的task JSON一致的常规结果集；Ocean-large结果单独维护。
 - [ ] 优先优化仍未达到目标的正式field，方案固定后再迁移到其他field验证泛化。
 - [ ] 测试一阶内插中“最后一个文件由第一个文件作零阶外插预测”，并实现“空间预测＋时间补偿”。
 - UMC-INP的batch固定为README示例使用的10，不再作为task配置或实验维度。
@@ -864,4 +863,4 @@ UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同�
 - [ ] 确认UMC论文Ocean-large的`varnames_91.txt`，核实是否使用58个单高度cell变量及33个多高度cell变量的第0层，再把已经取得的12个月度NetCDF转换为91×12输入；单快照restart不能冒充论文月度输出。
 - [ ] 完成single-core throughput、strong/weak scaling以及端到端压缩—传输—解压实验，再决定投稿路线。
 
-完整状态、历史实验和已经否定的方案统一见`TODO.md`。日常审阅以本README为准；被删除实现和一次性实验脚本从Git历史恢复。
+日常审阅以本README为准；被删除实现、历史实验和一次性脚本从Git历史恢复。

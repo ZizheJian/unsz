@@ -1,9 +1,0 @@
-task,field,point_num,trial,ordering_scope,br,psnr,preprocessing_time,sorting_time,reference_generation_time,compression_time
-adcirc_haiyan_depth,depth,2187832,0,local,4.12115,66.402036,40.2565,34.499443,5.134845,0.119493
-adcirc_haiyan_depth,depth,2187832,0,global,4.071483,66.330807,54.527283,52.528397,1.157589,0.133368
-ocean_large_temperature_surface_value,temperatureSurfaceValue,3693225,0,local,0.216858,73.804049,85.314394,71.123507,12.245607,0.200203
-ocean_large_temperature_surface_value,temperatureSurfaceValue,3693225,0,global,0.207374,73.436519,114.389393,109.791246,2.840787,0.18965
-les_velocity_x,velocity_x,12737274,0,local,1.11144,69.940531,408.996635,349.921459,54.327889,1.722525
-les_velocity_x,velocity_x,12737274,0,global,1.066443,68.3408,579.107579,562.986462,9.86348,1.109401
-taps_temperature,TEMPERATURE,16002271,0,local,2.076282,67.782889,538.871017,456.026542,78.214677,2.225785
-taps_temperature,TEMPERATURE,16002271,0,global,2.061303,67.622785,736.07681,718.627675,12.383259,1.174865

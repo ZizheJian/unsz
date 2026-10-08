@@ -14,7 +14,7 @@ project=/home/x-zjian1/unsz
 result_dir="$project/results/ocean_large_curves"
 curve_data_dir=/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/monthly_data_curve
 "$project/unsz_env/bin/python" "$result_dir/collect_metrics.py" --rel-eb 1e-5 --log-dir "$result_dir/logs/1e-5" --unsz-data-dir "$curve_data_dir" --output "$result_dir/metrics_1e-5.json"
-export MPLCONFIGDIR="$result_dir/matplotlib"
+export MPLCONFIGDIR="${TMPDIR:-/tmp}/unsz-matplotlib-${SLURM_JOB_ID:-local}"
 mkdir -p "$MPLCONFIGDIR"
 "$project/unsz_env/bin/python" "$result_dir/plot.py"
 find "$curve_data_dir" -maxdepth 1 -type f \( -name '*.unsz' -o -name '*.unsz.bin' \) -delete

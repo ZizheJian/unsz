@@ -1,5 +1,0 @@
-field,msd_score_ref_num,rel_eb,br,psnr,preprocessing_time_s,compression_time_s,decompression_time_s,source,independent_decompression_psnr_matched
-attr0,1,0.001,0.337513,81.537077,5.241242,2.048031,1.463231,current_retest,true
-attr0,1,0.001396,0.295423,78.808002,2.544571,2.094110,1.414440,current_retest,true
-attr0,10,0.001,0.355880,81.466042,13.606436,,,previous_same_binary,true
-attr0,10,0.001396,0.313441,78.724548,,,,previous_same_binary,true

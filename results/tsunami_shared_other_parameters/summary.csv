@@ -1,7 +1,0 @@
-parameter_group,selected_configuration,comparison_configuration,result
-rbf_kernel,matern32_shape0.03,inverse_multiquadric_shape0.1,comparison field-equal average BR is 3.336% higher
-rbf_nugget_and_trend,nugget1e-6_degree0,nugget1e-6_degree1,comparison field-equal average BR is 0.113% higher
-ordering_parameters,candidate6_max10_min10,candidate16_max10_min10,selected field-equal average BR is 0.675% lower and worst field is 0.150% higher
-continuous_eb,base0.85_shift0.5,base0.85_shift0.75,comparison field-equal average BR is 0.026% higher
-qb_storage_order,prediction,original,comparison field-equal average BR is 1.134% higher and all six fields are worse
-final_vs_previous_shared,rbf10_matern32_shape0.03_candidate6,rbf10_matern32_shape0.1_candidate16,selected field-equal average BR is 1.083% lower and all six fields improve

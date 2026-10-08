@@ -1,5 +1,0 @@
-UNSZ_ADJUST_COORD_MATRIX 2
-training_type spatial
-field bathy
-coordinate_dim 2
-lower_triangular 0.91289434925138069 0.061045732046411984 1.078377172284269

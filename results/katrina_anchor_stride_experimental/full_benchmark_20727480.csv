@@ -1,4 +1,0 @@
-flow,rel_eb,br,psnr,cr,label_zstd_bytes,value_zstd_bytes,total_file_bytes,compression_time,decompression_time,total_time,total_time_over_constant,decompression_verified,node,job_id
-constant_extrapolation,0.001,0.303160,81.966648,105.554702,157615,2391708,2563903,19.541265,17.756324,37.297589,1.000000,True,a129,20727480
-linear_interpolation,0.001,0.288444,82.731872,110.939904,208177,2216690,2439447,28.616305,27.007710,55.624015,1.491357,True,a129,20727480
-anchor_stride8,0.001,0.288090,82.583263,111.076459,214586,2207282,2436448,16.819994,14.299876,31.119870,0.834367,True,a129,20727480

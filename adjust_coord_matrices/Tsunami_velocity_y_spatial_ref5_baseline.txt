@@ -1,5 +1,0 @@
-UNSZ_ADJUST_COORD_MATRIX 2
-training_type spatial
-field velocity_y
-coordinate_dim 2
-lower_triangular 0.70989686607953573 -0.59285184134980906 1.0698472478529797

@@ -1,6 +1,0 @@
-config,round_formation,ordering_score,ref_num,reorder_data_by_prediction_order,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time,compression_decompression_time,compression_input_reorder_time,decompression_output_restore_time,decompression_stream_decode_time,decompression_label_decode_time,decompression_value_decode_time
-rbf_split_rounds_then_sort_mean_reference_distance,split_rounds_then_sort,mean_reference_distance,10,False,0.1,0.123844,34.304574,1.699832,0.003835,0.002042,0.005877,0,0,0,0,0
-rbf_split_rounds_then_sort_mean_reference_distance,split_rounds_then_sort,mean_reference_distance,10,False,0.01,0.689748,49.61561,0.645926,0.004487,0.002138,0.006625,0,0,0,0,0
-rbf_split_rounds_then_sort_mean_reference_distance,split_rounds_then_sort,mean_reference_distance,10,False,0.001,2.444501,67.533137,0.642294,0.005395,0.002173,0.007568,0,0,0,0,0
-rbf_split_rounds_then_sort_mean_reference_distance,split_rounds_then_sort,mean_reference_distance,10,False,0.0001,5.127839,87.425716,0.62924,0.004993,0.00242,0.0074129999999999995,0,0,0,0,0
-rbf_split_rounds_then_sort_mean_reference_distance,split_rounds_then_sort,mean_reference_distance,10,False,1e-05,7.932283,107.364421,0.638648,0.011969,0.003396,0.015365,0,0,0,0,0

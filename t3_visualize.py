@@ -19,28 +19,6 @@ dataset_config={
         "coordinate_dim":3,
         "coordinate_transform_file":"attr0.unsz.coord_transform.txt",
     },
-    # 当前方案相对UMC的CR/UMC最高：1.456×
-    "tsunami-velocity-x":{
-        "directory":"Tsunami",
-        "field":"velocity_x",
-        "time_step":0,
-        "mesh_file":"ugrid_demo.nc",
-        "view":"xy",
-        "zoom":1,
-        "abnormal_upper_bound":None,
-        "output_prefix":"Tsunami_velocity_x",
-    },
-    # 当前方案相对UMC的CR/UMC最低：0.974×
-    "tsunami-height":{
-        "directory":"Tsunami",
-        "field":"height",
-        "time_step":0,
-        "mesh_file":"ugrid_demo.nc",
-        "view":"xy",
-        "zoom":1,
-        "abnormal_upper_bound":None,
-        "output_prefix":"Tsunami_height",
-    },
 }
 
 def read_coordinate_transform(path,coordinate_dim):
@@ -90,22 +68,6 @@ def render(config,output_dir,use_coordinate_transform,data,conn,coord,clim):
     save_grid(config,output_dir,grid,clim,"_adjusted" if use_coordinate_transform else "")
     print(f"绘图坐标范围：{np.column_stack((plot_coord.min(axis=0),plot_coord.max(axis=0))).tolist()}")
 
-def render_tsunami(config,data_dir,output_dir,data,clim):
-    from netCDF4 import Dataset
-    with Dataset(data_dir/config["mesh_file"],"r") as dataset:
-        node_x=np.asarray(dataset.variables["Mesh2_node_x"][:],dtype=np.float64)
-        node_y=np.asarray(dataset.variables["Mesh2_node_y"][:],dtype=np.float64)
-        face_nodes=np.asarray(dataset.variables["Mesh2_face_nodes"][:],dtype=np.int64)
-        start_index=int(dataset.variables["Mesh2_face_nodes"].start_index)
-    face_nodes-=start_index
-    node_coord=np.column_stack((node_x,node_y,np.zeros(node_x.size,dtype=np.float64)))
-    if data.size!=face_nodes.shape[0]:
-        raise ValueError(f"{config['field']}的数据点数{data.size}与三角形数量{face_nodes.shape[0]}不一致")
-    grid=make_grid(node_coord,face_nodes,3)
-    grid.cell_data["value"]=data
-    save_grid(config,output_dir,grid,clim)
-    print(f"网格节点数：{node_coord.shape[0]}，三角形数：{face_nodes.shape[0]}，节点坐标范围：{np.column_stack((node_coord.min(axis=0),node_coord.max(axis=0))).tolist()}")
-
 def visualize(dataset_name,data_root,output_dir):
     config=dict(dataset_config[dataset_name])
     data_dir=data_root/config["directory"]
@@ -120,9 +82,6 @@ def visualize(dataset_name,data_root,output_dir):
     clim=np.nanquantile(data,[0.05,0.95])
     print(f"数据集：{dataset_name}")
     print(f"数据点数：{data.size}，有效点比例：{np.count_nonzero(np.isfinite(data))/data.size}")
-    if "mesh_file" in config:
-        render_tsunami(config,data_dir,output_dir,data,clim)
-        return
     if config["cell_point_num"]==3:
         conn=np.fromfile(data_dir/"conn.dat",dtype=np.int32).reshape(-1,config["cell_point_num"]+1)[:,1:]
     else:
@@ -139,7 +98,7 @@ def visualize(dataset_name,data_root,output_dir):
         print("C++自动判据未启用坐标变换，不生成_adjusted图像")
 
 def main():
-    parser=argparse.ArgumentParser(description="读取C++生成的坐标变换结果，生成Katrina变换前后的field图像以及Tsunami原网格field图像")
+    parser=argparse.ArgumentParser(description="读取C++生成的坐标变换结果，生成Katrina变换前后的field图像")
     parser.add_argument("-dataset",choices=["all",*dataset_config],default="all")
     parser.add_argument("-data-root",default=data_root_default)
     parser.add_argument("-output-dir",default=".")

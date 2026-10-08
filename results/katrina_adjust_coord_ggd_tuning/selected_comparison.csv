@@ -1,3 +1,0 @@
-matrix,psnr,br,cr_over_umc,br_change_from_old,rel_1e-3_total_time,total_time_over_umc
-old_second_power,78.724548,0.329013770,2.214108,0.000000%,3.527488,1.079868
-selected_prediction_ggd_bit,78.724548,0.313441000,2.324112,-4.733167%,3.461069,1.059535

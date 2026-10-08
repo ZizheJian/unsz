@@ -1,6 +1,0 @@
-config,round_formation,ordering_score,rel_eb,br,psnr,preprocessing_time,compression_time,decompression_time
-rbf_split_rounds_then_sort_reference_data_prediction_error,split_rounds_then_sort,reference_data_prediction_error,0.1,0.111692,34.237261,33.961113,0.01176,0.010685
-rbf_split_rounds_then_sort_reference_data_prediction_error,split_rounds_then_sort,reference_data_prediction_error,0.01,0.610792,49.82448,3.179727,0.013776,0.009877
-rbf_split_rounds_then_sort_reference_data_prediction_error,split_rounds_then_sort,reference_data_prediction_error,0.001,2.252658,67.69426,3.165128,0.013172,0.011425
-rbf_split_rounds_then_sort_reference_data_prediction_error,split_rounds_then_sort,reference_data_prediction_error,0.0001,4.961145,87.483492,3.410413,0.013707,0.011453
-rbf_split_rounds_then_sort_reference_data_prediction_error,split_rounds_then_sort,reference_data_prediction_error,1e-05,7.808579,107.390331,3.195661,0.023487,0.011502

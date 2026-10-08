@@ -1,3 +1,0 @@
-value_flow,fixed_label_flow,measured_label_flow,rel_eb,psnr,combined_bytes,combined_br,combined_cr,value_zstd_bytes,measured_total_bytes,measured_label_zstd_bytes,fixed_label_zstd_bytes,compression_time,decompression_time,decompression_verified
-constant_extrapolation,constant_extrapolation,previous,0.00065,83.203743,13342688,1.5776626221488887,20.283170527557864,13170493,13342688,157615,157615,3.665036,2.884808,True
-linear_interpolation,constant_extrapolation,spatial,0.00065,83.331729,11003947,1.301125820974559,24.59408574032572,10831752,11732525,886193,157615,5.200436,4.384128,True

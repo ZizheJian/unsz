@@ -12,7 +12,6 @@
 set -euo pipefail
 project=/home/x-zjian1/unsz
 result_dir="$project/results/ocean_large_curves"
-comparison_dir="$project/results/ocean_large_32_comparison"
 source_data_dir=/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/monthly_data
 curve_data_dir=/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/monthly_data_curve
 export UMC_OCEAN_ROOT=/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/umc_parallel
@@ -27,8 +26,6 @@ while IFS= read -r field;do
     done
 done <"$UMC_OCEAN_ROOT/varnames_91.txt"
 
-"$project/unsz_env/bin/python" "$result_dir/collect_metrics.py" --rel-eb 0.001 --log-dir "$comparison_dir/logs" --unsz-data-dir "$source_data_dir" --output "$result_dir/metrics_1e-3.json"
-
 export OMP_NUM_THREADS=1
 partition_binary="$project/third_party/umc/build/parallel_src/test_partition"
 umc_compress_binary="$project/third_party/umc/build/parallel_src/test_par_compress"
@@ -37,7 +34,7 @@ if [[ ! -f "$UMC_OCEAN_ROOT/mesh/partition/32.part" ]];then
     "$partition_binary" 32 >"$result_dir/logs/umc_partition.log" 2>&1
 fi
 
-for exponent in 1 2 4 5;do
+for exponent in 1 2 3 4 5;do
     rel_eb="1e-$exponent"
     label="1e-$exponent"
     log_dir="$result_dir/logs/$label"
@@ -63,6 +60,6 @@ for exponent in 1 2 4 5;do
     export OMP_NUM_THREADS=1
 done
 
-export MPLCONFIGDIR="$result_dir/matplotlib"
+export MPLCONFIGDIR="${TMPDIR:-/tmp}/unsz-matplotlib-${SLURM_JOB_ID:-local}"
 mkdir -p "$MPLCONFIGDIR"
 "$project/unsz_env/bin/python" "$result_dir/plot.py"

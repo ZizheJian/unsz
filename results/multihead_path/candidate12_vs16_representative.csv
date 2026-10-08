@@ -1,8 +1,0 @@
-field,representative_psnr,candidate12_br,candidate16_br,candidate12_same_psnr_br_change_percent
-bathy,64.905,4.238662,4.240882,-0.052344
-height,65.464,4.527424,4.541019,-0.299374
-momentum_x,66.492,2.253608,2.251676,0.085810
-momentum_y,66.477,2.396837,2.390769,0.253784
-velocity_x,67.028,0.708783,0.707263,0.214929
-velocity_y,67.158,0.657889,0.653445,0.680116
-field_geometric_mean,,,,0.146702
