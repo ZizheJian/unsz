@@ -1,4 +1,4 @@
-import argparse,json,sys
+import argparse,json,sys,time
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -107,6 +107,7 @@ def convert_field(dataset,field,time_index,point_num,max_level_cell,output_dir,b
 
 
 def prepare(arguments):
+    conversion_start=time.perf_counter()
     try:
         from netCDF4 import Dataset
     except ModuleNotFoundError as error:
@@ -157,13 +158,16 @@ def prepare(arguments):
                 raise RuntimeError(f"{monthly_path.name}的field结构与第一个月不一致")
             for field in fields:
                 group_key=f"{time_index}:{field['name']}"
+                group_start=time.perf_counter()
                 structural_invalid,explicit_invalid,skipped=convert_field(dataset,field,time_index,point_num,max_level_cell,arguments.output_dir,arguments.block_point_num,progress["groups"].get(group_key))
+                group_time=time.perf_counter()-group_start
                 invalid_statistics[field["name"]]["structural"]+=structural_invalid
                 invalid_statistics[field["name"]]["explicit"]+=explicit_invalid
                 if not skipped:
                     progress["groups"][group_key]={"structural":structural_invalid,"explicit":explicit_invalid}
                     write_json_atomic(progress_path,progress)
-                print(f"Ocean-large tensor切片{'已跳过' if skipped else '已转换'}：time={time_index},field={field['name']},height_num={field['height_num']}",flush=True)
+                output_gib=point_num*field["height_num"]*np.dtype(np.float32).itemsize/2**30
+                print(f"Ocean-large tensor切片{'已跳过' if skipped else '已转换'}：time={time_index},field={field['name']},height_num={field['height_num']},output={output_gib:.3f} GiB,time={group_time:.3f} s,output_rate={output_gib/group_time:.3f} GiB/s",flush=True)
     time_coordinates=np.asarray(time_coordinates,dtype=np.float64)
     if not np.all(np.diff(time_coordinates)>0):
         raise RuntimeError("月份坐标必须严格递增")
@@ -180,7 +184,7 @@ def prepare(arguments):
     write_json_atomic(arguments.output_dir/"tensor_metadata.json",tensor_metadata)
     manifest={"point_num":point_num,"edge_num":edge_num,"time_num":len(monthly_paths),"slice_num":sum(len(monthly_paths)*field["height_num"] for field in fields),"invalid_value":float(monthly_invalid_value),"field_num":len(fields),"fields":fields,"invalid_statistics":invalid_statistics}
     write_json_atomic(arguments.output_dir/"ocean_large_tensor.json",manifest)
-    print(f"Ocean-large tensor转换完成：point_num={point_num},field_num={len(fields)},slice_num={manifest['slice_num']},output_dir={arguments.output_dir}")
+    print(f"Ocean-large tensor转换完成：point_num={point_num},field_num={len(fields)},slice_num={manifest['slice_num']},time={time.perf_counter()-conversion_start:.3f} s,output_dir={arguments.output_dir}")
 
 
 def main(command_line_arguments=None):

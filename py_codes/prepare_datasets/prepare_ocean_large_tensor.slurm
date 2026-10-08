@@ -11,4 +11,11 @@
 
 set -euo pipefail
 cd /home/x-zjian1/unsz
-./unsz_env/bin/python py_codes/prepare_datasets/prepare_ocean_large_tensor.py
+arguments=()
+if [[ -n "${FIELDS:-}" ]];then
+    IFS=':' read -ra fields<<<"$FIELDS"
+    for field in "${fields[@]}";do
+        arguments+=("-field" "$field")
+    done
+fi
+./unsz_env/bin/python py_codes/prepare_datasets/prepare_ocean_large_tensor.py "${arguments[@]}"
