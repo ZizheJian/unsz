@@ -194,18 +194,93 @@ namespace unsz
         }
         sample_structure_time+=chrono::duration<double>(chrono::steady_clock::now()-sample_structure_start_time).count();
         vector<automatic_flow_time_statistics_c<T_data>> time_statistics(time_step_num);
-        uint32_t full_scan_time_step_num=min<uint32_t>(time_step_num,32);
         vector<uint32_t> full_scan_time_indices;
-        full_scan_time_indices.reserve(full_scan_time_step_num);
-        for(uint32_t scan_id=0;scan_id<full_scan_time_step_num;scan_id++)
+        vector<double> evaluation_time_step_weight(time_step_num,0);
+        if(current_field_uses_tensor&&current_tensor_shape[0]>1&&current_tensor_shape[1]>1)
         {
-            uint32_t time_index=full_scan_time_step_num==1?0:(uint64_t)scan_id*(time_step_num-1)/(full_scan_time_step_num-1);
-            if(full_scan_time_indices.empty()||full_scan_time_indices.back()!=time_index)
+            constexpr uint32_t sample_budget=32;
+            uint64_t field_seed=1469598103934665603ULL;
+            for(unsigned char character:field_name)
+                field_seed=(field_seed^character)*1099511628211ULL;
+            auto random_value=[&](uint32_t stratum_id,uint32_t sample_id)
+            {
+                uint64_t value=field_seed+(uint64_t)(stratum_id+1)*11400714819323198485ULL+(uint64_t)(sample_id+1)*7046029254386353131ULL;
+                value=(value^(value>>30))*13787848793156543929ULL;
+                value=(value^(value>>27))*10723151780598845931ULL;
+                return value^(value>>31);
+            };
+            auto add_stratum=[&](uint32_t stratum_id,uint32_t stratum_size,uint32_t sample_num,const function<uint32_t(uint32_t)>&time_index_from_offset)
+            {
+                if(stratum_size==0||sample_num==0)return;
+                sample_num=min(sample_num,stratum_size);
+                double weight=(double)stratum_size/sample_num;
+                for(uint32_t sample_id=0;sample_id<sample_num;sample_id++)
+                {
+                    uint32_t region_begin=(uint64_t)stratum_size*sample_id/sample_num,region_end=(uint64_t)stratum_size*(sample_id+1)/sample_num;
+                    uint32_t offset=region_begin+(uint32_t)(random_value(stratum_id,sample_id)%(region_end-region_begin));
+                    uint32_t time_index=time_index_from_offset(offset);
+                    full_scan_time_indices.push_back(time_index);
+                    evaluation_time_step_weight[time_index]=weight;
+                }
+            };
+            uint32_t axis0_num=current_tensor_shape[0],axis1_num=current_tensor_shape[1];
+            array<uint32_t,4>stratum_sizes{{1,axis0_num-1,axis1_num-1,(axis0_num-1)*(axis1_num-1)}};
+            array<uint32_t,4>sample_nums;
+            for(uint32_t stratum_id=0;stratum_id<3;stratum_id++)
+                sample_nums[stratum_id]=min<uint32_t>(stratum_sizes[stratum_id],max<uint32_t>(3,((uint64_t)sample_budget*stratum_sizes[stratum_id]+time_step_num-1)/time_step_num));
+            uint32_t allocated_sample_num=sample_nums[0]+sample_nums[1]+sample_nums[2];
+            sample_nums[3]=min<uint32_t>(stratum_sizes[3],sample_budget-min(sample_budget,allocated_sample_num));
+            add_stratum(0,stratum_sizes[0],sample_nums[0],[&](uint32_t){return 0;});
+            add_stratum(1,stratum_sizes[1],sample_nums[1],[&](uint32_t offset){return tensor_slice_id(current_tensor_shape,offset+1,0);});
+            add_stratum(2,stratum_sizes[2],sample_nums[2],[&](uint32_t offset){return tensor_slice_id(current_tensor_shape,0,offset+1);});
+            uint32_t interior_sample_num=sample_nums[3];
+            vector<uint32_t>axis1_strata(interior_sample_num);
+            iota(axis1_strata.begin(),axis1_strata.end(),0);
+            for(uint32_t sample_num=interior_sample_num;sample_num>1;sample_num--)
+                swap(axis1_strata[sample_num-1],axis1_strata[random_value(3,sample_num)%sample_num]);
+            double interior_weight=(double)stratum_sizes[3]/interior_sample_num;
+            constexpr double random_scale=1.0/9007199254740992.0;
+            for(uint32_t sample_id=0;sample_id<interior_sample_num;sample_id++)
+            {
+                double axis0_fraction=(sample_id+(double)(random_value(4,sample_id)>>11)*random_scale)/interior_sample_num;
+                double axis1_fraction=(axis1_strata[sample_id]+(double)(random_value(5,sample_id)>>11)*random_scale)/interior_sample_num;
+                uint32_t axis0_position=1+min<uint32_t>(axis0_num-2,(uint32_t)(axis0_fraction*(axis0_num-1)));
+                uint32_t axis1_position=1+min<uint32_t>(axis1_num-2,(uint32_t)(axis1_fraction*(axis1_num-1)));
+                uint32_t time_index=tensor_slice_id(current_tensor_shape,axis0_position,axis1_position);
                 full_scan_time_indices.push_back(time_index);
+                evaluation_time_step_weight[time_index]=interior_weight;
+            }
+            sort(full_scan_time_indices.begin(),full_scan_time_indices.end());
         }
+        else
+        {
+            uint32_t full_scan_time_step_num=min<uint32_t>(time_step_num,32);
+            full_scan_time_indices.reserve(full_scan_time_step_num);
+            for(uint32_t scan_id=0;scan_id<full_scan_time_step_num;scan_id++)
+            {
+                uint32_t time_index=full_scan_time_step_num==1?0:(uint64_t)scan_id*(time_step_num-1)/(full_scan_time_step_num-1);
+                if(full_scan_time_indices.empty()||full_scan_time_indices.back()!=time_index)
+                    full_scan_time_indices.push_back(time_index);
+            }
+            double weight=(double)time_step_num/full_scan_time_indices.size();
+            for(uint32_t time_index:full_scan_time_indices)
+                evaluation_time_step_weight[time_index]=weight;
+        }
+        if(full_scan_time_indices.empty())
+            throw runtime_error("自动flow没有生成评估time step");
+        double evaluation_weight_sum=accumulate(evaluation_time_step_weight.begin(),evaluation_time_step_weight.end(),0.0);
+        if(abs(evaluation_weight_sum-time_step_num)>1e-9*max<uint32_t>(1,time_step_num))
+            throw runtime_error("自动flow评估time step权重之和不正确");
+        for(uint32_t time_index:full_scan_time_indices)
+            if(!(evaluation_time_step_weight[time_index]>0))
+                throw runtime_error("自动flow评估time step缺少权重");
         vector<uint8_t> evaluate_time_step(time_step_num,0);
         for(uint32_t time_index:full_scan_time_indices)
+        {
+            if(evaluate_time_step[time_index])
+                throw runtime_error("自动flow重复选择评估time step");
             evaluate_time_step[time_index]=1;
+        }
         vector<automatic_flow_candidate_c> candidates;
         auto add_candidate=[&](const string&candidate_label_flow,const string&candidate_value_flow)
         {
@@ -466,6 +541,7 @@ namespace unsz
                 if(!evaluate_time_step[time_index])
                     continue;
                 const temporal_dependency_c&dependency=label_dependency_plan.dependencies[time_index];
+                double time_estimated_label_bytes=0;
                 for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
                 {
                     const vector<automatic_flow_sample_target_c<T_calc>>&targets=structure_targets[structure_id];
@@ -492,12 +568,12 @@ namespace unsz
                         uint64_t actual_label_num=prediction_structure_vec[structure_id].target_ids.size();
                         uint64_t estimated_label_errors=(uint64_t)llround((double)label_error_num/label_target_indices.size()*actual_label_num);
                         estimated_label_errors=min<uint64_t>(estimated_label_errors,actual_label_num);
-                        estimated_label_bytes+=automatic_flow_log2_combination(actual_label_num,estimated_label_errors)/8;
+                        time_estimated_label_bytes+=automatic_flow_log2_combination(actual_label_num,estimated_label_errors)/8;
                     }
                 }
+                estimated_label_bytes+=time_estimated_label_bytes*evaluation_time_step_weight[time_index];
             }
             estimated_label_bytes_by_flow[candidate.label_flow]=estimated_label_bytes;
-            estimated_label_bytes_by_flow[candidate.label_flow]*=(double)time_step_num/full_scan_time_indices.size();
         }
         shared_label_estimation_time=chrono::duration<double>(chrono::steady_clock::now()-shared_label_start_time).count();
         candidate_evaluation_time+=shared_label_estimation_time;
@@ -588,11 +664,10 @@ namespace unsz
                         vector<unsigned char> zstd_header=zstd_compress(huffman_header,zstd_compression_level);
                         double scalable_zstd_bytes=max<double>(0,(double)zstd_bytes.size()-zstd_header.size());
                         double scale=(double)actual_value_num/qbs.size();
-                        candidate.estimated_value_bytes+=zstd_header.size()+(scalable_zstd_bytes+unpredictable_values.size()*sizeof(T_data))*scale;
+                        candidate.estimated_value_bytes+=(zstd_header.size()+(scalable_zstd_bytes+unpredictable_values.size()*sizeof(T_data))*scale)*evaluation_time_step_weight[time_index];
                     }
                 }
             }
-            candidate.estimated_value_bytes*=(double)time_step_num/full_scan_time_indices.size();
             candidate.evaluation_time=chrono::duration<double>(chrono::steady_clock::now()-candidate_start_time).count();
             candidate_evaluation_time+=candidate.evaluation_time;
         }

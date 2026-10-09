@@ -5,7 +5,6 @@ namespace unsz
     inline constexpr double coordinate_transform_original_flatness_enable_threshold=0.05;
     inline constexpr double coordinate_transform_original_flatness_reject_threshold=0.75;
     inline constexpr double coordinate_transform_relative_flatness_enable_threshold=1.21;
-    inline constexpr double coordinate_transform_group_mse_ratio_threshold=1.5;
     inline constexpr double coordinate_transform_difficult_group_loss_power=3;
     inline constexpr uint32_t coordinate_transform_sample_file_num=3;
     inline constexpr uint32_t coordinate_transform_second_sample_num=3000;
@@ -495,64 +494,7 @@ namespace unsz
                 value*=normalization;
             return diagonal;
         };
-        auto calculate_group_mse_ratio=[&](const vector<double>&diagonal,bool print_values)
-        {
-            if(group_num==0)
-                return 1.0;
-            vector<double>group_squared_loss(group_num,0);
-            vector<uint32_t>group_pair_num(group_num,0);
-            for(uint64_t pair_id=0;pair_id<value_differences.size();pair_id++)
-            {
-                double squared_distance=0;
-                for(uint32_t d=0;d<dim;d++)
-                {
-                    double transformed_difference=coordinate_differences[pair_id*dim+d]*diagonal[d];
-                    squared_distance+=transformed_difference*transformed_difference;
-                }
-                double residual=abs(value_differences[pair_id])-sqrt(squared_distance);
-                uint32_t group_id=pair_group_ids[pair_id];
-                group_squared_loss[group_id]+=residual*residual;
-                group_pair_num[group_id]++;
-            }
-            double minimum_group_mse=numeric_limits<double>::infinity(),maximum_group_mse=0;
-            if(print_values)
-                printf("coordinate transform normalized group MSE=[");
-            for(uint32_t group_id=0;group_id<group_num;group_id++)
-            {
-                double group_mse=group_pair_num[group_id]>0?group_squared_loss[group_id]/group_pair_num[group_id]:0;
-                if(print_values)
-                    printf("%s%.12g",group_id==0?"":",",group_mse);
-                if(group_pair_num[group_id]>0)
-                {
-                    minimum_group_mse=min(minimum_group_mse,group_mse);
-                    maximum_group_mse=max(maximum_group_mse,group_mse);
-                }
-            }
-            double group_mse_ratio=minimum_group_mse>0?maximum_group_mse/minimum_group_mse:numeric_limits<double>::infinity();
-            if(print_values)
-                printf("],max/min=%.12g\n",group_mse_ratio);
-            return group_mse_ratio;
-        };
-        double isotropic_scale_numerator=0,isotropic_scale_denominator=0;
-        for(uint64_t pair_id=0;pair_id<value_differences.size();pair_id++)
-        {
-            double squared_distance=0;
-            for(uint32_t d=0;d<dim;d++)
-            {
-                double difference=coordinate_differences[pair_id*dim+d];
-                squared_distance+=difference*difference;
-            }
-            double distance=sqrt(squared_distance);
-            isotropic_scale_numerator+=abs(value_differences[pair_id])*distance;
-            isotropic_scale_denominator+=squared_distance;
-        }
-        double isotropic_scale=isotropic_scale_denominator>0?isotropic_scale_numerator/isotropic_scale_denominator:1;
-        double untrained_group_mse_ratio=calculate_group_mse_ratio(vector<double>(dim,isotropic_scale),false);
-        printf("coordinate transform untrained isotropic group MSE max/min=%.12g,scale=%.12g\n",untrained_group_mse_ratio,isotropic_scale);
-        double selected_group_loss_power=untrained_group_mse_ratio>=coordinate_transform_group_mse_ratio_threshold?coordinate_transform_difficult_group_loss_power:1;
-        vector<double>diagonal=fit_diagonal(selected_group_loss_power);
-        printf("coordinate transform selected group loss power=%.6g\n",selected_group_loss_power);
-        calculate_group_mse_ratio(diagonal,true);
+        vector<double>diagonal=fit_diagonal(coordinate_transform_difficult_group_loss_power);
         coordinate_transform_diagonal=diagonal;
         coordinate_transform_training_coordinate_differences.clear();
         coordinate_transform_training_coordinate_differences.shrink_to_fit();

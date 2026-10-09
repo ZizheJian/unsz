@@ -248,6 +248,8 @@ Katrina四partition测试中，全局2048目标预算相对每partition各2048�
 
 结构化flow最多有33种候选：纯空间1种；只启用一个轴时，轴、外插/anchor8和是否使用空间残差组成8种；两个轴都启用时，两轴模式、先后顺序和空间残差组成16种；两个轴都使用anchor8时，另有锚点建立顺序、逐层内插顺序和空间残差组成的8种交错候选。长度为1的轴不会生成或评估无意义的预测，因此`12×1`field只保留与原一维流程等价的5种候选。空间残差不改变切片依赖，所以成对候选共享依赖计划：完整二维只保存17份不同计划，`12×1`只保存3份。自动选择器使用与一维流程相同的采样目标、正式量化、Huffman和Zstd路径比较这些候选；选中的二维flow、tensor形状和切片依赖解释写入码流，解压端重新生成同一依赖计划并检查每个切片的文件头。同一进程中形状和轴坐标文件相同的field共享候选切片依赖计划，因此完整Ocean-large只分别生成`12×1`、`12×80`和`12×81`三套。
 
+二维自动flow仍固定最多评估32个切片，但不会把二维切片展平后直接等距抽样。程序把切片划分为原点、`axis1=0`边、`axis0=0`边和二维内部四个区域；原点全部测试，两条边各至少测试3个切片，其余预算分配给二维内部。边界在等宽分箱内确定性随机抽样；内部使用二维Latin hypercube，使两个轴的边际位置分别均匀覆盖，再以确定性随机排列配对。所有候选共享同一批样本，四个区域分别按“区域切片数/样本数”加权。主随机种子固定，field名称只用于派生可复现的scramble，因此重复运行结果完全一致，也不会针对实验结果挑选种子。
+
 压缩和解压使用`-tensor-metadata <path>`读取field级tensor定义；该选项与`-time-step`、`-time-step-coordinate-file`互斥。task JSON在最外层记录`"tensor_metadata":"tensor_metadata.json"`，同一个field list可以包含`[12,1]`、`[12,80]`和`[12,81]`等不同形状。metadata版本1示例：
 
 ```json
@@ -279,13 +281,13 @@ Katrina四partition测试中，全局2048目标预算相对每partition各2048�
 
 训练固定使用最多3个均匀分布的time step。每个训练文件先以固定随机种子保留30%的点建立kd-tree，再在这些点中总共选取最多3000个目标；每个目标使用10个近邻形成训练点对。当前只学习各坐标轴的对角缩放，不混合坐标轴，也不执行第二轮重新采样。
 
-对REL任务，每个采样`field×time step`直接复用压缩开始前预计算的对应可预测点集value range来归一化`Δv`，避免重复扫描数据，也避免不同time step的绝对幅度直接决定训练权重。令归一化数值差为`Δv`、原始坐标差为`Δc`。程序在训练前令$d_i=\lVert\Delta c_i\rVert_2$，并用闭式解$a=\sum_i|\Delta v_i|d_i/\sum_i d_i^2$消除数值差和坐标距离之间的全局尺度，然后用对角矩阵$(a,a,a)$计算各采样time step的均方loss。若最大值与最小值之比不小于`1.5`，说明存在普通平均难以兼顾的困难时间模式，令`p=3`；否则令`p=1`。随后只执行一轮训练：
+对REL任务，每个采样`field×time step`直接复用压缩开始前预计算的对应可预测点集value range来归一化`Δv`，避免重复扫描数据，也避免不同time step的绝对幅度直接决定训练权重。令归一化数值差为`Δv`、原始坐标差为`Δc`。各采样group始终使用`p=3`聚合，使困难group不会被普通group平均掉，并且只执行一轮训练：
 
 $$
 L_{\mathrm{diag}}=\min_s\sum_t\left[\frac{1}{N_t}\sum_{i\in t}\left(|\Delta v_i|-\lVert\Delta c_i\odot s\rVert_2\right)^2\right]^p.
 $$
 
-Katrina会在训练前选择`p=3`，Ocean salinity和temperature选择`p=1`。训练使用Gauss–Newton法；求解后把`s`归一化，使其平方和等于坐标维数。`auto`模式首先计算原始坐标协方差矩阵的flatness：
+训练使用Gauss–Newton法；求解后把`s`归一化，使其平方和等于坐标维数。`auto`模式首先计算原始坐标协方差矩阵的flatness：
 
 $$
 f=\sqrt{\frac{\lambda_{\min}}{\lambda_{\max}}}.
@@ -299,7 +301,7 @@ $$
 
 时才应用变换，否则关闭。该阈值统一用于单field和多field；它会拒绝收益不足以抵消额外DAG成本的弱变换。flatness计算、训练和坐标变换都计入预处理时间；坐标和训练数据的文件读取不计时。变换后的坐标用于建树、生成DAG和计算预测权重；数据值本身不变。
 
-多个field共享同一组坐标时可用`-field-list`一次传入。每个field独立训练并判断坐标变换；各field复用只依赖原始坐标的训练采样几何。未启用坐标变换的field共享原始坐标上的空间DAG和RBF权重，启用变换的field生成自己的空间DAG和权重。REL训练按照当前field的每个采样time step分别使用可预测点集value range归一化，每个训练文件形成一个独立group；ABS任务不归一化。单field与多field使用相同的flatness判断、group loss选择和矩阵训练流程。
+多个field共享同一组坐标时可用`-field-list`一次传入。每个field独立训练并判断坐标变换；各field复用只依赖原始坐标的训练采样几何。未启用坐标变换的field共享原始坐标上的空间DAG和RBF权重，启用变换的field生成自己的空间DAG和权重。REL训练按照当前field的每个采样time step分别使用可预测点集value range归一化，每个训练文件形成一个独立group；ABS任务不归一化。单field与多field使用相同的flatness判断、固定`p=3`的group loss和矩阵训练流程。
 
 压缩器把本次训练结果写到数据目录中的`<field>.unsz.coord_transform.txt`。文件以明文记录维数、是否启用和每个坐标轴的缩放值；解压器读取同一文件，不重新训练。例：
 
@@ -772,7 +774,7 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
 
 这91个field在UNSZ中使用同一个field list和同一份双点集配置。`timeMonthly_avg_bruntVaisalaFreqML`中的71个缺失值被统一转换为常量标记`-99999`，该field保留“RBF普通值＋常量异常值”两个点集；其余90个field没有该标记，预扫描后自动折叠为空标签流的单点集。所有field因此可以在同一进程中复用坐标采样几何和未变换坐标上的空间DAG。
 
-完整垂直版本由`prepare_ocean_large_tensor.py`转换。深于`maxLevelCell`的结构无效层、NetCDF非有限值和fill value统一写为`-99999`；分类时仍以`maxLevelCell`决定结构有效区域，不能把合法0误判为无效。转换器以一个field的一个月为原子提交单元：先写`.tmp`切片，全部高度切片通过尺寸检查后再替换正式文件，并在`conversion_progress.json`保存统计；中断后重跑会跳过已经完整提交的组。二维入口、最多33种flow和结构标签已经通过`[2,2]`真实依赖、12×80与12×81缩小点集以及普通一维V17回归；完整约499GiB数据尚未转换和正式运行。
+完整垂直版本由`prepare_ocean_large_tensor.py`转换。深于`maxLevelCell`的结构无效层、NetCDF非有限值和fill value统一写为`-99999`；分类时仍以`maxLevelCell`决定结构有效区域，不能把合法0误判为无效。转换器以一个field的一个月为原子提交单元：先写`.tmp`切片，全部高度切片通过尺寸检查后再替换正式文件，并在`conversion_progress.json`保存统计；中断后重跑会跳过已经完整提交的组。完整95个field、36264个切片和约499GiB数据已经转换完成。二维入口、最多33种flow和结构标签通过了`[2,2]`真实依赖、普通一维V17回归以及三个完整代表field测试：`ssh[12,1]`选择时间anchor8加空间残差，`velocityMeridional[12,80]`选择高度anchor8加空间残差，`vertVelocityTop[12,81]`选择先时间后高度的双轴anchor8且不使用空间残差。最后一项实际BR为`0.532053`，相比旧展平采样误选的纯高度外插BR `0.629549`降低`15.49%`，同时PSNR从`77.5281 dB`提高到`78.3002 dB`；逐点最大误差不超过用户EB。
 
 当前五点结果保存在`results/ocean_large_curves/metrics_*.json`，图位于同目录的`figures/`。五点共同PSNR区间内，UNSZ相对UMC的压缩率几何优势为`2.112×`，核心压缩＋解压速度为`1.882×`，计入两端预处理后速度为`1.687×`。`run_benchmark.slurm`从头运行UMC与UNSZ；`run_unsz.slurm`复用正式UMC指标并只更新UNSZ，设置`EXPONENTS="1 3"`可选择EB，设置`FORCE=true`可覆盖已经完成的结果。
 
