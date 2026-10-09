@@ -16,6 +16,31 @@ namespace unsz
     struct automatic_flow_window_c
     {
         uint32_t region_begin=0,region_end=0,start=0,width=0,quota=0;
+
+        uint32_t collect_value_candidates(const vector<int>&target_ids,const vector<uint8_t>&labels,vector<uint32_t>&indices) const
+        {
+            // 两段各保留前quota个第一类点，足以恢复最终公共窗口中的原有选点顺序。
+            uint32_t before_begin=(uint32_t)indices.size();
+            for(uint32_t index=region_begin;index<start&&indices.size()-before_begin<quota;index++)
+                if(labels[target_ids[index]]==0)
+                    indices.push_back(index);
+            uint32_t after_begin=(uint32_t)indices.size();
+            for(uint32_t index=start;index<region_end&&indices.size()-after_begin<quota;index++)
+                if(labels[target_ids[index]]==0)
+                    indices.push_back(index);
+            uint32_t after_num=(uint32_t)indices.size()-after_begin,before_num=after_begin-before_begin;
+            if(after_num>=quota)
+                return indices.back()-start+1;
+            if(before_num>=quota-after_num)
+                return region_end-start+indices[before_begin+quota-after_num-1]-region_begin+1;
+            return region_end-region_begin;
+        }
+
+        bool contains(uint32_t index) const
+        {
+            uint32_t offset=index>=start?index-start:region_end-start+index-region_begin;
+            return offset<width;
+        }
     };
 
     template<typename T_calc>
@@ -335,6 +360,7 @@ namespace unsz
             }
         }
         uint32_t sampled_time_step_num=accumulate(read_sampled_time_step.begin(),read_sampled_time_step.end(),0U);
+        vector<vector<vector<uint32_t>>> selected_target_indices(time_step_num,vector<vector<uint32_t>>(structure_num));
         if(two_point_sets)
             current_data.resize(point_num);
         for(uint32_t time_index:full_scan_time_indices)
@@ -364,23 +390,17 @@ namespace unsz
                         first_point_set_num+=point_set_id_vec[target_id]==0;
                 statistics.structure_point_set_point_num[structure_id][0]=first_point_set_num;
                 statistics.structure_point_set_point_num[structure_id][1]=(uint32_t)target_ids.size()-first_point_set_num;
+                vector<uint32_t>&value_indices=selected_target_indices[time_index][structure_id];
                 for(automatic_flow_window_c&window:structure_windows[structure_id])
                 {
                     if(!two_point_sets)
                     {
                         window.width=min(window.quota,window.region_end-window.region_begin);
+                        for(uint32_t offset=0;offset<window.width;offset++)
+                            value_indices.push_back(window.region_begin+(window.start-window.region_begin+offset)%(window.region_end-window.region_begin));
                         continue;
                     }
-                    uint32_t region_size=window.region_end-window.region_begin,first_point_set_num=0,required_width=region_size;
-                    for(uint32_t offset=0;offset<region_size;offset++)
-                    {
-                        uint32_t prediction_index=window.region_begin+(window.start-window.region_begin+offset)%region_size;
-                        if(point_set_id_vec[target_ids[prediction_index]]==0&&++first_point_set_num==window.quota)
-                        {
-                            required_width=offset+1;
-                            break;
-                        }
-                    }
+                    uint32_t required_width=window.collect_value_candidates(target_ids,point_set_id_vec,value_indices);
                     window.width=max(window.width,required_width);
                 }
             }
@@ -396,15 +416,40 @@ namespace unsz
             const prediction_structure_c<T_calc>&structure=prediction_structure_vec[structure_id];
             vector<uint32_t>&window_target_indices=structure_window_target_indices[structure_id];
             vector<uint32_t>&label_prediction_indices=structure_label_prediction_indices[structure_id];
+            for(uint32_t time_index:full_scan_time_indices)
+            {
+                vector<uint32_t>&value_indices=selected_target_indices[time_index][structure_id];
+                if(time_statistics[time_index].point_set_codec[0]==point_set_codec_e::constant)
+                {
+                    vector<uint32_t>().swap(value_indices);
+                    continue;
+                }
+                sort(value_indices.begin(),value_indices.end());
+                uint32_t window_id=0,selected_num=0,selected_in_window=0;
+                for(uint32_t prediction_index:value_indices)
+                {
+                    while(window_id+1<structure_windows[structure_id].size()&&prediction_index>=structure_windows[structure_id][window_id].region_end)
+                    {
+                        window_id++;
+                        selected_in_window=0;
+                    }
+                    const automatic_flow_window_c&window=structure_windows[structure_id][window_id];
+                    if(!window.contains(prediction_index)||selected_in_window>=window.quota)
+                        continue;
+                    selected_in_window++;
+                    value_indices[selected_num++]=prediction_index;
+                    window_target_indices.push_back(prediction_index);
+                }
+                value_indices.resize(selected_num);
+            }
             for(uint32_t window_id=0;window_id<structure_windows[structure_id].size();window_id++)
             {
                 const automatic_flow_window_c&window=structure_windows[structure_id][window_id];
                 uint32_t region_size=window.region_end-window.region_begin;
-                for(uint32_t offset=0;offset<window.width;offset++)
-                    window_target_indices.push_back(window.region_begin+(window.start-window.region_begin+offset)%region_size);
                 for(uint32_t offset=0;offset<min(window.quota,region_size);offset++)
                     label_prediction_indices.push_back(window.region_begin+(window.start-window.region_begin+offset)%region_size);
             }
+            window_target_indices.insert(window_target_indices.end(),label_prediction_indices.begin(),label_prediction_indices.end());
             sort(window_target_indices.begin(),window_target_indices.end());
             window_target_indices.erase(unique(window_target_indices.begin(),window_target_indices.end()),window_target_indices.end());
             sort(label_prediction_indices.begin(),label_prediction_indices.end());
@@ -499,26 +544,19 @@ namespace unsz
         }
         sample_value_preparation_time=chrono::duration<double>(chrono::steady_clock::now()-sample_value_start_time).count()-(excluded_input_time-sample_value_input_begin);
         sample_structure_start_time=chrono::steady_clock::now();
-        vector<vector<vector<uint32_t>>> selected_target_indices(time_step_num,vector<vector<uint32_t>>(structure_num));
-        for(uint32_t time_index=0;time_index<time_step_num;time_index++)
+        for(uint32_t time_index:full_scan_time_indices)
         {
-            if(!evaluate_time_step[time_index])
-                continue;
             for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
             {
-                if(time_statistics[time_index].point_set_codec[0]==point_set_codec_e::constant)
-                    continue;
-                const vector<automatic_flow_sample_target_c<T_calc>>&targets=structure_targets[structure_id];
-                vector<uint32_t> selected_per_window(structure_windows[structure_id].size(),0);
-                vector<uint32_t>&selected_indices=selected_target_indices[time_index][structure_id];
-                selected_indices.reserve(automatic_flow_sample_num);
-                for(uint32_t target_index=0;target_index<targets.size();target_index++)
+                const vector<uint32_t>&target_indices=structure_window_target_indices[structure_id];
+                uint32_t target_index=0;
+                for(uint32_t&prediction_index:selected_target_indices[time_index][structure_id])
                 {
-                    const automatic_flow_sample_target_c<T_calc>&target=targets[target_index];
-                    if(sampled_labels[time_index][target.target_sample_id]!=0||selected_per_window[target.window_id]>=structure_windows[structure_id][target.window_id].quota)
-                        continue;
-                    selected_per_window[target.window_id]++;
-                    selected_indices.push_back(target_index);
+                    while(target_index<target_indices.size()&&target_indices[target_index]<prediction_index)
+                        target_index++;
+                    if(target_index==target_indices.size()||target_indices[target_index]!=prediction_index)
+                        throw runtime_error("自动flow的value采样目标映射不完整");
+                    prediction_index=target_index;
                 }
             }
         }

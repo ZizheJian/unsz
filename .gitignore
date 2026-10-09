@@ -11,3 +11,5 @@ __pycache__/
 *.unsz
 *.unsz.bin
 *.unsz.coord_transform.txt
+results/ocean_large_tensor_full/*_sparse_mem8/s1_compress
+results/ocean_large_tensor_full/*_sparse_mem8/s1_decompress

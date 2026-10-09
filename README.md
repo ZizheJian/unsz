@@ -242,6 +242,10 @@ UNSZ目前实现了以下压缩流程：
 
 Katrina四partition测试中，全局2048目标预算相对每partition各2048目标把自动选择时间从`0.358 s`降到`0.173 s`，选中的flow、最终BR和PSNR不变。
 
+双点集的公共窗口仍按第一类点数量扩展，但只保存各评估切片最终选中的value目标、原有label目标及必要空间参考点，不保存窗口中间未被使用的第二类点。最终目标并集最多为`(32+1)×2048=67584`个，参考点另计。该修改保留原有选点和候选估计结果；完整Ocean-large density的目标候选从435864降至7523，含参考点从615724降至20823，自动flow内部耗时为0.952秒。该field在单partition、单线程下完成全部960切片，压缩/解压峰值分别为8.85/8.86GiB；按当前Anvil每CPU附带1896MiB内存，需要申请8个CPU，但程序仍只使用1个线程。
+
+完整Ocean-large的`results/ocean_large_tensor_full/run_rel_1e-3.slurm`使用8个CPU附带内存，时限20小时，程序固定单partition、单线程。启动前检查density、layerThickness及vertVelocityTop内存验证的二进制SHA、逐点误差和内存余量；任一缺失或失败就停止。新结果保存在`results/ocean_large_tensor_full/sparse_window/`，不覆盖旧实验，manifest记录代码提交和二进制SHA。
+
 ## 2.2. 二维tensor切片DAG
 
 二维tensor预测已经接入正式压缩、解压、自动flow选择和V17码流。输入逻辑上是`[axis0,axis1,unstructured_point]`；程序先把前两个轴的切片展平为一维`slice_id=axis0_index*axis1_size+axis1_index`，再生成切片级DAG。每个切片仍只执行一次已有的一维tensor baseline预测，随后可选地执行非结构空间残差预测，不新增“二维数值预测器”。切片依赖直接保存最多两个参考`slice_id`及其权重，因此非均匀高度轴按真实坐标间距计算权重，不会按展平后的编号计算。
