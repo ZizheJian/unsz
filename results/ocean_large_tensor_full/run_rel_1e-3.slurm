@@ -14,4 +14,4 @@ export OMP_NUM_THREADS=1
 export OMP_DYNAMIC=false
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
-srun --exact --ntasks=1 --cpus-per-task=1 --cpu-bind=cores ./unsz_env/bin/python results/ocean_large_tensor_full/run_rel_1e-3.py
+srun --exact --ntasks=1 --cpus-per-task=4 --cpu-bind=cores ./unsz_env/bin/python results/ocean_large_tensor_full/run_rel_1e-3.py
