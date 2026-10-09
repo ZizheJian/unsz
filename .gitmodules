@@ -17,3 +17,12 @@
 	path = third_party/umc
 	url = https://github.com/xuanwu02/umc.git
 	ignore = untracked
+[submodule "third_party/PFPL"]
+	path = third_party/PFPL
+	url = https://github.com/burtscher/PFPL.git
+[submodule "third_party/SZ3"]
+	path = third_party/SZ3
+	url = https://github.com/szcompressor/SZ3.git
+[submodule "third_party/zfp"]
+	path = third_party/zfp
+	url = https://github.com/LLNL/zfp.git

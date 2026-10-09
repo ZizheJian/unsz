@@ -881,7 +881,7 @@ E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；正式配置现改为�
 
 ## 3.3. 实验口径
 
-`configs/`中的task JSON是当前运行配置的权威记录，3.2节只汇总已经选定或正在调优的方案。主要baseline为UMC；SZ3和ZFP留到正式实验阶段补充。
+`configs/`中的task JSON是当前运行配置的权威记录，3.2节只汇总已经选定或正在调优的方案。结构感知baseline为UMC；SZ3、ZFP和PFPL的一维baseline入口见[benchmarks/tensor_1d/README.md](benchmarks/tensor_1d/README.md)。它们将每个切片按原始点序作为一维float32数组，使用有效值range换算出的ABS EB，保留sentinel并验证全部点，不使用时间、高度或空间结构。当前完整Ocean-large基线固定单线程，先测REL=1e-3对应的ABS误差点；源码使用固定Git子模块，内部API计时与输入读取、range计算、误差验证分离。
 
 单点集RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点；多点集RD曲线由`point_set_config_path_list`中的完整误差配置构成，每个点集可以使用不同EB。UNSZ与UMC曲线不要求使用相同EB，而是在共同PSNR范围内对`log(BR)`和`log(time)`作分段线性插值后比较；BD-rate为`log(BR)`差的区间积分均值取指数，因而不受额外插入EB采样点影响。UMC合并多个time step的MSE时所需的数据范围，在每个task的每个field开始实验前计算一次，并传给该field的全部UMC实验，不随REL EB重复读取输入。速度统计压缩与解压的程序内部核心时间之和；压缩端与解压端的完整预处理时间分别记录。正式实验中两个压缩器都不保存预测DAG，压缩端和解压端分别现场重新生成各自的预测结构；UNSZ压缩预处理包含坐标变换训练与应用、DAG生成和RBF权重计算、自动flow选择、时间依赖计划生成以及最终flow的时间依赖和历史容器初始化。解压预处理读取可复用的坐标变换参数，并包含码流头解析、时间依赖计划和历史容器初始化、坐标变换应用、DAG生成和RBF权重计算。坐标、connectivity、坐标变换训练数据、自动flow采样数据、压缩码流头及坐标变换参数文件的读取不计时，输入正确性验证、逐点误差统计和输出文件写入也不计时。坐标变换参数是field级可复用预处理结果，不计入每个压缩码流的大小。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
 
