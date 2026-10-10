@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerVerticalAdvectionTopFlux_salinityVerticalAdvectionTopFlux",
+  "compressor": "sz3",
+  "rel_eb": 0.01,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 2150998125,
+  "br": 4.853477482417128,
+  "psnr": 63.68748230095627,
+  "compression_time": 101.089114185,
+  "decompression_time": 34.813674561,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 12,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 140.29190100574033,
+  "decompression_MB_s": 407.3682016861087
+}

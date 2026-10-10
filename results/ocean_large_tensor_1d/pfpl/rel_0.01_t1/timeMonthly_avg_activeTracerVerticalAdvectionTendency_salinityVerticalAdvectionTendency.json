@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerVerticalAdvectionTendency_salinityVerticalAdvectionTendency",
+  "compressor": "pfpl",
+  "rel_eb": 0.01,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 5347545919,
+  "br": 12.066116377511074,
+  "psnr": 71.09978693473253,
+  "compression_time": 45.102972507,
+  "decompression_time": 32.124991277,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 314.4356837633917,
+  "decompression_MB_s": 441.4626568366928
+}

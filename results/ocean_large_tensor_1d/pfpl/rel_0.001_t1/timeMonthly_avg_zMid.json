@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_zMid",
+  "compressor": "pfpl",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 7257566338,
+  "br": 16.37585565009804,
+  "psnr": 107.24185662617272,
+  "compression_time": 47.122599459999996,
+  "decompression_time": 30.673020619,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 300.95928837793366,
+  "decompression_MB_s": 462.3602016951391
+}

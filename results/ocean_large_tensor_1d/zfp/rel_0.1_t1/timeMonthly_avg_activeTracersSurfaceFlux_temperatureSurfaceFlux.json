@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracersSurfaceFlux_temperatureSurfaceFlux",
+  "compressor": "zfp",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 36454040,
+  "br": 6.580344640072926,
+  "psnr": 40.50950637308177,
+  "compression_time": 0.862226446,
+  "decompression_time": 0.735472088,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.3299283873135845,
+  "zero_eb_slice_num": 0,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 205.60120931386973,
+  "decompression_MB_s": 241.03538787185084
+}

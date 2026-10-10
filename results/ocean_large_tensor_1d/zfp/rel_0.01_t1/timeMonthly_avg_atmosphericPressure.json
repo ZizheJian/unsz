@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_atmosphericPressure",
+  "compressor": "zfp",
+  "rel_eb": 0.01,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 79782280,
+  "br": 14.401556002319563,
+  "psnr": 61.61354591580534,
+  "compression_time": 1.164159231,
+  "decompression_time": 1.319365891,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.4965554869268794,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 152.2771071855204,
+  "decompression_MB_s": 134.36363726641164
+}

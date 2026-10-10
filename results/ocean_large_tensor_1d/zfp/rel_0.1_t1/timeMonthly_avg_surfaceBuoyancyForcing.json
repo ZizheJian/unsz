@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_surfaceBuoyancyForcing",
+  "compressor": "zfp",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 23834112,
+  "br": 4.3023124775771855,
+  "psnr": 41.11877816413777,
+  "compression_time": 0.673375322,
+  "decompression_time": 0.550614757,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.4159650681615705,
+  "zero_eb_slice_num": 0,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 263.2629890169928,
+  "decompression_MB_s": 321.9579528995443
+}

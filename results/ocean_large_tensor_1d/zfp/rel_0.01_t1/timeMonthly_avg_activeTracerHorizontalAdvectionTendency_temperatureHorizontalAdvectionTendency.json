@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerHorizontalAdvectionTendency_temperatureHorizontalAdvectionTendency",
+  "compressor": "zfp",
+  "rel_eb": 0.01,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 7180787216,
+  "br": 16.202612477351547,
+  "psnr": 75.62469199782903,
+  "compression_time": 65.679913308,
+  "decompression_time": 61.769718608,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 107.31634266588955,
+  "zero_eb_slice_num": 0,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 215.92574176361762,
+  "decompression_MB_s": 229.59444076475435
+}

@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_penetrativeTemperatureFlux",
+  "compressor": "zfp",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 83311544,
+  "br": 15.038625952476043,
+  "psnr": 77.7275718309981,
+  "compression_time": 1.2458543,
+  "decompression_time": 1.655510639,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.5501451421024606,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 142.29175915674892,
+  "decompression_MB_s": 107.08164346626104
+}

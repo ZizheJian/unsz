@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerNonLocalTendency_temperatureNonLocalTendency",
+  "compressor": "pfpl",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 6393221035,
+  "br": 14.42556084677574,
+  "psnr": 87.35027138962633,
+  "compression_time": 56.085622333,
+  "decompression_time": 34.982756512,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 333,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 252.86309414196367,
+  "decompression_MB_s": 405.3992713563097
+}

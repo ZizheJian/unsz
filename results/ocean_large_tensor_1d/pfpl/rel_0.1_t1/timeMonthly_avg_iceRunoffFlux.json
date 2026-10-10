@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_iceRunoffFlux",
+  "compressor": "pfpl",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 43488,
+  "br": 0.007850049753264423,
+  "psnr": Infinity,
+  "compression_time": 0.504134165,
+  "decompression_time": 0.184478922,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.0,
+  "zero_eb_slice_num": 12,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 351.6421070172858,
+  "decompression_MB_s": 960.948806931992
+}

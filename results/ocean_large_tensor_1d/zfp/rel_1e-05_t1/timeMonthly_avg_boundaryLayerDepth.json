@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_boundaryLayerDepth",
+  "compressor": "zfp",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 105937112,
+  "br": 19.12278329463635,
+  "psnr": 121.999101575556,
+  "compression_time": 1.247878835,
+  "decompression_time": 1.808808027,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.6070233070866888,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 142.06090770022556,
+  "decompression_MB_s": 98.00642044585531
+}

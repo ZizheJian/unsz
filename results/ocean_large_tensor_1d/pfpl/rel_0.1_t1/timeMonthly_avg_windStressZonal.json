@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_windStressZonal",
+  "compressor": "pfpl",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 15889114,
+  "br": 2.868155248236072,
+  "psnr": 30.07583149761448,
+  "compression_time": 0.62067733,
+  "decompression_time": 0.361735354,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 285.6150715219452,
+  "decompression_MB_s": 490.06766421841087
+}

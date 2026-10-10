@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracersSurfaceFlux_salinitySurfaceFlux",
+  "compressor": "zfp",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 16122160,
+  "br": 2.9102225471415,
+  "psnr": 43.224192009591206,
+  "compression_time": 0.518544947,
+  "decompression_time": 0.371661749,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.661738988758514,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 341.8696894562546,
+  "decompression_MB_s": 476.97886714728884
+}

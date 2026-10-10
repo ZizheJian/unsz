@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_seaIceFreshWaterFlux",
+  "compressor": "zfp",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 36554488,
+  "br": 6.598476579863579,
+  "psnr": 84.61052234840801,
+  "compression_time": 0.718884446,
+  "decompression_time": 0.76445084,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.7201825866623213,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 246.59707270951304,
+  "decompression_MB_s": 231.89823429326077
+}

@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_seaIceSalinityFlux",
+  "compressor": "zfp",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 62191688,
+  "br": 11.226265752379922,
+  "psnr": 123.62969881990534,
+  "compression_time": 0.840133934,
+  "decompression_time": 1.075183238,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.7078625716497481,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 211.00778438500734,
+  "decompression_MB_s": 164.878686473719
+}

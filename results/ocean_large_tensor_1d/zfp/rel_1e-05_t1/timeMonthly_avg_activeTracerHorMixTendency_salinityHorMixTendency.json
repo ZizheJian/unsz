@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerHorMixTendency_salinityHorMixTendency",
+  "compressor": "zfp",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 4811746656,
+  "br": 10.857147560736212,
+  "psnr": Infinity,
+  "compression_time": 50.072554561,
+  "decompression_time": 51.154048627,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.0,
+  "zero_eb_slice_num": 960,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 283.228689335653,
+  "decompression_MB_s": 277.2406951287625
+}

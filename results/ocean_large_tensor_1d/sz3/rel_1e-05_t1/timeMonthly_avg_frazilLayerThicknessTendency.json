@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_frazilLayerThicknessTendency",
+  "compressor": "sz3",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 883279592,
+  "br": 1.9930178276889892,
+  "psnr": 124.1896516153748,
+  "compression_time": 50.69997858,
+  "decompression_time": 22.753440061,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9999999377223973,
+  "zero_eb_slice_num": 708,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 279.72366847497,
+  "decompression_MB_s": 623.2896635400771
+}

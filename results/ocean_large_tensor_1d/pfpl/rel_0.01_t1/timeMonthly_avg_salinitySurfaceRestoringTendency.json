@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_salinitySurfaceRestoringTendency",
+  "compressor": "pfpl",
+  "rel_eb": 0.01,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 14329167,
+  "br": 2.5865681078190472,
+  "psnr": 48.76359485760257,
+  "compression_time": 0.5565687,
+  "decompression_time": 0.344095309,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 318.5137791614943,
+  "decompression_MB_s": 515.1909815777233
+}

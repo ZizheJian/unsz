@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_seaIceHeatFlux",
+  "compressor": "sz3",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 26984979,
+  "br": 4.871077716629775,
+  "psnr": 90.81632131421469,
+  "compression_time": 1.513939848,
+  "decompression_time": 0.717446433,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 117.09500891610061,
+  "decompression_MB_s": 247.09133929166808
+}

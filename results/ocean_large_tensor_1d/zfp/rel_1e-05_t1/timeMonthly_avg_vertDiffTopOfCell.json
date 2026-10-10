@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_vertDiffTopOfCell",
+  "compressor": "zfp",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 972,
+  "completed_slice_num": 972,
+  "input_bytes": 14359258800,
+  "compressed_bytes": 8978936848,
+  "br": 20.009805738441038,
+  "psnr": 108.41694320421553,
+  "compression_time": 88.495856777,
+  "decompression_time": 100.095262463,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 36.7564475407039,
+  "zero_eb_slice_num": 24,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 162.2591081996503,
+  "decompression_MB_s": 143.4559283493349
+}

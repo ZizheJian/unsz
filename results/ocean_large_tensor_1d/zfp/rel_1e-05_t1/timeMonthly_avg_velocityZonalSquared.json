@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_velocityZonalSquared",
+  "compressor": "zfp",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 10319248136,
+  "br": 23.28418508665642,
+  "psnr": 97.29137521574529,
+  "compression_time": 101.624106558,
+  "decompression_time": 131.654729266,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 356.5766641010771,
+  "zero_eb_slice_num": 0,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 139.553344972395,
+  "decompression_MB_s": 107.72103728492885
+}

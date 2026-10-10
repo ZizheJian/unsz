@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_vertVelocityTop",
+  "compressor": "sz3",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 972,
+  "completed_slice_num": 972,
+  "input_bytes": 14359258800,
+  "compressed_bytes": 3229253046,
+  "br": 7.19647851684378,
+  "psnr": 75.73994333500637,
+  "compression_time": 116.59284105,
+  "decompression_time": 45.655333283,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 12,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 123.15729397006575,
+  "decompression_MB_s": 314.5143790976715
+}

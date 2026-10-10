@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_bulkRichardsonNumber",
+  "compressor": "zfp",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 1215473736,
+  "br": 2.7425753372729798,
+  "psnr": 78.72108843986639,
+  "compression_time": 36.647081676,
+  "decompression_time": 26.037540222,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.7473256076277206,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 386.9880861287712,
+  "decompression_MB_s": 544.6744922554997
+}

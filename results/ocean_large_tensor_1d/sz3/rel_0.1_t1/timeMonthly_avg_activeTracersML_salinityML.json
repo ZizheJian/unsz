@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracersML_salinityML",
+  "compressor": "sz3",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 2471584,
+  "br": 0.4461473824818869,
+  "psnr": 29.764548972861494,
+  "compression_time": 1.002355782,
+  "decompression_time": 0.501218397,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9999998254264614,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 176.85816072840294,
+  "decompression_MB_s": 353.6877358474134
+}

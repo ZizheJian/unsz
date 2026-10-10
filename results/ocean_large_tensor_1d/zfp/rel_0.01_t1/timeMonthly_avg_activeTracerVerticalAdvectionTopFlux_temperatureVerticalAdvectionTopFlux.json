@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerVerticalAdvectionTopFlux_temperatureVerticalAdvectionTopFlux",
+  "compressor": "zfp",
+  "rel_eb": 0.01,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 7402983680,
+  "br": 16.703972995597795,
+  "psnr": 68.73632475956032,
+  "compression_time": 77.202492231,
+  "decompression_time": 73.757244836,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 6.761621725519609,
+  "zero_eb_slice_num": 12,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 183.69852565854535,
+  "decompression_MB_s": 192.2791995760388
+}

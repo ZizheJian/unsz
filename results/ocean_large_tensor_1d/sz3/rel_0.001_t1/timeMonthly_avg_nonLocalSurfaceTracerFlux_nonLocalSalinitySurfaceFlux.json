@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_nonLocalSurfaceTracerFlux_nonLocalSalinitySurfaceFlux",
+  "compressor": "sz3",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 28526233,
+  "br": 5.149290570346152,
+  "psnr": 68.44589008774763,
+  "compression_time": 0.5990438889999999,
+  "decompression_time": 0.329271897,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 295.9295691938859,
+  "decompression_MB_s": 538.3842399401611
+}

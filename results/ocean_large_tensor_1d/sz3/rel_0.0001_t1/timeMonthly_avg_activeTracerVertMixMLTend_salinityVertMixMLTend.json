@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerVertMixMLTend_salinityVertMixMLTend",
+  "compressor": "sz3",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 22014381,
+  "br": 3.973831542892729,
+  "psnr": 89.03327991012051,
+  "compression_time": 0.91613021,
+  "decompression_time": 0.511335596,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9999999776212398,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 193.50393433701964,
+  "decompression_MB_s": 346.68973055417797
+}

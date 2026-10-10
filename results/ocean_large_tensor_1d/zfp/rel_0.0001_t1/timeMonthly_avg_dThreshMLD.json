@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_dThreshMLD",
+  "compressor": "zfp",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 80324056,
+  "br": 14.499352372700463,
+  "psnr": 100.64947799479268,
+  "compression_time": 1.178728112,
+  "decompression_time": 1.5165691,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.604529653483477,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 150.3949877798452,
+  "decompression_MB_s": 116.89200314050973
+}

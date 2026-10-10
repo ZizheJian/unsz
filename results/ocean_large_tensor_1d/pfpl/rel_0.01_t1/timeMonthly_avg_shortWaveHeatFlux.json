@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_shortWaveHeatFlux",
+  "compressor": "pfpl",
+  "rel_eb": 0.01,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 40231497,
+  "br": 7.262216084858085,
+  "psnr": 45.842680221420345,
+  "compression_time": 0.572042186,
+  "decompression_time": 0.31067849399999997,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9999998256075441,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 309.8981234925915,
+  "decompression_MB_s": 570.6053152169587
+}

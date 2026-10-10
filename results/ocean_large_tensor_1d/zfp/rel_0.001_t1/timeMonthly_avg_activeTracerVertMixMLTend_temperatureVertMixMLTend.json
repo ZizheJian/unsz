@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerVertMixMLTend_temperatureVertMixMLTend",
+  "compressor": "zfp",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 47990568,
+  "br": 8.662811499434776,
+  "psnr": 81.98382847936314,
+  "compression_time": 0.923360617,
+  "decompression_time": 0.947065351,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.3978836229166545,
+  "zero_eb_slice_num": 0,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 191.98869513838056,
+  "decompression_MB_s": 187.18328129396426
+}

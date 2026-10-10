@@ -1,0 +1,12 @@
+{
+  "git_revision": "e1f6c46f20cca06260a526f74f092cf1dd90471e",
+  "binary_sha256": {
+    "s1_compress": "962c965eade5e2b79653653167f7958a407a08e5641e6efe9ceae660f972f9b4",
+    "s1_decompress": "87ed06bf0c099d2f306bcdc57afb908ad6dfc61617c1187d5ad17c254be7d2d8"
+  },
+  "slurm_cpus": 8,
+  "partition_num": 1,
+  "thread_num": 1,
+  "rel_eb": 0.001,
+  "field_num": 95
+}

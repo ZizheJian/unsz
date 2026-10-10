@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_pressureAdjustedSSH",
+  "compressor": "zfp",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 42870448,
+  "br": 7.738575003328166,
+  "psnr": 38.105443177540295,
+  "compression_time": 0.89177705,
+  "decompression_time": 0.886366539,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.535290765753073,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 198.78825094231794,
+  "decompression_MB_s": 200.00168350217925
+}

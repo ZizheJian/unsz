@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_longWaveHeatFluxUp",
+  "compressor": "zfp",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 120656720,
+  "br": 21.77983018454964,
+  "psnr": 117.55657380147571,
+  "compression_time": 1.332591654,
+  "decompression_time": 2.046112131,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.4864157440538992,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 133.03009925649738,
+  "decompression_MB_s": 86.63982648563848
+}

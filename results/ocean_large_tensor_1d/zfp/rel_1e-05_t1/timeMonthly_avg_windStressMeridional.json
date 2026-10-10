@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_windStressMeridional",
+  "compressor": "zfp",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 105410112,
+  "br": 19.027654150505317,
+  "psnr": 123.40377126452823,
+  "compression_time": 1.173510783,
+  "decompression_time": 1.7472396460000001,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.5794008630589059,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 151.06363108723136,
+  "decompression_MB_s": 101.45992303107343
+}

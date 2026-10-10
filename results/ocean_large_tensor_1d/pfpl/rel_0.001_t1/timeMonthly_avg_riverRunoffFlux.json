@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_riverRunoffFlux",
+  "compressor": "pfpl",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 2574114,
+  "br": 0.4646551455706056,
+  "psnr": 82.2343276895743,
+  "compression_time": 0.463454182,
+  "decompression_time": 0.314553469,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9999997286274438,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 382.507714646105,
+  "decompression_MB_s": 563.5760449998407
+}

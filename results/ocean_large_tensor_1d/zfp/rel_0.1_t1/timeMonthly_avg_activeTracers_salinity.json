@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracers_salinity",
+  "compressor": "zfp",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 6679208440,
+  "br": 15.070858215606505,
+  "psnr": 47.138648035220754,
+  "compression_time": 89.070984825,
+  "decompression_time": 87.108899001,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.5821036973258348,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 159.22114286558863,
+  "decompression_MB_s": 162.80752210904643
+}

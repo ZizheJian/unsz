@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_nonLocalSurfaceTracerFlux_nonLocalTemperatureSurfaceFlux",
+  "compressor": "zfp",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 83790976,
+  "br": 15.125168563157313,
+  "psnr": 99.40363773528632,
+  "compression_time": 1.047403108,
+  "decompression_time": 1.422494476,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.6114872782125128,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 169.2517414221765,
+  "decompression_MB_s": 124.6224874619478
+}

@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_density",
+  "compressor": "zfp",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 7613331240,
+  "br": 17.178597837932973,
+  "psnr": 48.76583507488326,
+  "compression_time": 100.867936331,
+  "decompression_time": 104.86713171,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.6142829160199322,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 140.5995256357933,
+  "decompression_MB_s": 135.23764566402863
+}

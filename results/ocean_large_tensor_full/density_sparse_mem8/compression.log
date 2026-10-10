@@ -1,0 +1,104 @@
+Loaded tensor metadata for 95 fields from /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data/tensor_metadata.json
+Chronological processing order: 0 1 2 3 4 5 6 7 ... 952 953 954 955 956 957 958 959 (960 total)
+point_num=3693225
+Coord range: [[-6371227.000000, 6371225.500000], [-6371226.000000, 6371225.500000], [-6245739.000000, 6371228.500000]]
+使用float处理坐标和距离
+temporal dependency plan preprocessing time= 0.000827 s
+effective point-set configuration: configured=2,effective=2
+coordinate transform original flatness=0.649692004
+coordinate transform shared sample geometry: first_sample_points=1107968/3693225,targets=3000,references=30000
+coordinate transform first sample ratio=0.300000,planned second targets=3000
+coordinate transform training normalization=per-field-time-step predicted-value range,sample_files=3,value_scale_range=[0.0258488354298,0.89686884169]
+coordinate transform sampled targets=3000,retained targets=2059,complete targets=2028,pairs=20479
+coordinate transform training-data breakdown: shared_geometry=0.501186 s,pair_assembly=0.001626 s,input_excluded=0.122380 s
+coordinate transform optimization group loss power=3,accepted steps=6,function evaluations=12
+coordinate transform diagonal=[1.31615723245,0.801395439954,0.790882727264]
+coordinate transform optimization time= 0.006036 s
+coordinate transform transformed flatness=0.553156315,ratio=0.851413150,use=0
+coordinate transform metadata output time excluded from reported time= 0.001839 s
+Independent spatial partitions: 1, point_num_range=[3693225,3693225]
+Generating independent partition prediction structures: partition_num=1,thread_num=1
+Arranging global prediction order
+Sorting global prediction targets
+Global MSD: target and scoring queries share one kd-tree validity state
+Using reverse MSD elimination with 16 nearby candidates and 10 references
+MSD ordering candidates: 16, queried neighbors: 16, scoring references: 1, cache refill threshold: 1
+Reverse-sorted round 0
+MSD ordering score cache: 49083675 hits, 3937971 misses
+MSD candidate-geometry score reuse: checked=10007788,certified=6069818,candidate_kd_queries=3693225,score_kd_queries=3937971,total_kd_queries=7631196
+MSD ordering reduced-reference cache hits: 0
+Target sorting time: 18.438315 s
+Preparing prediction weights from DAG coordinates
+Batched RBF weights: vectorized_targets=3693215,boundary_fallback_targets=10,rbf_targets=3693215,nearest_fallback_targets=10,time=3.246517 s
+Reused sorting candidate queries for prediction references: 3693224 targets, squared distances: 36932195, additional kd-tree queries: 0
+Prediction reference generation time: 3.246524 s
+Generated 3693225 prediction entries, total time: 22.965101 s
+Generated 3693225 partition prediction entries and 36932195 references, total time: 22.986062 s
+eb schedule: mode=inverse_rank_log2, base=0.8, log2_shift=0.5, max_log2_exponent=7
+automatic flow decision EB: configured_mode=REL,configured_eb=0.001,decision_eb=0.001
+automatic flow sampling: full_scan_time_steps=32,read_time_steps=148,structures=1,windows=4,target_candidates=7523,read_points=20823
+automatic flow candidate: label=axis0_none_axis1_none_no_spatial_residual,value=axis0_none_axis1_none_no_spatial_residual,estimated_label_bytes=131444292.989,estimated_value_bytes=905898681.923,estimated_total_bytes=1037342974.912,selection_score=979507485.997,estimated_label_br=0.296589,estimated_value_br=2.044055,evaluation_time=0.010647 s
+automatic flow candidate: label=axis0_extrapolation_axis1_none_no_spatial_residual,value=axis0_extrapolation_axis1_none_no_spatial_residual,estimated_label_bytes=11717381.151,estimated_value_bytes=1360872579.720,estimated_total_bytes=1372589960.870,selection_score=1367434313.164,estimated_label_br=0.026439,estimated_value_br=3.070651,evaluation_time=0.007804 s
+automatic flow candidate: label=axis0_extrapolation_axis1_none_spatial_residual,value=axis0_extrapolation_axis1_none_spatial_residual,estimated_label_bytes=11717381.151,estimated_value_bytes=727866558.754,estimated_total_bytes=739583939.904,selection_score=734428292.198,estimated_label_br=0.026439,estimated_value_br=1.642346,evaluation_time=0.007537 s
+automatic flow candidate: label=axis0_anchor8_axis1_none_no_spatial_residual,value=axis0_anchor8_axis1_none_no_spatial_residual,estimated_label_bytes=11717381.151,estimated_value_bytes=1337116494.625,estimated_total_bytes=1348833875.776,selection_score=1343678228.070,estimated_label_br=0.026439,estimated_value_br=3.017048,evaluation_time=0.007186 s
+automatic flow candidate: label=axis0_anchor8_axis1_none_spatial_residual,value=axis0_anchor8_axis1_none_spatial_residual,estimated_label_bytes=11717381.151,estimated_value_bytes=715391354.486,estimated_total_bytes=727108735.637,selection_score=721953087.931,estimated_label_br=0.026439,estimated_value_br=1.614198,evaluation_time=0.007657 s
+automatic flow candidate: label=axis0_none_axis1_extrapolation_no_spatial_residual,value=axis0_none_axis1_extrapolation_no_spatial_residual,estimated_label_bytes=40629294.621,estimated_value_bytes=1119724914.121,estimated_total_bytes=1160354208.742,selection_score=1142477319.109,estimated_label_br=0.091675,estimated_value_br=2.526529,evaluation_time=0.006990 s
+automatic flow candidate: label=axis0_none_axis1_extrapolation_spatial_residual,value=axis0_none_axis1_extrapolation_spatial_residual,estimated_label_bytes=40629294.621,estimated_value_bytes=585830097.167,estimated_total_bytes=626459391.788,selection_score=608582502.154,estimated_label_br=0.091675,estimated_value_br=1.321858,evaluation_time=0.007625 s
+automatic flow candidate: label=axis0_none_axis1_anchor8_no_spatial_residual,value=axis0_none_axis1_anchor8_no_spatial_residual,estimated_label_bytes=51605985.137,estimated_value_bytes=814856166.470,estimated_total_bytes=866462151.608,selection_score=843755518.147,estimated_label_br=0.116443,estimated_value_br=1.838628,evaluation_time=0.007542 s
+automatic flow candidate: label=axis0_none_axis1_anchor8_spatial_residual,value=axis0_none_axis1_anchor8_spatial_residual,estimated_label_bytes=51605985.137,estimated_value_bytes=511344843.947,estimated_total_bytes=562950829.084,selection_score=540244195.624,estimated_label_br=0.116443,estimated_value_br=1.153790,evaluation_time=0.008142 s
+automatic flow candidate: label=axis0_extrapolation_axis1_extrapolation_order_01_no_spatial_residual,value=axis0_extrapolation_axis1_extrapolation_order_01_no_spatial_residual,estimated_label_bytes=40629294.621,estimated_value_bytes=1128549132.138,estimated_total_bytes=1169178426.759,selection_score=1151301537.126,estimated_label_br=0.091675,estimated_value_br=2.546440,evaluation_time=0.007054 s
+automatic flow candidate: label=axis0_extrapolation_axis1_extrapolation_order_01_spatial_residual,value=axis0_extrapolation_axis1_extrapolation_order_01_spatial_residual,estimated_label_bytes=40629294.621,estimated_value_bytes=583002649.885,estimated_total_bytes=623631944.506,selection_score=605755054.873,estimated_label_br=0.091675,estimated_value_br=1.315478,evaluation_time=0.007578 s
+automatic flow candidate: label=axis0_extrapolation_axis1_extrapolation_order_10_no_spatial_residual,value=axis0_extrapolation_axis1_extrapolation_order_10_no_spatial_residual,estimated_label_bytes=3217075.458,estimated_value_bytes=1386044474.469,estimated_total_bytes=1389261549.927,selection_score=1387846036.725,estimated_label_br=0.007259,estimated_value_br=3.127448,evaluation_time=0.006658 s
+automatic flow candidate: label=axis0_extrapolation_axis1_extrapolation_order_10_spatial_residual,value=axis0_extrapolation_axis1_extrapolation_order_10_spatial_residual,estimated_label_bytes=3217075.458,estimated_value_bytes=708462976.351,estimated_total_bytes=711680051.809,selection_score=710264538.607,estimated_label_br=0.007259,estimated_value_br=1.598564,evaluation_time=0.007684 s
+automatic flow candidate: label=axis0_extrapolation_axis1_anchor8_order_01_no_spatial_residual,value=axis0_extrapolation_axis1_anchor8_order_01_no_spatial_residual,estimated_label_bytes=51605985.137,estimated_value_bytes=823805786.923,estimated_total_bytes=875411772.061,selection_score=852705138.600,estimated_label_br=0.116443,estimated_value_br=1.858822,evaluation_time=0.007481 s
+automatic flow candidate: label=axis0_extrapolation_axis1_anchor8_order_01_spatial_residual,value=axis0_extrapolation_axis1_anchor8_order_01_spatial_residual,estimated_label_bytes=51605985.137,estimated_value_bytes=505820323.135,estimated_total_bytes=557426308.272,selection_score=534719674.812,estimated_label_br=0.116443,estimated_value_br=1.141325,evaluation_time=0.008031 s
+automatic flow candidate: label=axis0_extrapolation_axis1_anchor8_order_10_no_spatial_residual,value=axis0_extrapolation_axis1_anchor8_order_10_no_spatial_residual,estimated_label_bytes=1737760.233,estimated_value_bytes=1336747206.817,estimated_total_bytes=1338484967.050,selection_score=1337720352.547,estimated_label_br=0.003921,estimated_value_br=3.016215,evaluation_time=0.006682 s
+automatic flow candidate: label=axis0_extrapolation_axis1_anchor8_order_10_spatial_residual,value=axis0_extrapolation_axis1_anchor8_order_10_spatial_residual,estimated_label_bytes=1737760.233,estimated_value_bytes=693338280.232,estimated_total_bytes=695076040.465,selection_score=694311425.962,estimated_label_br=0.003921,estimated_value_br=1.564437,evaluation_time=0.007675 s
+automatic flow candidate: label=axis0_anchor8_axis1_extrapolation_order_01_no_spatial_residual,value=axis0_anchor8_axis1_extrapolation_order_01_no_spatial_residual,estimated_label_bytes=40629294.621,estimated_value_bytes=1124303258.720,estimated_total_bytes=1164932553.341,selection_score=1147055663.708,estimated_label_br=0.091675,estimated_value_br=2.536860,evaluation_time=0.006898 s
+automatic flow candidate: label=axis0_anchor8_axis1_extrapolation_order_01_spatial_residual,value=axis0_anchor8_axis1_extrapolation_order_01_spatial_residual,estimated_label_bytes=40629294.621,estimated_value_bytes=581970469.017,estimated_total_bytes=622599763.638,selection_score=604722874.005,estimated_label_br=0.091675,estimated_value_br=1.313149,evaluation_time=0.007533 s
+automatic flow candidate: label=axis0_anchor8_axis1_extrapolation_order_10_no_spatial_residual,value=axis0_anchor8_axis1_extrapolation_order_10_no_spatial_residual,estimated_label_bytes=3217075.458,estimated_value_bytes=1362288389.374,estimated_total_bytes=1365505464.832,selection_score=1364089951.631,estimated_label_br=0.007259,estimated_value_br=3.073846,evaluation_time=0.007308 s
+automatic flow candidate: label=axis0_anchor8_axis1_extrapolation_order_10_spatial_residual,value=axis0_anchor8_axis1_extrapolation_order_10_spatial_residual,estimated_label_bytes=3217075.458,estimated_value_bytes=695987772.084,estimated_total_bytes=699204847.542,selection_score=697789334.340,estimated_label_br=0.007259,estimated_value_br=1.570416,evaluation_time=0.007892 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_01_no_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_01_no_spatial_residual,estimated_label_bytes=51605985.137,estimated_value_bytes=819998665.614,estimated_total_bytes=871604650.752,selection_score=848898017.291,estimated_label_br=0.116443,estimated_value_br=1.850232,evaluation_time=0.007509 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_01_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_01_spatial_residual,estimated_label_bytes=51605985.137,estimated_value_bytes=506419521.025,estimated_total_bytes=558025506.162,selection_score=535318872.702,estimated_label_br=0.116443,estimated_value_br=1.142677,evaluation_time=0.008096 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_10_no_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_10_no_spatial_residual,estimated_label_bytes=1737760.233,estimated_value_bytes=1312991121.723,estimated_total_bytes=1314728881.956,selection_score=1313964267.453,estimated_label_br=0.003921,estimated_value_br=2.962612,evaluation_time=0.007359 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_10_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_10_spatial_residual,estimated_label_bytes=1737760.233,estimated_value_bytes=680863075.965,estimated_total_bytes=682600836.197,selection_score=681836221.695,estimated_label_br=0.003921,estimated_value_br=1.536288,evaluation_time=0.007935 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_01_interleaved_01_no_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_01_interleaved_01_no_spatial_residual,estimated_label_bytes=19735315.565,estimated_value_bytes=799485846.172,estimated_total_bytes=819221161.737,selection_score=810537622.889,estimated_label_br=0.044530,estimated_value_br=1.803947,evaluation_time=0.006899 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_01_interleaved_01_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_01_interleaved_01_spatial_residual,estimated_label_bytes=19735315.565,estimated_value_bytes=504632557.373,estimated_total_bytes=524367872.938,selection_score=515684334.089,estimated_label_br=0.044530,estimated_value_br=1.138645,evaluation_time=0.007771 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_01_interleaved_10_no_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_01_interleaved_10_no_spatial_residual,estimated_label_bytes=12028427.516,estimated_value_bytes=1046371285.061,estimated_total_bytes=1058399712.577,selection_score=1053107204.470,estimated_label_br=0.027141,estimated_value_br=2.361015,evaluation_time=0.006998 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_01_interleaved_10_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_01_interleaved_10_spatial_residual,estimated_label_bytes=12028427.516,estimated_value_bytes=590532950.339,estimated_total_bytes=602561377.854,selection_score=597268869.748,estimated_label_br=0.027141,estimated_value_br=1.332469,evaluation_time=0.007825 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_10_interleaved_01_no_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_10_interleaved_01_no_spatial_residual,estimated_label_bytes=19735315.565,estimated_value_bytes=799485846.172,estimated_total_bytes=819221161.737,selection_score=810537622.889,estimated_label_br=0.044530,estimated_value_br=1.803947,evaluation_time=0.006824 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_10_interleaved_01_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_10_interleaved_01_spatial_residual,estimated_label_bytes=19735315.565,estimated_value_bytes=504632557.373,estimated_total_bytes=524367872.938,selection_score=515684334.089,estimated_label_br=0.044530,estimated_value_br=1.138645,evaluation_time=0.007572 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_10_interleaved_10_no_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_10_interleaved_10_no_spatial_residual,estimated_label_bytes=12028427.516,estimated_value_bytes=1046371285.061,estimated_total_bytes=1058399712.577,selection_score=1053107204.470,estimated_label_br=0.027141,estimated_value_br=2.361015,evaluation_time=0.006799 s
+automatic flow candidate: label=axis0_anchor8_axis1_anchor8_order_10_interleaved_10_spatial_residual,value=axis0_anchor8_axis1_anchor8_order_10_interleaved_10_spatial_residual,estimated_label_bytes=12028427.516,estimated_value_bytes=590532950.339,estimated_total_bytes=602561377.854,selection_score=597268869.748,estimated_label_br=0.027141,estimated_value_br=1.332469,evaluation_time=0.007604 s
+automatic tensor flow selected: axis0_anchor8_axis1_anchor8_order_01_interleaved_01_spatial_residual,selection_score=515684334.089
+automatic flow selection breakdown: file_statistics=0.406720 s,sample_structure=0.195206 s,sample_value_preparation=0.091481 s,candidate_evaluation=0.256846 s,shared_label_estimation=0.008049 s,other=0.001327 s
+automatic flow selection time excluding data input= 0.951579 s
+automatic flow data input time excluded from reported time= 6.276872 s
+Tensor processing order selected: axis0_anchor8_axis1_anchor8_order_01_interleaved_01_spatial_residual, slices=960
+selected tensor flow: axis0_anchor8_axis1_anchor8_order_01_interleaved_01_spatial_residual
+coordinate transform preprocessing time excluding training-data input= 0.559743 s
+prediction DAG and weights preprocessing time= 23.211349 s
+automatic flow preprocessing time excluding field-data input= 0.951579 s
+temporal dependency preprocessing time= 0.000469 s
+preprocessing time excluding coordinate and field-data input= 24.723140 s
+Compression progress: 0/960 slices
+Compression progress: 128/960 slices
+Compression progress: 256/960 slices
+Compression progress: 384/960 slices
+Compression progress: 512/960 slices
+Compression progress: 640/960 slices
+Compression progress: 768/960 slices
+Compression progress: 896/960 slices
+全部文件最大误差/用户误差上限= 1.000000000
+total cr= 71.224435, total br= 0.449284, total psnr= 79.973057
+total label stream bytes= 20665765, total value stream bytes= 178370429, total shared metadata bytes= 80640
+total label stream br= 0.046629899, total value stream br= 0.402472160, total shared metadata br= 0.000181955
+total time prediction state update time= 0.002565736 s
+total compression time= 284.021022 s
+normalized squared error sum= 22.373213965908405, normalized value count= 3545496000, normalized psnr= 81.999486237200415, maximum error over eb= 1
+compression data input time excluded from reported time= 57.712236 s
+compressed output time excluded from reported time= 1.211916 s
+compression file point-set statistics precomputation time excluded from reported time= 72.174629 s
+compression file point-set statistics input time excluded from reported time= 60.366225 s
+compression file point-set statistics computation time excluded from reported time= 11.808404 s
+total compression preprocessing time excluding coordinate and field-data input= 24.723967 s

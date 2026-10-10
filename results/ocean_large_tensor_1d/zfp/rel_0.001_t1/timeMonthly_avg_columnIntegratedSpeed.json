@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_columnIntegratedSpeed",
+  "compressor": "zfp",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 68549168,
+  "br": 12.373858980520637,
+  "psnr": 77.2547952979308,
+  "compression_time": 1.110759848,
+  "decompression_time": 1.351537838,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.573892454308464,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 159.5977747297902,
+  "decompression_MB_s": 131.1652511795974
+}

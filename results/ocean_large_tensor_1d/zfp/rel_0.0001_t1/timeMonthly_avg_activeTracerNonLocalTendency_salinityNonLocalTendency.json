@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerNonLocalTendency_salinityNonLocalTendency",
+  "compressor": "zfp",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 7041907264,
+  "br": 15.889245993226336,
+  "psnr": 84.30491525890461,
+  "compression_time": 75.883666305,
+  "decompression_time": 80.479807748,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 10000.000258268632,
+  "zero_eb_slice_num": 333,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 186.89112809861092,
+  "decompression_MB_s": 176.21791598219164
+}

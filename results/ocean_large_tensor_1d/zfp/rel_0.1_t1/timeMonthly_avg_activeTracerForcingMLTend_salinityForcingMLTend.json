@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerForcingMLTend_salinityForcingMLTend",
+  "compressor": "zfp",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 4746064,
+  "br": 0.8567153819945079,
+  "psnr": 51.36764317067623,
+  "compression_time": 0.326338754,
+  "decompression_time": 0.1685652,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.7293807661620186,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 543.2232544468194,
+  "decompression_MB_s": 1051.6690277708567
+}

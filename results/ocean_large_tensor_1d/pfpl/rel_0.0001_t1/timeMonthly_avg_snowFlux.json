@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_snowFlux",
+  "compressor": "pfpl",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 65268701,
+  "br": 11.781699553461632,
+  "psnr": 92.54365563716816,
+  "compression_time": 0.7869153210000001,
+  "decompression_time": 0.38523982300000004,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 225.27811477189422,
+  "decompression_MB_s": 460.16737994399915
+}

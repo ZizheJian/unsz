@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracersML_temperatureML",
+  "compressor": "zfp",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 103993504,
+  "br": 18.771941234738385,
+  "psnr": 100.87860621570593,
+  "compression_time": 1.250829118,
+  "decompression_time": 1.871286658,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.34054921634099483,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 141.72583404794068,
+  "decompression_MB_s": 94.73417621085822
+}

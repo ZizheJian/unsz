@@ -881,7 +881,11 @@ E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；正式配置现改为�
 
 ## 3.3. 实验口径
 
-`configs/`中的task JSON是当前运行配置的权威记录，3.2节只汇总已经选定或正在调优的方案。结构感知baseline为UMC；SZ3、ZFP和PFPL的一维baseline入口见[benchmarks/tensor_1d/README.md](benchmarks/tensor_1d/README.md)。它们将每个切片按原始点序作为一维float32数组，使用有效值range换算出的ABS EB，保留sentinel并验证全部点，不使用时间、高度或空间结构。当前完整Ocean-large基线固定单线程，先测REL=1e-3对应的ABS误差点；源码使用固定Git子模块，内部API计时与输入读取、range计算、误差验证分离。
+`configs/`中的task JSON是当前运行配置的权威记录，3.2节只汇总已经选定或正在调优的方案。结构感知baseline为UMC；SZ3、ZFP和PFPL的一维baseline入口见[benchmarks/tensor_1d/README.md](benchmarks/tensor_1d/README.md)。它们将每个切片按原始点序作为一维float32数组，使用有效值range换算出的ABS EB，保留sentinel并验证全部点，不使用时间、高度或空间结构。当前完整Ocean-large基线固定单线程，三个一维baseline已完成五个REL对应的ABS误差点，UNSZ和串行UMC已完成REL=1e-3；源码使用固定Git子模块，内部API计时与输入读取、range计算、误差验证分离。
+
+最新完整Ocean-large对比图见[三组RD](results/ocean_large_tensor_1d/comparison_figures/grouped_rd.pdf)、[核心throughput](results/ocean_large_tensor_1d/comparison_figures/grouped_releb_throughput.pdf)和[REL=1e-3总耗时](results/ocean_large_tensor_1d/comparison_figures/total_releb_1e-3_time.pdf)。按`12×1/12×80/12×81`分组，PSNR先转NMSE按点数平均，throughput不计预处理，总耗时包含两端预处理及全部95个field（不剔除UMC零EB异常慢field）。UNSZ/UMC目前只有单点，不补曲线；ZFP超界实测点保留并明确标记。结果来自不同作业，不能将时间差直接作为同节点配对加速比。
+
+PT不纳入正式对比：官方C++实现（`rcrcarissa/UnstructuredLossyCompression`，提交`79dd92f4213c4d62020ed0f782671abf4e1993f7`）在36节点、50三角形的小网格ABS测试中，平滑场解压报`Unexpected end of bitstream`，并存在硬编码解码数量。未修改其算法；已移除弃用的子模块、测试入口及临时结果。
 
 单点集RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点；多点集RD曲线由`point_set_config_path_list`中的完整误差配置构成，每个点集可以使用不同EB。UNSZ与UMC曲线不要求使用相同EB，而是在共同PSNR范围内对`log(BR)`和`log(time)`作分段线性插值后比较；BD-rate为`log(BR)`差的区间积分均值取指数，因而不受额外插入EB采样点影响。UMC合并多个time step的MSE时所需的数据范围，在每个task的每个field开始实验前计算一次，并传给该field的全部UMC实验，不随REL EB重复读取输入。速度统计压缩与解压的程序内部核心时间之和；压缩端与解压端的完整预处理时间分别记录。正式实验中两个压缩器都不保存预测DAG，压缩端和解压端分别现场重新生成各自的预测结构；UNSZ压缩预处理包含坐标变换训练与应用、DAG生成和RBF权重计算、自动flow选择、时间依赖计划生成以及最终flow的时间依赖和历史容器初始化。解压预处理读取可复用的坐标变换参数，并包含码流头解析、时间依赖计划和历史容器初始化、坐标变换应用、DAG生成和RBF权重计算。坐标、connectivity、坐标变换训练数据、自动flow采样数据、压缩码流头及坐标变换参数文件的读取不计时，输入正确性验证、逐点误差统计和输出文件写入也不计时。坐标变换参数是field级可复用预处理结果，不计入每个压缩码流的大小。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
 

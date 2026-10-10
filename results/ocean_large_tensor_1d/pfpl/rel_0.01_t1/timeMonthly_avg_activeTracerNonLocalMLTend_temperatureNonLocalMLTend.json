@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerNonLocalMLTend_temperatureNonLocalMLTend",
+  "compressor": "pfpl",
+  "rel_eb": 0.01,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 631308,
+  "br": 0.11395785526200002,
+  "psnr": 67.32737585608963,
+  "compression_time": 0.466698155,
+  "decompression_time": 0.264735581,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9999959347013889,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 379.84894112126926,
+  "decompression_MB_s": 669.6296709734685
+}

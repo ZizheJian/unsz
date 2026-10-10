@@ -1,0 +1,45 @@
+Loaded tensor metadata for 95 fields from /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data/tensor_metadata.json
+Chronological processing order: 0 1 2 3 4 5 6 7 ... 952 953 954 955 956 957 958 959 (960 total)
+point_num=3693225
+Coord range: [[-6371227.000000, 6371225.500000], [-6371226.000000, 6371225.500000], [-6245739.000000, 6371228.500000]]
+temporal dependency plan preprocessing time= 0.000643 s
+BEGIN UNSZ FIELD timeMonthly_avg_layerThickness
+Tensor processing order selected: axis0_anchor8_axis1_anchor8_order_10_no_spatial_residual, slices=960
+compressed tensor flow: axis0_anchor8_axis1_anchor8_order_10_no_spatial_residual
+Independent spatial partitions: 1, point_num_range=[3693225,3693225]
+Generating independent partition prediction structures: partition_num=1,thread_num=1
+Arranging global prediction order
+Sorting global prediction targets
+Global MSD: target and scoring queries share one kd-tree validity state
+Using reverse MSD elimination with 16 nearby candidates and 10 references
+MSD ordering candidates: 16, queried neighbors: 16, scoring references: 1, cache refill threshold: 1
+Reverse-sorted round 0
+MSD ordering score cache: 49083675 hits, 3937971 misses
+MSD candidate-geometry score reuse: checked=10007788,certified=6069818,candidate_kd_queries=3693225,score_kd_queries=3937971,total_kd_queries=7631196
+MSD ordering reduced-reference cache hits: 0
+Target sorting time: 15.840672 s
+Preparing prediction weights from DAG coordinates
+Batched RBF weights: vectorized_targets=3693215,boundary_fallback_targets=10,rbf_targets=3693215,nearest_fallback_targets=10,time=2.808218 s
+Reused sorting candidate queries for prediction references: 3693224 targets, squared distances: 36932195, additional kd-tree queries: 0
+Prediction reference generation time: 2.808229 s
+Generated 3693225 prediction entries, total time: 19.780959 s
+Generated 3693225 partition prediction entries and 36932195 references, total time: 19.802606 s
+eb schedule: mode=inverse_rank_log2, base=0.8, log2_shift=0.5, max_log2_exponent=7
+preprocessing time excluding coordinate and transform-file input= 19.988577 s
+Decompression progress: 0/960 slices
+Decompression progress: 128/960 slices
+Decompression progress: 256/960 slices
+Decompression progress: 384/960 slices
+Decompression progress: 512/960 slices
+Decompression progress: 640/960 slices
+Decompression progress: 768/960 slices
+Decompression progress: 896/960 slices
+全部文件最大误差/用户误差上限= 1.000000000
+total time prediction state update time= 0.011162012 s
+total prediction order restore time= 7.276308690 s
+total decompression time= 64.820416 s
+total decompressed psnr= 74.134464
+normalized squared error sum= 24.317641428535769, normalized value count= 3545496000, normalized psnr= 81.637555493829268, maximum error over eb= 1
+END UNSZ FIELD timeMonthly_avg_layerThickness
+total decompression preprocessing time excluding coordinate, transform-file and compressed-metadata input= 19.989220 s
+compressed metadata input time excluded from reported time= 0.000411 s

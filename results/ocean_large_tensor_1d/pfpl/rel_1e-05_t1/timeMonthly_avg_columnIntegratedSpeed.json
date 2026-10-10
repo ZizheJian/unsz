@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_columnIntegratedSpeed",
+  "compressor": "pfpl",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 85678590,
+  "br": 15.46590310636368,
+  "psnr": 105.3543025779576,
+  "compression_time": 0.533369701,
+  "decompression_time": 0.338346622,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.999999742575248,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 332.36758606203614,
+  "decompression_MB_s": 523.9443472262597
+}

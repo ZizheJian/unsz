@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerHorMixTendency_temperatureHorMixTendency",
+  "compressor": "pfpl",
+  "rel_eb": 0.01,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 5249496324,
+  "br": 11.844878852493418,
+  "psnr": Infinity,
+  "compression_time": 48.137108348,
+  "decompression_time": 30.574518941,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.0,
+  "zero_eb_slice_num": 960,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 294.61645052447847,
+  "decompression_MB_s": 463.84978378129637
+}

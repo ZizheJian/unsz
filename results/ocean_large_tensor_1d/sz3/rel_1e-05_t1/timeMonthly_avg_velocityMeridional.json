@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_velocityMeridional",
+  "compressor": "sz3",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 6127674433,
+  "br": 13.826385776207335,
+  "psnr": 111.45040211813408,
+  "compression_time": 207.030662101,
+  "decompression_time": 79.56923082,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 68.50185308822185,
+  "decompression_MB_s": 178.23452424822622
+}

@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_latentHeatFlux",
+  "compressor": "sz3",
+  "rel_eb": 0.01,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 27083433,
+  "br": 4.888849718064835,
+  "psnr": 47.84894466088818,
+  "compression_time": 0.646429296,
+  "decompression_time": 0.366488112,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 274.2369522807023,
+  "decompression_MB_s": 483.7122793221735
+}

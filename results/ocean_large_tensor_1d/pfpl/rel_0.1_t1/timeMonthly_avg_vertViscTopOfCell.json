@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_vertViscTopOfCell",
+  "compressor": "pfpl",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 972,
+  "completed_slice_num": 972,
+  "input_bytes": 14359258800,
+  "compressed_bytes": 5809554161,
+  "br": 12.946749950074025,
+  "psnr": 41.378446292599605,
+  "compression_time": 54.719833314,
+  "decompression_time": 30.288217204,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 24,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 262.4141546192576,
+  "decompression_MB_s": 474.08728956498805
+}

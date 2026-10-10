@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_columnIntegratedSpeed",
+  "compressor": "sz3",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 6060006,
+  "br": 1.093895985216173,
+  "psnr": 26.129641880452347,
+  "compression_time": 1.013837996,
+  "decompression_time": 0.557722479,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9999999918212109,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 174.85515506364985,
+  "decompression_MB_s": 317.85485913685034
+}

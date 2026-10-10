@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracersSurfaceFluxRemoved_temperatureSurfaceFluxRemoved",
+  "compressor": "pfpl",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 43488,
+  "br": 0.007850049753264423,
+  "psnr": Infinity,
+  "compression_time": 0.385891773,
+  "decompression_time": 0.141522616,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.0,
+  "zero_eb_slice_num": 12,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 459.3899440297215,
+  "decompression_MB_s": 1252.625234118058
+}

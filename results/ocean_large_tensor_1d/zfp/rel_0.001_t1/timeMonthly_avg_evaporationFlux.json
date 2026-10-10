@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_evaporationFlux",
+  "compressor": "zfp",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 75810856,
+  "br": 13.684671436662176,
+  "psnr": 80.50789003447655,
+  "compression_time": 1.120057327,
+  "decompression_time": 1.482120854,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.5937573416645503,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 158.27297025485197,
+  "decompression_MB_s": 119.60886962865716
+}

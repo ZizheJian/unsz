@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_bruntVaisalaFreqML",
+  "compressor": "sz3",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 42191,
+  "br": 0.007615927362490326,
+  "psnr": 93.70556748208456,
+  "compression_time": 0.92421918,
+  "decompression_time": 0.44457526399999997,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9960002099273595,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 191.81034524732542,
+  "decompression_MB_s": 398.75093005624353
+}

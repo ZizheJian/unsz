@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracersTend_salinityTend",
+  "compressor": "sz3",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 3326302633,
+  "br": 7.505415621396837,
+  "psnr": 84.57623221897107,
+  "compression_time": 125.758018044,
+  "decompression_time": 45.279311277,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 112.77200627508326,
+  "decompression_MB_s": 313.2111244634557
+}

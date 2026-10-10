@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_bottomLayerShortwaveTemperatureFlux",
+  "compressor": "sz3",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 10720275,
+  "br": 1.9351244508525747,
+  "psnr": 87.18163539784203,
+  "compression_time": 1.584676514,
+  "decompression_time": 0.606721787,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9999995570484793,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 111.86813108785682,
+  "decompression_MB_s": 292.1846615671311
+}

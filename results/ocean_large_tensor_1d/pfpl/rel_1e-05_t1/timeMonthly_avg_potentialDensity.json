@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_potentialDensity",
+  "compressor": "pfpl",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 10947247971,
+  "br": 24.70119378727264,
+  "psnr": 112.36513310147564,
+  "compression_time": 55.113175414,
+  "decompression_time": 33.000786776,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9992256205369102,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 257.3247484556561,
+  "decompression_MB_s": 429.7468450150384
+}

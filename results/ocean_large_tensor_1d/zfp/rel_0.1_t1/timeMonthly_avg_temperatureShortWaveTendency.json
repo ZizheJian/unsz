@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_temperatureShortWaveTendency",
+  "compressor": "zfp",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 7461378872,
+  "br": 16.835734965150152,
+  "psnr": 55.961384140004185,
+  "compression_time": 77.439936208,
+  "decompression_time": 73.797778605,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 10.031888125835247,
+  "zero_eb_slice_num": 0,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 183.13527482651668,
+  "decompression_MB_s": 192.17358934214764
+}

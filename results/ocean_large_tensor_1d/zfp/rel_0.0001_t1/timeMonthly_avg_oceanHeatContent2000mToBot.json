@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_oceanHeatContent2000mToBot",
+  "compressor": "zfp",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 92407192,
+  "br": 16.680487830193574,
+  "psnr": 96.2871184570013,
+  "compression_time": 1.233604423,
+  "decompression_time": 1.702061307,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.559104951950621,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 143.70473767343162,
+  "decompression_MB_s": 104.15300510676612
+}

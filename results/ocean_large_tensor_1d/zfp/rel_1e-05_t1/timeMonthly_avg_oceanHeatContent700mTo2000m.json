@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_oceanHeatContent700mTo2000m",
+  "compressor": "zfp",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 116265992,
+  "br": 20.987256756177416,
+  "psnr": 118.93077667987427,
+  "compression_time": 1.197142051,
+  "decompression_time": 1.886305704,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.41122135441794677,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 148.08167489557178,
+  "decompression_MB_s": 93.9798886384537
+}

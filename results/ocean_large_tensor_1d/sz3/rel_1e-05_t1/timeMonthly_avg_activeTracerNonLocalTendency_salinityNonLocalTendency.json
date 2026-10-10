@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerNonLocalTendency_salinityNonLocalTendency",
+  "compressor": "sz3",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 1856442357,
+  "br": 4.188846597485937,
+  "psnr": 125.17441678547556,
+  "compression_time": 96.548598704,
+  "decompression_time": 41.668270085,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 333,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 146.88958918481373,
+  "decompression_MB_s": 340.3545184638063
+}

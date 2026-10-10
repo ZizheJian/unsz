@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracersTendML_temperatureTendML",
+  "compressor": "sz3",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 42964977,
+  "br": 7.755638500226767,
+  "psnr": 88.92974243617864,
+  "compression_time": 0.8842569309999999,
+  "decompression_time": 0.522368633,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.9999998758796256,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 200.47883571522723,
+  "decompression_MB_s": 339.3672376189556
+}

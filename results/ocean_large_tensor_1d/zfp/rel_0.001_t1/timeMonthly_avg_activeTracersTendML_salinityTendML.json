@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracersTendML_salinityTendML",
+  "compressor": "zfp",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 35246768,
+  "br": 6.362419114279074,
+  "psnr": 82.90530959323148,
+  "compression_time": 0.91232896,
+  "decompression_time": 0.828766446,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.2468403257902452,
+  "zero_eb_slice_num": 0,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 194.31017513682784,
+  "decompression_MB_s": 213.9019995990523
+}

@@ -1,0 +1,18 @@
+{
+  "codec": "pfpl",
+  "binary_sha256": "ff8141e2d22431d20272e21bb1043cb00f0bc53603c6b9194763c25701860085",
+  "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
+  "rel_eb": 0.001,
+  "threads": 1,
+  "layout": "one original-order unstructured slice per 1D array",
+  "range_excludes": -99999,
+  "input_keeps_sentinel": true,
+  "git_revision": "e1f6c46f20cca06260a526f74f092cf1dd90471e",
+  "upstream_revisions": {
+    "SZ3": "d5ab1d1490e61d9e18340e3dda2465407751c863",
+    "zfp": "709952d8a058b134f7a616b679b8504354eeec8f",
+    "PFPL": "36f5aaef42744ed78b4d1525b03a7fb2168b363c"
+  },
+  "codec_error_bound_mode": "ABS",
+  "abs_eb_rule": "rel_eb*(valid_max-valid_min),computed separately for each slice"
+}

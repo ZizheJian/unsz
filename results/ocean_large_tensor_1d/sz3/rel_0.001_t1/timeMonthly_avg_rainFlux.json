@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_rainFlux",
+  "compressor": "sz3",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 46207822,
+  "br": 8.341006753356934,
+  "psnr": 65.64019918765598,
+  "compression_time": 0.665861477,
+  "decompression_time": 0.395317261,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 1.0,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 266.23375300025054,
+  "decompression_MB_s": 448.4367810086593
+}

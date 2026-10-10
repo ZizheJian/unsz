@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_activeTracerSurfaceFluxTendency_temperatureSurfaceFluxTendency",
+  "compressor": "zfp",
+  "rel_eb": 0.1,
+  "thread_num": 1,
+  "slice_num": 960,
+  "completed_slice_num": 960,
+  "input_bytes": 14181984000,
+  "compressed_bytes": 6903768336,
+  "br": 15.577551543705027,
+  "psnr": 60.98335583405169,
+  "compression_time": 67.148079265,
+  "decompression_time": 63.417629175,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 43.57294748053552,
+  "zero_eb_slice_num": 2,
+  "valid": false,
+  "returncode": 2,
+  "compression_MB_s": 211.20461158733636,
+  "decompression_MB_s": 223.6284166483901
+}

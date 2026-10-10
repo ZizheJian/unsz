@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_totalFreshWaterTemperatureFlux",
+  "compressor": "sz3",
+  "rel_eb": 0.0001,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 57325733,
+  "br": 10.347908760861667,
+  "psnr": 87.88780883401895,
+  "compression_time": 0.818684556,
+  "decompression_time": 0.500966334,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.999999656163414,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 216.53614777606725,
+  "decompression_MB_s": 353.8656950947925
+}

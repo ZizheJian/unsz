@@ -1,0 +1,22 @@
+{
+  "field": "timeMonthly_avg_oceanHeatContentSfcTo700m",
+  "compressor": "sz3",
+  "rel_eb": 1e-05,
+  "thread_num": 1,
+  "slice_num": 12,
+  "completed_slice_num": 12,
+  "input_bytes": 177274800,
+  "compressed_bytes": 86572918,
+  "br": 15.627338888550431,
+  "psnr": 104.83823443788346,
+  "compression_time": 1.747394632,
+  "decompression_time": 1.0191374579999999,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "max_error_over_eb": 0.999998662810632,
+  "zero_eb_slice_num": 0,
+  "valid": true,
+  "returncode": 0,
+  "compression_MB_s": 101.4509239948266,
+  "decompression_MB_s": 173.9459173131482
+}

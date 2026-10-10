@@ -14,3 +14,5 @@ __pycache__/
 results/ocean_large_tensor_full/*_sparse_mem8/s1_compress
 results/ocean_large_tensor_full/*_sparse_mem8/s1_decompress
 results/ocean_large_tensor_1d/*/*/benchmark_*
+results/ocean_large_tensor_1d/*/*/*.inputs.txt
+results/ocean_large_tensor_1d/*/*/*.slices.csv

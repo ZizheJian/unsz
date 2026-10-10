@@ -14,4 +14,4 @@ export OMP_NUM_THREADS=1
 export OMP_DYNAMIC=false
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
-srun --exact --ntasks=1 --cpus-per-task=1 --cpu-bind=cores /usr/bin/time -v ./unsz_env/bin/python -u benchmarks/tensor_1d/run.py --codec "$1"
+srun --exact --ntasks=1 --cpus-per-task=1 --cpu-bind=cores /usr/bin/time -v ./unsz_env/bin/python -u benchmarks/tensor_1d/run.py --codec "$1" --rel-eb "${2:-1e-3}"
