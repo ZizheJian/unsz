@@ -734,7 +734,7 @@ partition会改变空间DAG边界和每段无损编码上下文，因此不保�
 
 ## 3.1. 数据集
 
-下表记录当前正式实验使用的数据；Ocean-large采用91个field、12个月度time step的独立大规模实验。
+下表记录当前正式实验使用的数据。完整版Ocean-large采用95个field，其中58个field的tensor形状为`[12,1]`，33个为`[12,80]`，4个为`[12,81]`。
 
 | 数据集 | field数 | 单个field的总大小 | 每步点数 | time step数 |
 |---|---:|---:|---:|---:|
@@ -747,7 +747,7 @@ partition会改变空间DAG边界和每段无损编码上下文，因此不保�
 | ADCIRC-Haiyan-1.5km zeta | 1 | 210.03 MB | 2187832 | 24 |
 | Katrina | 1 | 270.63 MB | 417642 | 162 |
 | Ocean-large单快照restart | 24 | 详情见下方说明 | | |
-| Ocean-large月度输出 | 91 | 177.27 MB | 3693225 | 12 |
+| Ocean-large月度输出 | 95 | 177.27 MB/14.18 GB/14.36 GB | 3693225 | 12个月×1/80/81层 |
 
 单个field的总大小是该field全部`<field>.dat.<time_step>`文件的大小之和，不包含坐标、connectivity、标签以及各种格式的metadata。ADCIRC-Haiyan-1.5km的depth和zeta因time step数不同而分成两行。
 
@@ -772,7 +772,9 @@ Ocean-large有两套不同的输入。第一套此前被误称为“初始状态
 
 ### Ocean-large完整版
 
-月度输出由12个NetCDF文件组成，每个文件对应一个真实time step。同名变量跨12个文件组成一个field。完整cell数据包含58个单层field、33个80个中心层field和4个81个界面层field。转换器按`slice_id=time_index*height_num+height_index`生成切片文件，因此分别形成`[12,1]`、`[12,80]`和`[12,81]`三类tensor形状；预计共36264个切片、约499GiB。
+月度输出由12个NetCDF文件组成，每个文件对应一个真实time step。同名变量跨12个文件组成一个field。完整cell数据包含58个单层field、33个80个中心层field和4个81个界面层field。转换器按`slice_id=time_index*height_num+height_index`生成切片文件，因此分别形成`[12,1]`、`[12,80]`和`[12,81]`三类tensor形状；共36264个切片、535724445600字节原始float32数据。
+
+### Ocean-large旧91-field单高度口径
 
 UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有12个真实time step。当前可复现实验定义使用58个单层cell变量，并取33个80层cell变量的第0层，正好得到91个单层field；公开仓库没有论文实验使用的`varnames_91.txt`和NetCDF转换程序，因此不能声称该列表与论文逐项相同。
 
@@ -780,7 +782,7 @@ UMC公开代码读取91个长度均为`nCells`的float32 field，每个field有1
 
 完整垂直版本由`prepare_ocean_large_tensor.py`转换。深于`maxLevelCell`的结构无效层、NetCDF非有限值和fill value统一写为`-99999`；分类时仍以`maxLevelCell`决定结构有效区域，不能把合法0误判为无效。转换器以一个field的一个月为原子提交单元：先写`.tmp`切片，全部高度切片通过尺寸检查后再替换正式文件，并在`conversion_progress.json`保存统计；中断后重跑会跳过已经完整提交的组。完整95个field、36264个切片和约499GiB数据已经转换完成。二维入口、最多33种flow和结构标签通过了`[2,2]`真实依赖、普通一维V17回归以及三个完整代表field测试：`ssh[12,1]`选择时间anchor8加空间残差，`velocityMeridional[12,80]`选择高度anchor8加空间残差，`vertVelocityTop[12,81]`选择先时间后高度的双轴anchor8且不使用空间残差。最后一项实际BR为`0.532053`，相比旧展平采样误选的纯高度外插BR `0.629549`降低`15.49%`，同时PSNR从`77.5281 dB`提高到`78.3002 dB`；逐点最大误差不超过用户EB。
 
-当前五点结果保存在`results/ocean_large_curves/metrics_*.json`，图位于同目录的`figures/`。五点共同PSNR区间内，UNSZ相对UMC的压缩率几何优势为`2.112×`，核心压缩＋解压速度为`1.882×`，计入两端预处理后速度为`1.687×`。`run_benchmark.slurm`从头运行UMC与UNSZ；`run_unsz.slurm`复用正式UMC指标并只更新UNSZ，设置`EXPONENTS="1 3"`可选择EB，设置`FORCE=true`可覆盖已经完成的结果。
+旧91-field单高度五点结果保存在`results/ocean_large_curves/metrics_*.json`，图位于同目录的`figures/`。五点共同PSNR区间内，UNSZ相对UMC的压缩率几何优势为`2.112×`，核心压缩＋解压速度为`1.882×`，计入两端预处理后速度为`1.687×`。这组结果用于复现UMC式单高度输入，不代表当前95-field完整tensor实验。`run_benchmark.slurm`从头运行UMC与UNSZ；`run_unsz.slurm`复用正式UMC指标并只更新UNSZ，设置`EXPONENTS="1 3"`可选择EB，设置`FORCE=true`可覆盖已经完成的结果。
 
 ## 3.2. 方案
 
@@ -881,9 +883,11 @@ E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；正式配置现改为�
 
 ## 3.3. 实验口径
 
-`configs/`中的task JSON是当前运行配置的权威记录，3.2节只汇总已经选定或正在调优的方案。结构感知baseline为UMC；SZ3、ZFP和PFPL的一维baseline入口见[benchmarks/tensor_1d/README.md](benchmarks/tensor_1d/README.md)。它们将每个切片按原始点序作为一维float32数组，使用有效值range换算出的ABS EB，保留sentinel并验证全部点，不使用时间、高度或空间结构。当前完整Ocean-large基线固定单线程，三个一维baseline已完成五个REL对应的ABS误差点，UNSZ和串行UMC已完成REL=1e-3；源码使用固定Git子模块，内部API计时与输入读取、range计算、误差验证分离。
+`configs/`中的task JSON是当前运行配置的权威记录，3.2节只汇总已经选定或正在调优的方案。结构感知baseline为UMC；SZ3、ZFP和PFPL的一维baseline入口见[benchmarks/tensor_1d/README.md](benchmarks/tensor_1d/README.md)。它们将每个切片按原始点序作为一维float32数组，使用有效值range换算出的ABS EB，保留sentinel并验证全部点，不使用时间、高度或空间结构。当前完整Ocean-large基线固定单线程，UNSZ、UMC、SZ3、ZFP和PFPL均已完成五个REL对应的ABS误差点；源码使用固定Git子模块，内部API计时与输入读取、range计算、误差验证分离。
 
-最新完整Ocean-large对比图见[三组RD](results/ocean_large_tensor_1d/comparison_figures/grouped_rd.pdf)、[核心throughput](results/ocean_large_tensor_1d/comparison_figures/grouped_releb_throughput.pdf)和[REL=1e-3总耗时](results/ocean_large_tensor_1d/comparison_figures/total_releb_1e-3_time.pdf)。按`12×1/12×80/12×81`分组，PSNR先转NMSE按点数平均，throughput不计预处理，总耗时包含两端预处理及全部95个field（不剔除UMC零EB异常慢field）。UNSZ/UMC目前只有单点，不补曲线；ZFP超界实测点保留并明确标记。结果来自不同作业，不能将时间差直接作为同节点配对加速比。
+最新完整Ocean-large对比图见[三组RD](results/ocean_large_tensor_1d/comparison_figures/grouped_rd.pdf)、[核心throughput](results/ocean_large_tensor_1d/comparison_figures/grouped_releb_throughput.pdf)和[REL=1e-3总耗时](results/ocean_large_tensor_1d/comparison_figures/total_releb_1e-3_time.pdf)。按`12×1/12×80/12×81`分组，PSNR先转NMSE按点数平均，throughput不计预处理，总耗时包含两端预处理及全部95个field（不剔除UMC零EB异常慢field）。五个压缩器均使用完整五点；ZFP超界实测点保留并明确标记。结果来自不同作业，不能将时间差直接作为同节点配对加速比。
+
+UNSZ/串行UMC其余四个EB的可复现入口分别是`sbatch results/ocean_large_tensor_full/run_remaining_eb.slurm`和`sbatch results/ocean_large_tensor_full_umc/run_remaining_eb.slurm`。各入口提交一个四任务数组，对应REL `1e-1、1e-2、1e-4、1e-5`；每任务申请8个CPU附带的内存额度，程序仍单线程、UNSZ单partition，时限分别为12/22小时。同一压缩器的数组并发限制为1，防止共享输入目录中的临时码流互相覆盖；UNSZ与UMC可同时运行，结果分目录保存。启动时核对REL=1e-3基准的二进制SHA、metadata、点集规则与UMC计时替换文件，不重编译、不改变UMC参数。manifest记录启动器、实验驱动与相关补丁的SHA；逐点验证、共享DAG及计时口径沿用已有实验。
 
 PT不纳入正式对比：官方C++实现（`rcrcarissa/UnstructuredLossyCompression`，提交`79dd92f4213c4d62020ed0f782671abf4e1993f7`）在36节点、50三角形的小网格ABS测试中，平滑场解压报`Unexpected end of bitstream`，并存在硬编码解码数量。未修改其算法；已移除弃用的子模块、测试入口及临时结果。
 
@@ -891,19 +895,21 @@ PT不纳入正式对比：官方C++实现（`rcrcarissa/UnstructuredLossyCompres
 
 UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同一计时口径：压缩时间为field重排与核心压缩之和，解压时间为核心解压与恢复原始顺序之和；读取输入、写出结果、读取原始field进行误差验证和误差统计均不计入。ADCIRC-Haiyan-1.5km的connectivity包含两个连通分量，而UMC的DPFS只遍历0号点所在的连通分量，无法生成覆盖全部点的有效重排。我们不修改UMC算法，也不改用`reorder=0`；因此Haiyan汇报为UMC无法运行，不计算`CR/UMC`和`总时间/UMC`。
 
-数据转换入口见`py_codes/prepare_datasets/prepare_*.py`。常规结果以`configs/`和`results/current`为准，Ocean-large结果单独保存在`results/ocean_large_curves`。
+数据转换入口见`py_codes/prepare_datasets/prepare_*.py`。常规结果以`configs/`和`results/current`为准；旧91-field单高度Ocean-large结果位于`results/ocean_large_curves`，完整95-field tensor结果分别位于`results/ocean_large_tensor_full`、`results/ocean_large_tensor_full_umc`和`results/ocean_large_tensor_1d`。
 
 # 4. TODO
 
 ## 4.1. 投稿前主线
 
-- [ ] 冻结bitstream、配置和实验脚本后，统一生成正式五点BR–PSNR、核心压缩＋解压时间和各阶段码流长度；在此之前不再无目的地重复全数据复测。
+- [x] 完成完整95-field Ocean-large的五点BR–PSNR、核心压缩/解压时间、预处理时间和分组图，并保存实验manifest与脚本SHA。
+- [ ] 冻结常规数据的bitstream、配置和实验脚本后，统一生成正式五点结果；在此之前不再无目的地重复全数据复测。
 - [ ] 把`results/current`整理为与3.1及`configs/`中的task JSON一致的常规结果集；Ocean-large结果单独维护。
 - [ ] 优先优化仍未达到目标的正式field，方案固定后再迁移到其他field验证泛化。
 - [ ] 测试一阶内插中“最后一个文件由第一个文件作零阶外插预测”，并实现“空间预测＋时间补偿”。
 - UMC-INP的batch固定为README示例使用的10，不再作为task配置或实验维度。
 - [ ] 研究DAG和RBF权重的紧凑持久化，明确公共metadata需要在多少field或time step之间摊销。
 - [ ] 取得UMC论文实验原始的`varnames_91.txt`以核对当前58个单层变量＋33个多层变量第0层的91-field定义；12个月度NetCDF已经按当前定义转换，单快照restart不作为月度输出使用。
-- [ ] 完成single-core throughput、strong/weak scaling以及端到端压缩—传输—解压实验，再决定投稿路线。
+- [x] 完成完整Ocean-large的single-core throughput与REL=1e-3总耗时实验。
+- [ ] 完成strong/weak scaling以及端到端压缩—传输—解压实验。
 
 日常审阅以本README为准；被删除实现、历史实验和一次性脚本从Git历史恢复。

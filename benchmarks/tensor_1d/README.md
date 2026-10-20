@@ -75,6 +75,6 @@ python tests/zfp_double_investigate.py --binary /tmp/unsz_zfp_round_first_diagno
 
 这三种一维codec的几何预处理均为0。PNG/PDF之外保存逐field指标、全量汇总指标、`grouped_metrics.csv`和包含全部源CSV哈希、形状分组及公式的绘图manifest。加`--per-field`可重新生成完整95-field RD/throughput及分field耗时图，默认不再重画，但保留已有完整图用于补充材料。单元测试：`unsz_env/bin/python -m unittest discover -s tests -p test_tensor_1d_plot.py`。
 
-`unsz_env/bin/python benchmarks/tensor_1d/plot.py --include-structured`将当前UNSZ、UMC完整95-field的REL=1e-3结果叠加到相同三组，输出到独立的`comparison_figures/`，不覆盖三baseline图。UNSZ/UMC目前只绘制一个点，不补值、不连接成完整曲线；通过`--unsz-results/--umc-results`可以指定结果目录，必须与baseline的每个field输入字节数和切片数一致，并满足单partition、单线程、REL=1e-3配置。UNSZ的REL从记录的point-set配置读取并核对，码流大小由记录BR换算，保留其六位小数精度，不伪造精确字节数；两个结构感知压缩器的逐field最大误差比没有保存到CSV，指标表以NaN表示未知，不伪造数字，重建正确性已经由各自实验入口验证。
+`unsz_env/bin/python benchmarks/tensor_1d/plot.py --include-structured`将UNSZ、UMC当前已完成全部95个field的EB结果叠加到相同三组，输出到独立的`comparison_figures/`，不覆盖三baseline图。以`--unsz-results/--umc-results`指定的REL=1e-3目录为基准，同时查找同级其他四个EB目录；不完整的EB整点跳过，不把不同field子集混入汇总。当前UNSZ、UMC、SZ3、ZFP和PFPL都覆盖五个EB。图例标明实际覆盖点数，manifest保存`eb_coverage`及被跳过EB的field数量。所有纳入点必须与baseline的每个field输入字节数和切片数一致，满足单partition、单线程，并使用相同codec二进制SHA。UNSZ的REL从记录的point-set配置读取并核对，码流大小由记录BR换算，保留其六位小数精度，不伪造精确字节数；两个结构感知压缩器的逐field最大误差比没有保存到CSV，指标表以NaN表示未知，不伪造数字，重建正确性已经由各自实验入口验证。
 
 五codec总耗时图包含压缩预处理、压缩、解压预处理、解压四段，所有field均计入。UNSZ共享原坐标空间DAG只计算一次；当前UMC串行启动器按field分别预处理。吞吐率仍只使用核心时间。结果来自独立作业而非同节点交替测速，因此不把图中的时间差直接宣称为受控的同节点加速比。记录和绘图不修改UMC源码、参数，也不剔除其零EB异常慢field。

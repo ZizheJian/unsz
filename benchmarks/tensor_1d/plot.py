@@ -96,15 +96,40 @@ def ordered_codecs(records):
     return tuple(codec for codec in styles if codec in present)
 
 
-def codec_handles(selected=codecs):
-    return [Line2D([],[],label=styles[codec][0]+(' (REL=1e-3 only)' if codec in ('unsz','umc') else ''),color=styles[codec][1],marker=styles[codec][2],linewidth=1.5,linestyle='none' if codec in ('unsz','umc') else '-') for codec in selected]
+def codec_handles(selected=codecs,records=None):
+    handles=[]
+    for codec in selected:
+        errors=sorted({float(row['rel_eb']) for row in records.values() if row['compressor']==codec}) if records is not None else list(rel_ebs)
+        suffix=f' ({len(errors)}/{len(rel_ebs)} EB)' if len(errors)<len(rel_ebs) else ''
+        handles.append(Line2D([],[],label=styles[codec][0]+suffix,color=styles[codec][1],marker=styles[codec][2],linewidth=1.5,linestyle='none' if len(errors)==1 else '-'))
+    return handles
 
 
-def add_structured_results(records,fields,sources,codec,directory):
+def structured_result_directories(fields,codec,directory):
+    complete=[]
+    skipped=[]
+    prefix='rel_' if codec=='unsz' else 'serial_rel_'
+    for eb,tag in ((1e-5,'1e-5'),(1e-4,'1e-4'),(1e-3,'1e-3'),(1e-2,'1e-2'),(1e-1,'1e-1')):
+        path=directory if eb==1e-3 else directory.parent/(prefix+tag)
+        present={item.stem for item in path.glob('*.csv')}
+        if present-set(fields):
+            raise ValueError(f'Unexpected structured-codec fields: {path}')
+        if present!=set(fields):
+            skipped.append({'rel_eb':eb,'path':str(path.resolve()),'completed_field_num':len(present),'expected_field_num':len(fields)})
+        else:
+            complete.append((eb,path))
+    return complete,skipped
+
+
+def add_structured_results(records,fields,sources,codec,directory,expected_eb=1e-3):
     manifest_path=directory/'manifest.json'
     manifest=json.loads(manifest_path.read_text())
-    if float(manifest['rel_eb'])!=1e-3 or manifest['field_num']!=95 or manifest.get('thread_num',manifest.get('program_threads'))!=1 or manifest.get('partition_num',1)!=1:
+    if float(manifest['rel_eb'])!=expected_eb or expected_eb not in rel_ebs or manifest['field_num']!=95 or manifest.get('thread_num',manifest.get('program_threads'))!=1 or manifest.get('partition_num',1)!=1:
         raise ValueError(f'Unexpected structured-codec configuration: {directory}')
+    if manifest.get('metadata_sha256',sources[0]['manifest']['metadata_sha256'])!=sources[0]['manifest']['metadata_sha256']:
+        raise ValueError(f'Structured-codec metadata differs: {directory}')
+    if any(item.get('codec')==codec and item['manifest']['binary_sha256']!=manifest['binary_sha256'] for item in sources):
+        raise ValueError(f'Mixed structured-codec binaries: {codec}')
     keys=list(next(iter(records.values())))
     for field in fields:
         path=directory/(field+'.csv')
@@ -125,8 +150,10 @@ def add_structured_results(records,fields,sources,codec,directory):
                 raise ValueError(f'Expected one relative error bound: {point_set_path}')
             eb=errors.pop()
         reference=records[field,'sz3',1e-3]
-        if eb!=1e-3 or int(source['input_bytes'])!=reference['input_bytes'] or int(source['time_step_num'])!=reference['slice_num']:
+        if eb!=expected_eb or int(source['input_bytes'])!=reference['input_bytes'] or int(source['time_step_num'])!=reference['slice_num']:
             raise ValueError(f'Structured-codec inputs differ: {path}')
+        if (field,codec,eb) in records:
+            raise ValueError(f'Duplicate structured-codec result: {field},{codec},{eb}')
         row={key:'' for key in keys}
         row.update({'field':field,'compressor':codec,'rel_eb':eb,'thread_num':1,'slice_num':reference['slice_num'],'completed_slice_num':reference['slice_num'],'input_bytes':reference['input_bytes'],'br':float(source['br']),'psnr':float(source['psnr']),'valid':True,'returncode':0,'max_error_over_eb':math.nan})
         # UNSZ prints BR to six decimals; do not invent byte-exact payload sizes.
@@ -142,8 +169,8 @@ def add_structured_results(records,fields,sources,codec,directory):
                 raise ValueError(f'Nonpositive structured-codec timing: {path}')
             row[operation+'_MB_s']=row['input_bytes']/1e6/row[operation+'_time']
         records[field,codec,eb]=row
-        sources.append({'path':str(path.resolve()),'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'manifest':manifest,'validation':'UNSZ independent decompression checked by its runner; UMC additionally checked against on-disk reconstruction','compressed_bytes_rule':'Derived from recorded field BR; UNSZ BR has six-decimal precision','point_set_config_sha256':hashlib.sha256(point_set_path.read_bytes()).hexdigest() if point_set_path else None})
-    sources.append({'path':str(manifest_path.resolve()),'sha256':hashlib.sha256(manifest_path.read_bytes()).hexdigest(),'manifest':manifest})
+        sources.append({'path':str(path.resolve()),'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'codec':codec,'manifest':manifest,'validation':'UNSZ independent decompression checked by its runner; UMC additionally checked against on-disk reconstruction','compressed_bytes_rule':'Derived from recorded field BR; UNSZ BR has six-decimal precision','point_set_config_sha256':hashlib.sha256(point_set_path.read_bytes()).hexdigest() if point_set_path else None})
+    sources.append({'path':str(manifest_path.resolve()),'sha256':hashlib.sha256(manifest_path.read_bytes()).hexdigest(),'codec':codec,'manifest':manifest})
 
 
 def aggregate_rows(rows,codec,eb):
@@ -201,7 +228,7 @@ def draw_group(axis,grouped,shape,throughput):
 
 
 def plot_grouped(grouped,groups,output,throughput=False):
-    handles=codec_handles(ordered_codecs(grouped))
+    handles=codec_handles(ordered_codecs(grouped),grouped)
     if throughput:
         handles.extend(Line2D([],[],color='.3',linestyle=linestyle,label=label) for label,linestyle in (('Compression','-'),('Decompression','--')))
     handles.append(Line2D([],[],color='black',marker='x',linestyle='none',label='Contains ABS-bound violations'))
@@ -252,7 +279,7 @@ def plot_rd(records,fields,output):
         axis.grid(True,linestyle=':',alpha=.45)
     figure.supxlabel('Bit rate (bit/value, log scale)')
     figure.supylabel('PSNR (dB)')
-    handles=codec_handles(ordered_codecs(records))+[Line2D([],[],color='black',marker='x',linestyle='none',label='ABS error bound exceeded')]
+    handles=codec_handles(ordered_codecs(records),records)+[Line2D([],[],color='black',marker='x',linestyle='none',label='ABS error bound exceeded')]
     finish(figure,handles,'all_fields_rd',output,'Ocean-large: measured rate-distortion; × denotes an ABS-bound violation, not a valid bounded-error result.')
 
 
@@ -272,7 +299,7 @@ def plot_throughput(records,fields,output):
         axis.grid(True,which='both',linestyle=':',alpha=.45)
     figure.supxlabel('REL EB (log scale; each slice encoded with its corresponding ABS EB)')
     figure.supylabel('Core throughput (MB/s)')
-    handles=codec_handles(ordered_codecs(records))+[Line2D([],[],color='.3',linestyle=linestyle,label=label) for label,linestyle in (('Compression','-'),('Decompression','--'))]
+    handles=codec_handles(ordered_codecs(records),records)+[Line2D([],[],color='.3',linestyle=linestyle,label=label) for label,linestyle in (('Compression','-'),('Decompression','--'))]
     handles.append(Line2D([],[],color='black',marker='x',linestyle='none',label='ABS error bound exceeded'))
     finish(figure,handles,'all_fields_releb_throughput',output,'Ocean-large: single-thread core throughput; preprocessing excluded; × denotes an ABS-bound violation.',3)
 
@@ -313,7 +340,7 @@ def plot_time(records,fields,aggregate,output,per_field=False):
         for group,axis in zip(groups,axes):
             draw_time(axis,records,group)
         figure.supylabel('Time (s)')
-        finish(figure,handles,'all_fields_releb_1e-3_time',output,'Ocean-large: REL=1e-3, one thread; preprocessing=0 for all three codecs; all fields included.',3)
+        finish(figure,handles,'all_fields_releb_1e-3_time',output,'Ocean-large: REL=1e-3, one thread; both preprocessing stages included; all fields included.',3)
     figure,axis=plt.subplots(figsize=(10,4.5),layout='constrained')
     draw_time(axis,{codec:aggregate[codec,1e-3] for codec in ordered_codecs(aggregate)},['all'],aggregate=True)
     axis.set_ylabel('Time (s)')
@@ -322,7 +349,7 @@ def plot_time(records,fields,aggregate,output,per_field=False):
 
 def write_csv(path,rows):
     with path.open('w',newline='') as destination:
-        writer=csv.DictWriter(destination,fieldnames=list(rows[0]))
+        writer=csv.DictWriter(destination,fieldnames=list(rows[0]),lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -333,16 +360,23 @@ def main():
     parser.add_argument('--output-dir',type=Path)
     parser.add_argument('--metadata',type=Path,default=Path('/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data/tensor_metadata.json'))
     parser.add_argument('--per-field',action='store_true',help='Also regenerate the complete per-field figures')
-    parser.add_argument('--include-structured',action='store_true',help='Overlay current single-thread UNSZ and UMC REL=1e-3 results')
+    parser.add_argument('--include-structured',action='store_true',help='Overlay all complete single-thread UNSZ and UMC EB results')
     parser.add_argument('--unsz-results',type=Path,default=project_root/'results/ocean_large_tensor_full/sparse_window')
     parser.add_argument('--umc-results',type=Path,default=project_root/'results/ocean_large_tensor_full_umc/serial_rel_1e-3')
     arguments=parser.parse_args()
     output=arguments.output_dir or arguments.results_root/('comparison_figures' if arguments.include_structured else 'figures')
     records,fields,sources=read_results(arguments.results_root)
     groups=field_groups(arguments.metadata,fields,sources,records)
+    skipped={}
     if arguments.include_structured:
-        add_structured_results(records,fields,sources,'unsz',arguments.unsz_results)
-        add_structured_results(records,fields,sources,'umc',arguments.umc_results)
+        for codec,directory in (('unsz',arguments.unsz_results),('umc',arguments.umc_results)):
+            complete,skipped[codec]=structured_result_directories(fields,codec,directory)
+            if not any(eb==1e-3 for eb,_ in complete):
+                raise ValueError(f'Expected complete REL=1e-3 structured-codec result: {directory}')
+            for eb,path in complete:
+                add_structured_results(records,fields,sources,codec,path,eb)
+            for item in skipped[codec]:
+                print(f'Skip incomplete {codec} REL={item["rel_eb"]:g}: {item["completed_field_num"]}/{item["expected_field_num"]} fields')
     selected=ordered_codecs(records)
     output.mkdir(parents=True,exist_ok=True)
     plt.rcParams.update({'font.size':10,'legend.fontsize':9,'pdf.fonttype':42,'ps.fonttype':42,'axes.formatter.useoffset':False})
@@ -356,7 +390,8 @@ def main():
     write_csv(output/'all_fields_metrics.csv',[records[field,codec,eb] for field in fields for codec in selected for eb in rel_ebs if (field,codec,eb) in records])
     write_csv(output/'aggregate_metrics.csv',list(aggregate.values()))
     write_csv(output/'grouped_metrics.csv',[{'shape':shape,**row} for (shape,_,_),row in grouped.items()])
-    (output/'manifest.json').write_text(json.dumps({'plot_script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'sources':sources,'field_order':fields,'shape_groups':groups,'regenerated_per_field':arguments.per_field,'throughput_rule':'sum(input bytes)/sum(core time)/1e6,not mean field throughput','rd_rule':'BR=sum(compressed bytes)*32/sum(input bytes); NMSE=point-weighted mean of 10**(-field PSNR/10); grouped PSNR=-10*log10(NMSE); infinite field PSNR contributes zero NMSE; equal-sized fields within each shape imply arithmetic means','invalid_rule':'Retain all ZFP results and explicitly mark error-bound violations','preprocessing_rule':'Both preprocessing stages included in total time; zero for 1D codecs; UNSZ shares untransformed spatial DAG across fields; current UMC serial runner preprocesses each field separately','timing_comparison':'Separate jobs,nodes are not paired; not a controlled same-node speedup experiment','structured_coverage':'UNSZ and UMC have REL=1e-3 only; raw input and slice counts match every baseline field; recorded BR rounded for UNSZ'},indent=2)+'\n')
+    coverage={codec:[eb for eb in rel_ebs if (codec,eb) in aggregate] for codec in selected}
+    (output/'manifest.json').write_text(json.dumps({'plot_script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'sources':sources,'field_order':fields,'shape_groups':groups,'regenerated_per_field':arguments.per_field,'throughput_rule':'sum(input bytes)/sum(core time)/1e6,not mean field throughput','rd_rule':'BR=sum(compressed bytes)*32/sum(input bytes); NMSE=point-weighted mean of 10**(-field PSNR/10); grouped PSNR=-10*log10(NMSE); infinite field PSNR contributes zero NMSE; equal-sized fields within each shape imply arithmetic means','invalid_rule':'Retain all ZFP results and explicitly mark error-bound violations','preprocessing_rule':'Both preprocessing stages included in total time; zero for 1D codecs; UNSZ shares untransformed spatial DAG across fields; current UMC serial runner preprocesses each field separately','timing_comparison':'Separate jobs,nodes are not paired; not a controlled same-node speedup experiment','eb_coverage':coverage,'skipped_incomplete_results':skipped,'structured_coverage':'Only EB runs containing all 95 fields included; raw input and slice counts match every baseline field; recorded BR rounded for UNSZ'},indent=2)+'\n')
     plot_grouped(grouped,groups,output)
     plot_grouped(grouped,groups,output,throughput=True)
     if arguments.per_field:

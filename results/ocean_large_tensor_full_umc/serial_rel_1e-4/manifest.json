@@ -1,0 +1,23 @@
+{
+  "git_revision": "b2efc5eb95d6f877df694d53cfd7c7b207fa8f7f",
+  "source_sha256": {
+    "results/ocean_large_tensor_full_umc/run_rel_1e-3.py": "dded4ea7124551657fd70595441e805e4068714ca4f3c94a0c15485eb107962d",
+    "t1_start_c_code.py": "4de3bc58d6afb37a0def9288efdef58348d193936f7a3c83d6c8c0cf3ded6df9",
+    "third_party/umc/include/compress.hpp": "8b7b44113959ea69a68f6e4c6f38c1ed2a96638174a5c123d277e2f946565ef0",
+    "third_party/umc/include/decompress.hpp": "220c7cdf5d0f649d24352a331a25a584b2bd37162aaf1db0ae41ebd1a118118f"
+  },
+  "umc_revision": "52a86589de096cadfd8ab83719dc4c3e697e5886",
+  "binary_sha256": {
+    "test_compress": "9821da2943ddc0b7c54bd6b6762a4ee1b6bdd859ed3144641fa3c0d5bbde518a",
+    "test_decompress": "f742d63631ecf957ffb233d0efdd686f1e045370fd3d9d6f550fad0b4d4bc184"
+  },
+  "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
+  "slurm_cpus": 8,
+  "program_threads": 1,
+  "rel_eb": 0.0001,
+  "field_num": 95,
+  "method": "NBP-IDW-INP",
+  "reorder": 1,
+  "neighbor_num": 4,
+  "batch": 10
+}

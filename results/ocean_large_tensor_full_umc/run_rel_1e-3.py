@@ -4,21 +4,31 @@ from pathlib import Path
 project_root=Path(__file__).resolve().parents[2]
 parser=argparse.ArgumentParser()
 parser.add_argument('--prepare-only',action='store_true')
+parser.add_argument('--rel-eb',type=float,choices=(1e-1,1e-2,1e-3,1e-4,1e-5),default=1e-3)
 arguments=parser.parse_args()
 data_dir=Path("/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data")
 metadata=json.loads((data_dir/"tensor_metadata.json").read_text())
-result_dir=project_root/"results/ocean_large_tensor_full_umc/serial_rel_1e-3"
+metadata_sha256=hashlib.sha256((data_dir/'tensor_metadata.json').read_bytes()).hexdigest()
+if metadata_sha256!=json.loads((project_root/'results/ocean_large_tensor_1d/sz3/rel_0.001_t1/manifest.json').read_text())['metadata_sha256']:
+    raise RuntimeError('tensor metadata与已完成实验不同')
+rel_eb=arguments.rel_eb
+eb_tag={1e-1:'1e-1',1e-2:'1e-2',1e-3:'1e-3',1e-4:'1e-4',1e-5:'1e-5'}[rel_eb]
+result_dir=project_root/f"results/ocean_large_tensor_full_umc/serial_rel_{eb_tag}"
 result_dir.mkdir(parents=True,exist_ok=True)
-rel_eb=1e-3
 umc_root=project_root/'third_party/umc'
 for name in ('compress.hpp','decompress.hpp'):
     if (umc_root/'include'/name).read_bytes()!=(project_root/'third_party/umc_replacements/include'/name).read_bytes():
         raise RuntimeError(f'UMC源码不符合项目记录的替换文件：{name}')
 binary_sha256={name:hashlib.sha256((umc_root/'build/test'/name).read_bytes()).hexdigest() for name in ('test_compress','test_decompress')}
+reference=json.loads((Path(__file__).parent/'serial_rel_1e-3/manifest.json').read_text())
+if binary_sha256!=reference['binary_sha256']:
+    raise RuntimeError('UMC二进制与已完成REL=1e-3不同，禁止混合版本')
 manifest_path=result_dir/'manifest.json'
-if manifest_path.exists() and json.loads(manifest_path.read_text())['binary_sha256']!=binary_sha256:
-    raise RuntimeError('UMC二进制变化，请使用新的结果目录，不能混合版本')
-manifest={'git_revision':subprocess.check_output(['git','rev-parse','HEAD'],cwd=project_root,text=True).strip(),'umc_revision':subprocess.check_output(['git','rev-parse','HEAD'],cwd=umc_root,text=True).strip(),'binary_sha256':binary_sha256,'slurm_cpus':8,'program_threads':1,'rel_eb':rel_eb,'field_num':len(metadata['fields']),'method':'NBP-IDW-INP','reorder':1,'neighbor_num':4,'batch':10}
+if manifest_path.exists():
+    previous=json.loads(manifest_path.read_text())
+    if previous['binary_sha256']!=binary_sha256 or previous['rel_eb']!=rel_eb:
+        raise RuntimeError('已有结果的二进制或EB不同，禁止覆盖')
+manifest={'git_revision':subprocess.check_output(['git','rev-parse','HEAD'],cwd=project_root,text=True).strip(),'source_sha256':{str(path.relative_to(project_root)):hashlib.sha256(path.read_bytes()).hexdigest() for path in (Path(__file__).resolve(),project_root/'t1_start_c_code.py',umc_root/'include/compress.hpp',umc_root/'include/decompress.hpp')},'umc_revision':subprocess.check_output(['git','rev-parse','HEAD'],cwd=umc_root,text=True).strip(),'binary_sha256':binary_sha256,'metadata_sha256':metadata_sha256,'slurm_cpus':8,'program_threads':1,'rel_eb':rel_eb,'field_num':len(metadata['fields']),'method':'NBP-IDW-INP','reorder':1,'neighbor_num':4,'batch':10}
 manifest_path.write_text(json.dumps(manifest,indent=2)+'\n')
 if len(metadata['fields'])!=95:
     raise RuntimeError('完整Ocean-large应有95个field')

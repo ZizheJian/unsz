@@ -1,5 +1,6 @@
-import math,unittest
-from benchmarks.tensor_1d.plot import aggregate_rows
+import math,tempfile,unittest
+from pathlib import Path
+from benchmarks.tensor_1d.plot import aggregate_rows,codec_handles,structured_result_directories
 
 
 def row(psnr,input_bytes=400,compressed_bytes=50,compression_time=1):
@@ -26,6 +27,22 @@ class AggregationTests(unittest.TestCase):
         self.assertEqual(result['normalized_psnr'],math.inf)
         self.assertEqual(result['invalid_field_num'],1)
         self.assertFalse(result['valid'])
+
+    def test_partial_structured_eb_is_not_included(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            for directory,fields in (('sparse_window',('a','b')),('rel_1e-1',('a','b')),('rel_1e-2',('a',))):
+                (root/directory).mkdir()
+                for field in fields:(root/directory/(field+'.csv')).touch()
+            complete,skipped=structured_result_directories(['a','b'],'unsz',root/'sparse_window')
+            self.assertEqual([eb for eb,_ in complete],[1e-3,1e-1])
+            self.assertEqual(next(item for item in skipped if item['rel_eb']==1e-2)['completed_field_num'],1)
+
+    def test_legend_reports_actual_eb_coverage(self):
+        records={i:{'compressor':'umc','rel_eb':eb} for i,eb in enumerate((1e-3,1e-2,1e-1))}
+        handle=codec_handles(('umc',),records)[0]
+        self.assertEqual(handle.get_label(),'UMC (3/5 EB)')
+        self.assertEqual(handle.get_linestyle(),'-')
 
 
 if __name__=='__main__':

@@ -1,0 +1,18 @@
+{
+  "git_revision": "b2efc5eb95d6f877df694d53cfd7c7b207fa8f7f",
+  "source_sha256": {
+    "results/ocean_large_tensor_full/run_rel_1e-3.py": "d16822a2d35066a4c42558b0ca014850fa50f6b2a7b13edb90825dbe64bd97f7",
+    "t1_start_c_code.py": "4de3bc58d6afb37a0def9288efdef58348d193936f7a3c83d6c8c0cf3ded6df9"
+  },
+  "binary_sha256": {
+    "s1_compress": "962c965eade5e2b79653653167f7958a407a08e5641e6efe9ceae660f972f9b4",
+    "s1_decompress": "87ed06bf0c099d2f306bcdc57afb908ad6dfc61617c1187d5ad17c254be7d2d8"
+  },
+  "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
+  "point_set_config_sha256": "f64ade67d8f273da36f5adb9a95d065c703d8e5f4e597b18b58c58d47f66a5ce",
+  "slurm_cpus": 8,
+  "partition_num": 1,
+  "thread_num": 1,
+  "rel_eb": 0.1,
+  "field_num": 95
+}
