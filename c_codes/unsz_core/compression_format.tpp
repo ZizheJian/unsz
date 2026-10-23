@@ -503,7 +503,7 @@ namespace unsz
             throw runtime_error("自动flow解压缺少数据文件路径");
         constexpr uint64_t maximum_header_byte_num=8+6*sizeof(uint32_t)+3*sizeof(uint8_t)+2*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data));
         vector<unsigned char> bytes(maximum_header_byte_num);
-        string compressed_path=original_data_path_vec.front()+".unsz";
+        string compressed_path=generated_path(original_data_path_vec.front(),".unsz");
         auto input_start_time=chrono::steady_clock::now();
         FILE*file=fopen(compressed_path.c_str(),"rb");
         if(!file)

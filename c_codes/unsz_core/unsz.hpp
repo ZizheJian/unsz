@@ -389,9 +389,11 @@ namespace unsz
 
             param_c()=default;
 
-            string data_dir,field_name,error_mode,coord_path,time_step_coordinate_path,point_set_config_path,tensor_metadata_path;
+            string data_dir,output_dir,field_name,error_mode,coord_path,time_step_coordinate_path,point_set_config_path,tensor_metadata_path;
             vector<string> field_name_vec;
             vector<string> original_data_path_vec;
+            string generated_path(const string&input_path,const string&suffix) const{return output_dir+filesystem::path(input_path).filename().string()+suffix;}
+            string field_generated_path(const string&suffix) const{return output_dir+field_name+suffix;}
             map<string,tensor_field_config_c> tensor_field_config_map;
             bool current_field_uses_tensor=false;
             array<uint32_t,2> current_tensor_shape{{0,0}};

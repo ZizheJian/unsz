@@ -137,11 +137,13 @@ def remove_file_if_exists(path):
 
 def cleanup_test_outputs(config,compressor):
     if compressor=="unsz":
+        output_dir=Path(config.get("output_dir",config["data_dir"]))
         for input_path in generate_input_file_paths(config):
-            remove_file_if_exists(str(input_path)+".unsz")
-            remove_file_if_exists(str(input_path)+".unsz.bin")
-        remove_file_if_exists(Path(config["data_dir"])/f"{config['field']}.joint.unsz")
-        remove_file_if_exists(Path(config["data_dir"])/f"{config['field']}.unsz.coord_transform.txt")
+            output_path=output_dir/input_path.name
+            remove_file_if_exists(str(output_path)+".unsz")
+            remove_file_if_exists(str(output_path)+".unsz.bin")
+        remove_file_if_exists(output_dir/f"{config['field']}.joint.unsz")
+        remove_file_if_exists(output_dir/f"{config['field']}.unsz.coord_transform.txt")
     elif compressor=="umc":
         for input_path in generate_input_file_paths(config):
             remove_file_if_exists(str(input_path)+".umc")
@@ -191,6 +193,8 @@ def build_spatial_prediction_arguments(config,data_dir,time_expression):
     else:
         field_arguments=["-field",config["field"]]
     arguments=["-data-dir",data_dir,*field_arguments]
+    if "output_dir" in config:
+        arguments.extend(("-output-dir",config["output_dir"]))
     if "tensor_metadata" in config:
         arguments.extend(("-tensor-metadata",config["tensor_metadata"]))
     else:
@@ -306,8 +310,8 @@ def run_unsz_fields(config):
     if missing_paths:
         raise FileNotFoundError("缺少测试文件："+", ".join(missing_paths))
     compression_command,decompression_command=build_unsz_commands(config,source_data_dir)
-    compression_output=run_command(compression_command,silent=True)
-    decompression_output=run_command(decompression_command,silent=True)
+    compression_output=run_command(compression_command)
+    decompression_output=run_command(decompression_command)
     command="compression: "+shlex.join(str(value) for value in compression_command)
     command+="; decompression: "+shlex.join(str(value) for value in decompression_command)
     result_by_field={}
@@ -356,9 +360,9 @@ def run_umc(config,rel_eb,data_range):
         decompression_command=[umc_root/"build/test/test_decompress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,4,reorder,time_step_num,umc_inp_batch]
     else:
         raise ValueError(f"未知UMC压缩方法：{method}")
-    compression_output=run_command(compression_command,silent=True)
+    compression_output=run_command(compression_command)
     br,psnr,compression_preprocessing_time,compression_time=parse_umc_compression_result(compression_output,data_paths,data_range)
-    decompression_output=run_command(decompression_command,silent=True)
+    decompression_output=run_command(decompression_command)
     decompression_preprocessing_time,decompression_time,decompressed_psnr,decompressed_max_error=parse_umc_decompression_result(decompression_output,data_paths,data_range)
     if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-5):
         raise RuntimeError(f"UMC压缩端和独立解压端总PSNR不一致：{psnr} != {decompressed_psnr}")
@@ -402,7 +406,7 @@ def write_benchmark_result(task,field,compressor,config,result,metadata):
     for column_name,value in (("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("compression_preprocessing_MB_s",calculate_throughput(total_bytes,result["compression_preprocessing_time"],"压缩预处理时间")),("decompression_preprocessing_MB_s",calculate_throughput(total_bytes,result["decompression_preprocessing_time"],"解压预处理时间")),("compression_MB_s",calculate_throughput(total_bytes,result["compression_time"],"压缩时间")),("decompression_MB_s",calculate_throughput(total_bytes,result["decompression_time"],"解压时间"))):
         write_csv_item(str(result_path),item,column_name,value)
     if compressor=="unsz":
-        for column_name in ("coordinate_transform_time","prediction_structure_time","automatic_flow_selection_time","label_stream_br","value_stream_br","shared_metadata_br"):
+        for column_name in ("max_error_over_eb","coordinate_transform_time","prediction_structure_time","automatic_flow_selection_time","label_stream_br","value_stream_br","shared_metadata_br"):
             write_csv_item(str(result_path),item,column_name,result[column_name])
         for column_name in ("coordinate_transform_original_flatness","coordinate_transform_transformed_flatness","coordinate_transform_flatness_ratio","coordinate_transform_enabled","coordinate_transform_untrained_group_mse_ratio","coordinate_transform_selected_group_loss_power"):
             write_csv_item(str(result_path),item,column_name,result[column_name] if result[column_name] is not None else "not_applicable")

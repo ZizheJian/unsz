@@ -66,8 +66,8 @@ void run_decompression_field(unsz::param_c<T_coord,float>&param)
             printf("Decompression progress: %u/%u slices\n",file_id,(uint32_t)param.original_data_path_vec.size());
         param.current_time_step_index=file_id;
         param.current_time_step=param.time_step_vec[file_id];
-        string compressed_path=param.original_data_path_vec[file_id]+".unsz";
-        string decompressed_path=param.original_data_path_vec[file_id]+".unsz.bin";
+        string compressed_path=param.generated_path(param.original_data_path_vec[file_id],".unsz");
+        string decompressed_path=param.generated_path(param.original_data_path_vec[file_id],".unsz.bin");
         param.current_compressed_bytes=unsz::read_byte_file(compressed_path);
 
         auto decompression_start_time=chrono::steady_clock::now();
@@ -156,6 +156,8 @@ int decompress_main(int argc,char **argv)
             param.data_dir=read_option_value(argc,argv,arg_id,option);
             param.got_data_dir=true;
         }
+        else if(option=="-output-dir")
+            param.output_dir=read_option_value(argc,argv,arg_id,option);
         else if (option=="-field")
         {
             if(param.got_field)

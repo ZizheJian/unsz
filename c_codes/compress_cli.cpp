@@ -27,6 +27,12 @@ namespace unsz
                 param.data_dir=argv[++arg_id];
                 param.got_data_dir=true;
             }
+            else if(strcmp(argv[arg_id],"-output-dir")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-output-dir后面缺少参数值");
+                param.output_dir=argv[++arg_id];
+            }
             else if (strcmp(argv[arg_id],"-field")==0)
             {
                 if (arg_id+1>=argc)

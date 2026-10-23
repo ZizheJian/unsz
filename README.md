@@ -889,7 +889,7 @@ E3SM-h4 AODDUST曾固定使用stride为8的锚点内插；正式配置现改为�
 
 UNSZ/串行UMC其余四个EB的可复现入口分别是`sbatch results/ocean_large_tensor_full/run_remaining_eb.slurm`和`sbatch results/ocean_large_tensor_full_umc/run_remaining_eb.slurm`。各入口提交一个四任务数组，对应REL `1e-1、1e-2、1e-4、1e-5`；每任务申请8个CPU附带的内存额度，程序仍单线程、UNSZ单partition，时限分别为12/22小时。同一压缩器的数组并发限制为1，防止共享输入目录中的临时码流互相覆盖；UNSZ与UMC可同时运行，结果分目录保存。启动时核对REL=1e-3基准的二进制SHA、metadata、点集规则与UMC计时替换文件，不重编译、不改变UMC参数。manifest记录启动器、实验驱动与相关补丁的SHA；逐点验证、共享DAG及计时口径沿用已有实验。
 
-PT不纳入正式对比：官方C++实现（`rcrcarissa/UnstructuredLossyCompression`，提交`79dd92f4213c4d62020ed0f782671abf4e1993f7`）在36节点、50三角形的小网格ABS测试中，平滑场解压报`Unexpected end of bitstream`，并存在硬编码解码数量。未修改其算法；已移除弃用的子模块、测试入口及临时结果。
+PT不纳入正式性能对比：UMC论文报告PT的公开Python实现速度极慢。此外，官方C++实现（`rcrcarissa/UnstructuredLossyCompression`，提交`79dd92f4213c4d62020ed0f782671abf4e1993f7`）在36节点、50三角形的小网格ABS测试中，平滑场解压报`Unexpected end of bitstream`，并存在硬编码解码数量。未修改其算法；已移除弃用的子模块、测试入口及临时结果。
 
 单点集RD曲线固定使用REL `1e-1、1e-2、1e-3、1e-4、1e-5`五点；多点集RD曲线由`point_set_config_path_list`中的完整误差配置构成，每个点集可以使用不同EB。UNSZ与UMC曲线不要求使用相同EB，而是在共同PSNR范围内对`log(BR)`和`log(time)`作分段线性插值后比较；BD-rate为`log(BR)`差的区间积分均值取指数，因而不受额外插入EB采样点影响。UMC合并多个time step的MSE时所需的数据范围，在每个task的每个field开始实验前计算一次，并传给该field的全部UMC实验，不随REL EB重复读取输入。速度统计压缩与解压的程序内部核心时间之和；压缩端与解压端的完整预处理时间分别记录。正式实验中两个压缩器都不保存预测DAG，压缩端和解压端分别现场重新生成各自的预测结构；UNSZ压缩预处理包含坐标变换训练与应用、DAG生成和RBF权重计算、自动flow选择、时间依赖计划生成以及最终flow的时间依赖和历史容器初始化。解压预处理读取可复用的坐标变换参数，并包含码流头解析、时间依赖计划和历史容器初始化、坐标变换应用、DAG生成和RBF权重计算。坐标、connectivity、坐标变换训练数据、自动flow采样数据、压缩码流头及坐标变换参数文件的读取不计时，输入正确性验证、逐点误差统计和输出文件写入也不计时。坐标变换参数是field级可复用预处理结果，不计入每个压缩码流的大小。正式倍率必须来自同一节点上的UNSZ与UMC交替运行。
 
@@ -911,5 +911,6 @@ UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同�
 - [ ] 取得UMC论文实验原始的`varnames_91.txt`以核对当前58个单层变量＋33个多层变量第0层的91-field定义；12个月度NetCDF已经按当前定义转换，单快照restart不作为月度输出使用。
 - [x] 完成完整Ocean-large的single-core throughput与REL=1e-3总耗时实验。
 - [ ] 完成strong/weak scaling以及端到端压缩—传输—解压实验。
+- [ ] 基于3DAC官方单GPU代码测量若干训练iteration或epoch，估算ScanNet完整20轮及多个量化步长的总训练成本；该结果用于Related Work讨论，不作为正式baseline。
 
 日常审阅以本README为准；被删除实现、历史实验和一次性脚本从Git历史恢复。

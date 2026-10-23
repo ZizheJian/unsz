@@ -534,7 +534,7 @@ namespace unsz
     {
         if(coordinate_transform_mode=="off")
             return;
-        string path=data_dir+field_name+".unsz.coord_transform.txt";
+        string path=field_generated_path(".unsz.coord_transform.txt");
         ofstream file(path);
         if(!file)
             throw runtime_error("无法写入坐标变换文件："+path);
@@ -556,7 +556,7 @@ namespace unsz
             coordinate_transform_diagonal.assign(dim,1);
             return;
         }
-        string path=data_dir+field_name+".unsz.coord_transform.txt";
+        string path=field_generated_path(".unsz.coord_transform.txt");
         ifstream file(path);
         if(!file)
             throw runtime_error("找不到坐标变换文件："+path);

@@ -97,7 +97,7 @@ namespace unsz
                 printf("Compressing %s\n",original_data_path.c_str());
             else if(file_id%128==0)
                 printf("Compression progress: %u/%u slices\n",file_id,(uint32_t)original_data_path_vec.size());
-            string compressed_data_path=original_data_path+".unsz";
+            string compressed_data_path=generated_path(original_data_path,".unsz");
             current_data.resize(point_num);
             auto input_start_time=chrono::steady_clock::now();
             read_binary_file_exact(original_data_path,current_data.data(),point_num);

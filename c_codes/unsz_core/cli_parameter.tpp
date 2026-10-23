@@ -20,6 +20,14 @@ namespace unsz
             throw runtime_error("多线程模式需要指定partition数量或大小");
         if(data_dir.back()!='/')
             data_dir+="/";
+        if(output_dir.empty())
+            output_dir=data_dir;
+        else
+        {
+            filesystem::create_directories(output_dir);
+            if(output_dir.back()!='/')
+                output_dir+="/";
+        }
         coord_path=data_dir+"coords.dat";
         if(!tensor_metadata_path.empty()&&got_time_step)
             throw runtime_error("-time-step和-tensor-metadata不能同时使用");
