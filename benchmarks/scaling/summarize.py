@@ -80,7 +80,7 @@ def write_table(points):
         rows.append(row)
     keys=('codec','thread_num','partition_num','br','compression_preprocessing_time','compression_time','compression_total_time','compression_speedup','compression_efficiency','decompression_preprocessing_time','decompression_time','decompression_total_time','decompression_speedup','decompression_efficiency','max_error_over_eb','field_num','slice_num','input_bytes')
     with (result_root/'summary.csv').open('w',newline='') as destination:
-        writer=csv.DictWriter(destination,fieldnames=keys)
+        writer=csv.DictWriter(destination,fieldnames=keys,lineterminator='\n')
         writer.writeheader()
         writer.writerows({key:row.get(key) for key in keys} for row in rows)
     return rows
@@ -112,7 +112,7 @@ def plot(rows):
         axis.grid(True,alpha=0.25)
     axes[0].text(0.5,-0.43,'(a) Compression-side scaling',transform=axes[0].transAxes,ha='center',va='top',fontsize=11)
     axes[1].text(0.5,-0.43,'(b) Decompression-side scaling',transform=axes[1].transAxes,ha='center',va='top',fontsize=11)
-    axes[2].text(0.5,-0.43,'(c) Compression ratio stability',transform=axes[2].transAxes,ha='center',va='top',fontsize=11)
+    axes[2].text(0.5,-0.43,'(c) Bit-rate stability',transform=axes[2].transAxes,ha='center',va='top',fontsize=11)
     handles,legend_labels=axes[0].get_legend_handles_labels()
     figure.legend(handles,legend_labels,loc='upper center',ncol=len(legend_labels),frameon=False,bbox_to_anchor=(0.5,1.03))
     figure.subplots_adjust(left=0.065,right=0.99,top=0.82,bottom=0.3,wspace=0.3)

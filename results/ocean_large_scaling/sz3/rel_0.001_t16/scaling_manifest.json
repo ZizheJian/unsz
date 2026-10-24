@@ -1,0 +1,27 @@
+{
+  "codec": "sz3",
+  "rel_eb": 0.001,
+  "thread_num": 16,
+  "partition_num": null,
+  "slurm_cpus": 16,
+  "slurm_job_id": "21599607",
+  "slurm_nodelist": "a075",
+  "hostname": "a075.anvil.rcac.purdue.edu",
+  "field_num": 95,
+  "slice_num": 36264,
+  "input_bytes": 535724445600,
+  "metadata_path": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data/tensor_metadata.json",
+  "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
+  "point_set_config_sha256": "3b24414c33e54536c8f7eea6d55735c945b43a1fecda0460c73282a6cec8adfa",
+  "binary_sha256": {
+    "benchmark_sz3": "f25323db1f3d340298a4c868318b5f7e0e6c16eadde1a58bcb7e5b1218e73033"
+  },
+  "git_revision": "835c84165dd89ad900425162f93a74f8e90d00e5",
+  "source_sha256": {
+    "benchmarks/scaling/run.py": "d2c012556ced54765e25803c513c52e4b7c92c8f95dffb8fd11b835206b2fecc",
+    "benchmarks/scaling/run.slurm": "583baa1e3a1f8fce613e0b151ed0f8e0b424e77bc3e59d62caa3505b3c5f2271",
+    "t1_start_c_code.py": "86b293721cff2168e63361abd66c71fc208e9b4206b23984e2ec0632ce5838e6",
+    "py_codes/parse_unsz_output.py": "12856fba62ff0011353928ccde5c2a6caddcfdfcb45b0fccfbd35ae788d42cd2",
+    "benchmarks/tensor_1d/run.py": "30b215acb236864d007fa4721f6227f334f6d88e375d302478215b9a83b9110e"
+  }
+}

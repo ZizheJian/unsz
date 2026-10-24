@@ -1,0 +1,17 @@
+{
+  "codec": "pfpl",
+  "rel_eb": 0.001,
+  "thread_num": 2,
+  "partition_num": null,
+  "field_num": 95,
+  "slice_num": 36264,
+  "input_bytes": 535724445600,
+  "br": 14.939991771381656,
+  "compression_preprocessing_time": 0.0,
+  "compression_time": 908.049593389,
+  "decompression_preprocessing_time": 0.0,
+  "decompression_time": 523.301528056,
+  "max_error_over_eb": 1.0,
+  "compression_total_time": 908.049593389,
+  "decompression_total_time": 523.301528056
+}

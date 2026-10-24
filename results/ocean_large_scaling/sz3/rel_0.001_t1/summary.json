@@ -1,0 +1,18 @@
+{
+  "codec": "sz3",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "partition_num": null,
+  "field_num": 95,
+  "slice_num": 36264,
+  "input_bytes": 535724445600,
+  "br": 5.479834599744835,
+  "compression_preprocessing_time": 0.0,
+  "compression_time": 4099.741546778,
+  "decompression_preprocessing_time": 0.0,
+  "decompression_time": 1574.794991811,
+  "max_error_over_eb": 1.0,
+  "compression_total_time": 4099.741546778,
+  "decompression_total_time": 1574.794991811,
+  "source": "results/ocean_large_tensor_1d/sz3/rel_0.001_t1/summary.csv"
+}

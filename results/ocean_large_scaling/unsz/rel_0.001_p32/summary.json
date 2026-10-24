@@ -1,0 +1,17 @@
+{
+  "codec": "unsz",
+  "rel_eb": 0.001,
+  "thread_num": 32,
+  "partition_num": 32,
+  "field_num": 95,
+  "slice_num": 36264,
+  "input_bytes": 535724445600,
+  "br": 0.5435125218398412,
+  "compression_preprocessing_time": 46.238825,
+  "compression_time": 2035.551884,
+  "decompression_preprocessing_time": 2.343137,
+  "decompression_time": 765.619313,
+  "max_error_over_eb": 1.000000058424579,
+  "compression_total_time": 2081.790709,
+  "decompression_total_time": 767.96245
+}

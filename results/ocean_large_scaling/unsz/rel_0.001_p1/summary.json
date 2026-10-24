@@ -1,0 +1,18 @@
+{
+  "codec": "unsz",
+  "rel_eb": 0.001,
+  "thread_num": 1,
+  "partition_num": 1,
+  "field_num": 95,
+  "slice_num": 36264,
+  "input_bytes": 535724445600,
+  "br": 0.5988289374586366,
+  "compression_preprocessing_time": 65.192864,
+  "compression_time": 11458.332154,
+  "decompression_preprocessing_time": 25.274337999999997,
+  "decompression_time": 6082.115549,
+  "max_error_over_eb": null,
+  "compression_total_time": 11523.525018,
+  "decompression_total_time": 6107.389887,
+  "source": "results/ocean_large_tensor_full/sparse_window"
+}

@@ -16,3 +16,9 @@ results/ocean_large_tensor_full/*_sparse_mem8/s1_decompress
 results/ocean_large_tensor_1d/*/*/benchmark_*
 results/ocean_large_tensor_1d/*/*/*.inputs.txt
 results/ocean_large_tensor_1d/*/*/*.slices.csv
+results/ocean_large_scaling/*/*/benchmark_*
+results/ocean_large_scaling/*/*/*.inputs.txt
+results/ocean_large_scaling/*/*/*.slices.csv
+results/ocean_large_scaling/*/*/timeMonthly_*.csv
+results/ocean_large_scaling/*/*/timeMonthly_*.json
+results/ocean_large_scaling/failed_attempts/
