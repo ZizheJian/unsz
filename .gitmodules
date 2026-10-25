@@ -26,3 +26,7 @@
 [submodule "third_party/zfp"]
 	path = third_party/zfp
 	url = https://github.com/LLNL/zfp.git
+[submodule "third_party/QoZ"]
+	path = third_party/QoZ
+	url = https://github.com/szcompressor/QoZ.git
+	branch = 2.0

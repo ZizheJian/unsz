@@ -135,6 +135,7 @@ double run_decompression_field(unsz::param_c<T_coord,float>&param)
     if(validated_file_num>0)
     {
         printf("total decompressed psnr= %f\n",unsz::reconstruction_psnr(total_statistics));
+        printf("total squared error= %.17g, total value count= %llu\n",total_statistics.squared_error,(unsigned long long)total_statistics.point_num);
         printf("normalized squared error sum= %.17g, normalized value count= %llu, normalized psnr= %.17g, maximum error over eb= %.17g\n",total_normalized_squared_error,(unsigned long long)total_normalized_value_num,unsz::normalized_reconstruction_psnr(total_normalized_squared_error,total_normalized_value_num),total_statistics.max_error_ratio);
     }
     return total_decompression_time;

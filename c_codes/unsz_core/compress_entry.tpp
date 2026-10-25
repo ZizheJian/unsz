@@ -143,6 +143,7 @@ namespace unsz
         double total_psnr=reconstruction_psnr(total_statistics);
         double total_br=sizeof(T_data)*8/total_cr;
         printf("total cr= %f, total br= %f, total psnr= %f\n",total_cr,total_br,total_psnr);
+        printf("total squared error= %.17g, total value count= %llu\n",total_statistics.squared_error,(unsigned long long)total_statistics.point_num);
         printf("total label stream bytes= %llu, total value stream bytes= %llu, total shared metadata bytes= %llu\n",(unsigned long long)total_label_stream_bytes,(unsigned long long)total_value_stream_bytes,(unsigned long long)total_shared_metadata_bytes);
         printf("total label stream br= %.9f, total value stream br= %.9f, total shared metadata br= %.9f\n",(double)total_label_stream_bytes*8/(point_num*original_data_path_vec.size()),(double)total_value_stream_bytes*8/(point_num*original_data_path_vec.size()),(double)total_shared_metadata_bytes*8/(point_num*original_data_path_vec.size()));
         printf("total time prediction state update time= %.9f s\n",total_time_prediction_state_update_time);
