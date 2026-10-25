@@ -2,6 +2,7 @@
 #include <vector>
 #include <algorithm>
 #include <cstdio>
+#include <omp.h>
 #include <cstring>
 #include "cli_list_parser.hpp"
 #include "unsz_core/unsz.hpp"
@@ -104,6 +105,18 @@ namespace unsz
                     throw runtime_error("-thread-num后面缺少参数值");
                 param.thread_num=parse_positive_uint32(argv[++arg_id],"-thread-num");
             }
+            else if(strcmp(argv[arg_id],"-field-worker-num")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-field-worker-num后面缺少参数值");
+                param.field_worker_num=parse_positive_uint32(argv[++arg_id],"-field-worker-num");
+            }
+            else if(strcmp(argv[arg_id],"-field-worker-map")==0)
+            {
+                if(arg_id+1>=argc)
+                    throw runtime_error("-field-worker-map后面缺少参数值");
+                param.field_worker_id_vec=parse_worker_id_list(argv[++arg_id]);
+            }
             else if(strcmp(argv[arg_id],"-point-set-config")==0)
             {
                 if(arg_id+1>=argc)
@@ -150,7 +163,62 @@ namespace unsz
         parse_args(argc,argv,param);
         param.init();
         printf("使用float处理坐标和距离\n");
-        unsz::compress(param);
+        if(param.field_worker_num==1)
+            unsz::compress(param);
+        else
+        {
+            auto shared_dependency_plan_start_time=chrono::steady_clock::now();
+            if(param.tensor_field_config_map.empty())
+                param.precompute_temporal_dependency_plans();
+            else
+                param.precompute_all_tensor_dependency_plans();
+            double shared_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-shared_dependency_plan_start_time).count();
+            vector<vector<string>>worker_field_name_vec(param.field_worker_num);
+            for(uint32_t field_id=0;field_id<param.field_name_vec.size();field_id++)
+                worker_field_name_vec[param.field_worker_id_vec[field_id]].push_back(param.field_name_vec[field_id]);
+            vector<unique_ptr<param_c<float,float>>>worker_param_vec;
+            for(uint32_t worker_id=0;worker_id<param.field_worker_num;worker_id++)
+            {
+                if(worker_field_name_vec[worker_id].empty())
+                    continue;
+                printf("Field worker %u:",worker_id);
+                for(const string&field_name:worker_field_name_vec[worker_id])
+                    printf(" %s",field_name.c_str());
+                printf("\n");
+                worker_param_vec.push_back(make_unique<param_c<float,float>>(param));
+                worker_param_vec.back()->field_name_vec=move(worker_field_name_vec[worker_id]);
+            }
+            vector<exception_ptr>worker_error_vec(worker_param_vec.size());
+            auto parallel_start_time=chrono::steady_clock::now();
+            omp_set_dynamic(0);
+            omp_set_max_active_levels(2);
+#pragma omp parallel for schedule(static,1) num_threads(param.field_worker_num)
+            for(int64_t worker_id=0;worker_id<(int64_t)worker_param_vec.size();worker_id++)
+            {
+                try
+                {
+                    unsz::compress(*worker_param_vec[worker_id]);
+                }
+                catch(...)
+                {
+                    worker_error_vec[worker_id]=current_exception();
+                }
+            }
+            double maximum_reported_time=0;
+            for(uint32_t worker_id=0;worker_id<worker_param_vec.size();worker_id++)
+            {
+                double reported_time=worker_param_vec[worker_id]->reported_compression_preprocessing_time+worker_param_vec[worker_id]->reported_compression_time;
+                printf("field worker %u reported compression-side time= %f s\n",worker_id,reported_time);
+                maximum_reported_time=max(maximum_reported_time,reported_time);
+            }
+            maximum_reported_time+=shared_dependency_plan_time;
+            printf("two-level shared dependency-plan preprocessing time= %f s\n",shared_dependency_plan_time);
+            printf("two-level reported compression-side time= %f s\n",maximum_reported_time);
+            printf("two-level compression wall time= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-parallel_start_time).count());
+            for(const exception_ptr&worker_error:worker_error_vec)
+                if(worker_error)
+                    rethrow_exception(worker_error);
+        }
         return 0;
     }
 }

@@ -6,14 +6,33 @@ namespace unsz
     void param_c<T_coord,T_data>::prepare_current_spatial_prediction_state(bool for_decompression)
     {
         bool uses_spatial_prediction=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec!=point_set_codec_e::constant;});
-        if(uses_spatial_prediction&&!use_coordinate_transform&&activate_shared_spatial_prediction_state())
+        if(uses_spatial_prediction&&!use_coordinate_transform)
         {
-            printf("Reusing shared spatial prediction DAG and weights\n");
+            bool generated_shared_state=false;
+            call_once(shared_spatial_prediction_cache->initialization_flag,[&]()
+            {
+                generated_shared_state=true;
+                prediction_structure_vec.reset();
+                original_to_prediction_order.reset();
+                generate_prediction_structures_and_weights();
+                finalize_current_spatial_prediction_state(for_decompression);
+                auto state=make_shared<spatial_prediction_state_c<T_calc>>();
+                state->structures=prediction_structure_vec;
+                state->original_to_prediction_order=original_to_prediction_order;
+                state->uses_prediction_order=prediction_data_uses_prediction_order;
+                shared_spatial_prediction_cache->state=move(state);
+            });
+            if(!activate_shared_spatial_prediction_state())
+                throw runtime_error("公共空间预测DAG初始化失败");
+            if(!generated_shared_state)
+                printf("Reusing shared spatial prediction DAG and weights\n");
             return;
         }
+        prediction_structure_vec.reset();
+        original_to_prediction_order.reset();
         generate_prediction_structures_and_weights();
         finalize_current_spatial_prediction_state(for_decompression);
-        current_spatial_prediction_state_is_shared=uses_spatial_prediction&&!use_coordinate_transform;
+        current_spatial_prediction_state_is_shared=false;
     }
 
     template<typename T_coord,typename T_data>
@@ -34,12 +53,12 @@ namespace unsz
     template<typename T_coord,typename T_data>
     bool param_c<T_coord,T_data>::activate_shared_spatial_prediction_state()
     {
-        if(!shared_spatial_prediction_state.valid)
+        const shared_ptr<const spatial_prediction_state_c<T_calc>>&state=shared_spatial_prediction_cache->state;
+        if(!state)
             return false;
-        prediction_structure_vec=move(shared_spatial_prediction_state.structures);
-        original_to_prediction_order=move(shared_spatial_prediction_state.original_to_prediction_order);
-        prediction_data_uses_prediction_order=shared_spatial_prediction_state.uses_prediction_order;
-        shared_spatial_prediction_state.valid=false;
+        prediction_structure_vec=state->structures;
+        original_to_prediction_order=state->original_to_prediction_order;
+        prediction_data_uses_prediction_order=state->uses_prediction_order;
         current_spatial_prediction_state_is_shared=true;
         return true;
     }
@@ -47,18 +66,8 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::release_current_spatial_prediction_state()
     {
-        if(current_spatial_prediction_state_is_shared)
-        {
-            shared_spatial_prediction_state.structures=move(prediction_structure_vec);
-            shared_spatial_prediction_state.original_to_prediction_order=move(original_to_prediction_order);
-            shared_spatial_prediction_state.uses_prediction_order=prediction_data_uses_prediction_order;
-            shared_spatial_prediction_state.valid=true;
-        }
-        else
-        {
-            vector<prediction_structure_c<T_calc>>().swap(prediction_structure_vec);
-            vector<int>().swap(original_to_prediction_order);
-        }
+        prediction_structure_vec.reset();
+        original_to_prediction_order.reset();
         prediction_data_uses_prediction_order=false;
         current_spatial_prediction_state_is_shared=false;
     }

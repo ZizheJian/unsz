@@ -18,6 +18,17 @@ namespace unsz
             throw runtime_error("必须且只能在-M和-point-set-config之间选择一个");
         if(thread_num>1&&partition_size==0&&partition_num==0)
             throw runtime_error("多线程模式需要指定partition数量或大小");
+        if(field_worker_num==1&&!field_worker_id_vec.empty())
+            throw runtime_error("-field-worker-map只能和大于1的-field-worker-num一起使用");
+        if(field_worker_num>1)
+        {
+            if(field_name_vec.size()<2)
+                throw runtime_error("多个field worker至少需要两个field");
+            if(field_worker_id_vec.size()!=field_name_vec.size())
+                throw runtime_error("-field-worker-map必须为每个field提供一个worker编号");
+            if(any_of(field_worker_id_vec.begin(),field_worker_id_vec.end(),[this](uint32_t worker_id){return worker_id>=field_worker_num;}))
+                throw runtime_error("-field-worker-map包含越界的worker编号");
+        }
         if(data_dir.back()!='/')
             data_dir+="/";
         if(output_dir.empty())

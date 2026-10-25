@@ -15,6 +15,7 @@
 #include <map>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <exception>
 #include <stdexcept>
 #include <string>
@@ -34,6 +35,36 @@ using namespace std;
 
 namespace unsz
 {
+    template<typename T>
+    class shared_vector_c
+    {
+        private:
+            shared_ptr<vector<T>>values=make_shared<vector<T>>();
+
+        public:
+            using iterator=typename vector<T>::iterator;
+            using const_iterator=typename vector<T>::const_iterator;
+
+            void reset(){values=make_shared<vector<T>>();}
+            void clear(){values->clear();}
+            void resize(uint64_t size){values->resize(size);}
+            void assign(uint64_t size,const T&value){values->assign(size,value);}
+            void reserve(uint64_t size){values->reserve(size);}
+            void push_back(const T&value){values->push_back(value);}
+            bool empty() const{return values->empty();}
+            uint64_t size() const{return values->size();}
+            T&front(){return values->front();}
+            const T&front() const{return values->front();}
+            T&back(){return values->back();}
+            const T&back() const{return values->back();}
+            T&operator[](uint64_t index){return (*values)[index];}
+            const T&operator[](uint64_t index) const{return (*values)[index];}
+            iterator begin(){return values->begin();}
+            const_iterator begin() const{return values->begin();}
+            iterator end(){return values->end();}
+            const_iterator end() const{return values->end();}
+    };
+
     enum class point_set_codec_e:uint8_t{constant=2,rbf=5};
     enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
@@ -238,10 +269,16 @@ namespace unsz
     template<typename T_calc>
     struct spatial_prediction_state_c
     {
-        vector<prediction_structure_c<T_calc>> structures;
-        vector<int> original_to_prediction_order;
+        shared_vector_c<prediction_structure_c<T_calc>>structures;
+        shared_vector_c<int>original_to_prediction_order;
         bool uses_prediction_order=false;
-        bool valid=false;
+    };
+
+    template<typename T_calc>
+    struct shared_spatial_prediction_cache_c
+    {
+        once_flag initialization_flag;
+        shared_ptr<const spatial_prediction_state_c<T_calc>>state;
     };
 
     template<typename T_coord>
@@ -440,6 +477,8 @@ namespace unsz
             uint32_t partition_size=0;//0表示不分区；非0时所有参考点必须来自同一partition
             uint32_t partition_num=0;//直接指定2、4、8等2的幂个partition
             uint32_t thread_num=1;
+            uint32_t field_worker_num=1;
+            vector<uint32_t>field_worker_id_vec;
             string eb_schedule="inverse_rank_log2";//none / inverse_rank_log2
             double eb_schedule_start_ratio=0.8;
             double eb_schedule_log2_shift=0.5;//inverse_rank_log2的指数位移
@@ -450,11 +489,11 @@ namespace unsz
 
             Array2D<T_coord> coord_array,original_coord_array;
             vector<T_coord> min_coord,max_coord,original_min_coord,original_max_coord;
-            vector<prediction_structure_c<T_calc>> prediction_structure_vec;//未切分时只有一个结构；切分后每个结构独立完整
-            spatial_prediction_state_c<T_calc> shared_spatial_prediction_state;
+            shared_vector_c<prediction_structure_c<T_calc>>prediction_structure_vec;//未切分时只有一个结构；切分后每个结构独立完整
+            shared_ptr<shared_spatial_prediction_cache_c<T_calc>>shared_spatial_prediction_cache=make_shared<shared_spatial_prediction_cache_c<T_calc>>();
             bool current_spatial_prediction_state_is_shared=false;
             vector<T_data> current_data,current_decompressed_data,prediction_order_decompressed_data;
-            vector<int> original_to_prediction_order;
+            shared_vector_c<int>original_to_prediction_order;
             vector<uint32_t> time_step_vec;
             vector<uint32_t> configured_time_step_vec;
             vector<T_coord> time_step_coordinate_vec;
@@ -482,6 +521,7 @@ namespace unsz
             uint64_t current_label_stream_bytes=0,current_value_stream_bytes=0,current_shared_metadata_bytes=0;
             compression_diagnostics_c current_compression_diagnostics;
             decompression_diagnostics_c current_decompression_diagnostics;
+            double reported_compression_preprocessing_time=0,reported_compression_time=0,reported_decompression_preprocessing_time=0,reported_decompression_time=0;
 
             void init();
             void load_time_step_coordinates();

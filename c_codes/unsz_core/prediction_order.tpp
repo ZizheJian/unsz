@@ -44,7 +44,7 @@ namespace unsz
             }
         prediction_data_uses_prediction_order=true;
         if(!for_decompression)
-            vector<int>().swap(original_to_prediction_order);
+            original_to_prediction_order.reset();
     }
 
 }

@@ -68,3 +68,21 @@ inline std::vector<std::string>parse_field_name_list(const std::string&expressio
         throw std::runtime_error("field列表不能为空");
     return result;
 }
+
+inline std::vector<uint32_t>parse_worker_id_list(const std::string&expression)
+{
+    if(expression.size()<3||expression.front()!='{'||expression.back()!='}')
+        throw std::runtime_error("worker列表必须写成'{w1,w2,...}'："+expression);
+    std::vector<uint32_t>result;
+    for(uint64_t begin=1;begin<expression.size()-1;)
+    {
+        uint64_t end=expression.find(',',begin);
+        if(end==std::string::npos)
+            end=expression.size()-1;
+        result.push_back(parse_uint32(expression.substr(begin,end-begin),"worker编号"));
+        begin=end+1;
+    }
+    if(result.empty())
+        throw std::runtime_error("worker列表不能为空");
+    return result;
+}

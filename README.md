@@ -305,6 +305,8 @@ $$
 
 多个field共享同一组坐标时可用`-field-list`一次传入。每个field独立训练并判断坐标变换；各field复用只依赖原始坐标的训练采样几何。未启用坐标变换的field共享原始坐标上的空间DAG和RBF权重，启用变换的field生成自己的空间DAG和权重。REL训练按照当前field的每个采样time step分别使用可预测点集value range归一化，每个训练文件形成一个独立group；ABS任务不归一化。单field与多field使用相同的flatness判断、固定`p=3`的group loss和矩阵训练流程。
 
+两级并行模式额外传入`-field-worker-num N`和与`-field-list`等长的`-field-worker-map {w0,w1,...}`。每个编号指定对应field所属的worker。所有worker位于同一进程，未启用坐标变换的field通过`std::call_once`按需构建并只读共享唯一的原始坐标DAG；如果没有field需要它，这个公共DAG不会生成。每个worker内部继续使用`-thread-num`个OpenMP线程处理`-partition-num`个空间partition。正式Ocean-large 16×8配置、固定field映射和Slurm入口位于`benchmarks/two_level/`。
+
 压缩器把本次训练结果写到数据目录中的`<field>.unsz.coord_transform.txt`。文件以明文记录维数、是否启用和每个坐标轴的缩放值；解压器读取同一文件，不重新训练。例：
 
 ```text

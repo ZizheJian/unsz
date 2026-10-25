@@ -5,6 +5,7 @@
 #include <cmath>
 #include <chrono>
 #include <cstdio>
+#include <omp.h>
 #include "huffman.hpp"
 #include "cli_list_parser.hpp"
 #include "third_party/zstd/lib/zstd.h"
@@ -43,7 +44,7 @@ pair<double,double> prepare_current_decompression_field(unsz::param_c<T_coord,fl
 }
 
 template<typename T_coord>
-void run_decompression_field(unsz::param_c<T_coord,float>&param)
+double run_decompression_field(unsz::param_c<T_coord,float>&param)
 {
     uint32_t validated_file_num=0;
     double total_decompression_time=0,total_time_prediction_state_update_time=0,total_prediction_order_restore_time=0,total_normalized_squared_error=0;
@@ -136,10 +137,48 @@ void run_decompression_field(unsz::param_c<T_coord,float>&param)
         printf("total decompressed psnr= %f\n",unsz::reconstruction_psnr(total_statistics));
         printf("normalized squared error sum= %.17g, normalized value count= %llu, normalized psnr= %.17g, maximum error over eb= %.17g\n",total_normalized_squared_error,(unsigned long long)total_normalized_value_num,unsz::normalized_reconstruction_psnr(total_normalized_squared_error,total_normalized_value_num),total_statistics.max_error_ratio);
     }
+    return total_decompression_time;
 }
 
 namespace unsz
 {
+void decompress_fields(param_c<float,float>&param)
+{
+    param.reported_decompression_preprocessing_time=0;
+    param.reported_decompression_time=0;
+    double temporal_dependency_plan_time=0;
+    auto temporal_dependency_plan_start_time=chrono::steady_clock::now();
+    if(param.tensor_field_config_map.empty())
+    {
+        if(param.temporal_dependency_plan_cache.empty())
+            param.precompute_temporal_dependency_plans();
+    }
+    else if(param.tensor_dependency_plan_cache.empty())
+        param.precompute_all_tensor_dependency_plans();
+    temporal_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-temporal_dependency_plan_start_time).count();
+    printf("temporal dependency plan preprocessing time= %f s\n",temporal_dependency_plan_time);
+    double total_preprocessing_time=temporal_dependency_plan_time,total_metadata_input_time=0;
+    for(uint32_t field_id=0;field_id<param.field_name_vec.size();field_id++)
+    {
+        param.activate_field(field_id);
+        printf("BEGIN UNSZ FIELD %s\n",param.field_name.c_str());
+        param.read_coordinate_transform_file();
+        auto [field_preprocessing_time,metadata_input_time]=prepare_current_decompression_field(param);
+        total_metadata_input_time+=metadata_input_time;
+        auto preprocessing_start_time=chrono::steady_clock::now();
+        prepare_current_decompression_geometry(param);
+        double preprocessing_time=field_preprocessing_time+chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count();
+        total_preprocessing_time+=preprocessing_time;
+        printf("preprocessing time excluding coordinate and transform-file input= %f s\n",preprocessing_time);
+        param.reported_decompression_time+=run_decompression_field(param);
+        param.release_current_spatial_prediction_state();
+        printf("END UNSZ FIELD %s\n",param.field_name.c_str());
+    }
+    printf("total decompression preprocessing time excluding coordinate, transform-file and compressed-metadata input= %f s\n",total_preprocessing_time);
+    printf("compressed metadata input time excluded from reported time= %f s\n",total_metadata_input_time);
+    param.reported_decompression_preprocessing_time=total_preprocessing_time;
+}
+
 int decompress_main(int argc,char **argv)
 {
     param_c<float,float> param;
@@ -197,6 +236,10 @@ int decompress_main(int argc,char **argv)
             param.partition_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
         else if (option=="-thread-num")
             param.thread_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if(option=="-field-worker-num")
+            param.field_worker_num=parse_positive_uint32(read_option_value(argc,argv,arg_id,option),option);
+        else if(option=="-field-worker-map")
+            param.field_worker_id_vec=parse_worker_id_list(read_option_value(argc,argv,arg_id,option));
         else if(option=="-point-set-config")
             param.point_set_config_path=read_option_value(argc,argv,arg_id,option);
         else if (option=="-value-flow")
@@ -228,33 +271,58 @@ int decompress_main(int argc,char **argv)
     }
     param.prepare_cli_parameters(time_step_vec,error_bound);
     param.init();
-    double temporal_dependency_plan_time=0;
-    auto temporal_dependency_plan_start_time=chrono::steady_clock::now();
-    if(param.tensor_field_config_map.empty())
-        param.precompute_temporal_dependency_plans();
+    if(param.field_worker_num==1)
+        decompress_fields(param);
     else
-        param.precompute_all_tensor_dependency_plans();
-    temporal_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-temporal_dependency_plan_start_time).count();
-    printf("temporal dependency plan preprocessing time= %f s\n",temporal_dependency_plan_time);
-    double total_preprocessing_time=temporal_dependency_plan_time,total_metadata_input_time=0;
-    for(uint32_t field_id=0;field_id<param.field_name_vec.size();field_id++)
     {
-        param.activate_field(field_id);
-        printf("BEGIN UNSZ FIELD %s\n",param.field_name.c_str());
-        param.read_coordinate_transform_file();
-        auto [field_preprocessing_time,metadata_input_time]=prepare_current_decompression_field(param);
-        total_metadata_input_time+=metadata_input_time;
-        auto preprocessing_start_time=chrono::steady_clock::now();
-        prepare_current_decompression_geometry(param);
-        double preprocessing_time=field_preprocessing_time+chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count();
-        total_preprocessing_time+=preprocessing_time;
-        printf("preprocessing time excluding coordinate and transform-file input= %f s\n",preprocessing_time);
-        run_decompression_field(param);
-        param.release_current_spatial_prediction_state();
-        printf("END UNSZ FIELD %s\n",param.field_name.c_str());
+        auto shared_dependency_plan_start_time=chrono::steady_clock::now();
+        if(param.tensor_field_config_map.empty())
+            param.precompute_temporal_dependency_plans();
+        else
+            param.precompute_all_tensor_dependency_plans();
+        double shared_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-shared_dependency_plan_start_time).count();
+        vector<vector<string>>worker_field_name_vec(param.field_worker_num);
+        for(uint32_t field_id=0;field_id<param.field_name_vec.size();field_id++)
+            worker_field_name_vec[param.field_worker_id_vec[field_id]].push_back(param.field_name_vec[field_id]);
+        vector<unique_ptr<param_c<float,float>>>worker_param_vec;
+        for(uint32_t worker_id=0;worker_id<param.field_worker_num;worker_id++)
+        {
+            if(worker_field_name_vec[worker_id].empty())
+                continue;
+            worker_param_vec.push_back(make_unique<param_c<float,float>>(param));
+            worker_param_vec.back()->field_name_vec=move(worker_field_name_vec[worker_id]);
+        }
+        vector<exception_ptr>worker_error_vec(worker_param_vec.size());
+        auto parallel_start_time=chrono::steady_clock::now();
+        omp_set_dynamic(0);
+        omp_set_max_active_levels(2);
+#pragma omp parallel for schedule(static,1) num_threads(param.field_worker_num)
+        for(int64_t worker_id=0;worker_id<(int64_t)worker_param_vec.size();worker_id++)
+        {
+            try
+            {
+                decompress_fields(*worker_param_vec[worker_id]);
+            }
+            catch(...)
+            {
+                worker_error_vec[worker_id]=current_exception();
+            }
+        }
+        double maximum_reported_time=0;
+        for(uint32_t worker_id=0;worker_id<worker_param_vec.size();worker_id++)
+        {
+            double reported_time=worker_param_vec[worker_id]->reported_decompression_preprocessing_time+worker_param_vec[worker_id]->reported_decompression_time;
+            printf("field worker %u reported decompression-side time= %f s\n",worker_id,reported_time);
+            maximum_reported_time=max(maximum_reported_time,reported_time);
+        }
+        maximum_reported_time+=shared_dependency_plan_time;
+        printf("two-level shared dependency-plan preprocessing time= %f s\n",shared_dependency_plan_time);
+        printf("two-level reported decompression-side time= %f s\n",maximum_reported_time);
+        printf("two-level decompression wall time= %f s\n",chrono::duration<double>(chrono::steady_clock::now()-parallel_start_time).count());
+        for(const exception_ptr&worker_error:worker_error_vec)
+            if(worker_error)
+                rethrow_exception(worker_error);
     }
-    printf("total decompression preprocessing time excluding coordinate, transform-file and compressed-metadata input= %f s\n",total_preprocessing_time);
-    printf("compressed metadata input time excluded from reported time= %f s\n",total_metadata_input_time);
     return 0;
 }
 }

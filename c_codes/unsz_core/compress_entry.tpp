@@ -150,11 +150,14 @@ namespace unsz
         printf("normalized squared error sum= %.17g, normalized value count= %llu, normalized psnr= %.17g, maximum error over eb= %.17g\n",total_normalized_squared_error,(unsigned long long)total_normalized_value_num,normalized_reconstruction_psnr(total_normalized_squared_error,total_normalized_value_num),total_statistics.max_error_ratio);
         printf("compression data input time excluded from reported time= %f s\n",total_data_input_time);
         printf("compressed output time excluded from reported time= %f s\n",total_compressed_output_time);
+        reported_compression_time+=total_compression_time;
     }
 
     template<typename T_coord,typename T_data>
     void compress(param_c<T_coord,T_data>&param)
     {
+        param.reported_compression_preprocessing_time=0;
+        param.reported_compression_time=0;
         for(const point_set_config_c&config:param.point_set_config_vec)
         {
             if(config.codec==point_set_codec_e::constant)
@@ -167,8 +170,11 @@ namespace unsz
         double temporal_dependency_plan_time=0;
         auto temporal_dependency_plan_start_time=chrono::steady_clock::now();
         if(param.tensor_field_config_map.empty())
-            param.precompute_temporal_dependency_plans();
-        else
+        {
+            if(param.temporal_dependency_plan_cache.empty())
+                param.precompute_temporal_dependency_plans();
+        }
+        else if(param.tensor_dependency_plan_cache.empty())
             param.precompute_all_tensor_dependency_plans();
         temporal_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-temporal_dependency_plan_start_time).count();
         printf("temporal dependency plan preprocessing time= %f s\n",temporal_dependency_plan_time);
@@ -181,7 +187,7 @@ namespace unsz
             auto point_set_statistics_start_time=chrono::steady_clock::now();
             param.precompute_current_field_point_set_statistics();
             point_set_statistics_time+=chrono::duration<double>(chrono::steady_clock::now()-point_set_statistics_start_time).count();
-            if(field_num>1)
+            if(field_num>1||param.field_worker_num>1)
                 printf("BEGIN UNSZ FIELD %s\n",param.field_name.c_str());
             auto [coordinate_transform_time,prediction_structure_time]=param.preprocess_current_compression_geometry();
             auto [automatic_flow_time,temporal_dependency_time]=param.preprocess_current_compression_field();
@@ -202,12 +208,13 @@ namespace unsz
             else
                 two_point_sets::compress(param);
             param.release_current_spatial_prediction_state();
-            if(field_num>1)
+            if(field_num>1||param.field_worker_num>1)
                 printf("END UNSZ FIELD %s\n",param.field_name.c_str());
         }
         printf("compression file point-set statistics precomputation time excluded from reported time= %f s\n",point_set_statistics_time);
         printf("compression file point-set statistics input time excluded from reported time= %f s\n",param.point_set_statistics_input_time);
         printf("compression file point-set statistics computation time excluded from reported time= %f s\n",point_set_statistics_time-param.point_set_statistics_input_time);
         printf("total compression preprocessing time excluding coordinate and field-data input= %f s\n",total_preprocessing_time);
+        param.reported_compression_preprocessing_time=total_preprocessing_time;
     }
 }
