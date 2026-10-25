@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=128
-#SBATCH --time=00:30:00
+#SBATCH --time=00:45:00
 #SBATCH --job-name=ocean_two_level
 #SBATCH --output=/home/x-zjian1/unsz/results/ocean_large_two_level/%x_%j.log
 
