@@ -125,12 +125,10 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0
 | `py_codes/parse_unsz_output.py`、`py_codes/parse_umc_output.py` | 只解析并核对压缩器输出，不负责调度或启动实验。 |
 | `t3_visualize.py` | 读取C++压缩器生成的`*.unsz.coord_transform.txt`，生成Katrina坐标变换前后的field可视化 |
 | `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h4、ADCIRC Haiyan、TAPS和Ocean-large发布数据转换为平坦二进制基准输入；`prepare_ocean_large_tensor.py`另外生成完整Ocean-large的`[time,height,point]`切片和tensor metadata，共享工具位于同目录的`prepare_dataset_common.py` |
-| `py_codes/prepare_datasets/prepare_ocean_large_tensor.slurm` | 申请单CPU和16GiB内存执行约499GiB的完整Ocean-large tensor转换；这是大型I/O任务，提交前应再次确认输出目录配额 |
+| `py_codes/prepare_datasets/prepare_ocean_large_tensor.slurm` | 申请16个CPU及其附带内存执行约499GiB的完整Ocean-large tensor转换；这是大型I/O任务，提交前应再次确认输出目录配额 |
 | `py_codes/run_spatial_field_benchmark.slurm` | 在Slurm节点上运行环境变量`CONFIG`明确指定的完整task JSON，不在运行时拆分或改写JSON |
 | `py_codes/run_configurations.slurm` | 以Slurm array依次把当前8个正式数据集JSON交给`t1_start_c_code.py`。 |
 | `py_codes/plot_dataset_rd.py` | 为一个数据集的各field分别绘制UNSZ/UMC空间RD与核心吞吐率，并计算同PSNR下的平均BR变化 |
-| `results/ocean_large_curves/run_benchmark.slurm` | 使用32核从头运行Ocean-large的UMC与UNSZ五点实验并更新正式指标和图片 |
-| `results/ocean_large_curves/run_unsz.slurm` | 复用正式UMC指标，只重跑指定Ocean-large UNSZ误差点；支持`EXPONENTS`和`FORCE`环境变量 |
 
 JSON最外层是task list；同一个JSON可以包含不同数据目录的任务。每个task都必须自行记录描述实验用途的唯一`name`、绝对`data_dir`和CSV文件路径`csv_path`，即使相邻task使用同一数据目录也不从外层继承。相对`csv_path`以项目根目录为基准；一个task包含多个field时，路径使用`{field}`作为field名称占位符。同一数据、同一field需要测试不同固定参数时，应写成名称不同的多个task。
 
@@ -902,15 +900,15 @@ UMC统一使用其正式的`reorder=1`（DPFS重排）。NBP和NBP-INP采用同�
 ## 4.1. 投稿前主线
 
 - [x] 完成完整95-field Ocean-large的五点BR–PSNR、核心压缩/解压时间、预处理时间和分组图，并保存实验manifest与脚本SHA。
-- [ ] 冻结常规数据的bitstream、配置和实验脚本后，统一生成正式五点结果；在此之前不再无目的地重复全数据复测。
-- [ ] 把`results/current`整理为与3.1及`configs/`中的task JSON一致的常规结果集；Ocean-large结果单独维护。
+- [ ] 常规数据的25个field和五个EB结果已经齐全；投稿前用最终程序统一复测一次，并保存运行日志、计算节点、程序版本和输入版本。
+- [ ] 整理`results/current`，使其目录和`configs/`中的任务名称一一对应；Ocean-large结果继续单独维护。
 - [ ] 优先优化仍未达到目标的正式field，方案固定后再迁移到其他field验证泛化。
 - [ ] 测试一阶内插中“最后一个文件由第一个文件作零阶外插预测”，并实现“空间预测＋时间补偿”。
 - UMC-INP的batch固定为README示例使用的10，不再作为task配置或实验维度。
 - [ ] 研究DAG和RBF权重的紧凑持久化，明确公共metadata需要在多少field或time step之间摊销。
 - [ ] 取得UMC论文实验原始的`varnames_91.txt`以核对当前58个单层变量＋33个多层变量第0层的91-field定义；12个月度NetCDF已经按当前定义转换，单快照restart不作为月度输出使用。
 - [x] 完成完整Ocean-large的single-core throughput与REL=1e-3总耗时实验。
-- [ ] 完成strong/weak scaling以及端到端压缩—传输—解压实验。
+- [ ] 复测当前strong-scaling结果，并完成weak scaling以及端到端压缩—传输—解压实验。
 - [ ] 基于3DAC官方单GPU代码测量若干训练iteration或epoch，估算ScanNet完整20轮及多个量化步长的总训练成本；该结果用于Related Work讨论，不作为正式baseline。
 
 日常审阅以本README为准；被删除实现、历史实验和一次性脚本从Git历史恢复。

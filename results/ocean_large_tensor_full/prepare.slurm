@@ -3,7 +3,7 @@
 #SBATCH --partition=shared
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=16
 #SBATCH --time=04:00:00
 #SBATCH --job-name=prepare_ocean_tensor_full
 #SBATCH --output=/home/x-zjian1/unsz/results/ocean_large_tensor_full/prepare_%j.log
@@ -14,4 +14,4 @@ export OMP_NUM_THREADS=1
 export OMP_DYNAMIC=false
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
-srun --exact --ntasks=1 --cpus-per-task=1 --cpu-bind=cores ./unsz_env/bin/python py_codes/prepare_datasets/prepare_ocean_large_tensor.py
+srun --exact --ntasks=1 --cpus-per-task=16 --cpu-bind=cores ./unsz_env/bin/python py_codes/prepare_datasets/prepare_ocean_large_tensor.py

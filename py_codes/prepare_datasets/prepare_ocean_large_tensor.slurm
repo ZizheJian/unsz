@@ -3,8 +3,7 @@
 #SBATCH --partition=shared
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
-#SBATCH --mem=16G
+#SBATCH --cpus-per-task=16
 #SBATCH --time=12:00:00
 #SBATCH --job-name=prepare_ocean_tensor
 #SBATCH --output=/home/x-zjian1/unsz/results/ocean_large_tensor_prepare_%j.log

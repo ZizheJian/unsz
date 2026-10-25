@@ -3,8 +3,10 @@
 #SBATCH --partition=shared
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=01:00:00
 #SBATCH --job-name=unsz_spatial_rd
-#SBATCH --output=/home/x-zjian1/unsz/results/logs/spatial_rd_%A_%a.log
+#SBATCH --output=/home/x-zjian1/unsz/results/current/logs/spatial_rd_%A_%a.log
 
 set -e
 cd /home/x-zjian1/unsz
