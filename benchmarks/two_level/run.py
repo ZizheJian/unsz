@@ -76,10 +76,10 @@ def read_one_float(text,pattern,name):
     return float(matches[0])
 
 def validate_log(text,fields,side):
-    completed_fields=re.findall(r'^END UNSZ FIELD ([^\r\n]+)$',text,re.MULTILINE)
+    completed_fields=re.findall(r'END UNSZ FIELD ([^\r\n]+)',text)
     if len(completed_fields)!=len(fields) or set(completed_fields)!=set(fields):
         raise RuntimeError(f'{side}没有完整处理95个fields：{len(completed_fields)}')
-    error_ratios=[float(value) for value in re.findall(r'^全部文件最大误差/用户误差上限= ([^\s]+)$',text,re.MULTILINE)]
+    error_ratios=[float(value) for value in re.findall(r'全部文件最大误差/用户误差上限= ([^\s]+)',text)]
     if len(error_ratios)!=len(fields) or max(error_ratios)>1.01:
         raise RuntimeError(f'{side}误差验证失败：count={len(error_ratios)},max={max(error_ratios,default=math.inf)}')
     return max(error_ratios)
