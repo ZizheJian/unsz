@@ -1,0 +1,6 @@
+{
+  "slurm_job_id": "21636216",
+  "slurm_nodelist": "a154",
+  "slurm_cpus": 64,
+  "hostname": "a154.anvil.rcac.purdue.edu"
+}

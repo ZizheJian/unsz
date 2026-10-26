@@ -1,0 +1,37 @@
+{
+  "codec": "qoz2-q4-nd-point-partitioned",
+  "configuration": "4_fields_32_partitions",
+  "field_workers": 4,
+  "point_partitions_per_field": 32,
+  "active_cpus": 128,
+  "field_num": 95,
+  "rel_eb": 0.001,
+  "value_num": 133931111400,
+  "compressed_bytes": 16440140135,
+  "br": 0.9820057468738365,
+  "reported_compression_time": 80.086943937,
+  "reported_decompression_time": 28.502595656,
+  "reported_codec_compression_time": 72.982681234,
+  "reported_partition_time": 7.104262703,
+  "reported_codec_decompression_time": 21.356755005,
+  "reported_merge_time": 7.145840650999999,
+  "compression_critical_worker": 1,
+  "decompression_critical_worker": 2,
+  "compression_worker_times": [
+    57.37636809,
+    80.086943937,
+    71.555832895,
+    53.529020289
+  ],
+  "decompression_worker_times": [
+    28.433704186,
+    27.985712892000002,
+    28.502595656,
+    27.521237369999998
+  ],
+  "execution_wall_time": 843.2513013510033,
+  "max_concurrent_rss_upper_bound_kib": 231300616,
+  "max_error_over_eb": 1.0000000475279573,
+  "valid": true,
+  "reported_end_to_end_time": 108.589539593
+}

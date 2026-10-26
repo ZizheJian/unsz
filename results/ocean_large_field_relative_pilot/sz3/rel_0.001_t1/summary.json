@@ -1,0 +1,19 @@
+{
+  "codec": "sz3",
+  "rel_eb": 0.001,
+  "field_num": 1,
+  "constant_field_num": 0,
+  "value_num": 3589814700,
+  "input_bytes": 14359258800,
+  "compressed_bytes": 862599464,
+  "br": 1.9223264398577453,
+  "normalized_psnr": 68.47622202603522,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "compression_time": 58.051078369,
+  "decompression_time": 24.448180319,
+  "compression_MB_s": 247.35559103184588,
+  "decompression_MB_s": 587.3344605872628,
+  "max_error_over_eb": 0.9999999958589473,
+  "valid": true
+}

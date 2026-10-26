@@ -1,0 +1,22 @@
+{
+  "codec": "qoz",
+  "rel_eb": 1e-05,
+  "codec_error_bound_mode": "ABS",
+  "abs_eb_rule": "rel_eb*(field_max-field_min),excluding -99999",
+  "layout": "[time,point] when height=1; [time,height,point] otherwise; point is fastest",
+  "program_threads": 1,
+  "point_limit": null,
+  "fields": [
+    "timeMonthly_avg_vertVelocityTop"
+  ],
+  "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
+  "binary_sha256": {
+    "benchmark_qoz": "46cfebc1732a26105cce77b38cf883f1a29ecd403a3590afefe1c1ba67d22836"
+  },
+  "upstream_revision": "a506cb0b1599f810c6f56e75edfdc418f9fd226f",
+  "git_revision": "49d05f86270c113b91d741ee2ae86ff1b972e71b",
+  "source_sha256": {
+    "benchmarks/field_relative/run.py": "5f7430c2edf981bf456a630ef9afc590651e57140f04254e2e468b8ad69c5ec9",
+    "benchmarks/field_relative/benchmark.cpp": "f1ce85b70c9b6fe5879eb4b642ea123561191fb7a5149f5dd59e9d59f3020280"
+  }
+}

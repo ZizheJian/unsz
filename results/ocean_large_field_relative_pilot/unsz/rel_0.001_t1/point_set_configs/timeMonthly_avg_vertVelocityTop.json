@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "labels": [
+    {
+      "method": "predict",
+      "eb_mode": "ABS",
+      "eb_value": 4.743983410298824e-05,
+      "condition": {
+        "operator": "!=",
+        "value": -99999
+      }
+    },
+    {
+      "method": "constant"
+    }
+  ]
+}

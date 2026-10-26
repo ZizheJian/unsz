@@ -1,0 +1,134 @@
+{
+  "field": "timeMonthly_avg_vertVelocityTop",
+  "interpretation": "positive rate differences mean the tensor compressor uses more bits than UNSZ at matched PSNR",
+  "field_relative_qoz_nd_vs_unsz": {
+    "psnr_overlap": [
+      54.36846487268892,
+      107.25163398926131
+    ],
+    "candidate_matched_psnr_rate_difference_percent": 144.3055212316227,
+    "candidate_over_reference_rate_ratio": 2.443055212316227,
+    "comparison_knots": [
+      {
+        "psnr": 54.36846487268892,
+        "candidate_over_reference_rate_percent": 275.78534290328156
+      },
+      {
+        "psnr": 55.3523175480769,
+        "candidate_over_reference_rate_percent": 180.71528614739103
+      },
+      {
+        "psnr": 58.42742538054434,
+        "candidate_over_reference_rate_percent": 152.9982551545206
+      },
+      {
+        "psnr": 68.90379157863882,
+        "candidate_over_reference_rate_percent": 129.67028325422913
+      },
+      {
+        "psnr": 70.41584691543142,
+        "candidate_over_reference_rate_percent": 139.03811493806143
+      },
+      {
+        "psnr": 87.76637989450185,
+        "candidate_over_reference_rate_percent": 170.50646647202842
+      },
+      {
+        "psnr": 88.60588129119277,
+        "candidate_over_reference_rate_percent": 166.97011651021808
+      },
+      {
+        "psnr": 107.25163398926131,
+        "candidate_over_reference_rate_percent": 98.28735620457682
+      }
+    ]
+  },
+  "slice_relative_sz3_1d_vs_unsz_same_field": {
+    "psnr_overlap": [
+      53.47875,
+      115.45629798565557
+    ],
+    "candidate_matched_psnr_rate_difference_percent": 1048.750397207985,
+    "candidate_over_reference_rate_ratio": 11.487503972079852,
+    "comparison_knots": [
+      {
+        "psnr": 53.47875,
+        "candidate_over_reference_rate_percent": 4385.425630737127
+      },
+      {
+        "psnr": 59.923779368605224,
+        "candidate_over_reference_rate_percent": 3468.847869554482
+      },
+      {
+        "psnr": 63.033039,
+        "candidate_over_reference_rate_percent": 3135.0032060708777
+      },
+      {
+        "psnr": 75.73994333500637,
+        "candidate_over_reference_rate_percent": 1538.2245276285512
+      },
+      {
+        "psnr": 78.300225,
+        "candidate_over_reference_rate_percent": 1304.0057062554135
+      },
+      {
+        "psnr": 95.4410272593296,
+        "candidate_over_reference_rate_percent": 563.0383687353284
+      },
+      {
+        "psnr": 96.888126,
+        "candidate_over_reference_rate_percent": 518.9752432553831
+      },
+      {
+        "psnr": 115.45629798565557,
+        "candidate_over_reference_rate_percent": 237.12088347957527
+      }
+    ]
+  },
+  "slice_relative_sz3_1d_vs_unsz_all_fields": {
+    "psnr_overlap": [
+      47.45912523583855,
+      115.66132984487461
+    ],
+    "candidate_matched_psnr_rate_difference_percent": 872.416697867392,
+    "candidate_over_reference_rate_ratio": 9.72416697867392,
+    "comparison_knots": [
+      {
+        "psnr": 47.45912523583855,
+        "candidate_over_reference_rate_percent": 3585.3820082902002
+      },
+      {
+        "psnr": 56.85104063500941,
+        "candidate_over_reference_rate_percent": 2602.3221301232074
+      },
+      {
+        "psnr": 62.59777449040613,
+        "candidate_over_reference_rate_percent": 2116.994443938822
+      },
+      {
+        "psnr": 76.12374938971479,
+        "candidate_over_reference_rate_percent": 1002.9497790481145
+      },
+      {
+        "psnr": 78.93107235552647,
+        "candidate_over_reference_rate_percent": 850.4466061992086
+      },
+      {
+        "psnr": 95.6349440148887,
+        "candidate_over_reference_rate_percent": 425.73776851462776
+      },
+      {
+        "psnr": 97.56862311226614,
+        "candidate_over_reference_rate_percent": 388.4028515122397
+      },
+      {
+        "psnr": 115.66132984487461,
+        "candidate_over_reference_rate_percent": 217.90974261301486
+      }
+    ]
+  },
+  "same_field_gap_change": {
+    "rate_ratio_reduction_factor": 4.7021057543716775,
+    "excess_rate_gap_reduction_percent": 86.24024156598202
+  }
+}

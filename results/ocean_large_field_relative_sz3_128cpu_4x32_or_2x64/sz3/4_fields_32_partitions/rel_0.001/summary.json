@@ -1,0 +1,71 @@
+{
+  "codec": "sz3-nd-point-partitioned",
+  "configuration": "4_fields_32_partitions",
+  "field_workers": 4,
+  "point_partitions_per_field": 32,
+  "active_cpus": 128,
+  "field_num": 95,
+  "rel_eb": 0.001,
+  "rel_ebs_in_process": [
+    0.001
+  ],
+  "input_reused_across_rel_ebs": false,
+  "value_num": 133931111400,
+  "compressed_bytes": 28511525172,
+  "br": 1.7030561382767708,
+  "reported_compression_time": 51.463675859,
+  "reported_decompression_time": 27.551130717,
+  "reported_codec_compression_time": 43.350483048,
+  "reported_partition_time": 8.113192811,
+  "reported_codec_decompression_time": 19.986178888999998,
+  "reported_merge_time": 7.564951828,
+  "compression_critical_worker": 1,
+  "decompression_critical_worker": 0,
+  "compression_worker_times": [
+    43.907134288,
+    51.463675859,
+    43.710718984,
+    39.564757300000004
+  ],
+  "decompression_worker_times": [
+    27.551130717,
+    27.415902238999998,
+    27.000565425,
+    26.93546081
+  ],
+  "shared_input_worker_times": [
+    41.427823261,
+    33.468980179,
+    40.112087476,
+    38.409200022
+  ],
+  "verification_worker_times": [
+    3.549014616,
+    3.706003021,
+    3.324307706,
+    3.39611435
+  ],
+  "helper_worker_times_excluding_shared_input": [
+    4.7031671500000005,
+    5.832992041,
+    4.459965271,
+    4.49470039
+  ],
+  "eb_processing_worker_times": [
+    76.162965902,
+    84.717428857,
+    75.17612096,
+    70.999950769
+  ],
+  "execution_worker_times": [
+    117.590789163,
+    118.186409036,
+    115.288208436,
+    109.409150791
+  ],
+  "all_ebs_execution_wall_time": 119.48442612501094,
+  "max_concurrent_rss_upper_bound_kib": 238004348,
+  "max_error_over_eb": 1,
+  "valid": true,
+  "reported_end_to_end_time": 79.014806576
+}

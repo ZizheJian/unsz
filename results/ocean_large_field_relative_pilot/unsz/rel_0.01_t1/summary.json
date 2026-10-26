@@ -1,0 +1,19 @@
+{
+  "codec": "unsz",
+  "rel_eb": 0.01,
+  "field_num": 1,
+  "constant_field_num": 0,
+  "value_num": 3589814700,
+  "input_bytes": 14359258800,
+  "compressed_bytes": 50697220,
+  "br": 0.11298013794416742,
+  "normalized_psnr": 55.3523175480769,
+  "compression_preprocessing_time": 22.998683,
+  "decompression_preprocessing_time": 21.516293,
+  "compression_time": 148.380465,
+  "decompression_time": 61.738192,
+  "compression_MB_s": 96.7732430276452,
+  "decompression_MB_s": 232.58307920646592,
+  "max_error_over_eb": 0.9999998466276769,
+  "valid": true
+}

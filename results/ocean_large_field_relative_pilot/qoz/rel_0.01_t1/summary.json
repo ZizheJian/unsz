@@ -1,0 +1,19 @@
+{
+  "codec": "qoz",
+  "rel_eb": 0.01,
+  "field_num": 1,
+  "constant_field_num": 0,
+  "value_num": 3589814700,
+  "input_bytes": 14359258800,
+  "compressed_bytes": 166633060,
+  "br": 0.3713463204660675,
+  "normalized_psnr": 58.42742538054434,
+  "compression_preprocessing_time": 0,
+  "decompression_preprocessing_time": 0,
+  "compression_time": 102.049524866,
+  "decompression_time": 24.630485991,
+  "compression_MB_s": 140.7087276384184,
+  "decompression_MB_s": 582.9872299412559,
+  "max_error_over_eb": 0.9999999460129418,
+  "valid": true
+}

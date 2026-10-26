@@ -22,3 +22,12 @@ results/ocean_large_scaling/*/*/*.slices.csv
 results/ocean_large_scaling/*/*/timeMonthly_*.csv
 results/ocean_large_scaling/*/*/timeMonthly_*.json
 results/ocean_large_scaling/failed_attempts/
+results/ocean_large_field_relative*/**/benchmark_*
+results/ocean_large_field_relative*/**/compress_one_field*
+results/ocean_large_field_relative*/**/s1_compress
+results/ocean_large_field_relative*/**/s1_decompress
+results/ocean_large_field_relative*/resources/
+results/ocean_large_pfpl*/**/benchmark_pfpl
+results/ocean_large_pfpl*/**/*.inputs.txt
+results/ocean_large_pfpl*/**/*.slices.csv
+results/ocean_large_pfpl*/resources/
