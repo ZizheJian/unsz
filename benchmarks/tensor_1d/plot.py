@@ -232,7 +232,7 @@ def plot_grouped(grouped,groups,output,throughput=False):
     name='releb_throughput' if throughput else 'rd'
     xlabel='REL EB (log scale)' if throughput else 'Bit rate (bit/value, log scale)'
     ylabel='Core throughput (MB/s)' if throughput else 'Aggregated normalized PSNR (dB)'
-    description='Single thread; all fields included; × denotes ABS-bound violations; timings from separate jobs.'
+    description='Single thread; all fields included; timings from separate jobs.'
     figure,axes=plt.subplots(1,3,figsize=(13.5,4),layout='constrained')
     for shape,axis in zip(groups,axes):
         draw_group(axis,grouped,shape,throughput)
@@ -294,7 +294,7 @@ def plot_throughput(records,fields,output):
     figure.supylabel('Core throughput (MB/s)')
     handles=codec_handles(ordered_codecs(records),records)+[Line2D([],[],color='.3',linestyle=linestyle,label=label) for label,linestyle in (('Compression','-'),('Decompression','--'))]
     handles.append(Line2D([],[],color='black',marker='x',linestyle='none',label='ABS error bound exceeded'))
-    finish(figure,handles,'all_fields_releb_throughput',output,'Ocean-large: single-thread core throughput; preprocessing excluded; × denotes an ABS-bound violation.',3)
+    finish(figure,handles,'all_fields_releb_throughput',output,'Ocean-large: single-thread core throughput; preprocessing excluded.',3)
 
 
 def time_handles():
