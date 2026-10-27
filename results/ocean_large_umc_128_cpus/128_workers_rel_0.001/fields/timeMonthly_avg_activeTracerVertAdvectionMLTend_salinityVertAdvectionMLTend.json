@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracerVertAdvectionMLTend_salinityVertAdvectionMLTend",
+  "worker_id": 46,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.801892835304285,
+  "psnr": 71.08082632834106,
+  "compression_preprocessing_time": 46.286024,
+  "compression_time": 2.036694,
+  "decompression_preprocessing_time": 45.745353,
+  "decompression_time": 1.322895,
+  "field_process_wall_time": 130.6940932860016,
+  "max_rss_kib": 3257324,
+  "matches_serial_reference": true,
+  "valid": true
+}

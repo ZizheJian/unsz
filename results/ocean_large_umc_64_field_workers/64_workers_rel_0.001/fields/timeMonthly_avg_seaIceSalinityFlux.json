@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_seaIceSalinityFlux",
+  "worker_id": 58,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.574149512508264,
+  "psnr": 69.3978002673878,
+  "compression_preprocessing_time": 39.799076,
+  "compression_time": 1.779974,
+  "decompression_preprocessing_time": 40.087002,
+  "decompression_time": 1.186918,
+  "field_process_wall_time": 107.31985379900016,
+  "max_rss_kib": 3260676,
+  "matches_serial_reference": true,
+  "valid": true
+}

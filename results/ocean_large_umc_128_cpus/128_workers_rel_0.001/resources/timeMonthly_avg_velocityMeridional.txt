@@ -1,0 +1,23 @@
+	Command being timed: "taskset --cpu-list 30 /home/x-zjian1/unsz/unsz_env/bin/python -u /home/x-zjian1/unsz/t1_start_c_code.py /home/x-zjian1/unsz/results/ocean_large_umc_128_cpus/128_workers_rel_0.001/configs/worker_30_timeMonthly_avg_velocityMeridional.json --skip-build"
+	User time (seconds): 1061.19
+	System time (seconds): 47.16
+	Percent of CPU this job got: 55%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 33:04.21
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 4630000
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 166
+	Minor (reclaiming a frame) page faults: 13322522
+	Voluntary context switches: 51074
+	Involuntary context switches: 16112
+	Swaps: 0
+	File system inputs: 3400
+	File system outputs: 2552
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

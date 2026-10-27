@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_columnIntegratedSpeed",
+  "worker_id": 65,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 2.977124870539975,
+  "psnr": 65.40676911719508,
+  "compression_preprocessing_time": 54.794618,
+  "compression_time": 2.055171,
+  "decompression_preprocessing_time": 51.40529,
+  "decompression_time": 1.520188,
+  "field_process_wall_time": 146.64746940898476,
+  "max_rss_kib": 3256156,
+  "matches_serial_reference": true,
+  "valid": true
+}

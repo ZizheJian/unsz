@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_penetrativeTemperatureFlux",
+  "worker_id": 23,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.19392256541821,
+  "psnr": 67.25524306141749,
+  "compression_preprocessing_time": 33.584808,
+  "compression_time": 1.803252,
+  "decompression_preprocessing_time": 33.801277,
+  "decompression_time": 1.168248,
+  "field_process_wall_time": 91.57754886400653,
+  "max_rss_kib": 3261716,
+  "matches_serial_reference": true,
+  "valid": true
+}

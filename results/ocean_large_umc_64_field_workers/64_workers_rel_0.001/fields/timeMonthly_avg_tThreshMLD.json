@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_tThreshMLD",
+  "worker_id": 37,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.824754245950355,
+  "psnr": 71.37900118619193,
+  "compression_preprocessing_time": 32.929666,
+  "compression_time": 1.867991,
+  "decompression_preprocessing_time": 32.885581,
+  "decompression_time": 1.27876,
+  "field_process_wall_time": 90.41343297599997,
+  "max_rss_kib": 3262228,
+  "matches_serial_reference": true,
+  "valid": true
+}

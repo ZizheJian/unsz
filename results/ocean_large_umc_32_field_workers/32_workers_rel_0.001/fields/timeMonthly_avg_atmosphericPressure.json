@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_atmosphericPressure",
+  "worker_id": 0,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.776623321532446,
+  "psnr": 66.43519098469795,
+  "compression_preprocessing_time": 31.567664,
+  "compression_time": 1.746885,
+  "decompression_preprocessing_time": 31.8969,
+  "decompression_time": 1.131033,
+  "field_process_wall_time": 87.14564281696221,
+  "max_rss_kib": 3260688,
+  "matches_serial_reference": true,
+  "valid": true
+}

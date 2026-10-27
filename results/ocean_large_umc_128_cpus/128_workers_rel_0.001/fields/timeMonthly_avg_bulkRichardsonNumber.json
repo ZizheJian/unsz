@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_bulkRichardsonNumber",
+  "worker_id": 23,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 0.460392288131195,
+  "psnr": 101.20126477216738,
+  "compression_preprocessing_time": 90.782839,
+  "compression_time": 176.75257000000002,
+  "decompression_preprocessing_time": 47.535863,
+  "decompression_time": 136.271413,
+  "field_process_wall_time": 1956.6247267959989,
+  "max_rss_kib": 3678924,
+  "matches_serial_reference": true,
+  "valid": true
+}

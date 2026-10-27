@@ -1,0 +1,23 @@
+	Command being timed: "./unsz_env/bin/python -u benchmarks/sz3_1d_parallel/run_all_slices.py --rel-eb 1e-3 --slice-workers 16 --threads-per-slice 8 --output-root results/ocean_large_sz3_1d_128cpu_selection"
+	User time (seconds): 8410.76
+	System time (seconds): 89.84
+	Percent of CPU this job got: 3997%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 3:32.64
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 156296
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 8871021
+	Voluntary context switches: 419968
+	Involuntary context switches: 145854
+	Swaps: 0
+	File system inputs: 48
+	File system outputs: 33664
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

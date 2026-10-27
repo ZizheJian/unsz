@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_evaporationFlux",
+  "worker_id": 67,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 2.018272016101555,
+  "psnr": 67.84842150281408,
+  "compression_preprocessing_time": 54.292332,
+  "compression_time": 2.019723,
+  "decompression_preprocessing_time": 48.549646,
+  "decompression_time": 1.395616,
+  "field_process_wall_time": 145.97675414505647,
+  "max_rss_kib": 3257388,
+  "matches_serial_reference": true,
+  "valid": true
+}

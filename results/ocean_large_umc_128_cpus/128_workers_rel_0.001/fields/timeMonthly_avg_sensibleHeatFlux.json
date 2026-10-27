@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_sensibleHeatFlux",
+  "worker_id": 86,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.705396954333047,
+  "psnr": 67.05289487149439,
+  "compression_preprocessing_time": 55.932906,
+  "compression_time": 1.972101,
+  "decompression_preprocessing_time": 50.307769,
+  "decompression_time": 1.399633,
+  "field_process_wall_time": 145.33650090399897,
+  "max_rss_kib": 3256136,
+  "matches_serial_reference": true,
+  "valid": true
+}

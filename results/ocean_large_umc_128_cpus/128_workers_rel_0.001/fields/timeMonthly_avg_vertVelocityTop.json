@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_vertVelocityTop",
+  "worker_id": 2,
+  "slice_num": 972,
+  "input_bytes": 14359258800,
+  "rel_eb": 0.001,
+  "br": 3.761712239910322,
+  "psnr": 75.59315903585089,
+  "compression_preprocessing_time": 43.57423,
+  "compression_time": 236.25091999999998,
+  "decompression_preprocessing_time": 41.559046,
+  "decompression_time": 168.489167,
+  "field_process_wall_time": 1991.3072768889833,
+  "max_rss_kib": 5321016,
+  "matches_serial_reference": true,
+  "valid": true
+}

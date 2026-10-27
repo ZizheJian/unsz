@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_vertDiffTopOfCell",
+  "worker_id": 0,
+  "slice_num": 972,
+  "input_bytes": 14359258800,
+  "rel_eb": 0.001,
+  "br": 2.154645593266973,
+  "psnr": 85.60099367985643,
+  "compression_preprocessing_time": 32.232897,
+  "compression_time": 191.15548099999998,
+  "decompression_preprocessing_time": 31.31431,
+  "decompression_time": 136.790934,
+  "field_process_wall_time": 1363.1279584409785,
+  "max_rss_kib": 4902192,
+  "matches_serial_reference": true,
+  "valid": true
+}

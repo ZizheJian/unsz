@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracersSurfaceFluxRunoff_temperatureSurfaceFluxRunoff",
+  "worker_id": 55,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.004923790634653,
+  "psnr": 72.59939461115415,
+  "compression_preprocessing_time": 39.872172,
+  "compression_time": 1.736074,
+  "decompression_preprocessing_time": 40.591105,
+  "decompression_time": 1.160455,
+  "field_process_wall_time": 108.4946760140001,
+  "max_rss_kib": 3261300,
+  "matches_serial_reference": true,
+  "valid": true
+}

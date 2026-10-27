@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_oceanHeatContentSfcTo700m",
+  "worker_id": 49,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.112872715129279,
+  "psnr": 63.84565462807417,
+  "compression_preprocessing_time": 39.089771,
+  "compression_time": 1.81714,
+  "decompression_preprocessing_time": 39.455924,
+  "decompression_time": 1.250792,
+  "field_process_wall_time": 106.31592778899994,
+  "max_rss_kib": 3262048,
+  "matches_serial_reference": true,
+  "valid": true
+}

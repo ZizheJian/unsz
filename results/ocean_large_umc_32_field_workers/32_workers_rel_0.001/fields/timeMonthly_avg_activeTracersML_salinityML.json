@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracersML_salinityML",
+  "worker_id": 22,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.621596752612328,
+  "psnr": 66.58760474837064,
+  "compression_preprocessing_time": 32.750872,
+  "compression_time": 1.776278,
+  "decompression_preprocessing_time": 32.558443,
+  "decompression_time": 1.086383,
+  "field_process_wall_time": 89.42988649598556,
+  "max_rss_kib": 3263172,
+  "matches_serial_reference": true,
+  "valid": true
+}

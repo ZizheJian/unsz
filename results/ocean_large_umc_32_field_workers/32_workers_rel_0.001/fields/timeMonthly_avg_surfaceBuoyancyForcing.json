@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_surfaceBuoyancyForcing",
+  "worker_id": 3,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.10261736016625,
+  "psnr": 68.07586947387334,
+  "compression_preprocessing_time": 33.327347,
+  "compression_time": 1.835478,
+  "decompression_preprocessing_time": 32.935807,
+  "decompression_time": 1.159166,
+  "field_process_wall_time": 90.0778290660237,
+  "max_rss_kib": 3259656,
+  "matches_serial_reference": true,
+  "valid": true
+}

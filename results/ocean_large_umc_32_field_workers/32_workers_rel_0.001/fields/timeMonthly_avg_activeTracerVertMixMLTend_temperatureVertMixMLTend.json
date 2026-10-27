@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracerVertMixMLTend_temperatureVertMixMLTend",
+  "worker_id": 21,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.363696408062511,
+  "psnr": 71.1967354798695,
+  "compression_preprocessing_time": 32.189478,
+  "compression_time": 1.72969,
+  "decompression_preprocessing_time": 33.674848,
+  "decompression_time": 1.06274,
+  "field_process_wall_time": 90.18763428699458,
+  "max_rss_kib": 3261964,
+  "matches_serial_reference": true,
+  "valid": true
+}

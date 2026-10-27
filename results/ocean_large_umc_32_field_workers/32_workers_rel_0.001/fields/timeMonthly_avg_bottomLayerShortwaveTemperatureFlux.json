@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_bottomLayerShortwaveTemperatureFlux",
+  "worker_id": 1,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.387296558788954,
+  "psnr": 69.03220682104931,
+  "compression_preprocessing_time": 30.209704,
+  "compression_time": 1.661709,
+  "decompression_preprocessing_time": 30.427557,
+  "decompression_time": 1.03862,
+  "field_process_wall_time": 84.14928265003255,
+  "max_rss_kib": 3262108,
+  "matches_serial_reference": true,
+  "valid": true
+}

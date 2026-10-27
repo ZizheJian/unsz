@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_tendLayerThickness",
+  "worker_id": 29,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 1.29185152091555,
+  "psnr": 79.27359050152226,
+  "compression_preprocessing_time": 74.64953,
+  "compression_time": 188.13162,
+  "decompression_preprocessing_time": 47.850336,
+  "decompression_time": 139.24366600000002,
+  "field_process_wall_time": 1964.4494544860208,
+  "max_rss_kib": 4312884,
+  "matches_serial_reference": true,
+  "valid": true
+}

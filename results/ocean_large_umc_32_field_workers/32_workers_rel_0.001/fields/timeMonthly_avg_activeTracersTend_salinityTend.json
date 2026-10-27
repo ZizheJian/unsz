@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracersTend_salinityTend",
+  "worker_id": 19,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 1.631120619512757,
+  "psnr": 85.35631417895787,
+  "compression_preprocessing_time": 33.595075,
+  "compression_time": 166.304606,
+  "decompression_preprocessing_time": 33.987939,
+  "decompression_time": 116.79345,
+  "field_process_wall_time": 1296.5503860920435,
+  "max_rss_kib": 4368628,
+  "matches_serial_reference": true,
+  "valid": true
+}

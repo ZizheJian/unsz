@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracerNonLocalTendency_temperatureNonLocalTendency",
+  "worker_id": 10,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 0.705192814771191,
+  "psnr": 87.99481793734208,
+  "compression_preprocessing_time": 35.97024,
+  "compression_time": 490.79241099999996,
+  "decompression_preprocessing_time": 35.436011,
+  "decompression_time": 423.461923,
+  "field_process_wall_time": 1995.5700961549996,
+  "max_rss_kib": 3978072,
+  "matches_serial_reference": true,
+  "valid": true
+}

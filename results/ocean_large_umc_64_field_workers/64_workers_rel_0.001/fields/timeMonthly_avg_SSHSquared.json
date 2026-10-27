@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_SSHSquared",
+  "worker_id": 37,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.60343087680821,
+  "psnr": 64.81992894063252,
+  "compression_preprocessing_time": 33.226446,
+  "compression_time": 1.729575,
+  "decompression_preprocessing_time": 33.037453,
+  "decompression_time": 1.089683,
+  "field_process_wall_time": 90.75870357099984,
+  "max_rss_kib": 3258808,
+  "matches_serial_reference": true,
+  "valid": true
+}

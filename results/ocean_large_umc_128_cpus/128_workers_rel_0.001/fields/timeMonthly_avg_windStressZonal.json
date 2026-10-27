@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_windStressZonal",
+  "worker_id": 94,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.196275342011386,
+  "psnr": 69.12160916110814,
+  "compression_preprocessing_time": 55.318666,
+  "compression_time": 1.870685,
+  "decompression_preprocessing_time": 49.653426,
+  "decompression_time": 1.265435,
+  "field_process_wall_time": 144.74773299798835,
+  "max_rss_kib": 3256136,
+  "matches_serial_reference": true,
+  "valid": true
+}

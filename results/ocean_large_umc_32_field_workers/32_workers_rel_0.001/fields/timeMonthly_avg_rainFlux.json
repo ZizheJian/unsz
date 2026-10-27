@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_rainFlux",
+  "worker_id": 25,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.041186316385634,
+  "psnr": 68.78658725915435,
+  "compression_preprocessing_time": 30.174112,
+  "compression_time": 1.816659,
+  "decompression_preprocessing_time": 30.284317,
+  "decompression_time": 1.116638,
+  "field_process_wall_time": 82.78376982698683,
+  "max_rss_kib": 3258328,
+  "matches_serial_reference": true,
+  "valid": true
+}

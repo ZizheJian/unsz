@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracersTend_temperatureTend",
+  "worker_id": 20,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 1.615489274279255,
+  "psnr": 83.096324532565,
+  "compression_preprocessing_time": 36.340927,
+  "compression_time": 186.211953,
+  "decompression_preprocessing_time": 38.574776,
+  "decompression_time": 134.64258,
+  "field_process_wall_time": 1492.9035509699997,
+  "max_rss_kib": 3822640,
+  "matches_serial_reference": true,
+  "valid": true
+}

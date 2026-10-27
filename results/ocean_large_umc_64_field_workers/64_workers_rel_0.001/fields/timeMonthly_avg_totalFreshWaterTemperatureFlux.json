@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_totalFreshWaterTemperatureFlux",
+  "worker_id": 38,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.569144943330919,
+  "psnr": 68.10177738237886,
+  "compression_preprocessing_time": 33.367082,
+  "compression_time": 1.846741,
+  "decompression_preprocessing_time": 33.750216,
+  "decompression_time": 1.243584,
+  "field_process_wall_time": 91.4407531730003,
+  "max_rss_kib": 3263236,
+  "matches_serial_reference": true,
+  "valid": true
+}

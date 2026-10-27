@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracersSurfaceFlux_temperatureSurfaceFlux",
+  "worker_id": 57,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 2.217241751224652,
+  "psnr": 68.08642447539319,
+  "compression_preprocessing_time": 49.539725,
+  "compression_time": 2.134754,
+  "decompression_preprocessing_time": 49.575003,
+  "decompression_time": 1.476029,
+  "field_process_wall_time": 138.9136558569735,
+  "max_rss_kib": 3256324,
+  "matches_serial_reference": true,
+  "valid": true
+}

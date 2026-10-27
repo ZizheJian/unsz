@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_bruntVaisalaFreqML",
+  "worker_id": 64,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.000505610498503,
+  "psnr": 134.52129043056203,
+  "compression_preprocessing_time": 55.342865,
+  "compression_time": 1.737151,
+  "decompression_preprocessing_time": 50.227214,
+  "decompression_time": 1.151384,
+  "field_process_wall_time": 147.14359996904386,
+  "max_rss_kib": 3256384,
+  "matches_serial_reference": true,
+  "valid": true
+}

@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracerHorMixTendency_temperatureHorMixTendency",
+  "worker_id": 6,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 0.200410580635262,
+  "psnr": null,
+  "compression_preprocessing_time": 39.37707,
+  "compression_time": 987.771252,
+  "decompression_preprocessing_time": 31.127202,
+  "decompression_time": 919.382166,
+  "field_process_wall_time": 3117.0027627280006,
+  "max_rss_kib": 3963676,
+  "matches_serial_reference": true,
+  "valid": true
+}

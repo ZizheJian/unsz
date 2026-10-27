@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_riverRunoffFlux",
+  "worker_id": 81,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.009488364956553,
+  "psnr": 69.09516451336512,
+  "compression_preprocessing_time": 49.630634,
+  "compression_time": 1.840052,
+  "decompression_preprocessing_time": 48.974346,
+  "decompression_time": 1.334835,
+  "field_process_wall_time": 139.8065446750261,
+  "max_rss_kib": 3256300,
+  "matches_serial_reference": true,
+  "valid": true
+}

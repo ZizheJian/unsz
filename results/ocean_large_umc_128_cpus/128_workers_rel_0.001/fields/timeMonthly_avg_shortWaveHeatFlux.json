@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_shortWaveHeatFlux",
+  "worker_id": 87,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.194157048830403,
+  "psnr": 67.2864395151337,
+  "compression_preprocessing_time": 50.24534,
+  "compression_time": 2.093478,
+  "decompression_preprocessing_time": 50.10471,
+  "decompression_time": 1.36412,
+  "field_process_wall_time": 144.5780177550041,
+  "max_rss_kib": 3255996,
+  "matches_serial_reference": true,
+  "valid": true
+}

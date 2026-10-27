@@ -1,0 +1,23 @@
+	Command being timed: "taskset --cpu-list 42 /home/x-zjian1/unsz/unsz_env/bin/python -u /home/x-zjian1/unsz/t1_start_c_code.py /home/x-zjian1/unsz/results/ocean_large_umc_64_field_workers/64_workers_rel_0.001/configs/worker_21_timeMonthly_avg_activeTracers_salinity.json --skip-build"
+	User time (seconds): 953.73
+	System time (seconds): 25.35
+	Percent of CPU this job got: 66%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 24:34.52
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3519576
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 176150
+	Minor (reclaiming a frame) page faults: 2943415
+	Voluntary context switches: 230187
+	Involuntary context switches: 14156
+	Swaps: 0
+	File system inputs: 2257576
+	File system outputs: 2640
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

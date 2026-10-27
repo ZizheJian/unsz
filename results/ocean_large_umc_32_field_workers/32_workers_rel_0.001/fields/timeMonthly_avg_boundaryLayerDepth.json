@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_boundaryLayerDepth",
+  "worker_id": 2,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.646045393930779,
+  "psnr": 69.84148212086524,
+  "compression_preprocessing_time": 32.533736,
+  "compression_time": 1.835075,
+  "decompression_preprocessing_time": 31.860835,
+  "decompression_time": 1.231603,
+  "field_process_wall_time": 88.1018974329927,
+  "max_rss_kib": 3257620,
+  "matches_serial_reference": true,
+  "valid": true
+}

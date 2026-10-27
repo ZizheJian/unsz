@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_salinitySurfaceRestoringTendency",
+  "worker_id": 82,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.690354726108844,
+  "psnr": 67.29685104490629,
+  "compression_preprocessing_time": 51.394653,
+  "compression_time": 2.073089,
+  "decompression_preprocessing_time": 50.150512,
+  "decompression_time": 1.241729,
+  "field_process_wall_time": 145.79409816599218,
+  "max_rss_kib": 3256312,
+  "matches_serial_reference": true,
+  "valid": true
+}

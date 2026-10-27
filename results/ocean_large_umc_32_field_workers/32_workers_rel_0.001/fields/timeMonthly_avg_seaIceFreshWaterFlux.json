@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_seaIceFreshWaterFlux",
+  "worker_id": 28,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.575336189915318,
+  "psnr": 68.6653776308726,
+  "compression_preprocessing_time": 32.670193,
+  "compression_time": 1.7097,
+  "decompression_preprocessing_time": 33.104751,
+  "decompression_time": 1.095829,
+  "field_process_wall_time": 89.67249452200485,
+  "max_rss_kib": 3261600,
+  "matches_serial_reference": true,
+  "valid": true
+}

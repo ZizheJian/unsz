@@ -1,0 +1,325 @@
+{
+  "rel_eb": 0.001,
+  "field_worker_num": 64,
+  "thread_num": 2,
+  "partition_num": 2,
+  "slurm_cpus": 128,
+  "slurm_job_id": "21660220",
+  "slurm_nodelist": "a110",
+  "hostname": "a110.anvil.rcac.purdue.edu",
+  "field_num": 95,
+  "slice_num": 36264,
+  "point_num": 3693225,
+  "assignment_basis": "descending slice count,assigned to the least-loaded worker",
+  "worker_slice_loads": [
+    972,
+    972,
+    972,
+    972,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    960,
+    36,
+    36,
+    36,
+    36,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24,
+    24
+  ],
+  "worker_fields": [
+    [
+      "timeMonthly_avg_vertDiffTopOfCell"
+    ],
+    [
+      "timeMonthly_avg_vertNonLocalFlux_vertNonLocalFluxTemp"
+    ],
+    [
+      "timeMonthly_avg_vertVelocityTop"
+    ],
+    [
+      "timeMonthly_avg_vertViscTopOfCell"
+    ],
+    [
+      "timeMonthly_avg_BruntVaisalaFreqTop"
+    ],
+    [
+      "timeMonthly_avg_activeTracerHorMixTendency_salinityHorMixTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerHorMixTendency_temperatureHorMixTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerHorizontalAdvectionTendency_salinityHorizontalAdvectionTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerHorizontalAdvectionTendency_temperatureHorizontalAdvectionTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerNonLocalTendency_salinityNonLocalTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerNonLocalTendency_temperatureNonLocalTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerSurfaceFluxTendency_salinitySurfaceFluxTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerSurfaceFluxTendency_temperatureSurfaceFluxTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerVertMixTendency_salinityVertMixTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerVertMixTendency_temperatureVertMixTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerVerticalAdvectionTendency_salinityVerticalAdvectionTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerVerticalAdvectionTendency_temperatureVerticalAdvectionTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracerVerticalAdvectionTopFlux_salinityVerticalAdvectionTopFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracerVerticalAdvectionTopFlux_temperatureVerticalAdvectionTopFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracersTend_salinityTend"
+    ],
+    [
+      "timeMonthly_avg_activeTracersTend_temperatureTend"
+    ],
+    [
+      "timeMonthly_avg_activeTracers_salinity"
+    ],
+    [
+      "timeMonthly_avg_activeTracers_temperature"
+    ],
+    [
+      "timeMonthly_avg_bulkRichardsonNumber"
+    ],
+    [
+      "timeMonthly_avg_density"
+    ],
+    [
+      "timeMonthly_avg_frazilLayerThicknessTendency"
+    ],
+    [
+      "timeMonthly_avg_layerThickness"
+    ],
+    [
+      "timeMonthly_avg_potentialDensity"
+    ],
+    [
+      "timeMonthly_avg_temperatureShortWaveTendency"
+    ],
+    [
+      "timeMonthly_avg_tendLayerThickness"
+    ],
+    [
+      "timeMonthly_avg_velocityMeridional"
+    ],
+    [
+      "timeMonthly_avg_velocityMeridionalSquared"
+    ],
+    [
+      "timeMonthly_avg_velocityMeridionalTimesTemperature"
+    ],
+    [
+      "timeMonthly_avg_velocityZonal"
+    ],
+    [
+      "timeMonthly_avg_velocityZonalSquared"
+    ],
+    [
+      "timeMonthly_avg_velocityZonalTimesTemperature"
+    ],
+    [
+      "timeMonthly_avg_zMid"
+    ],
+    [
+      "timeMonthly_avg_SSHSquared",
+      "timeMonthly_avg_bruntVaisalaFreqML",
+      "timeMonthly_avg_tThreshMLD"
+    ],
+    [
+      "timeMonthly_avg_activeTracerForcingMLTend_salinityForcingMLTend",
+      "timeMonthly_avg_columnIntegratedSpeed",
+      "timeMonthly_avg_totalFreshWaterTemperatureFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracerForcingMLTend_temperatureForcingMLTend",
+      "timeMonthly_avg_dThreshMLD",
+      "timeMonthly_avg_windStressMeridional"
+    ],
+    [
+      "timeMonthly_avg_activeTracerHorAdvectionMLTend_salinityHorAdvectionMLTend",
+      "timeMonthly_avg_evaporationFlux",
+      "timeMonthly_avg_windStressZonal"
+    ],
+    [
+      "timeMonthly_avg_activeTracerHorAdvectionMLTend_temperatureHorAdvectionMLTend",
+      "timeMonthly_avg_iceRunoffFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracerHorMixMLTend_salinityHorMixMLTend",
+      "timeMonthly_avg_latentHeatFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracerHorMixMLTend_temperatureHorMixMLTend",
+      "timeMonthly_avg_longWaveHeatFluxDown"
+    ],
+    [
+      "timeMonthly_avg_activeTracerNonLocalMLTend_salinityNonLocalMLTend",
+      "timeMonthly_avg_longWaveHeatFluxUp"
+    ],
+    [
+      "timeMonthly_avg_activeTracerNonLocalMLTend_temperatureNonLocalMLTend",
+      "timeMonthly_avg_nonLocalSurfaceTracerFlux_nonLocalSalinitySurfaceFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracerVertAdvectionMLTend_salinityVertAdvectionMLTend",
+      "timeMonthly_avg_nonLocalSurfaceTracerFlux_nonLocalTemperatureSurfaceFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracerVertAdvectionMLTend_temperatureVertAdvectionMLTend",
+      "timeMonthly_avg_oceanHeatContent2000mToBot"
+    ],
+    [
+      "timeMonthly_avg_activeTracerVertMixMLTend_salinityVertMixMLTend",
+      "timeMonthly_avg_oceanHeatContent700mTo2000m"
+    ],
+    [
+      "timeMonthly_avg_activeTracerVertMixMLTend_temperatureVertMixMLTend",
+      "timeMonthly_avg_oceanHeatContentSfcTo700m"
+    ],
+    [
+      "timeMonthly_avg_activeTracersML_salinityML",
+      "timeMonthly_avg_oceanHeatContentSfcToBot"
+    ],
+    [
+      "timeMonthly_avg_activeTracersML_temperatureML",
+      "timeMonthly_avg_penetrativeTemperatureFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracersSurfaceFluxRemoved_salinitySurfaceFluxRemoved",
+      "timeMonthly_avg_pressureAdjustedSSH"
+    ],
+    [
+      "timeMonthly_avg_activeTracersSurfaceFluxRemoved_temperatureSurfaceFluxRemoved",
+      "timeMonthly_avg_rainFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracersSurfaceFluxRunoff_salinitySurfaceFluxRunoff",
+      "timeMonthly_avg_riverRunoffFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracersSurfaceFluxRunoff_temperatureSurfaceFluxRunoff",
+      "timeMonthly_avg_salinitySurfaceRestoringTendency"
+    ],
+    [
+      "timeMonthly_avg_activeTracersSurfaceFlux_salinitySurfaceFlux",
+      "timeMonthly_avg_seaIceFreshWaterFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracersSurfaceFlux_temperatureSurfaceFlux",
+      "timeMonthly_avg_seaIceHeatFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracersTendML_salinityTendML",
+      "timeMonthly_avg_seaIceSalinityFlux"
+    ],
+    [
+      "timeMonthly_avg_activeTracersTendML_temperatureTendML",
+      "timeMonthly_avg_sensibleHeatFlux"
+    ],
+    [
+      "timeMonthly_avg_atmosphericPressure",
+      "timeMonthly_avg_shortWaveHeatFlux"
+    ],
+    [
+      "timeMonthly_avg_bottomLayerShortwaveTemperatureFlux",
+      "timeMonthly_avg_snowFlux"
+    ],
+    [
+      "timeMonthly_avg_boundaryLayerDepth",
+      "timeMonthly_avg_ssh"
+    ],
+    [
+      "timeMonthly_avg_boundaryLayerDepthSmooth",
+      "timeMonthly_avg_surfaceBuoyancyForcing"
+    ]
+  ],
+  "metadata_path": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data/tensor_metadata.json",
+  "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
+  "point_set_config_sha256": "3b24414c33e54536c8f7eea6d55735c945b43a1fecda0460c73282a6cec8adfa",
+  "binary_sha256": {
+    "s1_compress": "b82f42e9374c49e1b764fc0825d62203024e9560bb9bc23341fa1a2cbce84d48",
+    "s1_decompress": "29f50e81c662b2b63972170f0989e374e926c1215b73260359e1483add797dfb"
+  },
+  "git_revision": "2fac1da83701f5f33776ccc26d63bd339abe0dfe",
+  "source_sha256": {
+    "benchmarks/two_level/run.py": "e446280d9dccc4fce4ba26056deb993f9a1a9a43544500861ed84251e5e8fba7",
+    "benchmarks/two_level/run_64x2.slurm": "7781225bf7ae9862f999073c5480d8537a868a99d800e69a651448690d2dc97d",
+    "c_codes/compress_cli.cpp": "9e0fb2457629fd2f60572b4f843d766870977a41080dbbb0d97ba05575d780f6",
+    "c_codes/s1_decompress.cpp": "d522731817a34577ab550beee47d3f91e71a4ef4ed6ae3b398d4e25f51fb4c9a",
+    "c_codes/unsz_core/spatial_prediction_state.tpp": "cff2d727235ceefa2c317b9bf43f96a44a33f8c327116f6cd693b6c4910fd24f",
+    "c_codes/unsz_core/unsz.hpp": "8878d9039725fd730795d7cb2fba15acaf6f273b8c50913f5c1fcaf9e3481278"
+  },
+  "commands": {
+    "compression": "/home/x-zjian1/unsz/install/bin/s1_compress -point-set-config /home/x-zjian1/unsz/point_set_configs/Ocean_large_monthly_rbf_rel_1e-3.json -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data -output-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/two_level_outputs/job_21660220 -field-list '{timeMonthly_avg_vertDiffTopOfCell,timeMonthly_avg_vertNonLocalFlux_vertNonLocalFluxTemp,timeMonthly_avg_vertVelocityTop,timeMonthly_avg_vertViscTopOfCell,timeMonthly_avg_BruntVaisalaFreqTop,timeMonthly_avg_activeTracerHorMixTendency_salinityHorMixTendency,timeMonthly_avg_activeTracerHorMixTendency_temperatureHorMixTendency,timeMonthly_avg_activeTracerHorizontalAdvectionTendency_salinityHorizontalAdvectionTendency,timeMonthly_avg_activeTracerHorizontalAdvectionTendency_temperatureHorizontalAdvectionTendency,timeMonthly_avg_activeTracerNonLocalTendency_salinityNonLocalTendency,timeMonthly_avg_activeTracerNonLocalTendency_temperatureNonLocalTendency,timeMonthly_avg_activeTracerSurfaceFluxTendency_salinitySurfaceFluxTendency,timeMonthly_avg_activeTracerSurfaceFluxTendency_temperatureSurfaceFluxTendency,timeMonthly_avg_activeTracerVertMixTendency_salinityVertMixTendency,timeMonthly_avg_activeTracerVertMixTendency_temperatureVertMixTendency,timeMonthly_avg_activeTracerVerticalAdvectionTendency_salinityVerticalAdvectionTendency,timeMonthly_avg_activeTracerVerticalAdvectionTendency_temperatureVerticalAdvectionTendency,timeMonthly_avg_activeTracerVerticalAdvectionTopFlux_salinityVerticalAdvectionTopFlux,timeMonthly_avg_activeTracerVerticalAdvectionTopFlux_temperatureVerticalAdvectionTopFlux,timeMonthly_avg_activeTracersTend_salinityTend,timeMonthly_avg_activeTracersTend_temperatureTend,timeMonthly_avg_activeTracers_salinity,timeMonthly_avg_activeTracers_temperature,timeMonthly_avg_bulkRichardsonNumber,timeMonthly_avg_density,timeMonthly_avg_frazilLayerThicknessTendency,timeMonthly_avg_layerThickness,timeMonthly_avg_potentialDensity,timeMonthly_avg_temperatureShortWaveTendency,timeMonthly_avg_tendLayerThickness,timeMonthly_avg_velocityMeridional,timeMonthly_avg_velocityMeridionalSquared,timeMonthly_avg_velocityMeridionalTimesTemperature,timeMonthly_avg_velocityZonal,timeMonthly_avg_velocityZonalSquared,timeMonthly_avg_velocityZonalTimesTemperature,timeMonthly_avg_zMid,timeMonthly_avg_SSHSquared,timeMonthly_avg_bruntVaisalaFreqML,timeMonthly_avg_tThreshMLD,timeMonthly_avg_activeTracerForcingMLTend_salinityForcingMLTend,timeMonthly_avg_columnIntegratedSpeed,timeMonthly_avg_totalFreshWaterTemperatureFlux,timeMonthly_avg_activeTracerForcingMLTend_temperatureForcingMLTend,timeMonthly_avg_dThreshMLD,timeMonthly_avg_windStressMeridional,timeMonthly_avg_activeTracerHorAdvectionMLTend_salinityHorAdvectionMLTend,timeMonthly_avg_evaporationFlux,timeMonthly_avg_windStressZonal,timeMonthly_avg_activeTracerHorAdvectionMLTend_temperatureHorAdvectionMLTend,timeMonthly_avg_iceRunoffFlux,timeMonthly_avg_activeTracerHorMixMLTend_salinityHorMixMLTend,timeMonthly_avg_latentHeatFlux,timeMonthly_avg_activeTracerHorMixMLTend_temperatureHorMixMLTend,timeMonthly_avg_longWaveHeatFluxDown,timeMonthly_avg_activeTracerNonLocalMLTend_salinityNonLocalMLTend,timeMonthly_avg_longWaveHeatFluxUp,timeMonthly_avg_activeTracerNonLocalMLTend_temperatureNonLocalMLTend,timeMonthly_avg_nonLocalSurfaceTracerFlux_nonLocalSalinitySurfaceFlux,timeMonthly_avg_activeTracerVertAdvectionMLTend_salinityVertAdvectionMLTend,timeMonthly_avg_nonLocalSurfaceTracerFlux_nonLocalTemperatureSurfaceFlux,timeMonthly_avg_activeTracerVertAdvectionMLTend_temperatureVertAdvectionMLTend,timeMonthly_avg_oceanHeatContent2000mToBot,timeMonthly_avg_activeTracerVertMixMLTend_salinityVertMixMLTend,timeMonthly_avg_oceanHeatContent700mTo2000m,timeMonthly_avg_activeTracerVertMixMLTend_temperatureVertMixMLTend,timeMonthly_avg_oceanHeatContentSfcTo700m,timeMonthly_avg_activeTracersML_salinityML,timeMonthly_avg_oceanHeatContentSfcToBot,timeMonthly_avg_activeTracersML_temperatureML,timeMonthly_avg_penetrativeTemperatureFlux,timeMonthly_avg_activeTracersSurfaceFluxRemoved_salinitySurfaceFluxRemoved,timeMonthly_avg_pressureAdjustedSSH,timeMonthly_avg_activeTracersSurfaceFluxRemoved_temperatureSurfaceFluxRemoved,timeMonthly_avg_rainFlux,timeMonthly_avg_activeTracersSurfaceFluxRunoff_salinitySurfaceFluxRunoff,timeMonthly_avg_riverRunoffFlux,timeMonthly_avg_activeTracersSurfaceFluxRunoff_temperatureSurfaceFluxRunoff,timeMonthly_avg_salinitySurfaceRestoringTendency,timeMonthly_avg_activeTracersSurfaceFlux_salinitySurfaceFlux,timeMonthly_avg_seaIceFreshWaterFlux,timeMonthly_avg_activeTracersSurfaceFlux_temperatureSurfaceFlux,timeMonthly_avg_seaIceHeatFlux,timeMonthly_avg_activeTracersTendML_salinityTendML,timeMonthly_avg_seaIceSalinityFlux,timeMonthly_avg_activeTracersTendML_temperatureTendML,timeMonthly_avg_sensibleHeatFlux,timeMonthly_avg_atmosphericPressure,timeMonthly_avg_shortWaveHeatFlux,timeMonthly_avg_bottomLayerShortwaveTemperatureFlux,timeMonthly_avg_snowFlux,timeMonthly_avg_boundaryLayerDepth,timeMonthly_avg_ssh,timeMonthly_avg_boundaryLayerDepthSmooth,timeMonthly_avg_surfaceBuoyancyForcing}' -field-worker-num 64 -field-worker-map '{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,37,37,38,38,38,39,39,39,40,40,40,41,41,42,42,43,43,44,44,45,45,46,46,47,47,48,48,49,49,50,50,51,51,52,52,53,53,54,54,55,55,56,56,57,57,58,58,59,59,60,60,61,61,62,62,63,63}' -tensor-metadata /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data/tensor_metadata.json -coordinate-dim 3 -coordinate-transform auto -partition-num 2 -thread-num 2",
+    "decompression": "/home/x-zjian1/unsz/install/bin/s1_decompress -point-set-config /home/x-zjian1/unsz/point_set_configs/Ocean_large_monthly_rbf_rel_1e-3.json -data-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data -output-dir /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/two_level_outputs/job_21660220 -field-list '{timeMonthly_avg_vertDiffTopOfCell,timeMonthly_avg_vertNonLocalFlux_vertNonLocalFluxTemp,timeMonthly_avg_vertVelocityTop,timeMonthly_avg_vertViscTopOfCell,timeMonthly_avg_BruntVaisalaFreqTop,timeMonthly_avg_activeTracerHorMixTendency_salinityHorMixTendency,timeMonthly_avg_activeTracerHorMixTendency_temperatureHorMixTendency,timeMonthly_avg_activeTracerHorizontalAdvectionTendency_salinityHorizontalAdvectionTendency,timeMonthly_avg_activeTracerHorizontalAdvectionTendency_temperatureHorizontalAdvectionTendency,timeMonthly_avg_activeTracerNonLocalTendency_salinityNonLocalTendency,timeMonthly_avg_activeTracerNonLocalTendency_temperatureNonLocalTendency,timeMonthly_avg_activeTracerSurfaceFluxTendency_salinitySurfaceFluxTendency,timeMonthly_avg_activeTracerSurfaceFluxTendency_temperatureSurfaceFluxTendency,timeMonthly_avg_activeTracerVertMixTendency_salinityVertMixTendency,timeMonthly_avg_activeTracerVertMixTendency_temperatureVertMixTendency,timeMonthly_avg_activeTracerVerticalAdvectionTendency_salinityVerticalAdvectionTendency,timeMonthly_avg_activeTracerVerticalAdvectionTendency_temperatureVerticalAdvectionTendency,timeMonthly_avg_activeTracerVerticalAdvectionTopFlux_salinityVerticalAdvectionTopFlux,timeMonthly_avg_activeTracerVerticalAdvectionTopFlux_temperatureVerticalAdvectionTopFlux,timeMonthly_avg_activeTracersTend_salinityTend,timeMonthly_avg_activeTracersTend_temperatureTend,timeMonthly_avg_activeTracers_salinity,timeMonthly_avg_activeTracers_temperature,timeMonthly_avg_bulkRichardsonNumber,timeMonthly_avg_density,timeMonthly_avg_frazilLayerThicknessTendency,timeMonthly_avg_layerThickness,timeMonthly_avg_potentialDensity,timeMonthly_avg_temperatureShortWaveTendency,timeMonthly_avg_tendLayerThickness,timeMonthly_avg_velocityMeridional,timeMonthly_avg_velocityMeridionalSquared,timeMonthly_avg_velocityMeridionalTimesTemperature,timeMonthly_avg_velocityZonal,timeMonthly_avg_velocityZonalSquared,timeMonthly_avg_velocityZonalTimesTemperature,timeMonthly_avg_zMid,timeMonthly_avg_SSHSquared,timeMonthly_avg_bruntVaisalaFreqML,timeMonthly_avg_tThreshMLD,timeMonthly_avg_activeTracerForcingMLTend_salinityForcingMLTend,timeMonthly_avg_columnIntegratedSpeed,timeMonthly_avg_totalFreshWaterTemperatureFlux,timeMonthly_avg_activeTracerForcingMLTend_temperatureForcingMLTend,timeMonthly_avg_dThreshMLD,timeMonthly_avg_windStressMeridional,timeMonthly_avg_activeTracerHorAdvectionMLTend_salinityHorAdvectionMLTend,timeMonthly_avg_evaporationFlux,timeMonthly_avg_windStressZonal,timeMonthly_avg_activeTracerHorAdvectionMLTend_temperatureHorAdvectionMLTend,timeMonthly_avg_iceRunoffFlux,timeMonthly_avg_activeTracerHorMixMLTend_salinityHorMixMLTend,timeMonthly_avg_latentHeatFlux,timeMonthly_avg_activeTracerHorMixMLTend_temperatureHorMixMLTend,timeMonthly_avg_longWaveHeatFluxDown,timeMonthly_avg_activeTracerNonLocalMLTend_salinityNonLocalMLTend,timeMonthly_avg_longWaveHeatFluxUp,timeMonthly_avg_activeTracerNonLocalMLTend_temperatureNonLocalMLTend,timeMonthly_avg_nonLocalSurfaceTracerFlux_nonLocalSalinitySurfaceFlux,timeMonthly_avg_activeTracerVertAdvectionMLTend_salinityVertAdvectionMLTend,timeMonthly_avg_nonLocalSurfaceTracerFlux_nonLocalTemperatureSurfaceFlux,timeMonthly_avg_activeTracerVertAdvectionMLTend_temperatureVertAdvectionMLTend,timeMonthly_avg_oceanHeatContent2000mToBot,timeMonthly_avg_activeTracerVertMixMLTend_salinityVertMixMLTend,timeMonthly_avg_oceanHeatContent700mTo2000m,timeMonthly_avg_activeTracerVertMixMLTend_temperatureVertMixMLTend,timeMonthly_avg_oceanHeatContentSfcTo700m,timeMonthly_avg_activeTracersML_salinityML,timeMonthly_avg_oceanHeatContentSfcToBot,timeMonthly_avg_activeTracersML_temperatureML,timeMonthly_avg_penetrativeTemperatureFlux,timeMonthly_avg_activeTracersSurfaceFluxRemoved_salinitySurfaceFluxRemoved,timeMonthly_avg_pressureAdjustedSSH,timeMonthly_avg_activeTracersSurfaceFluxRemoved_temperatureSurfaceFluxRemoved,timeMonthly_avg_rainFlux,timeMonthly_avg_activeTracersSurfaceFluxRunoff_salinitySurfaceFluxRunoff,timeMonthly_avg_riverRunoffFlux,timeMonthly_avg_activeTracersSurfaceFluxRunoff_temperatureSurfaceFluxRunoff,timeMonthly_avg_salinitySurfaceRestoringTendency,timeMonthly_avg_activeTracersSurfaceFlux_salinitySurfaceFlux,timeMonthly_avg_seaIceFreshWaterFlux,timeMonthly_avg_activeTracersSurfaceFlux_temperatureSurfaceFlux,timeMonthly_avg_seaIceHeatFlux,timeMonthly_avg_activeTracersTendML_salinityTendML,timeMonthly_avg_seaIceSalinityFlux,timeMonthly_avg_activeTracersTendML_temperatureTendML,timeMonthly_avg_sensibleHeatFlux,timeMonthly_avg_atmosphericPressure,timeMonthly_avg_shortWaveHeatFlux,timeMonthly_avg_bottomLayerShortwaveTemperatureFlux,timeMonthly_avg_snowFlux,timeMonthly_avg_boundaryLayerDepth,timeMonthly_avg_ssh,timeMonthly_avg_boundaryLayerDepthSmooth,timeMonthly_avg_surfaceBuoyancyForcing}' -field-worker-num 64 -field-worker-map '{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,37,37,38,38,38,39,39,39,40,40,40,41,41,42,42,43,43,44,44,45,45,46,46,47,47,48,48,49,49,50,50,51,51,52,52,53,53,54,54,55,55,56,56,57,57,58,58,59,59,60,60,61,61,62,62,63,63}' -tensor-metadata /anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data/tensor_metadata.json -coordinate-dim 3 -coordinate-transform auto -partition-num 2 -thread-num 2 -skip-decompressed-output"
+  }
+}

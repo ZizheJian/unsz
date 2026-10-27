@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_oceanHeatContent700mTo2000m",
+  "worker_id": 20,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.144859934971017,
+  "psnr": 64.36175226820926,
+  "compression_preprocessing_time": 33.066086,
+  "compression_time": 1.768409,
+  "decompression_preprocessing_time": 30.961232,
+  "decompression_time": 1.126849,
+  "field_process_wall_time": 87.20791483699577,
+  "max_rss_kib": 3261980,
+  "matches_serial_reference": true,
+  "valid": true
+}

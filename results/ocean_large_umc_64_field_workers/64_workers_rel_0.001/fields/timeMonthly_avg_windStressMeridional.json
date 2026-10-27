@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_windStressMeridional",
+  "worker_id": 39,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.179046858323913,
+  "psnr": 69.52244946564021,
+  "compression_preprocessing_time": 33.985616,
+  "compression_time": 1.795406,
+  "decompression_preprocessing_time": 33.580242,
+  "decompression_time": 1.212041,
+  "field_process_wall_time": 91.54192990899992,
+  "max_rss_kib": 3259816,
+  "matches_serial_reference": true,
+  "valid": true
+}

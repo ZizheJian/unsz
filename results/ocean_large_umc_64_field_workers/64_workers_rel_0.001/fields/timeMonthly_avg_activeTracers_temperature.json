@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracers_temperature",
+  "worker_id": 22,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 1.573385094779405,
+  "psnr": 69.82347469825056,
+  "compression_preprocessing_time": 39.601207,
+  "compression_time": 185.343838,
+  "decompression_preprocessing_time": 42.075763,
+  "decompression_time": 134.882983,
+  "field_process_wall_time": 1506.5670631459998,
+  "max_rss_kib": 3774600,
+  "matches_serial_reference": true,
+  "valid": true
+}

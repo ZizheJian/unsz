@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracerHorAdvectionMLTend_salinityHorAdvectionMLTend",
+  "worker_id": 40,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.801524954477455,
+  "psnr": 71.06776323268114,
+  "compression_preprocessing_time": 39.407742,
+  "compression_time": 1.983791,
+  "decompression_preprocessing_time": 38.720993,
+  "decompression_time": 1.27284,
+  "field_process_wall_time": 106.59015216300031,
+  "max_rss_kib": 3259616,
+  "matches_serial_reference": true,
+  "valid": true
+}

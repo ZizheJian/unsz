@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_oceanHeatContentSfcToBot",
+  "worker_id": 77,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 2.959522007640116,
+  "psnr": 64.86135887944397,
+  "compression_preprocessing_time": 48.678883,
+  "compression_time": 2.24007,
+  "decompression_preprocessing_time": 51.907277,
+  "decompression_time": 1.583751,
+  "field_process_wall_time": 145.07604956801515,
+  "max_rss_kib": 3256464,
+  "matches_serial_reference": true,
+  "valid": true
+}

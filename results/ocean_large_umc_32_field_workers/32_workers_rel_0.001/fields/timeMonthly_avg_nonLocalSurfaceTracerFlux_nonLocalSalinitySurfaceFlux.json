@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_nonLocalSurfaceTracerFlux_nonLocalSalinitySurfaceFlux",
+  "worker_id": 17,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.95406895960396,
+  "psnr": 69.09344615099316,
+  "compression_preprocessing_time": 33.523547,
+  "compression_time": 1.792274,
+  "decompression_preprocessing_time": 34.129231,
+  "decompression_time": 1.127173,
+  "field_process_wall_time": 91.66827621497214,
+  "max_rss_kib": 3260784,
+  "matches_serial_reference": true,
+  "valid": true
+}

@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracerVertMixMLTend_salinityVertMixMLTend",
+  "worker_id": 48,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.152611155110597,
+  "psnr": 71.99538294644894,
+  "compression_preprocessing_time": 50.006206,
+  "compression_time": 1.934668,
+  "decompression_preprocessing_time": 51.829388,
+  "decompression_time": 1.314383,
+  "field_process_wall_time": 144.55304768495262,
+  "max_rss_kib": 3256536,
+  "matches_serial_reference": true,
+  "valid": true
+}

@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_temperatureShortWaveTendency",
+  "worker_id": 28,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 0.620375502891556,
+  "psnr": 81.91523906229854,
+  "compression_preprocessing_time": 51.832972,
+  "compression_time": 176.74337200000002,
+  "decompression_preprocessing_time": 51.297212,
+  "decompression_time": 129.145891,
+  "field_process_wall_time": 1931.6004817690118,
+  "max_rss_kib": 4082784,
+  "matches_serial_reference": true,
+  "valid": true
+}

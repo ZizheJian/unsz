@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_longWaveHeatFluxUp",
+  "worker_id": 16,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.385044236405851,
+  "psnr": 64.8391773076736,
+  "compression_preprocessing_time": 32.052814,
+  "compression_time": 1.840871,
+  "decompression_preprocessing_time": 32.75854,
+  "decompression_time": 1.176548,
+  "field_process_wall_time": 88.98735944699729,
+  "max_rss_kib": 3260912,
+  "matches_serial_reference": true,
+  "valid": true
+}

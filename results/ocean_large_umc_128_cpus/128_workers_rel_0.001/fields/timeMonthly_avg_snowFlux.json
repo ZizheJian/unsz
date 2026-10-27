@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_snowFlux",
+  "worker_id": 88,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.677139176013737,
+  "psnr": 72.44330253084584,
+  "compression_preprocessing_time": 48.66539,
+  "compression_time": 1.861132,
+  "decompression_preprocessing_time": 45.609494,
+  "decompression_time": 1.304764,
+  "field_process_wall_time": 132.5479915549513,
+  "max_rss_kib": 3256196,
+  "matches_serial_reference": true,
+  "valid": true
+}

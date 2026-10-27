@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_vertNonLocalFlux_vertNonLocalFluxTemp",
+  "worker_id": 1,
+  "slice_num": 972,
+  "input_bytes": 14359258800,
+  "rel_eb": 0.001,
+  "br": 1.968188472792203,
+  "psnr": 74.92366848289262,
+  "compression_preprocessing_time": 32.607581,
+  "compression_time": 489.097159,
+  "decompression_preprocessing_time": 32.40137,
+  "decompression_time": 435.797949,
+  "field_process_wall_time": 1916.4819628149853,
+  "max_rss_kib": 4777728,
+  "matches_serial_reference": true,
+  "valid": true
+}

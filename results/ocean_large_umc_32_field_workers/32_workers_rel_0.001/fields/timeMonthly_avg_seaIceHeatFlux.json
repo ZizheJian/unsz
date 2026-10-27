@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_seaIceHeatFlux",
+  "worker_id": 29,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.485779230888993,
+  "psnr": 69.0318224270292,
+  "compression_preprocessing_time": 34.23159,
+  "compression_time": 1.684597,
+  "decompression_preprocessing_time": 33.834442,
+  "decompression_time": 1.075348,
+  "field_process_wall_time": 91.98475347500062,
+  "max_rss_kib": 3260824,
+  "matches_serial_reference": true,
+  "valid": true
+}

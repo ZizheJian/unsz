@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracerVerticalAdvectionTendency_salinityVerticalAdvectionTendency",
+  "worker_id": 15,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 0.909188004160772,
+  "psnr": 80.22250799059401,
+  "compression_preprocessing_time": 47.476335,
+  "compression_time": 185.025044,
+  "decompression_preprocessing_time": 50.123482,
+  "decompression_time": 127.949746,
+  "field_process_wall_time": 1938.0535856969655,
+  "max_rss_kib": 4002716,
+  "matches_serial_reference": true,
+  "valid": true
+}

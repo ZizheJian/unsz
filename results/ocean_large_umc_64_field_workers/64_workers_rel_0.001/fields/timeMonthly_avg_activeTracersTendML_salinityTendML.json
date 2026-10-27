@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracersTendML_salinityTendML",
+  "worker_id": 58,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.280160744787189,
+  "psnr": 72.14586624202875,
+  "compression_preprocessing_time": 39.96012,
+  "compression_time": 1.836677,
+  "decompression_preprocessing_time": 39.862195,
+  "decompression_time": 1.20267,
+  "field_process_wall_time": 107.85491098000011,
+  "max_rss_kib": 3260248,
+  "matches_serial_reference": true,
+  "valid": true
+}

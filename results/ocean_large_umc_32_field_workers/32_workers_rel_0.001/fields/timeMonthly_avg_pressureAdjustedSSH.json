@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_pressureAdjustedSSH",
+  "worker_id": 24,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.244842290049121,
+  "psnr": 65.24060118037734,
+  "compression_preprocessing_time": 31.465929,
+  "compression_time": 1.810357,
+  "decompression_preprocessing_time": 32.026314,
+  "decompression_time": 1.179481,
+  "field_process_wall_time": 87.34882325102808,
+  "max_rss_kib": 3262856,
+  "matches_serial_reference": true,
+  "valid": true
+}

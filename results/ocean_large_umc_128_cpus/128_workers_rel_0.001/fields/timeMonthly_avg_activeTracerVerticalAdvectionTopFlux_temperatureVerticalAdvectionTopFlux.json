@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracerVerticalAdvectionTopFlux_temperatureVerticalAdvectionTopFlux",
+  "worker_id": 18,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 0.999949802227953,
+  "psnr": 75.93114719865576,
+  "compression_preprocessing_time": 86.545793,
+  "compression_time": 194.549386,
+  "decompression_preprocessing_time": 47.674339,
+  "decompression_time": 142.610536,
+  "field_process_wall_time": 1972.3272066490026,
+  "max_rss_kib": 4022748,
+  "matches_serial_reference": true,
+  "valid": true
+}

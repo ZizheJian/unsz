@@ -1,0 +1,23 @@
+	Command being timed: "./unsz_env/bin/python -u benchmarks/two_level/run.py --field-worker-num 8"
+	User time (seconds): 22638.51
+	System time (seconds): 944.87
+	Percent of CPU this job got: 1086%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 36:10.37
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 42921596
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 241
+	Minor (reclaiming a frame) page faults: 24722494
+	Voluntary context switches: 3173542
+	Involuntary context switches: 458566
+	Swaps: 0
+	File system inputs: 49904
+	File system outputs: 3208
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

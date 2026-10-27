@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_frazilLayerThicknessTendency",
+  "worker_id": 25,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 0.248307375893246,
+  "psnr": 86.78007332347578,
+  "compression_preprocessing_time": 36.346171,
+  "compression_time": 816.423897,
+  "decompression_preprocessing_time": 29.859452,
+  "decompression_time": 749.2952290000001,
+  "field_process_wall_time": 2637.2512150509997,
+  "max_rss_kib": 3856028,
+  "matches_serial_reference": true,
+  "valid": true
+}

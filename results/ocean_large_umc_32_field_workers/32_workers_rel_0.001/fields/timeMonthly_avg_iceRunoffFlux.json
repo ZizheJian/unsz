@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_iceRunoffFlux",
+  "worker_id": 13,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.000132133839666,
+  "psnr": null,
+  "compression_preprocessing_time": 33.361295,
+  "compression_time": 1.630645,
+  "decompression_preprocessing_time": 34.058864,
+  "decompression_time": 0.971149,
+  "field_process_wall_time": 91.58294643298723,
+  "max_rss_kib": 3262176,
+  "matches_serial_reference": true,
+  "valid": true
+}

@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_latentHeatFlux",
+  "worker_id": 14,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 2.019854553495477,
+  "psnr": 67.84899305983564,
+  "compression_preprocessing_time": 33.456023,
+  "compression_time": 1.897438,
+  "decompression_preprocessing_time": 33.08573,
+  "decompression_time": 1.271861,
+  "field_process_wall_time": 90.0440823569661,
+  "max_rss_kib": 3261392,
+  "matches_serial_reference": true,
+  "valid": true
+}

@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_velocityMeridionalTimesTemperature",
+  "worker_id": 4,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 1.708431303264762,
+  "psnr": 73.09127118865452,
+  "compression_preprocessing_time": 30.351402,
+  "compression_time": 160.614037,
+  "decompression_preprocessing_time": 30.471282,
+  "decompression_time": 107.984985,
+  "field_process_wall_time": 1210.613216874015,
+  "max_rss_kib": 4327488,
+  "matches_serial_reference": true,
+  "valid": true
+}

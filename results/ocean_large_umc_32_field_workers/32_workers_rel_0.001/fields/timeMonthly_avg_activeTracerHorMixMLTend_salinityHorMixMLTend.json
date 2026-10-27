@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracerHorMixMLTend_salinityHorMixMLTend",
+  "worker_id": 14,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.000132133839666,
+  "psnr": null,
+  "compression_preprocessing_time": 33.151894,
+  "compression_time": 1.681451,
+  "decompression_preprocessing_time": 33.442274,
+  "decompression_time": 0.953603,
+  "field_process_wall_time": 91.47055800200906,
+  "max_rss_kib": 3258440,
+  "matches_serial_reference": true,
+  "valid": true
+}

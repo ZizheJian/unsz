@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_layerThickness",
+  "worker_id": 26,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 0.658973383695821,
+  "psnr": 77.91226313332042,
+  "compression_preprocessing_time": 41.961404,
+  "compression_time": 171.220983,
+  "decompression_preprocessing_time": 53.882815,
+  "decompression_time": 129.034883,
+  "field_process_wall_time": 1909.3499403650058,
+  "max_rss_kib": 3962572,
+  "matches_serial_reference": true,
+  "valid": true
+}

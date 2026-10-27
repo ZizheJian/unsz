@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_velocityZonal",
+  "worker_id": 33,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 2.416039326514541,
+  "psnr": 70.73604435308673,
+  "compression_preprocessing_time": 39.044479,
+  "compression_time": 194.577588,
+  "decompression_preprocessing_time": 46.042867,
+  "decompression_time": 131.438432,
+  "field_process_wall_time": 1947.9790265659685,
+  "max_rss_kib": 4665196,
+  "matches_serial_reference": true,
+  "valid": true
+}

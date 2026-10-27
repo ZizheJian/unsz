@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracersSurfaceFlux_salinitySurfaceFlux",
+  "worker_id": 28,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.846928632834447,
+  "psnr": 67.22779404515548,
+  "compression_preprocessing_time": 32.233966,
+  "compression_time": 1.818269,
+  "decompression_preprocessing_time": 33.22192,
+  "decompression_time": 1.115569,
+  "field_process_wall_time": 90.0497549889842,
+  "max_rss_kib": 3262148,
+  "matches_serial_reference": true,
+  "valid": true
+}

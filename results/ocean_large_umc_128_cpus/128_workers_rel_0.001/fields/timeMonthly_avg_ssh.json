@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_ssh",
+  "worker_id": 89,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 1.039500346354925,
+  "psnr": 64.76840786704038,
+  "compression_preprocessing_time": 48.986117,
+  "compression_time": 2.034572,
+  "decompression_preprocessing_time": 48.283357,
+  "decompression_time": 1.333772,
+  "field_process_wall_time": 138.56968769297237,
+  "max_rss_kib": 3256140,
+  "matches_serial_reference": true,
+  "valid": true
+}

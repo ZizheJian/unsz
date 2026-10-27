@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_zMid",
+  "worker_id": 36,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 1.128895206763736,
+  "psnr": 110.8272363147001,
+  "compression_preprocessing_time": 30.324408,
+  "compression_time": 159.031956,
+  "decompression_preprocessing_time": 32.324989,
+  "decompression_time": 106.49058699999999,
+  "field_process_wall_time": 1468.5771462850003,
+  "max_rss_kib": 4119000,
+  "matches_serial_reference": true,
+  "valid": true
+}

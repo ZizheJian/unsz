@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_density",
+  "worker_id": 24,
+  "slice_num": 960,
+  "input_bytes": 14181984000,
+  "rel_eb": 0.001,
+  "br": 0.930275917389274,
+  "psnr": 75.27235627015322,
+  "compression_preprocessing_time": 34.16251,
+  "compression_time": 173.226365,
+  "decompression_preprocessing_time": 38.443886,
+  "decompression_time": 117.614017,
+  "field_process_wall_time": 1449.685193889,
+  "max_rss_kib": 3776896,
+  "matches_serial_reference": true,
+  "valid": true
+}

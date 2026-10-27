@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_vertViscTopOfCell",
+  "worker_id": 3,
+  "slice_num": 972,
+  "input_bytes": 14359258800,
+  "rel_eb": 0.001,
+  "br": 2.15867028011223,
+  "psnr": 81.11456419637832,
+  "compression_preprocessing_time": 46.47192,
+  "compression_time": 232.634739,
+  "decompression_preprocessing_time": 41.8466,
+  "decompression_time": 163.72826,
+  "field_process_wall_time": 1971.2028788000462,
+  "max_rss_kib": 4926632,
+  "matches_serial_reference": true,
+  "valid": true
+}

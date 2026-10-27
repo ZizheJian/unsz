@@ -1,0 +1,17 @@
+{
+  "field": "timeMonthly_avg_activeTracerNonLocalMLTend_salinityNonLocalMLTend",
+  "worker_id": 44,
+  "slice_num": 12,
+  "input_bytes": 177274800,
+  "rel_eb": 0.001,
+  "br": 0.045979868543076,
+  "psnr": 72.62677045757592,
+  "compression_preprocessing_time": 38.655022,
+  "compression_time": 1.719281,
+  "decompression_preprocessing_time": 39.278838,
+  "decompression_time": 1.193719,
+  "field_process_wall_time": 106.46340700100018,
+  "max_rss_kib": 3259816,
+  "matches_serial_reference": true,
+  "valid": true
+}
