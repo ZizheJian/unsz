@@ -1,18 +1,12 @@
-# UMC field-level parallel run
+# UMC field-level parallel runs on Ocean-large
 
-UMC NBP-IDW-INP processes all slices of one field sequentially because its invalid-point state and neighbor relations are updated every 10 slices. Independent fields run in parallel without changing UMC.
+UMC NBP-IDW-INP processes all slices of one field sequentially, and its public MPI path cannot process the complete Ocean-large input. Each field worker therefore runs the official serial UMC on its complete fields, and independent fields run concurrently. Each worker uses one CPU.
 
-All formal runs allocate 128 CPUs on one node. The 32-worker and 64-worker checks assign fields to all workers. The 128-worker run creates 128 worker slots. Ocean-large contains 95 fields,so 95 workers receive one field each and the remaining 33 receive no task. The largest static worker loads are 1,920,972,and 972 slices,respectively. Fields are assigned solely by their slice counts,and all assignments attain their respective lower bounds.
-
-Run the complete `REL=1e-3` memory and performance check:
+Fields are assigned by `optimal_assignment` in `benchmarks/common.py`, which first minimizes the largest per-worker slice count and then the largest per-worker field count. With 128 workers each of the 95 fields gets its own worker.
 
 ```bash
-mkdir -p results/ocean_large_umc_32_field_workers
-sbatch benchmarks/umc_field_parallel/run_umc_32_field_workers.slurm
-mkdir -p results/ocean_large_umc_64_field_workers
-sbatch benchmarks/umc_field_parallel/run_umc_64_field_workers.slurm
-mkdir -p results/ocean_large_umc_128_cpus
-sbatch benchmarks/umc_field_parallel/run_umc_128_cpus.slurm
+./unsz_env/bin/python benchmarks/umc_field_parallel/run_field_workers.py --field-workers 128 --rel-eb 1e-3 --prepare-only
+sbatch benchmarks/umc_field_parallel/run.slurm 128
 ```
 
-Every field is checked against the completed serial reference. Per-field peak RSS,aggregate cgroup memory,and the compression and decompression critical paths are recorded separately.
+Results go to `results/ocean_large_per_slice_rd_<workers>/umc/<workers>_field_workers/rel_<eb>/`. Every field must reproduce the BR and PSNR of the serial reference in `results/ocean_large_tensor_full_umc/serial_rel_<eb>`, and completed fields are skipped on restart. UMC writes its streams next to the input slices, and the runner deletes them after each field so the data directory does not run out of its file-count quota. Per-field peak RSS and the aggregate cgroup memory peak are recorded.

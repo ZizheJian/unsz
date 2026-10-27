@@ -1,67 +1,12 @@
-import argparse,concurrent.futures,csv,json,math,os,shutil,subprocess,time
+import argparse,concurrent.futures,json,math,os,shutil,subprocess,sys,time
 from pathlib import Path
-from run_one_field import default_data_dir,json_safe,read_metadata,sha256,write_json
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from common import check_cpus,default_data_dir,field_quality,field_slice_num,git_revision,optimal_assignment,project_root,quality_summary,read_metadata,sha256,shape_name,slurm_environment,worker_times,write_fields_csv,write_json
 
-project_root=Path(__file__).resolve().parents[2]
+# 每个field组成完整tensor，用整个field的有效值range换算一个ABS EB；field沿点编号切成多个partition，各partition由单线程压缩器独立处理
 compressor_names={'sz3':'sz3-nd-point-partitioned','qoz':'qoz2-q4-nd-point-partitioned'}
 binary_names={'sz3':'compress_one_field_with_sz3_partitions','qoz':'compress_one_field_with_qoz_partitions'}
-
-def make_assignments(fields,worker_num,metadata,point_num):
-    assignments=[[]for _ in range(worker_num)]
-    loads=[0]*worker_num
-    field_loads={field:math.prod(metadata['fields'][field]['shape'])*point_num for field in fields}
-    for field in sorted(fields,key=lambda name:(-math.prod(metadata['fields'][name]['shape']),name)):
-        worker_id=min(range(worker_num),key=lambda index:(loads[index],index))
-        assignments[worker_id].append(field)
-        loads[worker_id]+=field_loads[field]
-    while True:
-        best_score=tuple(sorted(loads,reverse=True))
-        best_operation=None
-        for source in range(worker_num):
-            for field in assignments[source]:
-                field_load=field_loads[field]
-                for destination in range(worker_num):
-                    if source==destination:continue
-                    candidate=loads.copy()
-                    candidate[source]-=field_load
-                    candidate[destination]+=field_load
-                    score=tuple(sorted(candidate,reverse=True))
-                    if score<best_score:
-                        best_score=score
-                        best_operation=('move',source,destination,field,None)
-        for left in range(worker_num):
-            for right in range(left+1,worker_num):
-                for left_field in assignments[left]:
-                    for right_field in assignments[right]:
-                        left_load=field_loads[left_field]
-                        right_load=field_loads[right_field]
-                        if left_load==right_load:continue
-                        candidate=loads.copy()
-                        candidate[left]+=right_load-left_load
-                        candidate[right]+=left_load-right_load
-                        score=tuple(sorted(candidate,reverse=True))
-                        if score<best_score:
-                            best_score=score
-                            best_operation=('swap',left,right,left_field,right_field)
-        if best_operation is None:break
-        operation,left,right,left_field,right_field=best_operation
-        if operation=='move':
-            assignments[left].remove(left_field)
-            assignments[right].append(left_field)
-            loads[left]-=field_loads[left_field]
-            loads[right]+=field_loads[left_field]
-        else:
-            assignments[left].remove(left_field)
-            assignments[right].remove(right_field)
-            assignments[left].append(right_field)
-            assignments[right].append(left_field)
-            loads[left]+=field_loads[right_field]-field_loads[left_field]
-            loads[right]+=field_loads[left_field]-field_loads[right_field]
-    average_lower_bound=(sum(field_loads.values())+worker_num-1)//worker_num
-    threshold_lower_bound=max(((sum(load>=threshold for load in field_loads.values())+worker_num-1)//worker_num)*threshold for threshold in set(field_loads.values()))
-    max_load_lower_bound=max(average_lower_bound,threshold_lower_bound)
-    if max(loads)!=max_load_lower_bound:raise RuntimeError(f'无法证明按field大小分配达到全局最优：当前最大负载={max(loads)}，可证明的下界={max_load_lower_bound}')
-    return assignments,loads,max_load_lower_bound
+upstream_dirs={'sz3':'third_party/SZ3','qoz':'third_party/QoZ'}
 
 def load_completed(path,codec,rel_eb,partition_num):
     if not path.is_file():return None
@@ -69,10 +14,15 @@ def load_completed(path,codec,rel_eb,partition_num):
     if result.get('compressor')==compressor_names[codec]and result.get('rel_eb')==rel_eb and result.get('partition_num')==partition_num and result.get('valid'):return result
     return None
 
-def run_worker(worker_id,fields,codec,rel_ebs,partition_num,data_dir,metadata,cpus,output_dirs,log_dir,binary):
+def unified_row(result,metadata,worker_id):
+    nmse,psnr=field_quality(result['squared_error'],result['value_num'],result['field_range'])
+    return {**result,'shape':shape_name(metadata,result['field']),'slice_num':field_slice_num(metadata,result['field']),'nmse':nmse,'psnr':psnr,'compression_preprocessing_time':0,'decompression_preprocessing_time':0,'worker_id':worker_id}
+
+def run_worker(worker_id,fields,codec,rel_ebs,partition_num,data_dir,metadata,cpus,output_dirs,log_dir,binary,summarize_only):
     cpu_set=','.join(str(cpu)for cpu in cpus)
     environment={**os.environ,'OMP_NUM_THREADS':str(partition_num),'OMP_DYNAMIC':'false','OMP_PROC_BIND':'close','OMP_PLACES':'cores','OPENBLAS_NUM_THREADS':'1','MKL_NUM_THREADS':'1'}
     results={rel_eb:[]for rel_eb in rel_ebs}
+    failures=[]
     for field in fields:
         shape=metadata['fields'][field]['shape']
         pending=[]
@@ -81,121 +31,80 @@ def run_worker(worker_id,fields,codec,rel_ebs,partition_num,data_dir,metadata,cp
             result=load_completed(result_path,codec,rel_eb,partition_num)
             if result is None:pending.append((rel_eb,result_path))
             else:
-                results[rel_eb].append(result)
+                results[rel_eb].append(unified_row(result,metadata,worker_id))
                 print(f'SKIP worker={worker_id},field={field},rel_eb={rel_eb:g}',flush=True)
         if not pending:continue
-        log_path=log_dir/f'{field}.log'
-        if len(pending)==1:
-            rel_eb,result_path=pending[0]
-            command=['taskset','--cpu-list',cpu_set,binary,data_dir,field,shape[0],shape[1],rel_eb,partition_num,result_path]
-        else:
-            command=['taskset','--cpu-list',cpu_set,binary,data_dir,field,shape[0],shape[1],partition_num]
-            for rel_eb,result_path in pending:command.extend((rel_eb,result_path))
+        if summarize_only:raise RuntimeError(f'{field}缺少已完成结果，不能只汇总')
+        # 同一field的多个EB在一个进程中运行，只读取一次输入；每个EB重新切分partition
+        command=['taskset','--cpu-list',cpu_set,binary,data_dir,field,shape[0],shape[1],partition_num]
+        for rel_eb,result_path in pending:command.extend((rel_eb,result_path))
         print(f'BEGIN worker={worker_id},codec={codec},field={field},shape={shape},partitions={partition_num},ebs={[rel_eb for rel_eb,_ in pending]},cpus={cpu_set}',flush=True)
-        start=time.perf_counter()
+        log_path=log_dir/f'{field}.log'
         with log_path.open('w')as log:returncode=subprocess.run([str(value)for value in command],cwd=project_root,stdout=log,stderr=subprocess.STDOUT,env=environment).returncode
-        process_wall_time=time.perf_counter()-start
-        if returncode:raise RuntimeError(f'{field}失败，returncode={returncode}，见{log_path}')
+        # 压缩器崩溃或误差超界时记录失败并继续处理该worker的其他field；崩溃前已完成的EB结果仍然有效
         for rel_eb,result_path in pending:
-            if not result_path.is_file():raise RuntimeError(f'{field}缺少rel_eb={rel_eb:g}的结果，见{log_path}')
-            result=json.loads(result_path.read_text())
-            if not result.get('valid'):raise RuntimeError(f'{field}在rel_eb={rel_eb:g}时误差检查失败，见{result_path}')
-            result['worker_id']=worker_id
-            result['field_process_wall_time']=process_wall_time
-            result['worker_execution_wall_time']=result.get('eb_processing_time_before_output',process_wall_time)+(result.get('input_and_range_time',0)if result.get('eb_index_in_process',0)==0 else 0)
-            write_json(result_path,result)
-            results[rel_eb].append(result)
+            result=load_completed(result_path,codec,rel_eb,partition_num)
+            if result is None:
+                failures.append({'field':field,'rel_eb':rel_eb,'returncode':returncode,'log':str(log_path)})
+                print(f'FAIL worker={worker_id},codec={codec},field={field},rel_eb={rel_eb:g},returncode={returncode}',flush=True)
+                continue
+            results[rel_eb].append(unified_row(result,metadata,worker_id))
             print(f'END worker={worker_id},codec={codec},field={field},rel_eb={rel_eb:g},br={result["br"]:.6g},compression_time={result["compression_time"]:.6g},decompression_time={result["decompression_time"]:.6g},max_rss_kib={result["max_rss_kib"]}',flush=True)
-    return worker_id,results
+    return worker_id,results,failures
 
 def main():
-    parser=argparse.ArgumentParser(description='Compress all 95 Ocean-large fields with field and point-partition parallelism')
+    parser=argparse.ArgumentParser(description='Compress all 95 Ocean-large fields as tensors with field workers and point partitions')
     parser.add_argument('--codec',required=True,choices=tuple(compressor_names))
     parser.add_argument('--data-dir',type=Path,default=default_data_dir)
     parser.add_argument('--rel-eb',type=float,action='append',required=True)
     parser.add_argument('--field-workers',type=int,required=True)
     parser.add_argument('--partitions-per-field',type=int,required=True)
     parser.add_argument('--output-root',type=Path,default=project_root/'results/ocean_large_field_relative_five_ebs')
+    parser.add_argument('--field',action='append')
+    parser.add_argument('--summarize-only',action='store_true')
     arguments=parser.parse_args()
     rel_ebs=arguments.rel_eb
-    if any(not math.isfinite(rel_eb)or rel_eb<=0 for rel_eb in rel_ebs):parser.error('rel-eb必须是有限正数')
-    if len(set(rel_ebs))!=len(rel_ebs):parser.error('rel-eb不能重复')
-    if arguments.field_workers<=0 or arguments.field_workers&(arguments.field_workers-1):parser.error('field-workers必须是2的幂')
-    if arguments.partitions_per_field<=0 or arguments.partitions_per_field&(arguments.partitions_per_field-1):parser.error('partitions-per-field必须是2的幂')
-    arguments.data_dir=arguments.data_dir.resolve()
-    metadata_path,metadata=read_metadata(arguments.data_dir)
-    fields=list(metadata['fields'])
-    if len(fields)!=95:raise RuntimeError(f'预期95个fields，实际{len(fields)}个')
-    point_num=(arguments.data_dir/f'{fields[0]}.dat.0').stat().st_size//4
-    assignments,loads,max_load_lower_bound=make_assignments(fields,arguments.field_workers,metadata,point_num)
+    if any(not math.isfinite(rel_eb)or rel_eb<=0 for rel_eb in rel_ebs)or len(set(rel_ebs))!=len(rel_ebs):parser.error('rel-eb必须是不重复的有限正数')
+    for value,name in((arguments.field_workers,'field-workers'),(arguments.partitions_per_field,'partitions-per-field')):
+        if value<=0 or value&(value-1):parser.error(f'{name}必须是2的幂')
+    data_dir=arguments.data_dir.resolve()
+    metadata_path,metadata,fields=read_metadata(data_dir,arguments.field)
+    assignments,loads,optimum,lower_bound=optimal_assignment({field:field_slice_num(metadata,field)for field in fields},arguments.field_workers)
+    cpu_num=arguments.field_workers*arguments.partitions_per_field
+    available_cpus=list(range(cpu_num))if arguments.summarize_only else check_cpus(cpu_num,not arguments.field)
     binary=(project_root/'build/field_relative'/binary_names[arguments.codec]).resolve()
-    if not binary.is_file():raise FileNotFoundError(binary)
-    available_cpus=sorted(os.sched_getaffinity(0))
-    required_cpus=arguments.field_workers*arguments.partitions_per_field
-    if len(available_cpus)<required_cpus:raise RuntimeError(f'需要{required_cpus}个CPU，当前affinity只有{len(available_cpus)}个')
-    configuration=f'{arguments.field_workers}_fields_{arguments.partitions_per_field}_partitions'
-    configuration_dir=(arguments.output_root/arguments.codec/configuration).resolve()
-    configuration_dir.mkdir(parents=True,exist_ok=True)
+    configuration_dir=(arguments.output_root/arguments.codec/f'{arguments.field_workers}_fields_{arguments.partitions_per_field}_partitions').resolve()
     log_dir=configuration_dir/'logs'
-    log_dir.mkdir(exist_ok=True)
+    log_dir.mkdir(parents=True,exist_ok=True)
     output_dirs={rel_eb:configuration_dir/f'rel_{rel_eb:g}'for rel_eb in rel_ebs}
-    binary_sha256=sha256(binary)
-    git_revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=project_root,text=True).strip()
-    upstream_revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=project_root/'third_party'/('SZ3'if arguments.codec=='sz3'else'QoZ'),text=True).strip()
-    snapshots=[]
+    snapshot=configuration_dir/binary.name
+    if not arguments.summarize_only:shutil.copy2(binary,snapshot)
+    binary_sha256=sha256(binary if arguments.summarize_only else snapshot)
     for rel_eb,output_dir in output_dirs.items():
         output_dir.mkdir(parents=True,exist_ok=True)
-        manifest={'codec':compressor_names[arguments.codec],'configuration':configuration,'field_workers':arguments.field_workers,'point_partitions_per_field':arguments.partitions_per_field,'active_cpus':required_cpus,'field_num':len(fields),'fields':fields,'assignments':assignments,'assignment_value_loads':loads,'assignment_max_value_load_lower_bound':max_load_lower_bound,'rel_eb':rel_eb,'rel_ebs_in_process':rel_ebs,'input_reused_across_rel_ebs':len(rel_ebs)>1,'metadata_sha256':sha256(metadata_path),'binary_sha256':binary_sha256,'git_revision':git_revision,'upstream_revision':upstream_revision}
-        manifest_path=output_dir/'manifest.json'
-        if manifest_path.is_file()and json.loads(manifest_path.read_text())!=manifest:raise RuntimeError(f'已有manifest不同：{manifest_path}')
-        write_json(manifest_path,manifest)
-        snapshot=output_dir/binary.name
-        if not snapshot.is_file():shutil.copy2(binary,snapshot)
-        if sha256(snapshot)!=binary_sha256:raise RuntimeError(f'保存的可执行文件SHA不一致：{snapshot}')
-        snapshots.append(snapshot)
-    snapshot=snapshots[0]
+        if(output_dir/'manifest.json').is_file()and json.loads((output_dir/'manifest.json').read_text()).get('binary_sha256')!=binary_sha256:raise RuntimeError(f'已有结果使用了不同的可执行文件：{output_dir}')
+        write_json(output_dir/'manifest.json',{'codec':compressor_names[arguments.codec],'protocol':'field','field_workers':arguments.field_workers,'point_partitions_per_field':arguments.partitions_per_field,'cpu_num':cpu_num,'field_num':len(fields),'assignment_rule':'exact minimum of the maximum worker slice load, then of the maximum worker field count','assignments':assignments,'worker_slice_loads':loads,'worker_slice_load_lower_bound':lower_bound,'rel_eb':rel_eb,'rel_ebs_in_process':rel_ebs,'error_bound_rule':'REL*(field valid max-field valid min), excluding -99999','metadata_sha256':sha256(metadata_path),'binary_sha256':binary_sha256,'source_sha256':{str(path.relative_to(project_root)):sha256(path)for path in(Path(__file__).resolve(),project_root/'benchmarks/common.py',Path(__file__).with_name('compress_one_field_with_partitions.cpp'))},'git_revision':git_revision(),'upstream_revision':git_revision(project_root/upstream_dirs[arguments.codec]),**slurm_environment()})
     start=time.perf_counter()
     worker_results={}
+    failures=[]
     with concurrent.futures.ThreadPoolExecutor(max_workers=arguments.field_workers)as executor:
-        futures=[]
-        for worker_id,worker_fields in enumerate(assignments):
-            cpus=available_cpus[worker_id*arguments.partitions_per_field:(worker_id+1)*arguments.partitions_per_field]
-            futures.append(executor.submit(run_worker,worker_id,worker_fields,arguments.codec,rel_ebs,arguments.partitions_per_field,arguments.data_dir,metadata,cpus,output_dirs,log_dir,snapshot))
-        for future in concurrent.futures.as_completed(futures):
-            worker_id,results=future.result()
+        futures=[executor.submit(run_worker,worker_id,worker_fields,arguments.codec,rel_ebs,arguments.partitions_per_field,data_dir,metadata,available_cpus[worker_id*arguments.partitions_per_field:(worker_id+1)*arguments.partitions_per_field],output_dirs,log_dir,snapshot,arguments.summarize_only)for worker_id,worker_fields in enumerate(assignments)]
+        for future in futures:
+            worker_id,results,worker_failures=future.result()
             worker_results[worker_id]=results
+            failures.extend(worker_failures)
     execution_wall_time=time.perf_counter()-start
-    for rel_eb in rel_ebs:
-        output_dir=output_dirs[rel_eb]
-        results=[]
-        for field in fields:
-            result_path=output_dir/f'{field}.json'
-            if not result_path.is_file():raise RuntimeError(f'缺少field结果：rel_eb={rel_eb:g},field={field}')
-            result=json.loads(result_path.read_text())
-            if not result.get('valid'):raise RuntimeError(f'field结果无效：rel_eb={rel_eb:g},field={field}')
-            results.append(result)
-        with (output_dir/'fields.csv').open('w',newline='')as destination:
-            fieldnames=sorted({key for result in results for key in result})
-            writer=csv.DictWriter(destination,fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(json_safe(results))
-        per_worker=[worker_results[worker_id][rel_eb]for worker_id in range(arguments.field_workers)]
-        compression_worker_times=[sum(result['compression_time']for result in worker)for worker in per_worker]
-        decompression_worker_times=[sum(result['decompression_time']for result in worker)for worker in per_worker]
-        codec_compression_worker_times=[sum(result['codec_compression_time']for result in worker)for worker in per_worker]
-        partition_worker_times=[sum(result['compression_partition_time']for result in worker)for worker in per_worker]
-        codec_decompression_worker_times=[sum(result['codec_decompression_time']for result in worker)for worker in per_worker]
-        merge_worker_times=[sum(result['decompression_merge_time']for result in worker)for worker in per_worker]
-        input_worker_times=[sum(result.get('input_and_range_time',0)for result in worker)for worker in per_worker]
-        verification_worker_times=[sum(result.get('verification_time',0)for result in worker)for worker in per_worker]
-        helper_worker_times=[sum(result.get('compression_buffer_release_time',0)+result.get('decompression_buffer_allocation_time',0)+result.get('verification_time',0)+result.get('final_buffer_release_time',0)for result in worker)for worker in per_worker]
-        eb_processing_worker_times=[sum(result.get('eb_processing_time_before_output',result.get('program_time_before_output',0))for result in worker)for worker in per_worker]
-        execution_worker_times=[sum(result['worker_execution_wall_time']for result in worker)for worker in per_worker]
-        compression_critical_worker=max(range(arguments.field_workers),key=lambda worker_id:compression_worker_times[worker_id])
-        decompression_critical_worker=max(range(arguments.field_workers),key=lambda worker_id:decompression_worker_times[worker_id])
-        summary={'codec':compressor_names[arguments.codec],'configuration':configuration,'field_workers':arguments.field_workers,'point_partitions_per_field':arguments.partitions_per_field,'active_cpus':required_cpus,'field_num':len(fields),'rel_eb':rel_eb,'rel_ebs_in_process':rel_ebs,'input_reused_across_rel_ebs':len(rel_ebs)>1,'value_num':sum(result['value_num']for result in results),'compressed_bytes':sum(result['compressed_bytes']for result in results),'br':8*sum(result['compressed_bytes']for result in results)/sum(result['value_num']for result in results),'reported_compression_time':compression_worker_times[compression_critical_worker],'reported_decompression_time':decompression_worker_times[decompression_critical_worker],'reported_codec_compression_time':codec_compression_worker_times[compression_critical_worker],'reported_partition_time':partition_worker_times[compression_critical_worker],'reported_codec_decompression_time':codec_decompression_worker_times[decompression_critical_worker],'reported_merge_time':merge_worker_times[decompression_critical_worker],'compression_critical_worker':compression_critical_worker,'decompression_critical_worker':decompression_critical_worker,'compression_worker_times':compression_worker_times,'decompression_worker_times':decompression_worker_times,'shared_input_worker_times':input_worker_times,'verification_worker_times':verification_worker_times,'helper_worker_times_excluding_shared_input':helper_worker_times,'eb_processing_worker_times':eb_processing_worker_times,'execution_worker_times':execution_worker_times,'all_ebs_execution_wall_time':execution_wall_time,'max_concurrent_rss_upper_bound_kib':sum(max(result['max_rss_kib']for result in worker)for worker in per_worker),'max_error_over_eb':max(result['max_error_over_eb']for result in results),'valid':all(result['valid']for result in results)}
-        summary['reported_end_to_end_time']=summary['reported_compression_time']+summary['reported_decompression_time']
+    for rel_eb,output_dir in output_dirs.items():
+        rows=[row for worker_id in range(arguments.field_workers)for row in worker_results[worker_id][rel_eb]]
+        if not rows:raise RuntimeError(f'rel_eb={rel_eb:g}没有任何完成的field')
+        write_fields_csv(output_dir/'fields.csv',rows)
+        times=worker_times([sum(row['compression_time']for row in worker_results[worker_id][rel_eb])for worker_id in range(arguments.field_workers)],[sum(row['decompression_time']for row in worker_results[worker_id][rel_eb])for worker_id in range(arguments.field_workers)])
+        eb_failures=[failure for failure in failures if failure['rel_eb']==rel_eb]
+        summary={'codec':compressor_names[arguments.codec],'protocol':'field','rel_eb':rel_eb,'field_workers':arguments.field_workers,'point_partitions_per_field':arguments.partitions_per_field,'cpu_num':cpu_num,'field_num':len(fields),'slice_num':sum(row['slice_num']for row in rows),'compressed_bytes':sum(row['compressed_bytes']for row in rows),**quality_summary(rows),**times,'all_ebs_execution_wall_time':execution_wall_time,'max_concurrent_rss_upper_bound_kib':sum(max((row['max_rss_kib']for row in worker_results[worker_id][rel_eb]),default=0)for worker_id in range(arguments.field_workers)),'max_error_over_eb':max(row['max_error_over_eb']for row in rows),'complete':len(rows)==len(fields),'failures':eb_failures,'valid':len(rows)==len(fields)and all(row['valid']for row in rows)}
         write_json(output_dir/'summary.json',summary)
-        print(json.dumps(json_safe(summary),ensure_ascii=False,allow_nan=False),flush=True)
+        print(json.dumps({key:value for key,value in summary.items()if not isinstance(value,(list,dict))},ensure_ascii=False),flush=True)
+    if failures:print(json.dumps({'failures':failures},ensure_ascii=False),flush=True)
+    return 1 if failures else 0
 
-if __name__=='__main__':main()
+if __name__=='__main__':
+    sys.exit(main())

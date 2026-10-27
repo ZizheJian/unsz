@@ -1,17 +1,40 @@
 {
   "codec": "sz3-1d",
+  "protocol": "slice",
+  "rel_eb": 1e-05,
   "slice_workers": 32,
   "threads_per_slice": 4,
-  "active_cpus": 128,
+  "cpu_num": 128,
   "field_num": 95,
   "slice_num": 36264,
-  "value_num": 133931111400,
-  "input_bytes": 535724445600,
   "compressed_bytes": 148840953512,
+  "value_num": 133931111400,
   "br": 8.890597678531622,
-  "reported_compression_time": 44.064432576,
-  "reported_decompression_time": 14.554736116,
-  "reported_end_to_end_time": 58.619168692,
+  "nmse": 2.7114846688880153e-12,
+  "normalized_psnr": 115.66792846783075,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 58,
+      "value_num": 2570484600,
+      "br": 10.357949164916219,
+      "nmse": 1.586339044220018e-11,
+      "normalized_psnr": 107.99603986439851
+    },
+    "12x80": {
+      "field_num": 33,
+      "value_num": 117001368000,
+      "br": 9.135790429664036,
+      "nmse": 2.5080612636597016e-12,
+      "normalized_psnr": 116.00661859330798
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "br": 6.630056785939397,
+      "nmse": 2.0146552088591353e-12,
+      "normalized_psnr": 116.95799268978256
+    }
+  },
   "compression_worker_times": [
     41.656362341,
     42.269273618,
@@ -80,6 +103,9 @@
     13.7158585,
     13.660194157
   ],
+  "reported_compression_time": 44.064432576,
+  "reported_decompression_time": 14.554736116,
+  "total_codec_time": 58.619168692,
   "worker_slice_counts": [
     1134,
     1134,
@@ -114,10 +140,8 @@
     1133,
     1133
   ],
-  "execution_wall_time": 186.50567987194518,
-  "compression_preprocessing_time": 0,
-  "decompression_preprocessing_time": 0,
   "max_error_over_eb": 1.0,
-  "matches_reference_size": null,
-  "valid": true
+  "reference_directory": null,
+  "valid": true,
+  "execution_wall_time": 186.50567987194518
 }

@@ -54,6 +54,8 @@ namespace unsz
                 point_set_abs_eb_vec[point_set_id]=0;
             else if(config.error_mode==point_set_error_mode_e::absolute)
                 point_set_abs_eb_vec[point_set_id]=(T_data)config.eb;
+            else if(config.error_mode==point_set_error_mode_e::field_relative)
+                point_set_abs_eb_vec[point_set_id]=(T_data)(config.eb*(field_point_set_max_data[point_set_id]-field_point_set_min_data[point_set_id]));
             else
                 point_set_abs_eb_vec[point_set_id]=(T_data)(config.eb*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]));
             if(point_set_codec_vec[point_set_id]!=point_set_codec_e::constant&&!(point_set_abs_eb_vec[point_set_id]>0))

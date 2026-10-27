@@ -198,7 +198,7 @@ namespace unsz
         for(const point_set_config_c&config:point_set_config_vec)
             if(config.codec!=point_set_codec_e::constant)
             {
-                has_relative_prediction|=config.error_mode==point_set_error_mode_e::relative;
+                has_relative_prediction|=config.error_mode!=point_set_error_mode_e::absolute;
                 has_absolute_prediction|=config.error_mode==point_set_error_mode_e::absolute;
             }
         if(has_relative_prediction&&has_absolute_prediction)

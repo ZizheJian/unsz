@@ -1,17 +1,40 @@
 {
   "codec": "pfpl",
+  "protocol": "slice",
+  "rel_eb": 0.001,
   "slice_workers": 128,
   "threads_per_slice": 1,
-  "active_cpus": 128,
+  "cpu_num": 128,
   "field_num": 95,
   "slice_num": 36264,
-  "value_num": 133931111400,
-  "input_bytes": 535724445600,
   "compressed_bytes": 250116212781,
+  "value_num": 133931111400,
   "br": 14.939991771381656,
-  "reported_compression_time": 15.390825482,
-  "reported_decompression_time": 9.031342703,
-  "reported_end_to_end_time": 24.422168185,
+  "nmse": 2.5954492766811595e-08,
+  "normalized_psnr": 75.85787454195162,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 58,
+      "value_num": 2570484600,
+      "br": 6.305820385774729,
+      "nmse": 1.3783335895164622e-07,
+      "normalized_psnr": 68.60645660111211
+    },
+    "12x80": {
+      "field_num": 33,
+      "value_num": 117001368000,
+      "br": 15.114507714405526,
+      "nmse": 2.4525163055117994e-08,
+      "normalized_psnr": 76.10388096539141
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "br": 15.063633286141483,
+      "nmse": 1.7573184742585384e-08,
+      "normalized_psnr": 77.55149525312089
+    }
+  },
   "compression_worker_times": [
     14.338163088,
     14.364395524,
@@ -272,6 +295,9 @@
     8.362180746,
     8.387719765
   ],
+  "reported_compression_time": 15.390825482,
+  "reported_decompression_time": 9.031342703,
+  "total_codec_time": 24.422168185,
   "worker_slice_counts": [
     284,
     284,
@@ -402,10 +428,8 @@
     283,
     283
   ],
-  "execution_wall_time": 62.91649389901431,
-  "compression_preprocessing_time": 0,
-  "decompression_preprocessing_time": 0,
   "max_error_over_eb": 1.0,
-  "matches_single_thread_size": true,
-  "valid": true
+  "reference_directory": "results/ocean_large_tensor_1d/pfpl/rel_0.001_t1",
+  "valid": true,
+  "execution_wall_time": 62.91649389901431
 }

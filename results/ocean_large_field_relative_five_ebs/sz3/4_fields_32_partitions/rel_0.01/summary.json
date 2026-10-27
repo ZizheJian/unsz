@@ -1,75 +1,57 @@
 {
   "codec": "sz3-nd-point-partitioned",
-  "configuration": "4_fields_32_partitions",
+  "protocol": "field",
+  "rel_eb": 0.01,
   "field_workers": 4,
   "point_partitions_per_field": 32,
-  "active_cpus": 128,
+  "cpu_num": 128,
   "field_num": 95,
-  "rel_eb": 0.01,
-  "rel_ebs_in_process": [
-    0.1,
-    0.01,
-    0.001,
-    0.0001,
-    1e-05
-  ],
-  "input_reused_across_rel_ebs": true,
-  "value_num": 133931111400,
+  "slice_num": 36264,
   "compressed_bytes": 18004767808,
+  "value_num": 133931111400,
   "br": 1.0754644007531173,
-  "reported_compression_time": 55.182940012,
-  "reported_decompression_time": 29.332318371,
-  "reported_codec_compression_time": 48.230224241,
-  "reported_partition_time": 6.952715771,
-  "reported_codec_decompression_time": 21.639222254,
-  "reported_merge_time": 7.693096117,
-  "compression_critical_worker": 3,
-  "decompression_critical_worker": 0,
+  "nmse": 5.914753125888122e-06,
+  "normalized_psnr": 52.28063377545267,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 58,
+      "value_num": 2570484600,
+      "br": 1.6367079452644844,
+      "nmse": 1.9774138136312245e-05,
+      "normalized_psnr": 47.03902436315782
+    },
+    "12x80": {
+      "field_num": 33,
+      "value_num": 117001368000,
+      "br": 1.0725483669900338,
+      "nmse": 5.687480316539261e-06,
+      "normalized_psnr": 52.45080093356049
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "br": 0.9987551524595406,
+      "nmse": 5.285604626123905e-06,
+      "normalized_psnr": 52.76905326091671
+    }
+  },
   "compression_worker_times": [
-    54.954480626,
-    47.62612239,
-    45.584063344,
-    55.182940012
+    49.80855696,
+    52.356523966,
+    52.0106288,
+    49.171896646
   ],
   "decompression_worker_times": [
-    29.332318371,
-    27.806763947,
-    27.246171521,
-    27.742281176
+    27.869865426,
+    28.761942318,
+    27.993360514,
+    27.502366757
   ],
-  "shared_input_worker_times": [
-    40.894553406,
-    39.599486755,
-    40.615666998,
-    39.809874254
-  ],
-  "verification_worker_times": [
-    12.06348339,
-    3.652677674,
-    4.276015646,
-    3.3439160820000002
-  ],
-  "helper_worker_times_excluding_shared_input": [
-    19.931778887,
-    10.2120909,
-    6.472784852,
-    13.688433097
-  ],
-  "eb_processing_worker_times": [
-    104.219350565,
-    85.646888899,
-    79.304788034,
-    96.615447993
-  ],
-  "execution_worker_times": [
-    104.219350565,
-    85.646888899,
-    79.304788034,
-    96.615447993
-  ],
-  "all_ebs_execution_wall_time": 639.2064737119945,
-  "max_concurrent_rss_upper_bound_kib": 237796968,
+  "reported_compression_time": 52.356523966,
+  "reported_decompression_time": 28.761942318,
+  "total_codec_time": 81.118466284,
+  "all_ebs_execution_wall_time": 0.06773928098846227,
+  "max_concurrent_rss_upper_bound_kib": 238877752,
   "max_error_over_eb": 0.999999999934949,
-  "valid": true,
-  "reported_end_to_end_time": 84.515258383
+  "valid": true
 }

@@ -8,9 +8,9 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 project_root=Path(__file__).resolve().parents[2]
-codecs=('sz3','zfp','pfpl')
+codecs=('sz3','pfpl')
 rel_ebs=(1e-5,1e-4,1e-3,1e-2,1e-1)
-styles={'unsz':('UNSZ','#CC3311','D'),'umc':('UMC','#AA4499','P'),'sz3':('SZ3','#0072B2','o'),'zfp':('ZFP','#D55E00','s'),'pfpl':('PFPL','#009E73','^')}
+styles={'unsz':('UNSZ','#CC3311','D'),'umc':('UMC','#AA4499','P'),'sz3':('SZ3','#0072B2','o'),'pfpl':('PFPL','#009E73','^')}
 
 
 def read_results(root):
@@ -43,7 +43,7 @@ def read_results(root):
                 row['valid']=row['valid']=='True'
                 if row['slice_num']!=row['completed_slice_num'] or not math.isclose(row['br'],32*row['compressed_bytes']/row['input_bytes'],rel_tol=1e-12):
                     raise ValueError(f'Incomplete slices or inconsistent bit rate: {key}')
-                if row['returncode'] not in (0,2) or not row['valid'] and codec!='zfp':
+                if row['returncode']!=0 or not row['valid']:
                     raise ValueError(f'Unexpected codec failure: {key}')
                 if row['valid']!=(row['returncode']==0 and row['max_error_over_eb']<=1.01):
                     raise ValueError(f'Inconsistent error status: {key}')
@@ -218,8 +218,6 @@ def draw_group(axis,grouped,shape,throughput):
         for metric,linestyle in operations:
             x=[row['rel_eb'] if throughput else row['br'] for row in curve]
             axis.plot(x,[row[metric] for row in curve],color=color,marker=marker,linewidth=1.7,markersize=7 if len(curve)==1 else 4,linestyle=linestyle if len(curve)>1 else 'none',markerfacecolor='none' if metric=='decompression_MB_s' else color,zorder=5 if len(curve)==1 else 2)
-            failed=[row for row in curve if not row['valid']]
-            axis.scatter([row['rel_eb'] if throughput else row['br'] for row in failed],[row[metric] for row in failed],marker='x',color='black',s=55,linewidths=1.2,zorder=4)
     axis.set_xscale('log')
     if throughput:
         axis.set_ylim(bottom=0)
@@ -231,7 +229,6 @@ def plot_grouped(grouped,groups,output,throughput=False):
     handles=codec_handles(ordered_codecs(grouped),grouped)
     if throughput:
         handles.extend(Line2D([],[],color='.3',linestyle=linestyle,label=label) for label,linestyle in (('Compression','-'),('Decompression','--')))
-    handles.append(Line2D([],[],color='black',marker='x',linestyle='none',label='Contains ABS-bound violations'))
     name='releb_throughput' if throughput else 'rd'
     xlabel='REL EB (log scale)' if throughput else 'Bit rate (bit/value, log scale)'
     ylabel='Core throughput (MB/s)' if throughput else 'Aggregated normalized PSNR (dB)'
@@ -261,8 +258,6 @@ def plot_rd(records,fields,output):
             finite=[row for row in curve if math.isfinite(row['psnr'])]
             finite_num+=len(finite)
             axis.plot([row['br'] for row in finite],[row['psnr'] for row in finite],color=color,marker=marker,markersize=3,linewidth=1.3)
-            failed=[row for row in finite if not row['valid']]
-            axis.scatter([row['br'] for row in failed],[row['psnr'] for row in failed],color='black',marker='x',s=35,linewidths=.9,zorder=4)
             infinite=[row for row in curve if row['psnr']==math.inf]
             if infinite:
                 rates=sorted({row['br'] for row in infinite})
@@ -279,8 +274,8 @@ def plot_rd(records,fields,output):
         axis.grid(True,linestyle=':',alpha=.45)
     figure.supxlabel('Bit rate (bit/value, log scale)')
     figure.supylabel('PSNR (dB)')
-    handles=codec_handles(ordered_codecs(records),records)+[Line2D([],[],color='black',marker='x',linestyle='none',label='ABS error bound exceeded')]
-    finish(figure,handles,'all_fields_rd',output,'Ocean-large: measured rate-distortion; × denotes an ABS-bound violation, not a valid bounded-error result.')
+    handles=codec_handles(ordered_codecs(records),records)
+    finish(figure,handles,'all_fields_rd',output,'Ocean-large: measured rate-distortion.')
 
 
 def plot_throughput(records,fields,output):
@@ -291,8 +286,6 @@ def plot_throughput(records,fields,output):
             curve=[records[field,codec,eb] for eb in rel_ebs if (field,codec,eb) in records]
             for operation,linestyle in (('compression','-'),('decompression','--')):
                 axis.plot([row['rel_eb'] for row in curve],[row[operation+'_MB_s'] for row in curve],color=color,marker=marker,markersize=3,linewidth=1.3,linestyle=linestyle)
-                failed=[row for row in curve if not row['valid']]
-                axis.scatter([float(row['rel_eb']) for row in failed],[row[operation+'_MB_s'] for row in failed],color='black',marker='x',s=25,linewidths=.8,zorder=4)
         axis.set_xscale('log')
         axis.set_ylim(bottom=0)
         axis.set_xlabel(caption(field),fontsize=7,labelpad=7)
@@ -355,7 +348,7 @@ def write_csv(path,rows):
 
 
 def main():
-    parser=argparse.ArgumentParser(description='Plot complete Ocean-large 1D baselines,including explicitly marked ZFP ABS violations')
+    parser=argparse.ArgumentParser(description='Plot complete Ocean-large 1D baselines; ZFP is excluded because it violates the ABS bound on fields with sentinel values')
     parser.add_argument('--results-root',type=Path,default=project_root/'results/ocean_large_tensor_1d')
     parser.add_argument('--output-dir',type=Path)
     parser.add_argument('--metadata',type=Path,default=Path('/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data/tensor_metadata.json'))
@@ -391,7 +384,7 @@ def main():
     write_csv(output/'aggregate_metrics.csv',list(aggregate.values()))
     write_csv(output/'grouped_metrics.csv',[{'shape':shape,**row} for (shape,_,_),row in grouped.items()])
     coverage={codec:[eb for eb in rel_ebs if (codec,eb) in aggregate] for codec in selected}
-    (output/'manifest.json').write_text(json.dumps({'plot_script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'sources':sources,'field_order':fields,'shape_groups':groups,'regenerated_per_field':arguments.per_field,'throughput_rule':'sum(input bytes)/sum(core time)/1e6,not mean field throughput','rd_rule':'BR=sum(compressed bytes)*32/sum(input bytes); NMSE=point-weighted mean of 10**(-field PSNR/10); grouped PSNR=-10*log10(NMSE); infinite field PSNR contributes zero NMSE; equal-sized fields within each shape imply arithmetic means','invalid_rule':'Retain all ZFP results and explicitly mark error-bound violations','preprocessing_rule':'Both preprocessing stages included in total time; zero for 1D codecs; UNSZ shares untransformed spatial DAG across fields; current UMC serial runner preprocesses each field separately','timing_comparison':'Separate jobs,nodes are not paired; not a controlled same-node speedup experiment','eb_coverage':coverage,'skipped_incomplete_results':skipped,'structured_coverage':'Only EB runs containing all 95 fields included; raw input and slice counts match every baseline field; recorded BR rounded for UNSZ'},indent=2)+'\n')
+    (output/'manifest.json').write_text(json.dumps({'plot_script_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'sources':sources,'field_order':fields,'shape_groups':groups,'regenerated_per_field':arguments.per_field,'throughput_rule':'sum(input bytes)/sum(core time)/1e6,not mean field throughput','rd_rule':'BR=sum(compressed bytes)*32/sum(input bytes); NMSE=point-weighted mean of 10**(-field PSNR/10); grouped PSNR=-10*log10(NMSE); infinite field PSNR contributes zero NMSE; equal-sized fields within each shape imply arithmetic means','invalid_rule':'Every plotted result satisfies its ABS bound; ZFP is excluded because it violates the bound on fields with sentinel values','preprocessing_rule':'Both preprocessing stages included in total time; zero for 1D codecs; UNSZ shares untransformed spatial DAG across fields; current UMC serial runner preprocesses each field separately','timing_comparison':'Separate jobs,nodes are not paired; not a controlled same-node speedup experiment','eb_coverage':coverage,'skipped_incomplete_results':skipped,'structured_coverage':'Only EB runs containing all 95 fields included; raw input and slice counts match every baseline field; recorded BR rounded for UNSZ'},indent=2)+'\n')
     plot_grouped(grouped,groups,output)
     plot_grouped(grouped,groups,output,throughput=True)
     if arguments.per_field:

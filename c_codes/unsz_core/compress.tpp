@@ -312,6 +312,8 @@ namespace unsz
         bool two_point_sets=point_set_config_vec.size()==2;
         array<uint64_t,2> field_point_set_point_num{{0,0}};
         array<bool,2> point_set_is_always_constant{{true,true}};
+        field_point_set_min_data={{numeric_limits<double>::infinity(),numeric_limits<double>::infinity()}};
+        field_point_set_max_data={{-numeric_limits<double>::infinity(),-numeric_limits<double>::infinity()}};
         for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
         {
             current_time_step=time_step_vec[time_index];
@@ -329,15 +331,33 @@ namespace unsz
                 field_point_set_point_num[point_set_id]+=point_set_point_num_vec[point_set_id];
                 if(point_set_point_num_vec[point_set_id]>0&&point_set_codec_vec[point_set_id]!=point_set_codec_e::constant)
                     point_set_is_always_constant[point_set_id]=false;
+                if(point_set_point_num_vec[point_set_id]>0)
+                {
+                    field_point_set_min_data[point_set_id]=min(field_point_set_min_data[point_set_id],(double)point_set_min_data_vec[point_set_id]);
+                    field_point_set_max_data[point_set_id]=max(field_point_set_max_data[point_set_id],(double)point_set_max_data_vec[point_set_id]);
+                }
                 compression_file_point_set_min_data_vec[time_index][point_set_id]=point_set_min_data_vec[point_set_id];
                 compression_file_point_set_max_data_vec[time_index][point_set_id]=point_set_max_data_vec[point_set_id];
                 compression_file_point_set_abs_eb_vec[time_index][point_set_id]=point_set_abs_eb_vec[point_set_id];
                 compression_file_point_set_codec_vec[time_index][point_set_id]=point_set_codec_vec[point_set_id];
             }
         }
+        // FIELD_REL用当前field全部slice的整体range换算同一个ABS EB；常量slice仍按常量精确保存
+        for(uint32_t point_set_id=0;point_set_id<point_set_config_vec.size();point_set_id++)
+        {
+            const point_set_config_c&config=point_set_config_vec[point_set_id];
+            if(config.error_mode!=point_set_error_mode_e::field_relative||field_point_set_point_num[point_set_id]==0)
+                continue;
+            T_data field_abs_eb=(T_data)(config.eb*(field_point_set_max_data[point_set_id]-field_point_set_min_data[point_set_id]));
+            for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
+                if(compression_file_point_set_codec_vec[time_index][point_set_id]!=point_set_codec_e::constant)
+                    compression_file_point_set_abs_eb_vec[time_index][point_set_id]=field_abs_eb;
+        }
         if(two_point_sets&&(field_point_set_point_num[0]==0||field_point_set_point_num[1]==0))
         {
             uint32_t source_point_set_id=field_point_set_point_num[0]>0?0:1;
+            field_point_set_min_data[0]=field_point_set_min_data[source_point_set_id];
+            field_point_set_max_data[0]=field_point_set_max_data[source_point_set_id];
             for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
             {
                 compression_file_point_set_min_data_vec[time_index][0]=compression_file_point_set_min_data_vec[time_index][source_point_set_id];

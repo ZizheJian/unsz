@@ -66,7 +66,7 @@ namespace unsz
     };
 
     enum class point_set_codec_e:uint8_t{constant=2,rbf=5};
-    enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1};
+    enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1,field_relative=2};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
     enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,label_linear_interpolation_spatial_residual=5,linear_interpolation=6,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
     enum class time_step_order_e:uint8_t{chronological=0,interpolation=1,anchor_stride_8=2};
@@ -456,6 +456,7 @@ namespace unsz
             uint32_t automatic_flow_sample_num=2048,automatic_flow_start_num=4;
             vector<array<T_data,2>> compression_file_point_set_min_data_vec,compression_file_point_set_max_data_vec,compression_file_point_set_abs_eb_vec;
             vector<array<point_set_codec_e,2>> compression_file_point_set_codec_vec;
+            array<double,2> field_point_set_min_data{{0,0}},field_point_set_max_data{{0,0}};//FIELD_REL按当前field全部slice计算的各点集range
             string coordinate_transform_mode="auto";//off / on / auto；off和on仅用于实验
             double coordinate_transform_first_sample_ratio=0.3;
             bool use_coordinate_transform=false;
@@ -522,6 +523,7 @@ namespace unsz
             compression_diagnostics_c current_compression_diagnostics;
             decompression_diagnostics_c current_decompression_diagnostics;
             double reported_compression_preprocessing_time=0,reported_compression_time=0,reported_decompression_preprocessing_time=0,reported_decompression_time=0;
+            double current_field_preprocessing_time=0;
 
             void init();
             void load_time_step_coordinates();

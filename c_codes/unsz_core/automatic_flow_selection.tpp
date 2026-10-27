@@ -185,7 +185,7 @@ namespace unsz
         uint32_t time_step_num=(uint32_t)time_step_vec.size(),structure_num=(uint32_t)prediction_structure_vec.size();
         bool two_point_sets=point_set_config_vec.size()==2;
         double decision_eb_scale=1;
-        if(point_set_config_vec[0].error_mode==point_set_error_mode_e::relative&&point_set_config_vec[0].eb>automatic_flow_max_decision_rel_eb)
+        if(point_set_config_vec[0].error_mode!=point_set_error_mode_e::absolute&&point_set_config_vec[0].eb>automatic_flow_max_decision_rel_eb)
             decision_eb_scale=automatic_flow_max_decision_rel_eb/point_set_config_vec[0].eb;
         auto sample_structure_start_time=chrono::steady_clock::now();
         vector<vector<automatic_flow_window_c>> structure_windows(structure_num);
@@ -725,7 +725,7 @@ namespace unsz
         point_set_id_vec.clear();
         double selection_time=chrono::duration<double>(chrono::steady_clock::now()-selection_start_time).count()-excluded_input_time;
         double other_time=selection_time-file_statistics_time-sample_structure_time-sample_value_preparation_time-candidate_evaluation_time;
-        printf("automatic flow decision EB: configured_mode=%s,configured_eb=%.9g,decision_eb=%.9g\n",point_set_config_vec[0].error_mode==point_set_error_mode_e::relative?"REL":"ABS",point_set_config_vec[0].eb,point_set_config_vec[0].eb*decision_eb_scale);
+        printf("automatic flow decision EB: configured_mode=%s,configured_eb=%.9g,decision_eb=%.9g\n",point_set_config_vec[0].error_mode==point_set_error_mode_e::relative?"REL":point_set_config_vec[0].error_mode==point_set_error_mode_e::field_relative?"FIELD_REL":"ABS",point_set_config_vec[0].eb,point_set_config_vec[0].eb*decision_eb_scale);
         printf("automatic flow sampling: full_scan_time_steps=%u,read_time_steps=%u,structures=%u,windows=%llu,target_candidates=%llu,read_points=%llu\n",(uint32_t)full_scan_time_indices.size(),sampled_time_step_num,structure_num,(unsigned long long)sampled_window_num,(unsigned long long)sampled_target_num,(unsigned long long)sample_original_ids.size());
         double point_time_num=(double)point_num*time_step_num;
         for(const automatic_flow_candidate_c&candidate:candidates)

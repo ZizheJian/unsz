@@ -44,9 +44,10 @@ pair<double,double> prepare_current_decompression_field(unsz::param_c<T_coord,fl
 }
 
 template<typename T_coord>
-double run_decompression_field(unsz::param_c<T_coord,float>&param)
+double run_decompression_field(unsz::param_c<T_coord,float>&param,double preprocessing_time)
 {
     uint32_t validated_file_num=0;
+    uint64_t total_compressed_bytes=0;
     double total_decompression_time=0,total_time_prediction_state_update_time=0,total_prediction_order_restore_time=0,total_normalized_squared_error=0;
     uint64_t total_normalized_value_num=0;
     unsz::reconstruction_statistics_c total_statistics;
@@ -70,6 +71,7 @@ double run_decompression_field(unsz::param_c<T_coord,float>&param)
         string compressed_path=param.generated_path(param.original_data_path_vec[file_id],".unsz");
         string decompressed_path=param.generated_path(param.original_data_path_vec[file_id],".unsz.bin");
         param.current_compressed_bytes=unsz::read_byte_file(compressed_path);
+        total_compressed_bytes+=param.current_compressed_bytes.size();
 
         auto decompression_start_time=chrono::steady_clock::now();
         (param.*decompress_field)();
@@ -132,6 +134,7 @@ double run_decompression_field(unsz::param_c<T_coord,float>&param)
     if(param.prediction_data_uses_prediction_order)
         printf("total prediction order restore time= %.9f s\n",total_prediction_order_restore_time);
     printf("total decompression time= %f s\n",total_decompression_time);
+    printf("UNSZ FIELD RESULT side=decompression field=%s slices=%u values=%llu compressed_bytes=%llu squared_error=%.17g normalized_squared_error=%.17g normalized_value_num=%llu field_min=%.17g field_max=%.17g preprocessing_time=%.9f codec_time=%.9f max_error_over_eb=%.17g\n",param.field_name.c_str(),(uint32_t)param.original_data_path_vec.size(),(unsigned long long)total_statistics.point_num,(unsigned long long)total_compressed_bytes,total_statistics.squared_error,total_normalized_squared_error,(unsigned long long)total_normalized_value_num,total_statistics.minimum,total_statistics.maximum,preprocessing_time,total_decompression_time,total_statistics.max_error_ratio);
     if(validated_file_num>0)
     {
         printf("total decompressed psnr= %f\n",unsz::reconstruction_psnr(total_statistics));
@@ -171,7 +174,7 @@ void decompress_fields(param_c<float,float>&param)
         double preprocessing_time=field_preprocessing_time+chrono::duration<double>(chrono::steady_clock::now()-preprocessing_start_time).count();
         total_preprocessing_time+=preprocessing_time;
         printf("preprocessing time excluding coordinate and transform-file input= %f s\n",preprocessing_time);
-        param.reported_decompression_time+=run_decompression_field(param);
+        param.reported_decompression_time+=run_decompression_field(param,preprocessing_time);
         param.release_current_spatial_prediction_state();
         printf("END UNSZ FIELD %s\n",param.field_name.c_str());
     }

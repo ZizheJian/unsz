@@ -86,7 +86,9 @@ namespace unsz
             return point_set_error_mode_e::relative;
         if(text=="ABS")
             return point_set_error_mode_e::absolute;
-        throw runtime_error(location+"的eb.mode必须是REL或ABS："+text);
+        if(text=="FIELD_REL")
+            return point_set_error_mode_e::field_relative;
+        throw runtime_error(location+"的eb.mode必须是REL、FIELD_REL或ABS："+text);
     }
 
     inline point_set_rule_operator_e parse_point_set_rule_operator(const string &text,const string &location)

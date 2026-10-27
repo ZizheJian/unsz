@@ -6,23 +6,24 @@
 #SBATCH --cpus-per-task=128
 #SBATCH --time=02:30:00
 #SBATCH --job-name=unsz_slice_rd
-#SBATCH --output=/home/x-zjian1/unsz/results/ocean_large_per_slice_rd_128/unsz/%x_%j.log
+#SBATCH --output=/home/x-zjian1/unsz/results/%x_%j.log
 
+# 用法：sbatch [--cpus-per-task=N] run_five_ebs.slurm [slice|field] [field-workers] [rel-eb...]
+# 默认在128核上用16个field worker、每个worker 8个partition运行per-slice协议的五个EB；已完成的EB自动跳过
 set -euo pipefail
 cd /home/x-zjian1/unsz
-if [[ ${SLURM_CPUS_PER_TASK:-0} -ne 128 ]];then echo 'UNSZ per-slice RD requires 128 allocated CPUs'>&2;exit 2;fi
+protocol=${1:-slice};field_workers=${2:-16};shift $(($#<2?$#:2))
+rel_ebs=("$@");if [[ ${#rel_ebs[@]} -eq 0 ]];then rel_ebs=(1e-1 1e-2 1e-3 1e-4 1e-5);fi
+cpu_num=$SLURM_CPUS_PER_TASK;partitions=$((cpu_num/field_workers))
 export OMP_DYNAMIC=false
 export OMP_MAX_ACTIVE_LEVELS=2
 export OMP_PROC_BIND=spread,close
 export OMP_PLACES=cores
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
-result_root=results/ocean_large_per_slice_rd_128/unsz/16_fields_8_partitions
-mkdir -p "$result_root"
-for rel_eb in 1e-1 1e-2 1e-3 1e-4 1e-5;do
-    output_dir="$result_root/rel_$rel_eb"
-    if [[ -f "$output_dir/summary.json" ]]&&jq -e --argjson rel_eb "$rel_eb" '.rel_eb==$rel_eb and .cpu_num==128 and .field_worker_num==16 and .partition_num==8 and .field_num==95 and .slice_num==36264 and .max_error_over_eb<=1.01' "$output_dir/summary.json">/dev/null;then echo "SKIP completed REL=$rel_eb";continue;fi
+for rel_eb in "${rel_ebs[@]}";do
+    output_dir="results/ocean_large_per_${protocol}_rd_${cpu_num}/unsz/${field_workers}_fields_${partitions}_partitions/rel_$rel_eb"
+    if [[ -f "$output_dir/summary.json" ]]&&jq -e --arg protocol "$protocol" --argjson rel_eb "$rel_eb" --argjson cpu_num "$cpu_num" --argjson field_workers "$field_workers" '.protocol==$protocol and .rel_eb==$rel_eb and .cpu_num==$cpu_num and .field_worker_num==$field_workers and .field_num==95 and .valid' "$output_dir/summary.json">/dev/null;then echo "SKIP completed REL=$rel_eb";continue;fi
     mkdir -p "$output_dir"
-    resource_path="$output_dir/resources_job_${SLURM_JOB_ID}.txt"
-    srun --exact --kill-on-bad-exit=1 --ntasks=1 --cpus-per-task=128 --cpu-bind=none /usr/bin/time -v -o "$resource_path" ./unsz_env/bin/python -u benchmarks/two_level/run.py --rel-eb "$rel_eb" --field-worker-num 16 --output-root "$output_dir" --launcher benchmarks/two_level/run_five_ebs.slurm
+    srun --exact --kill-on-bad-exit=1 --ntasks=1 --cpus-per-task="$cpu_num" --cpu-bind=none /usr/bin/time -v -o "$output_dir/resources_job_${SLURM_JOB_ID}.txt" ./unsz_env/bin/python -u benchmarks/two_level/run.py --protocol "$protocol" --rel-eb "$rel_eb" --field-worker-num "$field_workers" --cpu-num "$cpu_num" --output-root "$output_dir" --launcher benchmarks/two_level/run_five_ebs.slurm
 done

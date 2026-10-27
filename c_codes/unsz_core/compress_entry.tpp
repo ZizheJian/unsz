@@ -151,6 +151,7 @@ namespace unsz
         printf("normalized squared error sum= %.17g, normalized value count= %llu, normalized psnr= %.17g, maximum error over eb= %.17g\n",total_normalized_squared_error,(unsigned long long)total_normalized_value_num,normalized_reconstruction_psnr(total_normalized_squared_error,total_normalized_value_num),total_statistics.max_error_ratio);
         printf("compression data input time excluded from reported time= %f s\n",total_data_input_time);
         printf("compressed output time excluded from reported time= %f s\n",total_compressed_output_time);
+        printf("UNSZ FIELD RESULT side=compression field=%s slices=%u values=%llu compressed_bytes=%llu squared_error=%.17g normalized_squared_error=%.17g normalized_value_num=%llu field_min=%.17g field_max=%.17g preprocessing_time=%.9f codec_time=%.9f max_error_over_eb=%.17g\n",field_name.c_str(),(uint32_t)original_data_path_vec.size(),(unsigned long long)total_statistics.point_num,(unsigned long long)total_compressed_bytes,total_statistics.squared_error,total_normalized_squared_error,(unsigned long long)total_normalized_value_num,total_statistics.minimum,total_statistics.maximum,current_field_preprocessing_time,total_compression_time,total_statistics.max_error_ratio);
         reported_compression_time+=total_compression_time;
     }
 
@@ -204,6 +205,7 @@ namespace unsz
             double field_preprocessing_time=coordinate_transform_time+prediction_structure_time+automatic_flow_time+temporal_dependency_time;
             total_preprocessing_time+=field_preprocessing_time;
             printf("preprocessing time excluding coordinate and field-data input= %f s\n",field_preprocessing_time);
+            param.current_field_preprocessing_time=field_preprocessing_time;
             if(param.point_set_config_vec.size()==1)
                 one_point_set::compress(param);
             else

@@ -583,6 +583,54 @@ namespace unsz
         }
         else
             point_set_rule_vec=configured_point_set_rule_vec;
+        field_point_set_min_data={{numeric_limits<double>::infinity(),numeric_limits<double>::infinity()}};
+        field_point_set_max_data={{-numeric_limits<double>::infinity(),-numeric_limits<double>::infinity()}};
+        if(any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.error_mode==point_set_error_mode_e::field_relative;}))
+        {
+            // FIELD_REL的ABS EB依赖整个field的range，因此读取全部slice文件头中的各点集min/max；文件读取不计时
+            for(const string&data_path:original_data_path_vec)
+            {
+                string slice_path=generated_path(data_path,".unsz");
+                vector<unsigned char> slice_bytes(maximum_header_byte_num);
+                auto slice_input_start_time=chrono::steady_clock::now();
+                FILE*slice_file=fopen(slice_path.c_str(),"rb");
+                if(!slice_file)
+                    throw runtime_error("找不到文件："+slice_path);
+                slice_bytes.resize(fread(slice_bytes.data(),1,slice_bytes.size(),slice_file));
+                fclose(slice_file);
+                input_time+=chrono::duration<double>(chrono::steady_clock::now()-slice_input_start_time).count();
+                const unsigned char*slice_cursor=slice_bytes.data(),*slice_end=slice_bytes.data()+slice_bytes.size();
+                if((uint64_t)(slice_end-slice_cursor)<8||memcmp(slice_cursor,compression_file_magic,8)!=0)
+                    throw runtime_error("不是受支持的UNSZ点集文件："+slice_path);
+                slice_cursor+=8;
+                for(uint32_t header_value_id=0;header_value_id<3;header_value_id++)
+                    read_binary<uint32_t>(slice_cursor,slice_end);
+                if(read_binary<uint32_t>(slice_cursor,slice_end)!=point_set_num)
+                    throw runtime_error("同一field的slice点集数量不一致："+slice_path);
+                if(read_binary<uint8_t>(slice_cursor,slice_end))
+                {
+                    read_binary<uint8_t>(slice_cursor,slice_end);
+                    read_binary<uint32_t>(slice_cursor,slice_end);
+                    read_binary<uint32_t>(slice_cursor,slice_end);
+                }
+                else
+                {
+                    read_binary<uint8_t>(slice_cursor,slice_end);
+                    read_binary<uint8_t>(slice_cursor,slice_end);
+                }
+                for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+                {
+                    for(uint32_t codec_byte_id=0;codec_byte_id<3;codec_byte_id++)
+                        read_binary<uint8_t>(slice_cursor,slice_end);
+                    uint32_t slice_point_num=read_binary<uint32_t>(slice_cursor,slice_end);
+                    T_data slice_min=read_binary<T_data>(slice_cursor,slice_end),slice_max=read_binary<T_data>(slice_cursor,slice_end);
+                    if(slice_point_num==0)
+                        continue;
+                    field_point_set_min_data[point_set_id]=min(field_point_set_min_data[point_set_id],(double)slice_min);
+                    field_point_set_max_data[point_set_id]=max(field_point_set_max_data[point_set_id],(double)slice_max);
+                }
+            }
+        }
         return input_time;
     }
 
