@@ -38,3 +38,4 @@ results/ocean_large_per_slice_rd_128/**/resources/
 results/ocean_large_sz3_1d_128cpu_selection/**/benchmark_*
 results/ocean_large_sz3_1d_128cpu_selection/**/*.inputs.txt
 results/ocean_large_sz3_1d_128cpu_selection/**/*.slices.csv
+results/ocean_large_per_*_rd_*/**/compress_one_field*

@@ -1,0 +1,24 @@
+Command exited with non-zero status 1
+	Command being timed: "./unsz_env/bin/python -u benchmarks/field_relative/run_all_95_fields.py --codec qoz --rel-eb 1e-1 --rel-eb 1e-2 --rel-eb 1e-3 --rel-eb 1e-4 --rel-eb 1e-5 --field-workers 4 --partitions-per-field 32"
+	User time (seconds): 2909.19
+	System time (seconds): 282.94
+	Percent of CPU this job got: 2906%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:49.81
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 58881776
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 455
+	Minor (reclaiming a frame) page faults: 18368425
+	Voluntary context switches: 280117
+	Involuntary context switches: 6886
+	Swaps: 0
+	File system inputs: 45192
+	File system outputs: 9976
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1

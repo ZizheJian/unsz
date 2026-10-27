@@ -1,0 +1,163 @@
+{
+  "codec": "qoz2-q4-nd-point-partitioned",
+  "protocol": "field",
+  "statistics_version": 2,
+  "rel_eb": 1e-05,
+  "field_workers": 4,
+  "point_partitions_per_field": 32,
+  "cpu_num": 128,
+  "field_num": 80,
+  "slice_num": 36084,
+  "compressed_bytes": 59338487319,
+  "value_num": 133266330900,
+  "valid_value_num": 103971619309,
+  "br": 3.562099259025972,
+  "nmse": 1.907068488878616e-11,
+  "normalized_psnr": 107.19633709781503,
+  "nmse_all_points": 1.4899930722317078e-11,
+  "normalized_psnr_all_points": 108.26815750848489,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 43,
+      "value_num": 1905704100,
+      "valid_value_num": 1905704029,
+      "br": 7.686061465680847,
+      "nmse": 2.2707449800329554e-11,
+      "normalized_psnr": 106.43831637239282,
+      "nmse_all_points": 2.270744895432784e-11,
+      "normalized_psnr_all_points": 106.43831653419605
+    },
+    "12x80": {
+      "field_num": 33,
+      "value_num": 117001368000,
+      "valid_value_num": 90873652320,
+      "br": 3.4915767924354526,
+      "nmse": 1.9493923757495533e-11,
+      "normalized_psnr": 107.10100736833172,
+      "nmse_all_points": 1.516506335806131e-11,
+      "normalized_psnr_all_points": 108.1915577091224
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "valid_value_num": 11192262960,
+      "br": 3.58941079270749,
+      "nmse": 1.5015038634754623e-11,
+      "normalized_psnr": 108.23473545993195,
+      "nmse_all_points": 1.1703407752128066e-11,
+      "normalized_psnr_all_points": 109.31687663684747
+    }
+  },
+  "compression_worker_times": [
+    101.098099831,
+    68.034638112,
+    63.749298456,
+    55.969497814
+  ],
+  "decompression_worker_times": [
+    32.533254766,
+    37.849646379,
+    37.533243173,
+    37.908425741
+  ],
+  "reported_compression_time": 101.098099831,
+  "reported_decompression_time": 37.908425741,
+  "total_codec_time": 139.006525572,
+  "all_ebs_execution_wall_time": 109.34842142998241,
+  "max_concurrent_rss_upper_bound_kib": 244798388,
+  "max_error_over_eb": 1.000000044773695,
+  "complete": false,
+  "failures": [
+    {
+      "field": "timeMonthly_avg_activeTracersML_temperatureML",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_activeTracersML_temperatureML.log"
+    },
+    {
+      "field": "timeMonthly_avg_activeTracersSurfaceFlux_temperatureSurfaceFlux",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_activeTracersSurfaceFlux_temperatureSurfaceFlux.log"
+    },
+    {
+      "field": "timeMonthly_avg_atmosphericPressure",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_atmosphericPressure.log"
+    },
+    {
+      "field": "timeMonthly_avg_columnIntegratedSpeed",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_columnIntegratedSpeed.log"
+    },
+    {
+      "field": "timeMonthly_avg_evaporationFlux",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_evaporationFlux.log"
+    },
+    {
+      "field": "timeMonthly_avg_latentHeatFlux",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_latentHeatFlux.log"
+    },
+    {
+      "field": "timeMonthly_avg_longWaveHeatFluxDown",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_longWaveHeatFluxDown.log"
+    },
+    {
+      "field": "timeMonthly_avg_longWaveHeatFluxUp",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_longWaveHeatFluxUp.log"
+    },
+    {
+      "field": "timeMonthly_avg_penetrativeTemperatureFlux",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_penetrativeTemperatureFlux.log"
+    },
+    {
+      "field": "timeMonthly_avg_pressureAdjustedSSH",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_pressureAdjustedSSH.log"
+    },
+    {
+      "field": "timeMonthly_avg_rainFlux",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_rainFlux.log"
+    },
+    {
+      "field": "timeMonthly_avg_shortWaveHeatFlux",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_shortWaveHeatFlux.log"
+    },
+    {
+      "field": "timeMonthly_avg_ssh",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_ssh.log"
+    },
+    {
+      "field": "timeMonthly_avg_windStressMeridional",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_windStressMeridional.log"
+    },
+    {
+      "field": "timeMonthly_avg_windStressZonal",
+      "rel_eb": 1e-05,
+      "returncode": -6,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_128/qoz/4_fields_32_partitions/logs/timeMonthly_avg_windStressZonal.log"
+    }
+  ],
+  "valid": false
+}

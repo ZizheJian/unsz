@@ -1,0 +1,26 @@
+{
+  "codec": "pfpl",
+  "protocol": "slice",
+  "configuration": "64_slice_workers_2_threads_per_slice",
+  "slice_workers": 64,
+  "threads_per_slice": 2,
+  "cpu_num": 128,
+  "assignment_rule": "global slice order round-robin; all slices have the same size",
+  "field_num": 95,
+  "slice_num": 36264,
+  "rel_eb": 0.01,
+  "error_bound_rule": "REL*(slice valid max-slice valid min), excluding -99999",
+  "binary_sha256": "ee1b48f61e3ea5c9672d3d7a9ed890e24990698e927e8a3604c3af088d667320",
+  "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
+  "source_sha256": {
+    "benchmarks/slice_parallel/run.py": "5ab5d04045082848f9cde3f4158f8c32836e53631f8a201fa679d3d830c218e1",
+    "benchmarks/common.py": "24f170d0aa7202bc34fea2c0b54449dd1fc46e7fd373729274b0569967e51e6a",
+    "benchmarks/tensor_1d/benchmark.cpp": "697afa3d9993855639eaafa35bd9f3fbca2c8eba735557567cd607e002662d62"
+  },
+  "git_revision": "55fa9905cbf9632488acabbc59e0f2daf6424544",
+  "upstream_revision": "36f5aaef42744ed78b4d1525b03a7fb2168b363c",
+  "slurm_job_id": "21691969",
+  "slurm_nodelist": "a242",
+  "slurm_cpus": 128,
+  "hostname": "a242.anvil.rcac.purdue.edu"
+}

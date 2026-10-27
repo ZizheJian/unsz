@@ -1,0 +1,72 @@
+{
+  "codec": "sz3-nd-point-partitioned",
+  "protocol": "field",
+  "statistics_version": 2,
+  "rel_eb": 0.01,
+  "field_workers": 4,
+  "point_partitions_per_field": 32,
+  "cpu_num": 128,
+  "field_num": 95,
+  "slice_num": 36264,
+  "compressed_bytes": 18004767808,
+  "value_num": 133931111400,
+  "valid_value_num": 104636399809,
+  "br": 1.0754644007531173,
+  "nmse": 7.040015013438884e-06,
+  "normalized_psnr": 51.5242641468648,
+  "nmse_all_points": 5.914753125888122e-06,
+  "normalized_psnr_all_points": 52.28063377545267,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 58,
+      "value_num": 2570484600,
+      "valid_value_num": 2570484529,
+      "br": 1.6367079452644844,
+      "nmse": 1.977413868249869e-05,
+      "normalized_psnr": 47.03902424320026,
+      "nmse_all_points": 1.9774138136312245e-05,
+      "normalized_psnr_all_points": 47.03902436315782
+    },
+    "12x80": {
+      "field_num": 33,
+      "value_num": 117001368000,
+      "valid_value_num": 90873652320,
+      "br": 1.0725483669900338,
+      "nmse": 6.711685155573594e-06,
+      "normalized_psnr": 51.73168424408813,
+      "nmse_all_points": 5.687480316539262e-06,
+      "normalized_psnr_all_points": 52.45080093356049
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "valid_value_num": 11192262960,
+      "br": 0.9987551524595406,
+      "nmse": 6.781234948842765e-06,
+      "normalized_psnr": 51.68691208400119,
+      "nmse_all_points": 5.285604626123904e-06,
+      "normalized_psnr_all_points": 52.76905326091671
+    }
+  },
+  "compression_worker_times": [
+    43.613373487,
+    51.989912118,
+    54.632845907000004,
+    57.781196302
+  ],
+  "decompression_worker_times": [
+    25.883421316,
+    26.792241579,
+    27.206992067999998,
+    26.403373009
+  ],
+  "reported_compression_time": 57.781196302,
+  "reported_decompression_time": 27.206992067999998,
+  "total_codec_time": 84.98818836999999,
+  "all_ebs_execution_wall_time": 562.6226132910233,
+  "max_concurrent_rss_upper_bound_kib": 238420492,
+  "max_error_over_eb": 0.999999999934949,
+  "complete": true,
+  "failures": [],
+  "valid": true
+}
