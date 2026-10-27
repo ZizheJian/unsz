@@ -39,4 +39,12 @@ def parse_unsz_output(compression_output,decompression_output):
     decompression_preprocessing_time=read_optional_output_float(r"^total decompression preprocessing time excluding [^=]+= ([^ ]+) s$",decompression_output)
     if decompression_preprocessing_time is None:
         decompression_preprocessing_time=read_output_float(r"^preprocessing time excluding [^=]+= ([^ ]+) s$",decompression_output,"解压端预处理时间")+temporal_dependency_plan_time
+    # per-slice协议的PSNR统计：每个slice普通值的平方误差除以该slice普通值range的平方，见UNSZ FIELD RESULT行
+    field_results=re.findall(r"^UNSZ FIELD RESULT side=decompression field=\S+ slices=\d+ values=(\d+) valid_values=(\d+) compressed_bytes=\d+ squared_error=\S+ valid_squared_error=\S+ slice_normalized_valid_squared_error=(\S+) slice_normalized_squared_error=(\S+) ",decompression_output,re.MULTILINE)
+    if len(field_results)!=1:
+        raise RuntimeError(f"UNSZ解压输出应包含一行field统计，实际为{len(field_results)}行")
+    result["value_num"]=int(field_results[0][0])
+    result["valid_value_num"]=int(field_results[0][1])
+    result["slice_normalized_valid_squared_error"]=float(field_results[0][2])
+    result["slice_normalized_squared_error"]=float(field_results[0][3])
     return {**result,"decompression_preprocessing_time":decompression_preprocessing_time,"decompression_temporal_dependency_plan_time":temporal_dependency_plan_time,"decompression_time":read_output_float(r"^total decompression time= ([^ ]+) s$",decompression_output,"解压时间")}

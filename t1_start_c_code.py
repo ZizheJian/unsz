@@ -415,9 +415,9 @@ def write_benchmark_result(task,field,compressor,config,result,metadata):
         write_csv_item(str(result_path),item,"selected_value_flow",result["selected_value_flow"] or value_flow)
         if result["automatic_flow_candidates"]:
             write_csv_item(str(result_path),item,"automatic_flow_candidates",json.dumps(result["automatic_flow_candidates"],separators=(",",":")))
-    if compressor=="umc":
-        for column_name in ("value_num","valid_value_num","slice_normalized_valid_squared_error","slice_normalized_squared_error"):
-            write_csv_item(str(result_path),item,column_name,result[column_name])
+    # per-slice协议的PSNR由这些统计计算：每个slice普通值的平方误差除以该slice普通值range的平方
+    for column_name in ("value_num","valid_value_num","slice_normalized_valid_squared_error","slice_normalized_squared_error"):
+        write_csv_item(str(result_path),item,column_name,result[column_name])
     for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",field_slice_num(config,field)),("input_bytes",total_bytes)):
         write_csv_item(str(result_path),item,column_name,value)
 

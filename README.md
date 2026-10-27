@@ -127,7 +127,7 @@ install/bin/s1_decompress -data-dir /path/to/Katrina -field attr0 -time-step '[0
 | `py_codes/prepare_datasets/prepare_<dataset>.py` | 分别把Tpost20、E3SM-h4、ADCIRC Haiyan、TAPS和Ocean-large发布数据转换为平坦二进制基准输入；`prepare_ocean_large_tensor.py`另外生成完整Ocean-large的`[time,height,point]`切片和tensor metadata，共享工具位于同目录的`prepare_dataset_common.py` |
 | `py_codes/prepare_datasets/prepare_ocean_large_tensor.slurm` | 申请16个CPU及其附带内存执行约499GiB的完整Ocean-large tensor转换；这是大型I/O任务，提交前应再次确认输出目录配额 |
 | `py_codes/run_spatial_field_benchmark.slurm` | 在Slurm节点上运行环境变量`CONFIG`明确指定的完整task JSON，不在运行时拆分或改写JSON |
-| `py_codes/run_configurations.slurm` | 以Slurm array依次把当前8个正式数据集JSON交给`t1_start_c_code.py`。 |
+| `py_codes/run_configurations.slurm` | 依次把参数中列出的`configs/`数据集JSON交给`t1_start_c_code.py`，使用已安装的二进制并在日志开头记录git版本、二进制SHA和节点；不同数据集可按耗时分成几个作业并发提交 |
 | `py_codes/plot_dataset_rd.py` | 为一个数据集的各field分别绘制UNSZ/UMC空间RD与核心吞吐率，并计算同PSNR下的平均BR变化 |
 
 JSON最外层是task list；同一个JSON可以包含不同数据目录的任务。每个task都必须自行记录描述实验用途的唯一`name`、绝对`data_dir`和CSV文件路径`csv_path`，即使相邻task使用同一数据目录也不从外层继承。相对`csv_path`以项目根目录为基准；一个task包含多个field时，路径使用`{field}`作为field名称占位符。同一数据、同一field需要测试不同固定参数时，应写成名称不同的多个task。
