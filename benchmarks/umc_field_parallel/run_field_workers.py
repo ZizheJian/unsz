@@ -1,7 +1,7 @@
 import argparse,concurrent.futures,csv,json,math,os,re,subprocess,sys,threading,time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from common import check_cpus,default_data_dir,field_slice_num,git_revision,optimal_assignment,project_root,quality_summary,read_metadata,rel_eb_tags,sha256,shape_name,slurm_environment,worker_times,write_fields_csv,write_json
+from common import check_cpus,default_data_dir,field_slice_num,git_revision,optimal_assignment,project_root,quality_columns,quality_summary,read_metadata,rel_eb_tags,sha256,shape_name,slurm_environment,statistics_version,worker_times,write_fields_csv,write_json
 
 # UMC没有可处理完整Ocean-large的并行入口，因此每个worker用官方串行程序依次处理分给它的完整field
 umc_root=project_root/'third_party/umc'
@@ -43,7 +43,7 @@ def run_field(worker_id,field,cpu,data_dir,metadata,rel_eb,output_dir,reference)
     result_path=output_dir/'fields'/f'{field}.json'
     if result_path.is_file():
         result=json.loads(result_path.read_text())
-        if result.get('rel_eb')==rel_eb and result.get('valid')and same_float(result['br'],reference['br'])and same_float(result['psnr'],reference['psnr']):
+        if 'normalized_squared_error'in result and result.get('rel_eb')==rel_eb and result.get('valid')and same_float(result['br'],reference['br'])and same_float(result['psnr'],reference['psnr']):
             print(f'SKIP worker={worker_id},field={field}',flush=True)
             return result
     slice_num=field_slice_num(metadata,field)
@@ -66,9 +66,9 @@ def run_field(worker_id,field,cpu,data_dir,metadata,rel_eb,output_dir,reference)
         if int(row['input_bytes'])!=int(reference['input_bytes'])or not same_float(row['br'],reference['br'])or not same_float(row['psnr'],reference['psnr']):raise RuntimeError(f'UMC并行结果与串行参考结果不一致：{field}')
         match=re.search(r'Maximum resident set size \(kbytes\):\s*(\d+)',resource_path.read_text())
         if match is None:raise RuntimeError(f'UMC缺少峰值内存记录：{field}')
-        psnr=float(row['psnr'])
         value_num=int(row['input_bytes'])//4
-        result={'field':field,'shape':shape_name(metadata,field),'slice_num':slice_num,'value_num':value_num,'compressed_bytes':round(float(row['br'])*value_num/8),'br':float(row['br']),'nmse':0.0 if math.isinf(psnr)else 10**(-psnr/10),'psnr':psnr,'compression_preprocessing_time':float(row['compression_preprocessing_time']),'compression_time':float(row['compression_time']),'decompression_preprocessing_time':float(row['decompression_preprocessing_time']),'decompression_time':float(row['decompression_time']),'valid':True,'worker_id':worker_id,'rel_eb':rel_eb,'field_process_wall_time':process_wall_time,'max_rss_kib':int(match.group(1))}
+        if int(row['value_num'])!=value_num:raise RuntimeError(f'UMC逐slice误差统计的值数量不一致：{field}')
+        result={'field':field,'shape':shape_name(metadata,field),'slice_num':slice_num,'value_num':value_num,'compressed_bytes':round(float(row['br'])*value_num/8),'br':float(row['br']),**quality_columns(float(row['slice_normalized_valid_squared_error']),int(row['valid_value_num']),float(row['slice_normalized_squared_error']),value_num),'field_range_psnr':float(row['psnr']),'compression_preprocessing_time':float(row['compression_preprocessing_time']),'compression_time':float(row['compression_time']),'decompression_preprocessing_time':float(row['decompression_preprocessing_time']),'decompression_time':float(row['decompression_time']),'valid':True,'worker_id':worker_id,'rel_eb':rel_eb,'field_process_wall_time':process_wall_time,'max_rss_kib':int(match.group(1))}
         write_json(result_path,result)
         print(f'END worker={worker_id},field={field},wall_time={process_wall_time:.3f},max_rss_kib={result["max_rss_kib"]}',flush=True)
         return result
@@ -121,7 +121,7 @@ def main():
         rows=[result for worker_id in range(worker_num)for result in worker_results[worker_id]]
         write_fields_csv(output_dir/'fields.csv',rows)
         times=worker_times([sum(result['compression_preprocessing_time']+result['compression_time']for result in worker_results[worker_id])for worker_id in range(worker_num)],[sum(result['decompression_preprocessing_time']+result['decompression_time']for result in worker_results[worker_id])for worker_id in range(worker_num)])
-        summary={'codec':'umc-nbp-idw-inp','protocol':'slice','rel_eb':rel_eb,'field_workers':worker_num,'cpu_num':worker_num,'field_num':len(fields),'slice_num':sum(loads),'compressed_bytes':sum(row['compressed_bytes']for row in rows),**quality_summary(rows),**times,'execution_wall_time':time.perf_counter()-start,'worker_slice_loads':loads,'max_rss_upper_bound_kib':sum(max((result['max_rss_kib']for result in worker_results[worker_id]),default=0)for worker_id in range(worker_num)),'cgroup_memory_peak_bytes':memory_result.get('peak_bytes'),'matches_serial_reference':True,'valid':True}
+        summary={'codec':'umc-nbp-idw-inp','protocol':'slice','statistics_version':statistics_version,'rel_eb':rel_eb,'field_workers':worker_num,'cpu_num':worker_num,'field_num':len(fields),'slice_num':sum(loads),'compressed_bytes':sum(row['compressed_bytes']for row in rows),**quality_summary(rows),**times,'execution_wall_time':time.perf_counter()-start,'worker_slice_loads':loads,'max_rss_upper_bound_kib':sum(max((result['max_rss_kib']for result in worker_results[worker_id]),default=0)for worker_id in range(worker_num)),'cgroup_memory_peak_bytes':memory_result.get('peak_bytes'),'matches_serial_reference':True,'valid':True}
         write_json(output_dir/'summary.json',summary)
         print(json.dumps({key:value for key,value in summary.items()if not isinstance(value,(list,dict))},ensure_ascii=False),flush=True)
 

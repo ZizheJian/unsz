@@ -7,6 +7,8 @@ def calculate_umc_disk_error(data_paths,rel_eb,chunk_point_num=1<<20):
     total_squared_error=0
     total_point_num=0
     max_error=0
+    # per-slice协议的PSNR：每个slice的误差除以该slice普通值range的平方，普通值排除-99999
+    slice_statistics={'valid_value_num':0,'slice_normalized_valid_squared_error':0.0,'slice_normalized_squared_error':0.0}
     for path in data_paths:
         output_path=path+".umc.out"
         original_bytes=os.path.getsize(path)
@@ -18,6 +20,9 @@ def calculate_umc_disk_error(data_paths,rel_eb,chunk_point_num=1<<20):
         file_max_error=0
         file_max_error_point_id=0
         file_point_offset=0
+        file_squared_error=0.0
+        file_valid_squared_error=0.0
+        file_valid_num=0
         with open(path,"rb") as original_file,open(output_path,"rb") as recovered_file:
             while True:
                 original=np.fromfile(original_file,dtype=np.float32,count=chunk_point_num)
@@ -38,17 +43,30 @@ def calculate_umc_disk_error(data_paths,rel_eb,chunk_point_num=1<<20):
                 if chunk_max_error>file_max_error:
                     file_max_error=chunk_max_error
                     file_max_error_point_id=file_point_offset+chunk_max_error_index
-                total_squared_error+=float(np.dot(difference,difference))
+                chunk_squared_error=float(np.dot(difference,difference))
+                total_squared_error+=chunk_squared_error
+                file_squared_error+=chunk_squared_error
+                valid_difference=difference[valid]
+                file_valid_squared_error+=float(np.dot(valid_difference,valid_difference))
+                file_valid_num+=int(np.count_nonzero(valid))
                 max_error=max(max_error,chunk_max_error)
                 total_point_num+=original.size
                 file_point_offset+=original.size
+        file_range=0.0 if file_min==math.inf else file_max-file_min
+        if file_range>0:
+            slice_statistics['slice_normalized_valid_squared_error']+=file_valid_squared_error/file_range**2
+            slice_statistics['slice_normalized_squared_error']+=file_squared_error/file_range**2
+        elif file_valid_squared_error!=0:
+            raise RuntimeError(f"UMC没有精确恢复普通值为常量的文件：{path}")
+        slice_statistics['valid_value_num']+=file_valid_num
         file_abs_eb=0 if file_min==math.inf else rel_eb*(file_max-file_min)
         if file_max_error>1.01*file_abs_eb:
             ratio=math.inf if file_abs_eb==0 else file_max_error/file_abs_eb
             raise RuntimeError(f"UMC逐点误差检查失败：文件={path}，点={file_max_error_point_id}，误差={file_max_error}，绝对误差上限={file_abs_eb}，误差/上限={ratio}")
     if total_point_num==0:
         raise RuntimeError("UMC磁盘输出检查没有读到数据")
-    return total_squared_error/total_point_num,max_error
+    slice_statistics['value_num']=total_point_num
+    return total_squared_error/total_point_num,max_error,slice_statistics
 
 def parse_umc_decompression_result(output,data_paths,data_range):
     preprocessing_times=[float(value) for value in re.findall(r"^preprocessing time\s*=\s*([^\s]+)",output,re.MULTILINE)]

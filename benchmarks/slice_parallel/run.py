@@ -1,7 +1,7 @@
 import argparse,csv,json,math,os,shutil,subprocess,sys,time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from common import check_cpus,default_data_dir,field_quality,field_slice_num,git_revision,ocean_large_slice_num,project_root,quality_summary,read_metadata,sha256,shape_name,slurm_environment,worker_times,write_fields_csv,write_json
+from common import check_cpus,default_data_dir,field_slice_num,git_revision,ocean_large_slice_num,project_root,quality_columns,quality_summary,read_metadata,sha256,shape_name,slurm_environment,statistics_version,worker_times,write_fields_csv,write_json
 
 # 每个slice作为一维数组独立压缩；slice在worker间轮流分配，每个slice内部再使用压缩器自身的OpenMP
 codecs={'sz3':{'name':'sz3-1d','binary':'build/tensor_1d/benchmark_sz3','upstream':'third_party/SZ3','result_dir':'sz3_1d'},'pfpl':{'name':'pfpl','binary':'build/tensor_1d/benchmark_pfpl','upstream':'third_party/PFPL','result_dir':'pfpl'}}
@@ -13,12 +13,12 @@ def list_slices(data_dir,metadata,fields,max_slices):
         for slice_id in range(slice_num):slices.append({'field':field,'slice_id':slice_id,'path':data_dir/f'{field}.dat.{slice_id}'})
     return slices
 
-def load_reference(codec,rel_eb,threads_per_slice,fields,binary_sha256):
+def load_reference(codec,rel_eb,threads_per_slice,fields):
     # 码流大小与单线程正式结果或相同内部线程数的结果逐field比较；PFPL的码流与线程数无关，SZ3的OpenMP分块会改变码流
+    # wrapper只改变误差统计时压缩器本身不变，因此不要求可执行文件的SHA相同
     threads=1 if codec=='pfpl'else threads_per_slice
     for reference_dir in(project_root/'results/ocean_large_tensor_1d'/codec/f'rel_{rel_eb:g}_t{threads}',project_root/'results/ocean_large_scaling'/codec/f'rel_{rel_eb:g}_t{threads}'):
         if not(reference_dir/'summary.csv').is_file()or not(reference_dir/'manifest.json').is_file():continue
-        if json.loads((reference_dir/'manifest.json').read_text()).get('binary_sha256')!=binary_sha256:continue
         with(reference_dir/'summary.csv').open(newline='')as source:rows={row['field']:row for row in csv.DictReader(source)}
         if all(field in rows for field in fields):return {'directory':str(reference_dir.relative_to(project_root)),'compressed_bytes':{field:int(rows[field]['compressed_bytes'])for field in fields}}
     return None
@@ -57,17 +57,21 @@ def summarize(codec,assignments,worker_dir,metadata,fields,reference,threads_per
     field_rows=[]
     for field in fields:
         rows=field_slices[field]
-        valid_rows=[row for row in rows if int(row['valid_point_num'])]
-        field_range=max((float(row['valid_max'])for row in valid_rows),default=0)-min((float(row['valid_min'])for row in valid_rows),default=0)
+        # per-slice协议：每个slice的误差除以该slice普通值range的平方
+        normalized_squared_error=normalized_squared_error_all_points=0.0
+        for row in rows:
+            slice_range=float(row['valid_max'])-float(row['valid_min'])if int(row['valid_point_num'])else 0.0
+            if slice_range>0:
+                normalized_squared_error+=float(row['valid_squared_error'])/slice_range**2
+                normalized_squared_error_all_points+=float(row['squared_error'])/slice_range**2
+            elif float(row['valid_squared_error'])!=0:raise RuntimeError(f'普通值为常量的slice未被精确恢复：{field}')
         value_num=sum(int(row['point_num'])for row in rows)
-        squared_error=math.fsum(float(row['squared_error'])for row in rows)
         compressed_bytes=sum(int(row['compressed_bytes'])for row in rows)
-        nmse,psnr=field_quality(squared_error,value_num,field_range)
-        field_row={'field':field,'shape':shape_name(metadata,field),'slice_num':len(rows),'value_num':value_num,'compressed_bytes':compressed_bytes,'br':8*compressed_bytes/value_num,'field_range':field_range,'squared_error':squared_error,'nmse':nmse,'psnr':psnr,'compression_preprocessing_time':0,'compression_time':sum(float(row['compression_time'])for row in rows),'decompression_preprocessing_time':0,'decompression_time':sum(float(row['decompression_time'])for row in rows),'max_error_over_eb':max(float(row['max_error_over_eb'])for row in rows),'valid':all(row['valid']=='1'for row in rows),'worker_id':None,'zero_eb_slice_num':sum(int(row['zero_eb'])for row in rows)}
+        field_row={'field':field,'shape':shape_name(metadata,field),'slice_num':len(rows),'value_num':value_num,'compressed_bytes':compressed_bytes,'br':8*compressed_bytes/value_num,**quality_columns(normalized_squared_error,sum(int(row['valid_point_num'])for row in rows),normalized_squared_error_all_points,value_num),'compression_preprocessing_time':0,'compression_time':sum(float(row['compression_time'])for row in rows),'decompression_preprocessing_time':0,'decompression_time':sum(float(row['decompression_time'])for row in rows),'max_error_over_eb':max(float(row['max_error_over_eb'])for row in rows),'valid':all(row['valid']=='1'for row in rows),'worker_id':None,'zero_eb_slice_num':sum(int(row['zero_eb'])for row in rows)}
         if reference:field_row['matches_reference_size']=compressed_bytes==reference['compressed_bytes'][field]
         field_rows.append(field_row)
     if reference and not all(row['matches_reference_size']for row in field_rows):raise RuntimeError(f'码流大小与参考结果不一致：{reference["directory"]}')
-    summary={'codec':codecs[codec]['name'],'protocol':'slice','rel_eb':rel_eb,'slice_workers':len(assignments),'threads_per_slice':threads_per_slice,'cpu_num':len(assignments)*threads_per_slice,'field_num':len(fields),'slice_num':sum(row['slice_num']for row in field_rows),'compressed_bytes':sum(row['compressed_bytes']for row in field_rows),**quality_summary(field_rows),**worker_times(compression_times,decompression_times),'worker_slice_counts':[len(assigned)for assigned in assignments],'max_error_over_eb':max(row['max_error_over_eb']for row in field_rows),'reference_directory':reference['directory']if reference else None,'valid':all(row['valid']for row in field_rows)}
+    summary={'codec':codecs[codec]['name'],'protocol':'slice','statistics_version':statistics_version,'rel_eb':rel_eb,'slice_workers':len(assignments),'threads_per_slice':threads_per_slice,'cpu_num':len(assignments)*threads_per_slice,'field_num':len(fields),'slice_num':sum(row['slice_num']for row in field_rows),'compressed_bytes':sum(row['compressed_bytes']for row in field_rows),**quality_summary(field_rows),**worker_times(compression_times,decompression_times),'worker_slice_counts':[len(assigned)for assigned in assignments],'max_error_over_eb':max(row['max_error_over_eb']for row in field_rows),'reference_directory':reference['directory']if reference else None,'valid':all(row['valid']for row in field_rows)}
     return field_rows,summary
 
 def main():
@@ -101,7 +105,7 @@ def main():
         worker_dir=output_dir/'workers'
         if not arguments.summarize_only and(output_dir/'summary.json').is_file():
             previous=json.loads((output_dir/'summary.json').read_text())
-            if previous.get('codec')==codecs[arguments.codec]['name']and previous.get('rel_eb')==rel_eb and previous.get('field_num')==len(fields)and previous.get('slice_num')==len(slices)and previous.get('valid'):
+            if previous.get('statistics_version')==statistics_version and previous.get('codec')==codecs[arguments.codec]['name']and previous.get('rel_eb')==rel_eb and previous.get('field_num')==len(fields)and previous.get('slice_num')==len(slices)and previous.get('valid'):
                 print(f'SKIP completed REL={rel_eb:g},configuration={configuration}',flush=True)
                 continue
         if arguments.summarize_only:
@@ -114,7 +118,7 @@ def main():
             write_json(output_dir/'manifest.json',{'codec':codecs[arguments.codec]['name'],'protocol':'slice','configuration':configuration,'slice_workers':arguments.slice_workers,'threads_per_slice':arguments.threads_per_slice,'cpu_num':cpu_num,'assignment_rule':'global slice order round-robin; all slices have the same size','field_num':len(fields),'slice_num':len(slices),'rel_eb':rel_eb,'error_bound_rule':'REL*(slice valid max-slice valid min), excluding -99999','binary_sha256':binary_sha256,'metadata_sha256':sha256(metadata_path),'source_sha256':{str(path.relative_to(project_root)):sha256(path)for path in(Path(__file__).resolve(),project_root/'benchmarks/common.py',project_root/'benchmarks/tensor_1d/benchmark.cpp')},'git_revision':git_revision(),'upstream_revision':git_revision(project_root/codecs[arguments.codec]['upstream']),**slurm_environment()})
             print(f'BEGIN codec={arguments.codec},REL={rel_eb:g},configuration={configuration}',flush=True)
             execution_wall_time=run_workers(assignments,arguments.threads_per_slice,snapshot,rel_eb,worker_dir,available_cpus)
-        reference=load_reference(arguments.codec,rel_eb,arguments.threads_per_slice,fields,binary_sha256)if formal_complete_dataset else None
+        reference=load_reference(arguments.codec,rel_eb,arguments.threads_per_slice,fields)if formal_complete_dataset else None
         field_rows,summary=summarize(arguments.codec,assignments,worker_dir,metadata,fields,reference,arguments.threads_per_slice,rel_eb)
         if not arguments.summarize_only:summary['execution_wall_time']=execution_wall_time
         elif(output_dir/'summary.json').is_file():summary['execution_wall_time']=json.loads((output_dir/'summary.json').read_text()).get('execution_wall_time')

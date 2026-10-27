@@ -367,7 +367,7 @@ def run_umc(config,rel_eb,data_range):
     if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-5):
         raise RuntimeError(f"UMC压缩端和独立解压端总PSNR不一致：{psnr} != {decompressed_psnr}")
     print(f"UMC独立解压检查通过：total psnr={decompressed_psnr},max error={decompressed_max_error}")
-    disk_mse,disk_max_error=calculate_umc_disk_error(data_paths,rel_eb)
+    disk_mse,disk_max_error,slice_statistics=calculate_umc_disk_error(data_paths,rel_eb)
     disk_psnr=math.inf if disk_mse==0 else 10*math.log10((data_range[1]-data_range[0])**2/disk_mse)
     if not math.isclose(psnr,disk_psnr,rel_tol=1e-6,abs_tol=1e-5):
         raise RuntimeError(f"UMC压缩端和磁盘输出总PSNR不一致：{psnr} != {disk_psnr}")
@@ -376,7 +376,7 @@ def run_umc(config,rel_eb,data_range):
     print(f"UMC逐点磁盘输出与误差界检查通过：total psnr={disk_psnr},max error={disk_max_error}")
     print(f"总结果：compressor=umc,task={config['name']},data_dir={config['data_dir']},field={field},rel_eb={rel_eb},br={br},psnr={psnr}")
     print(f"计时：compression_preprocessing={compression_preprocessing_time} s,decompression_preprocessing={decompression_preprocessing_time} s,compression={compression_time} s,decompression={decompression_time} s,compression+decompression={compression_time+decompression_time} s")
-    return {"compressor":"umc","rel_eb":rel_eb,"br":br,"psnr":psnr,"compression_preprocessing_time":compression_preprocessing_time,"decompression_preprocessing_time":decompression_preprocessing_time,"compression_time":compression_time,"decompression_time":decompression_time,"command":"compression: "+shlex.join(str(value) for value in compression_command)+"; decompression: "+shlex.join(str(value) for value in decompression_command)}
+    return {**slice_statistics,"compressor":"umc","rel_eb":rel_eb,"br":br,"psnr":psnr,"compression_preprocessing_time":compression_preprocessing_time,"decompression_preprocessing_time":decompression_preprocessing_time,"compression_time":compression_time,"decompression_time":decompression_time,"command":"compression: "+shlex.join(str(value) for value in compression_command)+"; decompression: "+shlex.join(str(value) for value in decompression_command)}
 
 # 任务循环和命令行入口
 def prepare_field_result_metadata(task):
@@ -415,6 +415,9 @@ def write_benchmark_result(task,field,compressor,config,result,metadata):
         write_csv_item(str(result_path),item,"selected_value_flow",result["selected_value_flow"] or value_flow)
         if result["automatic_flow_candidates"]:
             write_csv_item(str(result_path),item,"automatic_flow_candidates",json.dumps(result["automatic_flow_candidates"],separators=(",",":")))
+    if compressor=="umc":
+        for column_name in ("value_num","valid_value_num","slice_normalized_valid_squared_error","slice_normalized_squared_error"):
+            write_csv_item(str(result_path),item,column_name,result[column_name])
     for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",field_slice_num(config,field)),("input_bytes",total_bytes)):
         write_csv_item(str(result_path),item,column_name,value)
 

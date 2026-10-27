@@ -18,7 +18,7 @@ Run all five EBs on 128 CPUs with 4 field workers and 32 partitions per field:
 ```bash
 sbatch --job-name=sz3_field_rd benchmarks/field_relative/run_all_95_fields.slurm sz3 4 32
 sbatch --job-name=qoz_field_rd benchmarks/field_relative/run_all_95_fields.slurm qoz 4 32
-sbatch benchmarks/field_relative/run_all_unsz_95_fields.slurm
+sbatch --job-name=unsz_field_rd benchmarks/two_level/run_five_ebs.slurm field 16
 ```
 
-The five EBs of one field run in one process, which reads the field once and creates fresh partitions for every EB. Completed fields are skipped on restart. Fields are assigned by `optimal_assignment` in `benchmarks/common.py`. UNSZ uses the same two-level runner as the per-slice protocol with a `FIELD_REL` point-set configuration, so fields still share the spatial DAG. Results go to `results/ocean_large_field_relative_five_ebs/<codec>/<workers>_fields_<partitions>_partitions/rel_<eb>/`, each with `fields.csv` and `summary.json` in the common format.
+The five EBs of one field run in one process, which reads the field once and creates fresh partitions for every EB. Completed fields are skipped on restart. If the codec aborts on a field, the failure is recorded in `summary.json` and the worker continues with its other fields. Fields are assigned by `optimal_assignment` in `benchmarks/common.py`. UNSZ uses the same two-level runner as the per-slice protocol with a `FIELD_REL` point-set configuration, so fields still share the spatial DAG. Results go to `results/ocean_large_per_field_rd_<cpus>/<codec>/<workers>_fields_<partitions>_partitions/rel_<eb>/`, each with `fields.csv` and `summary.json` in the common format. PSNR normalizes the squared error of every valid value, which excludes `-99999`, by the valid range of the complete field. The results in `results/ocean_large_field_relative_five_ebs/` predate this statistic.

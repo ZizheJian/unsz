@@ -8,6 +8,10 @@ namespace unsz
         total.squared_error+=part.squared_error;
         total.minimum=min(total.minimum,part.minimum);
         total.maximum=max(total.maximum,part.maximum);
+        total.valid_point_num+=part.valid_point_num;
+        total.valid_squared_error+=part.valid_squared_error;
+        total.valid_minimum=min(total.valid_minimum,part.valid_minimum);
+        total.valid_maximum=max(total.valid_maximum,part.valid_maximum);
         if(part.max_error_ratio>total.max_error_ratio)
         {
             total.max_error_ratio=part.max_error_ratio;
@@ -65,6 +69,28 @@ namespace unsz
         normalized_value_num+=statistics.point_num;
     }
 
+    inline void add_slice_normalized_error(double&valid_normalized_squared_error,double&all_normalized_squared_error,const reconstruction_statistics_c&statistics)
+    {
+        // per-slice协议的PSNR：每个slice的误差除以该slice普通值range的平方；普通值为常量的slice只能被精确恢复，不贡献误差
+        double data_range=statistics.valid_point_num>0?statistics.valid_maximum-statistics.valid_minimum:0;
+        if(data_range>0)
+        {
+            valid_normalized_squared_error+=statistics.valid_squared_error/(data_range*data_range);
+            all_normalized_squared_error+=statistics.squared_error/(data_range*data_range);
+        }
+        else if(statistics.valid_squared_error!=0)
+            throw runtime_error("普通值为常量的slice未被精确恢复");
+    }
+
+    template<typename T_coord,typename T_data>
+    uint32_t param_c<T_coord,T_data>::valid_point_set_id() const
+    {
+        for(uint32_t point_set_id=0;point_set_id<point_set_source_id_vec.size();point_set_id++)
+            if(point_set_source_id_vec[point_set_id]==0)
+                return point_set_id;
+        return numeric_limits<uint32_t>::max();
+    }
+
     template<typename T_coord,typename T_data>
     reconstruction_statistics_c param_c<T_coord,T_data>::calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset) const
     {
@@ -73,6 +99,7 @@ namespace unsz
         uint32_t primary_point_set_id=0;
         while(point_set_point_num_vec[primary_point_set_id]==0)
             primary_point_set_id++;
+        uint32_t valid_set_id=valid_point_set_id();
         for(uint32_t value_id=0;value_id<value_num;value_id++)
         {
             uint32_t point_id=point_offset+value_id;
@@ -100,6 +127,13 @@ namespace unsz
                 result.minimum=min(result.minimum,(double)original[value_id]);
                 result.maximum=max(result.maximum,(double)original[value_id]);
             }
+            if(point_set_id==valid_set_id)
+            {
+                result.valid_point_num++;
+                result.valid_squared_error+=error*error;
+                result.valid_minimum=min(result.valid_minimum,(double)original[value_id]);
+                result.valid_maximum=max(result.valid_maximum,(double)original[value_id]);
+            }
         }
         return result;
     }
@@ -112,6 +146,7 @@ namespace unsz
         uint32_t primary_point_set_id=0;
         while(point_set_point_num_vec[primary_point_set_id]==0)
             primary_point_set_id++;
+        uint32_t valid_set_id=valid_point_set_id();
         for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
             for(uint32_t prediction_index=0;prediction_index<structure.target_ids.size();prediction_index++)
             {
@@ -139,6 +174,13 @@ namespace unsz
                 {
                     result.minimum=min(result.minimum,(double)current_data[point_id]);
                     result.maximum=max(result.maximum,(double)current_data[point_id]);
+                }
+                if(point_set_id==valid_set_id)
+                {
+                    result.valid_point_num++;
+                    result.valid_squared_error+=error*error;
+                    result.valid_minimum=min(result.valid_minimum,(double)current_data[point_id]);
+                    result.valid_maximum=max(result.valid_maximum,(double)current_data[point_id]);
                 }
             }
         return result;

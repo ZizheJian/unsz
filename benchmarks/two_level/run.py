@@ -1,11 +1,11 @@
 import argparse,json,math,os,re,shlex,shutil,subprocess,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from common import check_cpus,default_data_dir,field_quality,field_slice_num,git_revision,ocean_large_slice_num,optimal_assignment,project_root,quality_summary,read_metadata,rel_eb_tags,sha256,shape_name,slurm_environment,worker_times,write_fields_csv,write_json
+from common import check_cpus,default_data_dir,field_range_quality,field_slice_num,git_revision,ocean_large_slice_num,optimal_assignment,project_root,quality_columns,quality_summary,read_metadata,rel_eb_tags,sha256,shape_name,slurm_environment,statistics_version,worker_times,write_fields_csv,write_json
 
 benchmark_dir=Path(__file__).resolve().parent
 point_set_modes={'slice':'REL','field':'FIELD_REL'}
-result_pattern=re.compile(r'^UNSZ FIELD RESULT side=(\w+) field=(\S+) slices=(\d+) values=(\d+) compressed_bytes=(\d+) squared_error=(\S+) normalized_squared_error=(\S+) normalized_value_num=(\d+) field_min=(\S+) field_max=(\S+) preprocessing_time=(\S+) codec_time=(\S+) max_error_over_eb=(\S+)$',re.MULTILINE)
+result_pattern=re.compile(r'^UNSZ FIELD RESULT side=(\w+) field=(\S+) slices=(\d+) values=(\d+) valid_values=(\d+) compressed_bytes=(\d+) squared_error=(\S+) valid_squared_error=(\S+) slice_normalized_valid_squared_error=(\S+) slice_normalized_squared_error=(\S+) field_min=(\S+) field_max=(\S+) preprocessing_time=(\S+) codec_time=(\S+) max_error_over_eb=(\S+)$',re.MULTILINE)
 
 def point_set_config_path(protocol,rel_eb):
     # slice协议按每个slice的range换算REL，field协议按整个field的range换算FIELD_REL
@@ -29,7 +29,7 @@ def read_field_results(text,fields,side):
         if match.group(1)!=side:continue
         field=match.group(2)
         if field in results:raise RuntimeError(f'{side}重复输出field结果：{field}')
-        results[field]={'slice_num':int(match.group(3)),'value_num':int(match.group(4)),'compressed_bytes':int(match.group(5)),'squared_error':float(match.group(6)),'slice_normalized_squared_error':float(match.group(7)),'slice_normalized_value_num':int(match.group(8)),'field_min':float(match.group(9)),'field_max':float(match.group(10)),'preprocessing_time':float(match.group(11)),'codec_time':float(match.group(12)),'max_error_over_eb':float(match.group(13))}
+        results[field]={'slice_num':int(match.group(3)),'value_num':int(match.group(4)),'valid_value_num':int(match.group(5)),'compressed_bytes':int(match.group(6)),'squared_error':float(match.group(7)),'valid_squared_error':float(match.group(8)),'slice_normalized_valid_squared_error':float(match.group(9)),'slice_normalized_squared_error':float(match.group(10)),'field_min':float(match.group(11)),'field_max':float(match.group(12)),'preprocessing_time':float(match.group(13)),'codec_time':float(match.group(14)),'max_error_over_eb':float(match.group(15))}
     if set(results)!=set(fields):raise RuntimeError(f'{side}没有完整输出全部{len(fields)}个field的结果：{len(results)}')
     if max(result['max_error_over_eb']for result in results.values())>1.01:raise RuntimeError(f'{side}误差验证失败')
     return results
@@ -107,8 +107,9 @@ def main():
             compression,decompression=compression_results[field],decompression_results[field]
             if compression['compressed_bytes']!=decompression['compressed_bytes']or not math.isclose(compression['squared_error'],decompression['squared_error'],rel_tol=1e-9,abs_tol=1e-12):raise RuntimeError(f'UNSZ压缩端和解压端结果不一致：{field}')
             field_range=compression['field_max']-compression['field_min']if math.isfinite(compression['field_max'])else 0.0
-            nmse,psnr=field_quality(decompression['squared_error'],decompression['value_num'],field_range)
-            rows.append({'field':field,'shape':shape_name(metadata,field),'slice_num':compression['slice_num'],'value_num':compression['value_num'],'compressed_bytes':compression['compressed_bytes'],'br':8*compression['compressed_bytes']/compression['value_num'],'field_range':field_range,'squared_error':decompression['squared_error'],'nmse':nmse,'psnr':psnr,'compression_preprocessing_time':compression['preprocessing_time'],'compression_time':compression['codec_time'],'decompression_preprocessing_time':decompression['preprocessing_time'],'decompression_time':decompression['codec_time'],'max_error_over_eb':max(compression['max_error_over_eb'],decompression['max_error_over_eb']),'valid':True,'worker_id':worker_id,'slice_normalized_nmse':decompression['slice_normalized_squared_error']/decompression['slice_normalized_value_num']})
+            if arguments.protocol=='slice':quality=quality_columns(decompression['slice_normalized_valid_squared_error'],decompression['valid_value_num'],decompression['slice_normalized_squared_error'],decompression['value_num'])
+            else:quality=field_range_quality(decompression['squared_error'],decompression['valid_squared_error'],decompression['valid_value_num'],decompression['value_num'],field_range)
+            rows.append({'field':field,'shape':shape_name(metadata,field),'slice_num':compression['slice_num'],'value_num':compression['value_num'],'compressed_bytes':compression['compressed_bytes'],'br':8*compression['compressed_bytes']/compression['value_num'],**quality,'field_range':field_range,'squared_error':decompression['squared_error'],'compression_preprocessing_time':compression['preprocessing_time'],'compression_time':compression['codec_time'],'decompression_preprocessing_time':decompression['preprocessing_time'],'decompression_time':decompression['codec_time'],'max_error_over_eb':max(compression['max_error_over_eb'],decompression['max_error_over_eb']),'valid':True,'worker_id':worker_id})
     write_fields_csv(output_dir/'fields.csv',rows)
     times=worker_times([sum(row['compression_preprocessing_time']+row['compression_time']for row in rows if row['worker_id']==worker_id)for worker_id in range(field_worker_num)],[sum(row['decompression_preprocessing_time']+row['decompression_time']for row in rows if row['worker_id']==worker_id)for worker_id in range(field_worker_num)])
     compression_plan_time,decompression_plan_time=shared_plan_time(compression_text),shared_plan_time(decompression_text)
@@ -119,7 +120,7 @@ def main():
     for side,text in(('compression',compression_text),('decompression',decompression_text)):
         matches=re.findall(rf'^two-level {side} wall time= ([^ ]+) s$',text,re.MULTILINE)
         wall_times[f'{side}_wall_time']=float(matches[0])if matches else None
-    summary={'codec':'unsz','protocol':arguments.protocol,'rel_eb':rel_eb,'cpu_num':arguments.cpu_num,'field_worker_num':field_worker_num,'thread_num':thread_num,'partition_num':thread_num,'field_num':len(fields),'slice_num':sum(loads.values()),'compressed_bytes':compressed_bytes,**quality_summary(rows),'shared_dependency_plan_time':{'compression':compression_plan_time,'decompression':decompression_plan_time},**times,**wall_times,'max_error_over_eb':max(row['max_error_over_eb']for row in rows),'shared_dag_compression_reuse_count':compression_text.count('Reusing shared spatial prediction DAG and weights'),'shared_dag_decompression_reuse_count':decompression_text.count('Reusing shared spatial prediction DAG and weights'),'valid':True}
+    summary={'codec':'unsz','protocol':arguments.protocol,'statistics_version':statistics_version,'rel_eb':rel_eb,'cpu_num':arguments.cpu_num,'field_worker_num':field_worker_num,'thread_num':thread_num,'partition_num':thread_num,'field_num':len(fields),'slice_num':sum(loads.values()),'compressed_bytes':compressed_bytes,**quality_summary(rows),'shared_dependency_plan_time':{'compression':compression_plan_time,'decompression':decompression_plan_time},**times,**wall_times,'max_error_over_eb':max(row['max_error_over_eb']for row in rows),'shared_dag_compression_reuse_count':compression_text.count('Reusing shared spatial prediction DAG and weights'),'shared_dag_decompression_reuse_count':decompression_text.count('Reusing shared spatial prediction DAG and weights'),'valid':True}
     write_json(output_dir/'summary.json',summary)
     if not arguments.keep_output:
         if stream_dir.parent!=stream_root:raise RuntimeError(f'拒绝清理意外目录：{stream_dir}')

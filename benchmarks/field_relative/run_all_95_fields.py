@@ -1,7 +1,7 @@
 import argparse,concurrent.futures,json,math,os,shutil,subprocess,sys,time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from common import check_cpus,default_data_dir,field_quality,field_slice_num,git_revision,optimal_assignment,project_root,quality_summary,read_metadata,sha256,shape_name,slurm_environment,worker_times,write_fields_csv,write_json
+from common import check_cpus,default_data_dir,field_range_quality,field_slice_num,git_revision,optimal_assignment,project_root,quality_summary,read_metadata,sha256,shape_name,slurm_environment,statistics_version,worker_times,write_fields_csv,write_json
 
 # 每个field组成完整tensor，用整个field的有效值range换算一个ABS EB；field沿点编号切成多个partition，各partition由单线程压缩器独立处理
 compressor_names={'sz3':'sz3-nd-point-partitioned','qoz':'qoz2-q4-nd-point-partitioned'}
@@ -11,12 +11,12 @@ upstream_dirs={'sz3':'third_party/SZ3','qoz':'third_party/QoZ'}
 def load_completed(path,codec,rel_eb,partition_num):
     if not path.is_file():return None
     result=json.loads(path.read_text())
-    if result.get('compressor')==compressor_names[codec]and result.get('rel_eb')==rel_eb and result.get('partition_num')==partition_num and result.get('valid'):return result
+    if 'valid_squared_error'in result and result.get('compressor')==compressor_names[codec]and result.get('rel_eb')==rel_eb and result.get('partition_num')==partition_num and result.get('valid'):return result
     return None
 
 def unified_row(result,metadata,worker_id):
-    nmse,psnr=field_quality(result['squared_error'],result['value_num'],result['field_range'])
-    return {**result,'shape':shape_name(metadata,result['field']),'slice_num':field_slice_num(metadata,result['field']),'nmse':nmse,'psnr':psnr,'compression_preprocessing_time':0,'decompression_preprocessing_time':0,'worker_id':worker_id}
+    quality=field_range_quality(result['squared_error'],result['valid_squared_error'],result['valid_value_num'],result['value_num'],result['field_range'])
+    return {**result,**quality,'shape':shape_name(metadata,result['field']),'slice_num':field_slice_num(metadata,result['field']),'compression_preprocessing_time':0,'decompression_preprocessing_time':0,'worker_id':worker_id}
 
 def run_worker(worker_id,fields,codec,rel_ebs,partition_num,data_dir,metadata,cpus,output_dirs,log_dir,binary,summarize_only):
     cpu_set=','.join(str(cpu)for cpu in cpus)
@@ -36,8 +36,10 @@ def run_worker(worker_id,fields,codec,rel_ebs,partition_num,data_dir,metadata,cp
         if not pending:continue
         if summarize_only:raise RuntimeError(f'{field}缺少已完成结果，不能只汇总')
         # 同一field的多个EB在一个进程中运行，只读取一次输入；每个EB重新切分partition
-        command=['taskset','--cpu-list',cpu_set,binary,data_dir,field,shape[0],shape[1],partition_num]
-        for rel_eb,result_path in pending:command.extend((rel_eb,result_path))
+        if len(pending)==1:command=['taskset','--cpu-list',cpu_set,binary,data_dir,field,shape[0],shape[1],pending[0][0],partition_num,pending[0][1]]
+        else:
+            command=['taskset','--cpu-list',cpu_set,binary,data_dir,field,shape[0],shape[1],partition_num]
+            for rel_eb,result_path in pending:command.extend((rel_eb,result_path))
         print(f'BEGIN worker={worker_id},codec={codec},field={field},shape={shape},partitions={partition_num},ebs={[rel_eb for rel_eb,_ in pending]},cpus={cpu_set}',flush=True)
         log_path=log_dir/f'{field}.log'
         with log_path.open('w')as log:returncode=subprocess.run([str(value)for value in command],cwd=project_root,stdout=log,stderr=subprocess.STDOUT,env=environment).returncode
@@ -59,7 +61,7 @@ def main():
     parser.add_argument('--rel-eb',type=float,action='append',required=True)
     parser.add_argument('--field-workers',type=int,required=True)
     parser.add_argument('--partitions-per-field',type=int,required=True)
-    parser.add_argument('--output-root',type=Path,default=project_root/'results/ocean_large_field_relative_five_ebs')
+    parser.add_argument('--output-root',type=Path)
     parser.add_argument('--field',action='append')
     parser.add_argument('--summarize-only',action='store_true')
     arguments=parser.parse_args()
@@ -73,7 +75,8 @@ def main():
     cpu_num=arguments.field_workers*arguments.partitions_per_field
     available_cpus=list(range(cpu_num))if arguments.summarize_only else check_cpus(cpu_num,not arguments.field)
     binary=(project_root/'build/field_relative'/binary_names[arguments.codec]).resolve()
-    configuration_dir=(arguments.output_root/arguments.codec/f'{arguments.field_workers}_fields_{arguments.partitions_per_field}_partitions').resolve()
+    output_root=arguments.output_root or project_root/f'results/ocean_large_per_field_rd_{cpu_num}'
+    configuration_dir=(output_root/arguments.codec/f'{arguments.field_workers}_fields_{arguments.partitions_per_field}_partitions').resolve()
     log_dir=configuration_dir/'logs'
     log_dir.mkdir(parents=True,exist_ok=True)
     output_dirs={rel_eb:configuration_dir/f'rel_{rel_eb:g}'for rel_eb in rel_ebs}
@@ -100,7 +103,7 @@ def main():
         write_fields_csv(output_dir/'fields.csv',rows)
         times=worker_times([sum(row['compression_time']for row in worker_results[worker_id][rel_eb])for worker_id in range(arguments.field_workers)],[sum(row['decompression_time']for row in worker_results[worker_id][rel_eb])for worker_id in range(arguments.field_workers)])
         eb_failures=[failure for failure in failures if failure['rel_eb']==rel_eb]
-        summary={'codec':compressor_names[arguments.codec],'protocol':'field','rel_eb':rel_eb,'field_workers':arguments.field_workers,'point_partitions_per_field':arguments.partitions_per_field,'cpu_num':cpu_num,'field_num':len(fields),'slice_num':sum(row['slice_num']for row in rows),'compressed_bytes':sum(row['compressed_bytes']for row in rows),**quality_summary(rows),**times,'all_ebs_execution_wall_time':execution_wall_time,'max_concurrent_rss_upper_bound_kib':sum(max((row['max_rss_kib']for row in worker_results[worker_id][rel_eb]),default=0)for worker_id in range(arguments.field_workers)),'max_error_over_eb':max(row['max_error_over_eb']for row in rows),'complete':len(rows)==len(fields),'failures':eb_failures,'valid':len(rows)==len(fields)and all(row['valid']for row in rows)}
+        summary={'codec':compressor_names[arguments.codec],'protocol':'field','statistics_version':statistics_version,'rel_eb':rel_eb,'field_workers':arguments.field_workers,'point_partitions_per_field':arguments.partitions_per_field,'cpu_num':cpu_num,'field_num':len(fields),'slice_num':sum(row['slice_num']for row in rows),'compressed_bytes':sum(row['compressed_bytes']for row in rows),**quality_summary(rows),**times,'all_ebs_execution_wall_time':execution_wall_time,'max_concurrent_rss_upper_bound_kib':sum(max((row['max_rss_kib']for row in worker_results[worker_id][rel_eb]),default=0)for worker_id in range(arguments.field_workers)),'max_error_over_eb':max(row['max_error_over_eb']for row in rows),'complete':len(rows)==len(fields),'failures':eb_failures,'valid':len(rows)==len(fields)and all(row['valid']for row in rows)}
         write_json(output_dir/'summary.json',summary)
         print(json.dumps({key:value for key,value in summary.items()if not isinstance(value,(list,dict))},ensure_ascii=False),flush=True)
     if failures:print(json.dumps({'failures':failures},ensure_ascii=False),flush=True)

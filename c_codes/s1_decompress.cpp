@@ -48,7 +48,7 @@ double run_decompression_field(unsz::param_c<T_coord,float>&param,double preproc
 {
     uint32_t validated_file_num=0;
     uint64_t total_compressed_bytes=0;
-    double total_decompression_time=0,total_time_prediction_state_update_time=0,total_prediction_order_restore_time=0,total_normalized_squared_error=0;
+    double total_decompression_time=0,total_time_prediction_state_update_time=0,total_prediction_order_restore_time=0,total_normalized_squared_error=0,total_slice_valid_normalized_squared_error=0,total_slice_normalized_squared_error=0;
     uint64_t total_normalized_value_num=0;
     unsz::reconstruction_statistics_c total_statistics;
     string max_error_data_path;
@@ -112,6 +112,7 @@ double run_decompression_field(unsz::param_c<T_coord,float>&param,double preproc
             max_error_data_path=param.original_data_path_vec[file_id];
         unsz::merge_reconstruction_statistics(total_statistics,file_statistics);
         unsz::add_normalized_reconstruction_error(total_normalized_squared_error,total_normalized_value_num,file_statistics,param.point_set_point_num_vec,param.point_set_min_data_vec,param.point_set_max_data_vec);
+        unsz::add_slice_normalized_error(total_slice_valid_normalized_squared_error,total_slice_normalized_squared_error,file_statistics);
         if(print_file_details)
             printf("Decompressed %s, psnr= %f\n",param.write_decompressed_output?decompressed_path.c_str():compressed_path.c_str(),unsz::reconstruction_psnr(file_statistics));
         validated_file_num++;
@@ -134,7 +135,7 @@ double run_decompression_field(unsz::param_c<T_coord,float>&param,double preproc
     if(param.prediction_data_uses_prediction_order)
         printf("total prediction order restore time= %.9f s\n",total_prediction_order_restore_time);
     printf("total decompression time= %f s\n",total_decompression_time);
-    printf("UNSZ FIELD RESULT side=decompression field=%s slices=%u values=%llu compressed_bytes=%llu squared_error=%.17g normalized_squared_error=%.17g normalized_value_num=%llu field_min=%.17g field_max=%.17g preprocessing_time=%.9f codec_time=%.9f max_error_over_eb=%.17g\n",param.field_name.c_str(),(uint32_t)param.original_data_path_vec.size(),(unsigned long long)total_statistics.point_num,(unsigned long long)total_compressed_bytes,total_statistics.squared_error,total_normalized_squared_error,(unsigned long long)total_normalized_value_num,total_statistics.minimum,total_statistics.maximum,preprocessing_time,total_decompression_time,total_statistics.max_error_ratio);
+    printf("UNSZ FIELD RESULT side=decompression field=%s slices=%u values=%llu valid_values=%llu compressed_bytes=%llu squared_error=%.17g valid_squared_error=%.17g slice_normalized_valid_squared_error=%.17g slice_normalized_squared_error=%.17g field_min=%.17g field_max=%.17g preprocessing_time=%.9f codec_time=%.9f max_error_over_eb=%.17g\n",param.field_name.c_str(),(uint32_t)param.original_data_path_vec.size(),(unsigned long long)total_statistics.point_num,(unsigned long long)total_statistics.valid_point_num,(unsigned long long)total_compressed_bytes,total_statistics.squared_error,total_statistics.valid_squared_error,total_slice_valid_normalized_squared_error,total_slice_normalized_squared_error,total_statistics.valid_minimum,total_statistics.valid_maximum,preprocessing_time,total_decompression_time,total_statistics.max_error_ratio);
     if(validated_file_num>0)
     {
         printf("total decompressed psnr= %f\n",unsz::reconstruction_psnr(total_statistics));

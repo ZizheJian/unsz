@@ -119,7 +119,7 @@ int main(int argc,char**argv)
         ofstream output(argv[4]);
         if(!paths||!output)
             throw runtime_error("Cannot open input list or slice CSV");
-        output<<setprecision(17)<<"slice_id,point_num,valid_point_num,valid_min,valid_max,abs_eb,compressed_bytes,compression_time,decompression_time,squared_error,max_error,max_error_over_eb,valid,zero_eb\n";
+        output<<setprecision(17)<<"slice_id,point_num,valid_point_num,valid_min,valid_max,abs_eb,compressed_bytes,compression_time,decompression_time,squared_error,valid_squared_error,max_error,max_error_over_eb,valid,zero_eb\n";
         string path;
         uint64_t slice_id=0,failed=0;
         while(getline(paths,path))
@@ -165,19 +165,21 @@ int main(int argc,char**argv)
             start=clock_type::now();
             codec.decompress(reconstructed);
             double decompression_time=chrono::duration<double>(clock_type::now()-start).count();
-            double squared_error=0,max_error=0;
+            double squared_error=0,valid_squared_error=0,max_error=0;
             bool finite=true;
             for(size_t point_id=0;point_id<data.size();point_id++)
             {
                 finite&=isfinite(reconstructed[point_id]);
                 double difference=(double)data[point_id]-reconstructed[point_id];
                 squared_error+=difference*difference;
+                if(data[point_id]!=-99999.0f)
+                    valid_squared_error+=difference*difference;
                 max_error=max(max_error,abs(difference));
             }
             double ratio=abs_eb>0?max_error/abs_eb:max_error==0?0:numeric_limits<double>::infinity();
             bool valid=finite&&ratio<=1.01;
             failed+=!valid;
-            output<<slice_id<<','<<data.size()<<','<<valid_num<<','<<minimum<<','<<maximum<<','<<abs_eb<<','<<codec.byte_num()<<','<<compression_time<<','<<decompression_time<<','<<squared_error<<','<<max_error<<','<<ratio<<','<<valid<<','<<(abs_eb==0)<<'\n';
+            output<<slice_id<<','<<data.size()<<','<<valid_num<<','<<minimum<<','<<maximum<<','<<abs_eb<<','<<codec.byte_num()<<','<<compression_time<<','<<decompression_time<<','<<squared_error<<','<<valid_squared_error<<','<<max_error<<','<<ratio<<','<<valid<<','<<(abs_eb==0)<<'\n';
             if(slice_id%128==0||!valid)
             {
                 output.flush();

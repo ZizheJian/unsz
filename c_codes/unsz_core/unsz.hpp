@@ -147,6 +147,9 @@ namespace unsz
     {
         uint64_t point_num=0;
         double squared_error=0,minimum=numeric_limits<double>::infinity(),maximum=-numeric_limits<double>::infinity();
+        // valid统计只包含配置中第0个点集的点，即排除-99999等异常值后的普通值
+        uint64_t valid_point_num=0;
+        double valid_squared_error=0,valid_minimum=numeric_limits<double>::infinity(),valid_maximum=-numeric_limits<double>::infinity();
         double max_error_ratio=0,max_error=0,max_error_abs_eb=0;
         uint32_t max_error_point_id=0,max_error_point_set_id=0;
     };
@@ -594,6 +597,7 @@ namespace unsz
             void validate_automatic_flow_selection() const;
             void precompute_current_field_point_set_statistics();
             double read_compressed_field_metadata();
+            uint32_t valid_point_set_id() const;
             reconstruction_statistics_c calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset=0) const;
             reconstruction_statistics_c calculate_prediction_order_reconstruction_statistics() const;
             void compress_files(void(param_c<T_coord,T_data>::*compress_file)());

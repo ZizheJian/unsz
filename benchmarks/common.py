@@ -6,7 +6,8 @@ default_data_dir=Path('/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstruc
 ocean_large_shape_counts={(12,1):58,(12,80):33,(12,81):4}
 ocean_large_slice_num=36264
 rel_eb_tags={1e-1:'1e-1',1e-2:'1e-2',1e-3:'1e-3',1e-4:'1e-4',1e-5:'1e-5'}
-fields_csv_columns=['field','shape','slice_num','value_num','compressed_bytes','br','field_range','squared_error','nmse','psnr','compression_preprocessing_time','compression_time','decompression_preprocessing_time','decompression_time','max_error_over_eb','valid','worker_id']
+fields_csv_columns=['field','shape','slice_num','value_num','valid_value_num','compressed_bytes','br','normalized_squared_error','nmse','psnr','normalized_squared_error_all_points','nmse_all_points','psnr_all_points','compression_preprocessing_time','compression_time','decompression_preprocessing_time','decompression_time','max_error_over_eb','valid','worker_id']
+statistics_version=2
 
 def sha256(path):
     digest=hashlib.sha256()
@@ -125,19 +126,29 @@ def worker_times(compression_worker_times,decompression_worker_times):
     # 压缩端和解压端分别取worker累计时间的最大值，两端相加为total codec time
     return {'compression_worker_times':list(compression_worker_times),'decompression_worker_times':list(decompression_worker_times),'reported_compression_time':max(compression_worker_times),'reported_decompression_time':max(decompression_worker_times),'total_codec_time':max(compression_worker_times)+max(decompression_worker_times)}
 
-def field_quality(squared_error,value_num,field_range):
-    # 每个field按全部slice有效值的整体range归一化；常量field无误差时NMSE为0
-    if squared_error==0:return 0.0,math.inf
-    if not field_range>0:return math.inf,-math.inf
-    nmse=squared_error/value_num/(field_range*field_range)
-    return nmse,-10*math.log10(nmse)
+def psnr_from_nmse(nmse):
+    return math.inf if nmse==0 else-10*math.log10(nmse)
+
+def quality_columns(normalized_squared_error,valid_value_num,normalized_squared_error_all_points,value_num):
+    # per-slice协议中每个slice的误差除以该slice普通值range的平方，per-field协议中除以整个field普通值range的平方
+    # 主口径只统计普通值，即排除-99999等异常值；同时保留包含全部点的口径备查
+    nmse=normalized_squared_error/valid_value_num if valid_value_num else 0.0
+    nmse_all_points=normalized_squared_error_all_points/value_num
+    return {'valid_value_num':valid_value_num,'normalized_squared_error':normalized_squared_error,'nmse':nmse,'psnr':psnr_from_nmse(nmse),'normalized_squared_error_all_points':normalized_squared_error_all_points,'nmse_all_points':nmse_all_points,'psnr_all_points':psnr_from_nmse(nmse_all_points)}
+
+def field_range_quality(squared_error,valid_squared_error,valid_value_num,value_num,field_range):
+    # per-field协议：整个field只有一个range
+    if field_range>0:return quality_columns(valid_squared_error/field_range**2,valid_value_num,squared_error/field_range**2,value_num)
+    if valid_squared_error!=0:raise RuntimeError('普通值为常量的field未被精确恢复')
+    return quality_columns(0.0,valid_value_num,0.0,value_num)
 
 def aggregate_quality(rows):
-    # 与绘图规则一致：BR按值数量加权，NMSE按值数量加权平均后再换算PSNR
+    # BR按全部值数量加权；NMSE为所有归一化平方误差之和除以对应的值数量
     value_num=sum(row['value_num']for row in rows)
-    br=math.fsum(row['br']*row['value_num']for row in rows)/value_num
-    nmse=math.fsum(row['nmse']*row['value_num']for row in rows)/value_num
-    return {'field_num':len(rows),'value_num':value_num,'br':br,'nmse':nmse,'normalized_psnr':math.inf if nmse==0 else-10*math.log10(nmse)}
+    valid_value_num=sum(row['valid_value_num']for row in rows)
+    nmse=math.fsum(row['normalized_squared_error']for row in rows)/valid_value_num
+    nmse_all_points=math.fsum(row['normalized_squared_error_all_points']for row in rows)/value_num
+    return {'field_num':len(rows),'value_num':value_num,'valid_value_num':valid_value_num,'br':math.fsum(row['br']*row['value_num']for row in rows)/value_num,'nmse':nmse,'normalized_psnr':psnr_from_nmse(nmse),'nmse_all_points':nmse_all_points,'normalized_psnr_all_points':psnr_from_nmse(nmse_all_points)}
 
 def quality_summary(rows):
     summary=aggregate_quality(rows)

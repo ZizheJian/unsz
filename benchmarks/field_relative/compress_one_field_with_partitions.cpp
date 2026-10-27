@@ -192,14 +192,15 @@ int main(int argc,char**argv)
             }
             double decompression_merge_time=chrono::duration<double>(clock_type::now()-start).count();
             start=clock_type::now();
-            double squared_error=0,max_error=0;
+            double squared_error=0,valid_squared_error=0,max_error=0;
             int finite=1;
-#pragma omp parallel for num_threads(partition_num) schedule(static) reduction(+:squared_error) reduction(max:max_error) reduction(&:finite)
+#pragma omp parallel for num_threads(partition_num) schedule(static) reduction(+:squared_error,valid_squared_error) reduction(max:max_error) reduction(&:finite)
             for(int64_t index=0;index<(int64_t)value_num;index++)
             {
                 finite&=isfinite(reconstructed[index]);
                 double error=abs((double)original_data[index]-reconstructed[index]);
                 squared_error+=error*error;
+                if(original_data[index]!=-99999.0f)valid_squared_error+=error*error;
                 max_error=max(max_error,error);
             }
             double verification_time=chrono::duration<double>(clock_type::now()-start).count();
@@ -247,6 +248,7 @@ int main(int argc,char**argv)
                 <<"  \"compressed_bytes\": "<<compressed_bytes<<",\n"
                 <<"  \"br\": "<<8.0*compressed_bytes/value_num<<",\n"
                 <<"  \"squared_error\": "<<squared_error<<",\n"
+                <<"  \"valid_squared_error\": "<<valid_squared_error<<",\n"
                 <<"  \"psnr\": ";
             write_json_number(output,psnr);
             output<<",\n"
