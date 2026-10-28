@@ -49,11 +49,14 @@ def shape_name(metadata,field):
     return 'x'.join(str(value)for value in metadata['fields'][field]['shape'])
 
 def check_cpus(required_cpus,formal_complete_dataset):
-    # 正式实验要求Slurm申请的CPU数恰好等于使用的CPU数，并返回可绑定的CPU编号
+    # 正式实验要求Slurm申请的CPU数不少于使用的CPU数；缩核实验申请整机只为获得整机内存
+    # 当前进程及其子进程都被限制在前required_cpus个CPU上，并返回这些CPU编号
     if formal_complete_dataset and 'SLURM_JOB_ID'not in os.environ:raise RuntimeError('完整Ocean-large实验必须在Slurm作业中运行')
-    if 'SLURM_JOB_ID'in os.environ and int(os.environ.get('SLURM_CPUS_PER_TASK','0'))!=required_cpus:raise RuntimeError(f'Slurm CPU数量必须等于{required_cpus}')
+    if 'SLURM_JOB_ID'in os.environ and int(os.environ.get('SLURM_CPUS_PER_TASK','0'))<required_cpus:raise RuntimeError(f'Slurm CPU数量必须至少为{required_cpus}')
     available_cpus=sorted(os.sched_getaffinity(0))
     if len(available_cpus)<required_cpus:raise RuntimeError(f'需要{required_cpus}个CPU，当前affinity只有{len(available_cpus)}个')
+    available_cpus=available_cpus[:required_cpus]
+    os.sched_setaffinity(0,available_cpus)
     return available_cpus
 
 def slurm_environment():

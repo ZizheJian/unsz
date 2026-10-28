@@ -68,7 +68,7 @@ def calculate_umc_disk_error(data_paths,rel_eb,chunk_point_num=1<<20):
     slice_statistics['value_num']=total_point_num
     return total_squared_error/total_point_num,max_error,slice_statistics
 
-def parse_umc_decompression_result(output,data_paths,data_range):
+def parse_umc_decompression_result(output,data_paths):
     preprocessing_times=[float(value) for value in re.findall(r"^preprocessing time\s*=\s*([^\s]+)",output,re.MULTILINE)]
     if len(preprocessing_times)!=1:
         raise RuntimeError(f"UMC解压端预处理时间数量应为1，实际为{len(preprocessing_times)}")
@@ -80,33 +80,14 @@ def parse_umc_decompression_result(output,data_paths,data_range):
     if len(restore_times)!=len(data_paths):
         raise RuntimeError(f"UMC输出恢复时间数量不一致：文件{len(data_paths)}，恢复时间{len(restore_times)}")
     decompression_time+=sum(restore_times)
-    mse_list=[float(value) for value in re.findall(r"^MSE\s*=\s*([^,\s]+)",output,re.MULTILINE)]
-    range_matches=re.findall(r"^Max value\s*=\s*([^,]+),\s*min value\s*=\s*([^,\s]+)",output,re.MULTILINE)
-    max_error_list=[float(value) for value in re.findall(r"^Max error\s*=\s*([^,\s]+)",output,re.MULTILINE)]
-    if len(mse_list)!=len(data_paths) or len(range_matches)!=len(data_paths) or len(max_error_list)!=len(data_paths):
-        raise RuntimeError(f"UMC解压误差统计数量不一致：文件{len(data_paths)}，MSE {len(mse_list)}，范围{len(range_matches)}，最大误差{len(max_error_list)}")
-    total_point_num=sum(os.path.getsize(path)//4 for path in data_paths)
-    total_squared_error=sum(mse*(os.path.getsize(path)//4) for mse,path in zip(mse_list,data_paths))
-    total_mse=total_squared_error/total_point_num
-    total_min_data,total_max_data=data_range
-    total_psnr=math.inf if total_mse==0 else 10*math.log10((total_max_data-total_min_data)**2/total_mse)
-    return preprocessing_times[0],decompression_time,total_psnr,max(max_error_list)
+    return preprocessing_times[0],decompression_time
 
-def parse_umc_compression_result(output,data_paths,data_range):
+def parse_umc_compression_result(output,data_paths):
     compressed_sizes=[int(value) for value in re.findall(r"compressed_size\s*=\s*(\d+)",output)]
-    mse_list=[float(value) for value in re.findall(r"^MSE\s*=\s*([^\s]+)",output,re.MULTILINE)]
-    range_matches=re.findall(r"Max value\s*=\s*([^,]+),\s*min value\s*=\s*([^,]+),",output)
-    if len(compressed_sizes)!=len(data_paths) or len(mse_list)!=len(data_paths) or len(range_matches)!=len(data_paths):
-        raise RuntimeError(f"UMC输出数量不一致：文件{len(data_paths)}，压缩大小{len(compressed_sizes)}，MSE {len(mse_list)}，范围{len(range_matches)}")
+    if len(compressed_sizes)!=len(data_paths):
+        raise RuntimeError(f"UMC压缩大小数量不一致：文件{len(data_paths)}，压缩大小{len(compressed_sizes)}")
     total_original_bytes=sum(os.path.getsize(path) for path in data_paths)
-    total_compressed_bytes=sum(compressed_sizes)
-    total_point_num=sum(os.path.getsize(path)//4 for path in data_paths)
-    total_squared_error=sum(mse*(os.path.getsize(path)//4) for mse,path in zip(mse_list,data_paths))
-    total_min_data,total_max_data=data_range
-    total_mse=total_squared_error/total_point_num
-    total_cr=total_original_bytes/total_compressed_bytes
-    total_br=32/total_cr
-    total_psnr=math.inf if total_mse==0 else 10*math.log10((total_max_data-total_min_data)**2/total_mse)
+    total_br=32*sum(compressed_sizes)/total_original_bytes
     preprocessing_times=[float(value) for value in re.findall(r"^preprocessing time\s*=\s*([^\s]+)",output,re.MULTILINE)]
     core_compression_times=[float(value) for value in re.findall(r"^core compression time\s*=\s*([^\s]+)",output,re.MULTILINE)]
     reorder_times=[float(value) for value in re.findall(r"^data reorder time\s*=\s*([^\s]+)",output,re.MULTILINE)]
@@ -114,4 +95,4 @@ def parse_umc_compression_result(output,data_paths,data_range):
         raise RuntimeError(f"UMC压缩端预处理时间数量应为1，实际为{len(preprocessing_times)}")
     if len(core_compression_times)!=len(data_paths) or len(reorder_times)!=len(data_paths):
         raise RuntimeError(f"UMC逐文件计时数量不一致：文件{len(data_paths)}，核心压缩时间{len(core_compression_times)}，重排时间{len(reorder_times)}")
-    return total_br,total_psnr,preprocessing_times[0],sum(core_compression_times)+sum(reorder_times)
+    return total_br,preprocessing_times[0],sum(core_compression_times)+sum(reorder_times)

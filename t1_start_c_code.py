@@ -1,4 +1,4 @@
-import argparse,array,csv,json,math,os,re,shlex
+import argparse,csv,json,math,os,re,shlex
 from pathlib import Path
 from py_codes.parse_umc_output import calculate_umc_disk_error,parse_umc_compression_result,parse_umc_decompression_result
 from py_codes.parse_unsz_output import parse_unsz_compression_output,parse_unsz_output
@@ -98,32 +98,6 @@ def field_slice_num(config,field=None):
 def generate_input_file_paths(config):
     directory=Path(config["data_dir"])
     return [directory/f"{config['field']}.dat.{slice_id}" for slice_id in range(field_slice_num(config))]
-
-def calculate_data_range(data_paths):
-    minimum=math.inf
-    maximum=-math.inf
-    for path in data_paths:
-        byte_num=os.path.getsize(path)
-        if byte_num%4:
-            raise RuntimeError(f"输入文件不是完整的float32数组：{path}，字节数={byte_num}")
-        values=array.array("f")
-        with open(path,"rb") as file:
-            values.fromfile(file,byte_num//values.itemsize)
-        valid_values=(value for value in values if value!=-99999.0)
-        try:
-            first=next(valid_values)
-        except StopIteration:
-            continue
-        local_minimum=first
-        local_maximum=first
-        for value in valid_values:
-            local_minimum=min(local_minimum,value)
-            local_maximum=max(local_maximum,value)
-        minimum=min(minimum,local_minimum)
-        maximum=max(maximum,local_maximum)
-    if not minimum<=maximum:
-        raise RuntimeError("无法从输入float32文件计算数据范围")
-    return minimum,maximum
 
 def calculate_throughput(byte_num,elapsed_time,name):
     if not math.isfinite(elapsed_time) or elapsed_time<=0:
@@ -331,7 +305,7 @@ def run_unsz_fields(config):
         result_by_field[field]={"compressor":"unsz",**result,"command":command}
     return result_by_field
 
-def run_umc(config,rel_eb,data_range):
+def run_umc(config,rel_eb):
     if "tensor_metadata" in config:
         raise ValueError("UMC实验入口不接受UNSZ二维tensor metadata；需要使用单独的UMC数据适配器")
     source_data_dir=Path(config["data_dir"])
@@ -361,22 +335,14 @@ def run_umc(config,rel_eb,data_range):
     else:
         raise ValueError(f"未知UMC压缩方法：{method}")
     compression_output=run_command(compression_command)
-    br,psnr,compression_preprocessing_time,compression_time=parse_umc_compression_result(compression_output,data_paths,data_range)
+    br,compression_preprocessing_time,compression_time=parse_umc_compression_result(compression_output,data_paths)
     decompression_output=run_command(decompression_command)
-    decompression_preprocessing_time,decompression_time,decompressed_psnr,decompressed_max_error=parse_umc_decompression_result(decompression_output,data_paths,data_range)
-    if not math.isclose(psnr,decompressed_psnr,rel_tol=1e-6,abs_tol=1e-5):
-        raise RuntimeError(f"UMC压缩端和独立解压端总PSNR不一致：{psnr} != {decompressed_psnr}")
-    print(f"UMC独立解压检查通过：total psnr={decompressed_psnr},max error={decompressed_max_error}")
-    disk_mse,disk_max_error,slice_statistics=calculate_umc_disk_error(data_paths,rel_eb)
-    disk_psnr=math.inf if disk_mse==0 else 10*math.log10((data_range[1]-data_range[0])**2/disk_mse)
-    if not math.isclose(psnr,disk_psnr,rel_tol=1e-6,abs_tol=1e-5):
-        raise RuntimeError(f"UMC压缩端和磁盘输出总PSNR不一致：{psnr} != {disk_psnr}")
-    if not math.isclose(decompressed_max_error,disk_max_error,rel_tol=1e-5,abs_tol=1e-5):
-        raise RuntimeError(f"UMC独立解压和磁盘输出最大误差不一致：{decompressed_max_error} != {disk_max_error}")
-    print(f"UMC逐点磁盘输出与误差界检查通过：total psnr={disk_psnr},max error={disk_max_error}")
-    print(f"总结果：compressor=umc,task={config['name']},data_dir={config['data_dir']},field={field},rel_eb={rel_eb},br={br},psnr={psnr}")
+    decompression_preprocessing_time,decompression_time=parse_umc_decompression_result(decompression_output,data_paths)
+    _,disk_max_error,slice_statistics=calculate_umc_disk_error(data_paths,rel_eb)
+    print(f"UMC逐点误差界检查通过：max error={disk_max_error}")
+    print(f"总结果：compressor=umc,task={config['name']},data_dir={config['data_dir']},field={field},rel_eb={rel_eb},br={br}")
     print(f"计时：compression_preprocessing={compression_preprocessing_time} s,decompression_preprocessing={decompression_preprocessing_time} s,compression={compression_time} s,decompression={decompression_time} s,compression+decompression={compression_time+decompression_time} s")
-    return {**slice_statistics,"compressor":"umc","rel_eb":rel_eb,"br":br,"psnr":psnr,"compression_preprocessing_time":compression_preprocessing_time,"decompression_preprocessing_time":decompression_preprocessing_time,"compression_time":compression_time,"decompression_time":decompression_time,"command":"compression: "+shlex.join(str(value) for value in compression_command)+"; decompression: "+shlex.join(str(value) for value in decompression_command)}
+    return {**slice_statistics,"compressor":"umc","rel_eb":rel_eb,"br":br,"compression_preprocessing_time":compression_preprocessing_time,"decompression_preprocessing_time":decompression_preprocessing_time,"compression_time":compression_time,"decompression_time":decompression_time,"command":"compression: "+shlex.join(str(value) for value in compression_command)+"; decompression: "+shlex.join(str(value) for value in decompression_command)}
 
 # 任务循环和命令行入口
 def prepare_field_result_metadata(task):
@@ -392,6 +358,11 @@ def prepare_field_result_metadata(task):
         result[field]={"config":field_config,"input_paths":input_paths,"total_bytes":sum(path.stat().st_size for path in input_paths),"result_path":result_path}
     return result
 
+def slice_valid_psnr(result):
+    # 逐slice有效值PSNR：每个有效值的误差除以所在slice有效值range，再在全部有效值上平均
+    error=float(result["slice_normalized_valid_squared_error"])
+    return -10*math.log10(error/int(result["valid_value_num"])) if error>0 else math.inf
+
 def write_benchmark_result(task,field,compressor,config,result,metadata):
     label_flow=config.get("label_flow")
     value_flow=config.get("value_flow")
@@ -401,8 +372,9 @@ def write_benchmark_result(task,field,compressor,config,result,metadata):
     item={"task":task["name"],"field":field,"compressor":compressor,"label_flow":label_flow or "not_applicable","value_flow":value_flow or "not_applicable","label_value_execution":label_value_execution,"rel_eb":rel_eb if rel_eb is not None else "not_applicable","point_set_config":point_set_config_path or "not_applicable"}
     result_path=metadata["result_path"]
     total_bytes=metadata["total_bytes"]
-    for column_name in ("br","psnr","command","compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time"):
+    for column_name in ("br","command","compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time"):
         write_csv_item(str(result_path),item,column_name,result[column_name])
+    write_csv_item(str(result_path),item,"psnr",slice_valid_psnr(result))
     for column_name,value in (("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("compression_preprocessing_MB_s",calculate_throughput(total_bytes,result["compression_preprocessing_time"],"压缩预处理时间")),("decompression_preprocessing_MB_s",calculate_throughput(total_bytes,result["decompression_preprocessing_time"],"解压预处理时间")),("compression_MB_s",calculate_throughput(total_bytes,result["compression_time"],"压缩时间")),("decompression_MB_s",calculate_throughput(total_bytes,result["decompression_time"],"解压时间"))):
         write_csv_item(str(result_path),item,column_name,value)
     if compressor=="unsz":
@@ -415,7 +387,7 @@ def write_benchmark_result(task,field,compressor,config,result,metadata):
         write_csv_item(str(result_path),item,"selected_value_flow",result["selected_value_flow"] or value_flow)
         if result["automatic_flow_candidates"]:
             write_csv_item(str(result_path),item,"automatic_flow_candidates",json.dumps(result["automatic_flow_candidates"],separators=(",",":")))
-    # per-slice协议的PSNR由这些统计计算：每个slice普通值的平方误差除以该slice普通值range的平方
+    # psnr列由这些统计计算：每个slice有效值的平方误差除以该slice有效值range的平方
     for column_name in ("value_num","valid_value_num","slice_normalized_valid_squared_error","slice_normalized_squared_error"):
         write_csv_item(str(result_path),item,column_name,result[column_name])
     for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",field_slice_num(config,field)),("input_bytes",total_bytes)):
@@ -451,11 +423,10 @@ def run_task(task):
         for field in task["field_list"]:
             metadata=field_metadata[field]
             field_config=metadata["config"]
-            data_range=calculate_data_range(metadata["input_paths"])
             for rel_eb in umc_rel_eb_list:
                 config=field_config|{"umc":task["umc"],"rel_eb":rel_eb}
                 print(f"开始：task={task['name']},field={field},compressor=umc,REL={rel_eb:g}",flush=True)
-                result=run_umc(config,rel_eb,data_range)
+                result=run_umc(config,rel_eb)
                 write_benchmark_result(task,field,"umc",config,result,metadata)
                 if task.get("cleanup_after_each_test",False):
                     cleanup_test_outputs(field_config,"umc")

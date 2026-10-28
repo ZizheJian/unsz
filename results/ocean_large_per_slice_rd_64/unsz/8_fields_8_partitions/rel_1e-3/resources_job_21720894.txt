@@ -1,0 +1,23 @@
+	Command being timed: "./unsz_env/bin/python -u benchmarks/two_level/run.py --protocol slice --rel-eb 1e-3 --field-worker-num 8 --cpu-num 64 --output-root results/ocean_large_per_slice_rd_64/unsz/8_fields_8_partitions/rel_1e-3 --launcher benchmarks/two_level/run_five_ebs.slurm"
+	User time (seconds): 16569.49
+	System time (seconds): 703.41
+	Percent of CPU this job got: 757%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 38:00.86
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 34102460
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 146
+	Minor (reclaiming a frame) page faults: 17088715
+	Voluntary context switches: 1631871
+	Involuntary context switches: 261881
+	Swaps: 0
+	File system inputs: 34640
+	File system outputs: 3424
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

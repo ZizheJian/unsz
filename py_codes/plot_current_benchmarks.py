@@ -117,7 +117,7 @@ def plot_rd(fields,output_dir):
         if "umc" not in task["compressor_list"]:
             axis.text(.98,.04,"UMC unavailable",transform=axis.transAxes,ha="right",va="bottom",fontsize=9)
     figure.supxlabel("Bit rate (bit/value, log scale)")
-    figure.supylabel("PSNR (dB)")
+    figure.supylabel("Per-slice PSNR (dB)")
     legend_handles=[Line2D([],[],color=style["color"],marker=style["marker"],linewidth=2,label=style["label"]) for style in compressor_styles.values()]
     finish_subplots(figure,axes,len(fields),"Rate-distortion",output_dir/"all_fields_rd",legend_handles,2)
 

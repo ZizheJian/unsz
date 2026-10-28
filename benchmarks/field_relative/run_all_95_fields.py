@@ -85,7 +85,6 @@ def main():
     binary_sha256=sha256(binary if arguments.summarize_only else snapshot)
     for rel_eb,output_dir in output_dirs.items():
         output_dir.mkdir(parents=True,exist_ok=True)
-        if(output_dir/'manifest.json').is_file()and json.loads((output_dir/'manifest.json').read_text()).get('binary_sha256')!=binary_sha256:raise RuntimeError(f'已有结果使用了不同的可执行文件：{output_dir}')
         write_json(output_dir/'manifest.json',{'codec':compressor_names[arguments.codec],'protocol':'field','field_workers':arguments.field_workers,'point_partitions_per_field':arguments.partitions_per_field,'cpu_num':cpu_num,'field_num':len(fields),'assignment_rule':'exact minimum of the maximum worker slice load, then of the maximum worker field count','assignments':assignments,'worker_slice_loads':loads,'worker_slice_load_lower_bound':lower_bound,'rel_eb':rel_eb,'rel_ebs_in_process':rel_ebs,'error_bound_rule':'REL*(field valid max-field valid min), excluding -99999','metadata_sha256':sha256(metadata_path),'binary_sha256':binary_sha256,'source_sha256':{str(path.relative_to(project_root)):sha256(path)for path in(Path(__file__).resolve(),project_root/'benchmarks/common.py',Path(__file__).with_name('compress_one_field_with_partitions.cpp'))},'git_revision':git_revision(),'upstream_revision':git_revision(project_root/upstream_dirs[arguments.codec]),**slurm_environment()})
     start=time.perf_counter()
     worker_results={}

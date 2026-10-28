@@ -5,9 +5,15 @@ import numpy as np
 project_root=Path(__file__).resolve().parents[1]
 result_root=project_root/"results/current"
 
+time_columns=("compression_preprocessing_time","compression_time","decompression_preprocessing_time","decompression_time")
+
 def read_rows(path):
+    # 补上包含两端预处理的total codec time
     with path.open(newline="") as file:
-        return list(csv.DictReader(file))
+        rows=list(csv.DictReader(file))
+    for row in rows:
+        row["total_codec_time"]=sum(float(row[name]) for name in time_columns)
+    return rows
 
 def calculate_bd_rate(reference,test):
     reference_points=sorted((float(row["psnr"]),float(row["br"])) for row in reference)
@@ -108,11 +114,11 @@ def main():
                 unsz_br=interpolate_positive_at_psnr(unsz,representative_psnr,"br")
                 umc_br=interpolate_positive_at_psnr(umc,representative_psnr,"br")
                 item.update({"representative_psnr":representative_psnr,"representative_cr_ratio_vs_umc":umc_br/unsz_br,"bd_rate_vs_umc":bd_rate,"compression_ratio_vs_umc":1/(1+bd_rate/100)})
-                unsz_total_time=interpolate_positive_at_psnr(unsz,representative_psnr,"compression_decompression_time")
-                umc_total_time=interpolate_positive_at_psnr(umc,representative_psnr,"compression_decompression_time")
-                throughput_function=lambda row:float(row["input_bytes"])/float(row["compression_decompression_time"])/1e6
+                unsz_total_time=interpolate_positive_at_psnr(unsz,representative_psnr,"total_codec_time")
+                umc_total_time=interpolate_positive_at_psnr(umc,representative_psnr,"total_codec_time")
+                throughput_function=lambda row:float(row["input_bytes"])/row["total_codec_time"]/1e6
                 umc_total_throughput,unsz_total_throughput=geometric_metric_means_at_same_psnr(umc,unsz,throughput_function,"total throughput")
-                item.update({"representative_total_time_ratio_vs_umc":unsz_total_time/umc_total_time,"total_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_decompression_time"),"compression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_time"),"decompression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"decompression_time"),"unsz_total_throughput_MB_s":unsz_total_throughput,"umc_total_throughput_MB_s":umc_total_throughput})
+                item.update({"representative_total_time_ratio_vs_umc":unsz_total_time/umc_total_time,"total_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"total_codec_time"),"compression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"compression_time"),"decompression_time_ratio_vs_umc":geometric_metric_ratio_at_same_psnr(umc,unsz,"decompression_time"),"unsz_total_throughput_MB_s":unsz_total_throughput,"umc_total_throughput_MB_s":umc_total_throughput})
             summary.append(item)
     if not summary:
         raise RuntimeError(f"{result_root/'fields'}中没有可汇总的field CSV")
