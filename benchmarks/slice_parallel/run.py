@@ -70,6 +70,7 @@ def main():
     parser.add_argument('--slice-workers',type=int,required=True)
     parser.add_argument('--threads-per-slice',type=int,required=True)
     parser.add_argument('--output-root',type=Path)
+    parser.add_argument('--dir-suffix',default='')
     parser.add_argument('--field',action='append')
     parser.add_argument('--max-slices',type=int)
     parser.add_argument('--summarize-only',action='store_true')
@@ -85,7 +86,7 @@ def main():
     available_cpus=None if arguments.summarize_only else check_cpus(cpu_num,formal_complete_dataset)
     binary=(project_root/codecs[arguments.codec]['binary']).resolve()
     configuration=f'{arguments.slice_workers}_slice_workers_{arguments.threads_per_slice}_threads_per_slice'
-    output_root=arguments.output_root or project_root/f'results/ocean_large_per_slice_rd_{cpu_num}'/codecs[arguments.codec]['result_dir']
+    output_root=arguments.output_root or project_root/f'results/ocean_large_per_slice_rd_{cpu_num}{arguments.dir_suffix}'/codecs[arguments.codec]['result_dir']
     assignments=[slices[worker_id::arguments.slice_workers]for worker_id in range(arguments.slice_workers)]
     for rel_eb in arguments.rel_eb:
         output_dir=(output_root/configuration/f'rel_{rel_eb:g}').resolve()
