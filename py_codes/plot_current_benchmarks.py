@@ -17,7 +17,7 @@ dataset_labels={"katrina":"Katrina","les":"LES","e3sm-h4":"E3SM-h4","adcirc-haiy
 compressor_styles={"unsz":{"label":"UNSZ","color":"#0072B2","marker":"s"},"umc":{"label":"UMC","color":"#D55E00","marker":"o"}}
 unsz_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
 umc_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
-timing_summary_keys=("coordinate_transform_time","prediction_structure_time","automatic_flow_selection_time","compression_preprocessing_time","compression_time","decompression_preprocessing_time","decompression_time")
+timing_summary_keys=("coordinate_rescaling_time","prediction_structure_time","automatic_pipeline_selection_time","compression_preprocessing_time","compression_time","decompression_preprocessing_time","decompression_time")
 
 
 def load_rows(path):
@@ -25,36 +25,36 @@ def load_rows(path):
         return list(csv.DictReader(file))
 
 
-def read_point_set_rel_eb(path):
+def read_label_rel_eb(path):
     path=Path(path)
     if not path.is_absolute():
         path=project_root/path
     document=json.loads(path.read_text())
     values={float(label["eb_value"]) for label in document["labels"] if label["method"]=="predict" and label["eb_mode"]=="REL"}
     if len(values)!=1:
-        raise ValueError(f"{path}必须恰好包含一个预测点集REL EB")
+        raise ValueError(f"{path}必须恰好包含一个预测标签REL EB")
     return values.pop()
 
 
 def task_rows(task,field):
     csv_path=project_root/task["csv_path"].format(field=field)
     rows=load_rows(csv_path)
-    if task["time_step_num"]==1:
-        label_flow,value_flow="not_applicable","spatial"
-    elif "point_set_config_path_list" in task["unsz"]:
-        label_flow,value_flow="auto","auto"
+    if task["slice_num"]==1:
+        label_pipeline,value_pipeline="not_applicable","independent"
+    elif "label_config_path_list" in task["unsz"]:
+        label_pipeline,value_pipeline="auto","auto"
     else:
-        label_flow,value_flow="not_applicable","auto"
+        label_pipeline,value_pipeline="not_applicable","auto"
     selected=[]
     for row in rows:
         if row["task"]!=task["name"] or row["field"]!=field:
             continue
-        if row["compressor"]=="unsz" and (row["label_flow"]!=label_flow or row["value_flow"]!=value_flow):
+        if row["compressor"]=="unsz" and (row["label_pipeline"]!=label_pipeline or row["value_pipeline"]!=value_pipeline):
             continue
         if row["compressor"] not in task["compressor_list"]:
             continue
         item=dict(row)
-        item["rel_eb_value"]=float(row["rel_eb"]) if row["rel_eb"]!="not_applicable" else read_point_set_rel_eb(row["point_set_config"])
+        item["rel_eb_value"]=float(row["rel_eb"]) if row["rel_eb"]!="not_applicable" else read_label_rel_eb(row["label_config"])
         selected.append(item)
     for compressor in task["compressor_list"]:
         compressor_rows=[row for row in selected if row["compressor"]==compressor]
@@ -287,7 +287,7 @@ def plot_time(fields,output_dir,summary_rows,subplot_num=6):
 
 
 def write_summary(rows,path):
-    fieldnames=("dataset","task","field","compressor","rel_eb","coordinate_transform_time","prediction_structure_time","automatic_flow_selection_time","compression_preprocessing_time","compression_time","decompression_preprocessing_time","decompression_time","total_time")
+    fieldnames=("dataset","task","field","compressor","rel_eb","coordinate_rescaling_time","prediction_structure_time","automatic_pipeline_selection_time","compression_preprocessing_time","compression_time","decompression_preprocessing_time","decompression_time","total_time")
     with path.open("w",newline="",encoding="utf-8") as file:
         writer=csv.DictWriter(file,fieldnames=fieldnames,lineterminator="\n")
         writer.writeheader()

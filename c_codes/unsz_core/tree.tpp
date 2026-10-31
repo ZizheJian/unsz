@@ -104,7 +104,7 @@ namespace unsz
         if (coord_array.n0==0 || coord_array.n1==0)
             throw runtime_error("kd-tree的点数和维数必须是正数");
         if(original_ids.empty())
-            throw runtime_error("kd-tree的点集不能为空");
+            throw runtime_error("kd-tree的标签不能为空");
         if (leaf_point_num==0)
             throw runtime_error("kd-tree叶节点点数必须是正数");
         dim=coord_array.n1;

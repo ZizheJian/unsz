@@ -12,7 +12,7 @@ umc_root=project_root/"third_party/umc"
 umc_inp_batch=10
 build_max_cpus=get_max_cpus(8)
 silent_build=False
-allowed_unsz_config_keys={"point_set_config_path_list","partition_num","partition_size","thread_num","flow","coordinate_transform"}
+allowed_unsz_config_keys={"label_config_path_list","partition_num","partition_size","thread_num","pipeline","coordinate_rescaling"}
 
 # JSON配置
 def resolve_json_path(path_or_name):
@@ -57,14 +57,14 @@ def select_tasks(tasks,task_names,fields,compressors):
         raise ValueError("task、field和compressor筛选后没有实验")
     return selected_tasks
 
-def resolve_point_set_config_path(path):
+def resolve_label_config_path(path):
     path=Path(path)
     return path if path.is_absolute() else project_root/path
 
-def read_point_set_rel_eb_list(path):
-    path=resolve_point_set_config_path(path)
+def read_label_rel_eb_list(path):
+    path=resolve_label_config_path(path)
     if not path.is_file():
-        raise FileNotFoundError(f"找不到点集配置文件：{path}")
+        raise FileNotFoundError(f"找不到标签配置文件：{path}")
     with path.open(encoding="utf-8") as file:
         document=json.load(file)
     rel_eb_vec=[label["eb_value"] for label in document["labels"] if label["method"]=="predict" and label["eb_mode"]=="REL"]
@@ -89,7 +89,7 @@ def load_tensor_field_config(config,field=None):
 
 def field_slice_num(config,field=None):
     if "tensor_metadata" not in config:
-        return config["time_step_num"]
+        return config["slice_num"]
     shape=load_tensor_field_config(config,field)["shape"]
     if not isinstance(shape,list) or len(shape)!=2 or any(not isinstance(value,int)or value<=0 for value in shape):
         raise ValueError("tensor metadata的shape必须包含两个正整数")
@@ -117,13 +117,13 @@ def cleanup_test_outputs(config,compressor):
             remove_file_if_exists(str(output_path)+".unsz")
             remove_file_if_exists(str(output_path)+".unsz.bin")
         remove_file_if_exists(output_dir/f"{config['field']}.joint.unsz")
-        remove_file_if_exists(output_dir/f"{config['field']}.unsz.coord_transform.txt")
+        remove_file_if_exists(output_dir/f"{config['field']}.unsz.coordinate_rescaling.txt")
     elif compressor=="umc":
         for input_path in generate_input_file_paths(config):
             remove_file_if_exists(str(input_path)+".umc")
             remove_file_if_exists(str(input_path)+".umc.out")
 
-result_identity_columns=("task","field","compressor","label_flow","value_flow","label_value_execution","rel_eb","point_set_config")
+result_identity_columns=("task","field","compressor","label_pipeline","value_pipeline","label_value_execution","rel_eb","label_config")
 
 def normalize_result_csv_columns(path):
     path=Path(path)
@@ -172,13 +172,13 @@ def build_spatial_prediction_arguments(config,data_dir,time_expression):
     if "tensor_metadata" in config:
         arguments.extend(("-tensor-metadata",config["tensor_metadata"]))
     else:
-        arguments.extend(("-time-step",time_expression))
+        arguments.extend(("-slice",time_expression))
     arguments.extend(("-coordinate-dim",config["coordinate_dim"]))
-    if "coordinate_transform" in config:
-        coordinate_transform=config["coordinate_transform"]
-        if coordinate_transform not in ("off","on","auto"):
-            raise ValueError(f"未知坐标变换模式：{coordinate_transform}")
-        arguments.extend(("-coordinate-transform",coordinate_transform))
+    if "coordinate_rescaling" in config:
+        coordinate_rescaling=config["coordinate_rescaling"]
+        if coordinate_rescaling not in ("off","on","auto"):
+            raise ValueError(f"未知坐标缩放模式：{coordinate_rescaling}")
+        arguments.extend(("-coordinate-rescaling",coordinate_rescaling))
     has_partition_num="partition_num" in config
     has_partition_size="partition_size" in config
     if has_partition_num and has_partition_size:
@@ -197,49 +197,49 @@ def build_spatial_prediction_arguments(config,data_dir,time_expression):
     return arguments
 
 def build_spatial_unsz_arguments(config,data_dir):
-    return build_spatial_prediction_arguments(config,data_dir,"{"+",".join(str(value) for value in range(config["time_step_num"]))+"}")
+    return build_spatial_prediction_arguments(config,data_dir,"{"+",".join(str(value) for value in range(config["slice_num"]))+"}")
 
-def build_temporal_unsz_arguments(config,data_dir):
-    if config["time_step_num"]<2:
-        raise ValueError("时间预测至少需要两个time step")
-    value_flow=config["value_flow"]
-    label_flow=config["label_flow"]
-    time_expression=f"[0,{config['time_step_num']-1}]"
+def build_tensor_unsz_arguments(config,data_dir):
+    if config["slice_num"]<2:
+        raise ValueError("跨slice预测至少需要两个slice")
+    value_pipeline=config["value_pipeline"]
+    label_pipeline=config["label_pipeline"]
+    time_expression=f"[0,{config['slice_num']-1}]"
     arguments=build_spatial_prediction_arguments(config,data_dir,time_expression)
-    if "time_step_coordinate_file" in config:
-        arguments.extend(("-time-step-coordinate-file",Path(config["data_dir"])/config["time_step_coordinate_file"]))
-    if config.get("force_flow",False):
-        arguments.extend(("-value-flow",value_flow))
-    if not config.get("force_flow",False):
+    if "slice_coordinate_file" in config:
+        arguments.extend(("-slice-coordinate-file",Path(config["data_dir"])/config["slice_coordinate_file"]))
+    if config.get("force_pipeline",False):
+        arguments.extend(("-value-pipeline",value_pipeline))
+    if not config.get("force_pipeline",False):
         return arguments
-    if label_flow=="constant_extrapolation":
-        arguments.extend(("-label-flow","constant_extrapolation"))
-    elif label_flow=="linear_interpolation_spatial_residual":
-        arguments.extend(("-label-flow","linear_interpolation_spatial_residual"))
-    elif label_flow=="anchor_interpolation_stride_8":
-        arguments.extend(("-label-flow",label_flow))
-    elif label_flow=="auto":
-        arguments.extend(("-label-flow","auto"))
-    elif label_flow=="spatial":
-        arguments.extend(("-label-flow","spatial"))
-    elif label_flow is not None:
-        raise ValueError(f"未知标签流程：{label_flow}")
+    if label_pipeline=="extrapolation":
+        arguments.extend(("-label-pipeline","extrapolation"))
+    elif label_pipeline=="interpolation_spatial_residual":
+        arguments.extend(("-label-pipeline","interpolation_spatial_residual"))
+    elif label_pipeline=="anchor_interpolation":
+        arguments.extend(("-label-pipeline",label_pipeline))
+    elif label_pipeline=="auto":
+        arguments.extend(("-label-pipeline","auto"))
+    elif label_pipeline=="independent":
+        arguments.extend(("-label-pipeline","independent"))
+    elif label_pipeline is not None:
+        raise ValueError(f"未知标签流程：{label_pipeline}")
     return arguments
 
 def build_unsz_commands(config,data_dir):
     if "tensor_metadata" in config:
-        if config.get("force_flow",False):
-            raise ValueError("二维tensor暂不支持通过实验配置强制指定flow")
+        if config.get("force_pipeline",False):
+            raise ValueError("二维tensor暂不支持通过实验配置强制指定pipeline")
         arguments=build_spatial_prediction_arguments(config,data_dir,None)
-    elif config["time_step_num"]>1 and (config.get("force_flow",False) or config["value_flow"]!="spatial" or config["label_flow"] not in (None,"spatial")):
-        arguments=build_temporal_unsz_arguments(config,data_dir)
+    elif config["slice_num"]>1 and (config.get("force_pipeline",False) or config["value_pipeline"]!="independent" or config["label_pipeline"] not in (None,"independent")):
+        arguments=build_tensor_unsz_arguments(config,data_dir)
     else:
         arguments=build_spatial_unsz_arguments(config,data_dir)
-    if "point_set_config_path" in config:
-        point_set_config_path=resolve_point_set_config_path(config["point_set_config_path"])
-        if not point_set_config_path.is_file():
-            raise FileNotFoundError(f"找不到点集配置文件：{point_set_config_path}")
-        compression_error=["-point-set-config",point_set_config_path]
+    if "label_config_path" in config:
+        label_config_path=resolve_label_config_path(config["label_config_path"])
+        if not label_config_path.is_file():
+            raise FileNotFoundError(f"找不到标签配置文件：{label_config_path}")
+        compression_error=["-label-config",label_config_path]
         decompression_error=compression_error
     else:
         rel_eb=config["rel_eb"]
@@ -249,19 +249,19 @@ def build_unsz_commands(config,data_dir):
     decompression_command=[project_root/"install/bin/s1_decompress",*decompression_error,*arguments,"-skip-decompressed-output"]
     return compression_command,decompression_command
 
-def expand_unsz_flows(config):
-    if "flow" not in config:
+def expand_unsz_pipelines(config):
+    if "pipeline" not in config:
         has_multiple_slices=any(field_slice_num(config,field)>1 for field in config["field_list"])
-        value_flow="auto" if has_multiple_slices else "spatial"
-        has_label="point_set_config_path_list" in config or "point_set_config_path" in config
-        label_flow="auto" if has_label and has_multiple_slices else None
-        return [config|{"label_flow":label_flow,"value_flow":value_flow,"force_flow":False}]
-    flow=config["flow"]
-    if "pair" in flow:
-        if "label" in flow or "value" in flow:
-            raise ValueError("flow.pair不能与flow.label或flow.value同时使用")
-        return [config|{"label_flow":label_flow,"value_flow":value_flow,"force_flow":True} for label_flow,value_flow in flow["pair"]]
-    return [config|{"label_flow":label_flow,"value_flow":value_flow,"force_flow":True} for label_flow in flow.get("label",[None]) for value_flow in flow["value"]]
+        value_pipeline="auto" if has_multiple_slices else "independent"
+        has_label="label_config_path_list" in config or "label_config_path" in config
+        label_pipeline="auto" if has_label and has_multiple_slices else None
+        return [config|{"label_pipeline":label_pipeline,"value_pipeline":value_pipeline,"force_pipeline":False}]
+    pipeline=config["pipeline"]
+    if "pair" in pipeline:
+        if "label" in pipeline or "value" in pipeline:
+            raise ValueError("pipeline.pair不能与pipeline.label或pipeline.value同时使用")
+        return [config|{"label_pipeline":label_pipeline,"value_pipeline":value_pipeline,"force_pipeline":True} for label_pipeline,value_pipeline in pipeline["pair"]]
+    return [config|{"label_pipeline":label_pipeline,"value_pipeline":value_pipeline,"force_pipeline":True} for label_pipeline in pipeline.get("label",[None]) for value_pipeline in pipeline["value"]]
 
 # 压缩器执行
 def extract_unsz_field_output(output,field,include_preamble):
@@ -297,10 +297,10 @@ def run_unsz_fields(config):
             field_compression_output=extract_unsz_field_output(compression_output,field,field==field_list[0])
             field_decompression_output=extract_unsz_field_output(decompression_output,field,field==field_list[0])
         result=parse_unsz_output(field_compression_output,field_decompression_output)
-        error_configuration=config["point_set_config_path"] if "point_set_config_path" in config else f"REL {config['rel_eb']}"
-        selected_label_flow=result["selected_label_flow"] or config.get("label_flow") or "not_applicable"
-        selected_value_flow=result["selected_value_flow"] or config["value_flow"]
-        print(f"总结果：compressor=unsz,task={config['name']},data_dir={config['data_dir']},field={field},error_configuration={error_configuration},selected_label_flow={selected_label_flow},selected_value_flow={selected_value_flow},br={result['br']},psnr={result['psnr']}")
+        error_configuration=config["label_config_path"] if "label_config_path" in config else f"REL {config['rel_eb']}"
+        selected_label_pipeline=result["selected_label_pipeline"] or config.get("label_pipeline") or "not_applicable"
+        selected_value_pipeline=result["selected_value_pipeline"] or config["value_pipeline"]
+        print(f"总结果：compressor=unsz,task={config['name']},data_dir={config['data_dir']},field={field},error_configuration={error_configuration},selected_label_pipeline={selected_label_pipeline},selected_value_pipeline={selected_value_pipeline},br={result['br']},psnr={result['psnr']}")
         print(f"计时：compression_preprocessing={result['compression_preprocessing_time']} s,decompression_preprocessing={result['decompression_preprocessing_time']} s,compression={result['compression_time']} s,decompression={result['decompression_time']} s,compression+decompression={result['compression_time']+result['decompression_time']} s")
         result_by_field[field]={"compressor":"unsz",**result,"command":command}
     return result_by_field
@@ -310,7 +310,7 @@ def run_umc(config,rel_eb):
         raise ValueError("UMC实验入口不接受UNSZ二维tensor metadata；需要使用单独的UMC数据适配器")
     source_data_dir=Path(config["data_dir"])
     field=config["field"]
-    time_step_num=config["time_step_num"]
+    slice_num=config["slice_num"]
     source_data_paths=generate_input_file_paths(config)
     required_paths=[source_data_dir/"coords.dat",source_data_dir/"conn.dat",*source_data_paths]
     missing_paths=[str(path) for path in required_paths if not path.is_file()]
@@ -327,11 +327,11 @@ def run_umc(config,rel_eb):
     neighbor_num=umc["neighbor_num"]
     data_dir=str(source_data_dir)+"/"
     if method=="NBP-IDW":
-        compression_command=[umc_root/"build/test/test_compress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,2,reorder,time_step_num,0,rel_eb,neighbor_num]
-        decompression_command=[umc_root/"build/test/test_decompress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,2,reorder,time_step_num]
+        compression_command=[umc_root/"build/test/test_compress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,2,reorder,slice_num,0,rel_eb,neighbor_num]
+        decompression_command=[umc_root/"build/test/test_decompress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,2,reorder,slice_num]
     elif method=="NBP-IDW-INP":
-        compression_command=[umc_root/"build/test/test_compress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,4,reorder,time_step_num,0,rel_eb,neighbor_num,umc_inp_batch]
-        decompression_command=[umc_root/"build/test/test_decompress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,4,reorder,time_step_num,umc_inp_batch]
+        compression_command=[umc_root/"build/test/test_compress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,4,reorder,slice_num,0,rel_eb,neighbor_num,umc_inp_batch]
+        decompression_command=[umc_root/"build/test/test_decompress",data_dir,field,"coords.dat","conn.dat",from_edge,coordinate_dim,4,reorder,slice_num,umc_inp_batch]
     else:
         raise ValueError(f"未知UMC压缩方法：{method}")
     compression_output=run_command(compression_command)
@@ -364,12 +364,12 @@ def slice_valid_psnr(result):
     return -10*math.log10(error/int(result["valid_value_num"])) if error>0 else math.inf
 
 def write_benchmark_result(task,field,compressor,config,result,metadata):
-    label_flow=config.get("label_flow")
-    value_flow=config.get("value_flow")
+    label_pipeline=config.get("label_pipeline")
+    value_pipeline=config.get("value_pipeline")
     rel_eb=config.get("rel_eb")
-    point_set_config_path=config.get("point_set_config_path")
-    label_value_execution="fused" if compressor=="unsz" and label_flow is not None else "not_applicable"
-    item={"task":task["name"],"field":field,"compressor":compressor,"label_flow":label_flow or "not_applicable","value_flow":value_flow or "not_applicable","label_value_execution":label_value_execution,"rel_eb":rel_eb if rel_eb is not None else "not_applicable","point_set_config":point_set_config_path or "not_applicable"}
+    label_config_path=config.get("label_config_path")
+    label_value_execution="fused" if compressor=="unsz" and label_pipeline is not None else "not_applicable"
+    item={"task":task["name"],"field":field,"compressor":compressor,"label_pipeline":label_pipeline or "not_applicable","value_pipeline":value_pipeline or "not_applicable","label_value_execution":label_value_execution,"rel_eb":rel_eb if rel_eb is not None else "not_applicable","label_config":label_config_path or "not_applicable"}
     result_path=metadata["result_path"]
     total_bytes=metadata["total_bytes"]
     for column_name in ("br","command","compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time"):
@@ -378,48 +378,48 @@ def write_benchmark_result(task,field,compressor,config,result,metadata):
     for column_name,value in (("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("compression_preprocessing_MB_s",calculate_throughput(total_bytes,result["compression_preprocessing_time"],"压缩预处理时间")),("decompression_preprocessing_MB_s",calculate_throughput(total_bytes,result["decompression_preprocessing_time"],"解压预处理时间")),("compression_MB_s",calculate_throughput(total_bytes,result["compression_time"],"压缩时间")),("decompression_MB_s",calculate_throughput(total_bytes,result["decompression_time"],"解压时间"))):
         write_csv_item(str(result_path),item,column_name,value)
     if compressor=="unsz":
-        for column_name in ("max_error_over_eb","coordinate_transform_time","prediction_structure_time","automatic_flow_selection_time","label_stream_br","value_stream_br","shared_metadata_br"):
+        for column_name in ("max_error_over_eb","coordinate_rescaling_time","prediction_structure_time","automatic_pipeline_selection_time","label_stream_br","value_stream_br","shared_metadata_br"):
             write_csv_item(str(result_path),item,column_name,result[column_name])
-        for column_name in ("coordinate_transform_original_flatness","coordinate_transform_transformed_flatness","coordinate_transform_flatness_ratio","coordinate_transform_enabled","coordinate_transform_untrained_group_mse_ratio","coordinate_transform_selected_group_loss_power"):
+        for column_name in ("coordinate_rescaling_original_flatness","coordinate_rescaling_rescaled_flatness","coordinate_rescaling_flatness_ratio","coordinate_rescaling_enabled","coordinate_rescaling_untrained_group_mse_ratio","coordinate_rescaling_selected_group_loss_power"):
             write_csv_item(str(result_path),item,column_name,result[column_name] if result[column_name] is not None else "not_applicable")
-        write_csv_item(str(result_path),item,"coordinate_transform_diagonal",json.dumps(result["coordinate_transform_diagonal"],separators=(",",":")))
-        write_csv_item(str(result_path),item,"selected_label_flow",result["selected_label_flow"] or label_flow or "not_applicable")
-        write_csv_item(str(result_path),item,"selected_value_flow",result["selected_value_flow"] or value_flow)
-        if result["automatic_flow_candidates"]:
-            write_csv_item(str(result_path),item,"automatic_flow_candidates",json.dumps(result["automatic_flow_candidates"],separators=(",",":")))
+        write_csv_item(str(result_path),item,"coordinate_rescaling_diagonal",json.dumps(result["coordinate_rescaling_diagonal"],separators=(",",":")))
+        write_csv_item(str(result_path),item,"selected_label_pipeline",result["selected_label_pipeline"] or label_pipeline or "not_applicable")
+        write_csv_item(str(result_path),item,"selected_value_pipeline",result["selected_value_pipeline"] or value_pipeline)
+        if result["automatic_pipeline_candidates"]:
+            write_csv_item(str(result_path),item,"automatic_pipeline_candidates",json.dumps(result["automatic_pipeline_candidates"],separators=(",",":")))
     # psnr列由这些统计计算：每个slice有效值的平方误差除以该slice有效值range的平方
     for column_name in ("value_num","valid_value_num","slice_normalized_valid_squared_error","slice_normalized_squared_error"):
         write_csv_item(str(result_path),item,column_name,result[column_name])
-    for column_name,value in (("data_dir",task["data_dir"]),("time_step_num",field_slice_num(config,field)),("input_bytes",total_bytes)):
+    for column_name,value in (("data_dir",task["data_dir"]),("slice_num",field_slice_num(config,field)),("input_bytes",total_bytes)):
         write_csv_item(str(result_path),item,column_name,value)
 
 def run_task(task):
     field_metadata=prepare_field_result_metadata(task)
-    point_set_config_path_list=task.get("unsz",{}).get("point_set_config_path_list")
+    label_config_path_list=task.get("unsz",{}).get("label_config_path_list")
     if "unsz" in task["compressor_list"]:
         grouped_config=task|task["unsz"]
-        unsz_configs=expand_unsz_flows(grouped_config)
-        if point_set_config_path_list is None:
+        unsz_configs=expand_unsz_pipelines(grouped_config)
+        if label_config_path_list is None:
             unsz_configs=[config|{"rel_eb":rel_eb} for rel_eb in task["rel_eb_list"] for config in unsz_configs]
         else:
-            unsz_configs=[config|{"point_set_config_path":path} for path in point_set_config_path_list for config in unsz_configs]
+            unsz_configs=[config|{"label_config_path":path} for path in label_config_path_list for config in unsz_configs]
         for config in unsz_configs:
             rel_eb=config.get("rel_eb")
-            point_set_config_path=config.get("point_set_config_path")
-            error_configuration=f"REL={rel_eb:g}" if rel_eb is not None else f"point_set_config={point_set_config_path}"
-            print(f"开始：task={task['name']},fields={{{','.join(task['field_list'])}}},compressor=unsz,label_flow={config.get('label_flow')},value_flow={config.get('value_flow')},{error_configuration}",flush=True)
+            label_config_path=config.get("label_config_path")
+            error_configuration=f"REL={rel_eb:g}" if rel_eb is not None else f"label_config={label_config_path}"
+            print(f"开始：task={task['name']},fields={{{','.join(task['field_list'])}}},compressor=unsz,label_pipeline={config.get('label_pipeline')},value_pipeline={config.get('value_pipeline')},{error_configuration}",flush=True)
             result_by_field=run_unsz_fields(config)
             for field,result in result_by_field.items():
                 write_benchmark_result(task,field,"unsz",config,result,field_metadata[field])
                 if task.get("cleanup_after_each_test",False):
                     cleanup_test_outputs(field_metadata[field]["config"],"unsz")
     if "umc" in task["compressor_list"]:
-        if point_set_config_path_list is None:
+        if label_config_path_list is None:
             umc_rel_eb_list=task["rel_eb_list"]
         else:
-            umc_rel_eb_list=list(dict.fromkeys(rel_eb for path in point_set_config_path_list for rel_eb in read_point_set_rel_eb_list(path)))
+            umc_rel_eb_list=list(dict.fromkeys(rel_eb for path in label_config_path_list for rel_eb in read_label_rel_eb_list(path)))
             if not umc_rel_eb_list:
-                raise ValueError(f"task {task['name']}的点集配置中没有可供UMC使用的REL EB")
+                raise ValueError(f"task {task['name']}的标签配置中没有可供UMC使用的REL EB")
         for field in task["field_list"]:
             metadata=field_metadata[field]
             field_config=metadata["config"]

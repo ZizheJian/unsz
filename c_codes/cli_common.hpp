@@ -17,7 +17,7 @@ namespace unsz
     template<typename Side_option_parser>
     void parse_common_args(int argc,char**argv,param_c<float,float>&param,Side_option_parser parse_side_option)
     {
-        vector<uint32_t> time_step_vec;
+        vector<uint32_t> slice_vec;
         float error_bound=0;
         unordered_set<string> used_option_set;
         for(int arg_id=1;arg_id<argc;arg_id++)
@@ -50,13 +50,13 @@ namespace unsz
             }
             else if(option=="-coordinate-dim")
                 param.dim=parse_positive_uint32(read_value(),option);
-            else if(option=="-time-step")
+            else if(option=="-slice")
             {
-                time_step_vec=parse_time_step_list(read_value());
-                param.got_time_step=true;
+                slice_vec=parse_slice_list(read_value());
+                param.got_slice=true;
             }
-            else if(option=="-time-step-coordinate-file")
-                param.time_step_coordinate_path=read_value();
+            else if(option=="-slice-coordinate-file")
+                param.slice_coordinate_path=read_value();
             else if(option=="-tensor-metadata")
                 param.tensor_metadata_path=read_value();
             else if(option=="-M")
@@ -75,45 +75,43 @@ namespace unsz
                 param.field_worker_num=parse_positive_uint32(read_value(),option);
             else if(option=="-field-worker-map")
                 param.field_worker_id_vec=parse_worker_id_list(read_value());
-            else if(option=="-point-set-config")
-                param.point_set_config_path=read_value();
-            else if(option=="-value-flow")
+            else if(option=="-label-config")
+                param.label_config_path=read_value();
+            else if(option=="-value-pipeline")
             {
-                param.value_flow=read_value();
-                if(param.value_flow=="spatial")param.value_flow="none";
-                if(param.value_flow!="none"&&param.value_flow!="auto"&&param.value_flow!="constant_extrapolation"&&param.value_flow!="linear_interpolation"&&param.value_flow!="constant_extrapolation_spatial_residual"&&param.value_flow!="linear_interpolation_spatial_residual"&&param.value_flow!="anchor_interpolation_stride_8"&&param.value_flow!="anchor_interpolation_stride_8_spatial_residual")
-                    throw runtime_error("未知的value flow："+param.value_flow);
+                param.value_pipeline=read_value();
+                if(param.value_pipeline!="independent"&&param.value_pipeline!="auto"&&param.value_pipeline!="extrapolation"&&param.value_pipeline!="interpolation"&&param.value_pipeline!="extrapolation_spatial_residual"&&param.value_pipeline!="interpolation_spatial_residual"&&param.value_pipeline!="anchor_interpolation"&&param.value_pipeline!="anchor_interpolation_spatial_residual")
+                    throw runtime_error("未知的value pipeline："+param.value_pipeline);
             }
-            else if(option=="-label-flow")
+            else if(option=="-label-pipeline")
             {
-                param.label_flow=read_value();
-                if(param.label_flow=="spatial")param.label_flow="none";
-                if(param.label_flow!="none"&&param.label_flow!="auto"&&param.label_flow!="constant_extrapolation"&&param.label_flow!="linear_interpolation_spatial_residual"&&param.label_flow!="anchor_interpolation_stride_8")
-                    throw runtime_error("未知的label flow："+param.label_flow);
+                param.label_pipeline=read_value();
+                if(param.label_pipeline!="independent"&&param.label_pipeline!="auto"&&param.label_pipeline!="extrapolation"&&param.label_pipeline!="interpolation_spatial_residual"&&param.label_pipeline!="anchor_interpolation")
+                    throw runtime_error("未知的label pipeline："+param.label_pipeline);
             }
-            else if(option=="-coordinate-transform")
+            else if(option=="-coordinate-rescaling")
             {
-                param.coordinate_transform_mode=read_value();
-                if(param.coordinate_transform_mode!="off"&&param.coordinate_transform_mode!="on"&&param.coordinate_transform_mode!="auto")
-                    throw runtime_error("-coordinate-transform必须是off、on或auto");
+                param.coordinate_rescaling_mode=read_value();
+                if(param.coordinate_rescaling_mode!="off"&&param.coordinate_rescaling_mode!="on"&&param.coordinate_rescaling_mode!="auto")
+                    throw runtime_error("-coordinate-rescaling必须是off、on或auto");
             }
             else if(!parse_side_option(option,read_value))
                 throw runtime_error("未知参数："+option);
         }
-        param.prepare_cli_parameters(time_step_vec,error_bound);
+        param.prepare_cli_parameters(slice_vec,error_bound);
     }
 
     // 按-field-worker-map把field分给多个worker并行处理。每个worker持有param的一份副本，process_fields处理一个worker的全部field。
-    // 各worker共用一次预先生成的跨slice依赖计划；报告时间取最慢worker的预处理与codec时间之和，再加上共用计划的生成时间。
+    // 各worker共用一次预先生成的slice DAG；报告时间取最慢worker的预处理与codec时间之和，再加上共用计划的生成时间。
     template<typename Process_fields,typename Reported_time>
     void run_field_workers(param_c<float,float>&param,const char*side,Process_fields process_fields,Reported_time reported_time)
     {
-        auto shared_dependency_plan_start_time=chrono::steady_clock::now();
+        auto shared_slice_dag_start_time=chrono::steady_clock::now();
         if(param.tensor_field_config_map.empty())
-            param.precompute_temporal_dependency_plans();
+            param.precompute_slice_dags();
         else
-            param.precompute_all_tensor_dependency_plans();
-        double shared_dependency_plan_time=seconds_since(shared_dependency_plan_start_time);
+            param.precompute_all_tensor_slice_dags();
+        double shared_slice_dag_time=seconds_since(shared_slice_dag_start_time);
         vector<vector<string>>worker_field_name_vec(param.field_worker_num);
         for(uint32_t field_id=0;field_id<param.field_name_vec.size();field_id++)
             worker_field_name_vec[param.field_worker_id_vec[field_id]].push_back(param.field_name_vec[field_id]);
@@ -152,8 +150,8 @@ namespace unsz
             printf("field worker %u reported %s-side time= %f s\n",worker_id,side,worker_reported_time);
             maximum_reported_time=max(maximum_reported_time,worker_reported_time);
         }
-        maximum_reported_time+=shared_dependency_plan_time;
-        printf("two-level shared dependency-plan preprocessing time= %f s\n",shared_dependency_plan_time);
+        maximum_reported_time+=shared_slice_dag_time;
+        printf("two-level shared dependency-plan preprocessing time= %f s\n",shared_slice_dag_time);
         printf("two-level reported %s-side time= %f s\n",side,maximum_reported_time);
         printf("two-level %s wall time= %f s\n",side,seconds_since(parallel_start_time));
         for(const exception_ptr&worker_error:worker_error_vec)

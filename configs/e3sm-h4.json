@@ -10,15 +10,15 @@
       "unsz",
       "umc"
     ],
-    "time_step_num": 720,
+    "slice_num": 720,
     "coordinate_dim": 3,
     "unsz": {
-      "point_set_config_path_list": [
-        "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-1.json",
-        "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-2.json",
-        "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json",
-        "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-4.json",
-        "point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-5.json"
+      "label_config_path_list": [
+        "label_configs/E3SM_h4_AODDUST_rbf_rel_1e-1.json",
+        "label_configs/E3SM_h4_AODDUST_rbf_rel_1e-2.json",
+        "label_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json",
+        "label_configs/E3SM_h4_AODDUST_rbf_rel_1e-4.json",
+        "label_configs/E3SM_h4_AODDUST_rbf_rel_1e-5.json"
       ]
     },
     "umc": {
@@ -46,7 +46,7 @@
       "unsz",
       "umc"
     ],
-    "time_step_num": 720,
+    "slice_num": 720,
     "coordinate_dim": 3,
     "unsz": {},
     "umc": {

@@ -139,18 +139,18 @@ def add_structured_results(records,fields,sources,codec,directory,expected_eb=1e
             raise ValueError(f'Expected one current structured-codec row: {path}')
         source=rows[0]
         eb=float(source['rel_eb']) if source['rel_eb']!='not_applicable' else None
-        point_set_path=None
+        label_path=None
         if eb is None:
-            point_set_path=Path(source['point_set_config'])
-            if not point_set_path.is_absolute():
-                point_set_path=project_root/point_set_path
-            labels=json.loads(point_set_path.read_text())['labels']
+            label_path=Path(source['label_config'])
+            if not label_path.is_absolute():
+                label_path=project_root/label_path
+            labels=json.loads(label_path.read_text())['labels']
             errors={float(label['eb_value']) for label in labels if label['method']=='predict' and label['eb_mode']=='REL'}
             if len(errors)!=1:
-                raise ValueError(f'Expected one relative error bound: {point_set_path}')
+                raise ValueError(f'Expected one relative error bound: {label_path}')
             eb=errors.pop()
         reference=records[field,'sz3',1e-3]
-        if eb!=expected_eb or int(source['input_bytes'])!=reference['input_bytes'] or int(source['time_step_num'])!=reference['slice_num']:
+        if eb!=expected_eb or int(source['input_bytes'])!=reference['input_bytes'] or int(source['slice_num'])!=reference['slice_num']:
             raise ValueError(f'Structured-codec inputs differ: {path}')
         if (field,codec,eb) in records:
             raise ValueError(f'Duplicate structured-codec result: {field},{codec},{eb}')
@@ -169,7 +169,7 @@ def add_structured_results(records,fields,sources,codec,directory,expected_eb=1e
                 raise ValueError(f'Nonpositive structured-codec timing: {path}')
             row[operation+'_MB_s']=row['input_bytes']/1e6/row[operation+'_time']
         records[field,codec,eb]=row
-        sources.append({'path':str(path.resolve()),'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'codec':codec,'manifest':manifest,'validation':'UNSZ independent decompression checked by its runner; UMC additionally checked against on-disk reconstruction','compressed_bytes_rule':'Derived from recorded field BR; UNSZ BR has six-decimal precision','point_set_config_sha256':hashlib.sha256(point_set_path.read_bytes()).hexdigest() if point_set_path else None})
+        sources.append({'path':str(path.resolve()),'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'codec':codec,'manifest':manifest,'validation':'UNSZ independent decompression checked by its runner; UMC additionally checked against on-disk reconstruction','compressed_bytes_rule':'Derived from recorded field BR; UNSZ BR has six-decimal precision','label_config_sha256':hashlib.sha256(label_path.read_bytes()).hexdigest() if label_path else None})
     sources.append({'path':str(manifest_path.resolve()),'sha256':hashlib.sha256(manifest_path.read_bytes()).hexdigest(),'codec':codec,'manifest':manifest})
 
 

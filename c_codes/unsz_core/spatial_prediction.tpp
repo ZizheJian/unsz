@@ -3,11 +3,11 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    __attribute__((always_inline)) inline T_data param_c<T_coord,T_data>::predict_value_one_point_set(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data)
+    __attribute__((always_inline)) inline T_data param_c<T_coord,T_data>::predict_value_single_label(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data)
     {
         ref_num=min<uint32_t>(rbf_reference_num,ref_num);
         if(ref_num==10)
-            return predict_value_one_point_set_10(ref_begin,ref_ids,weights,data);
+            return predict_value_single_label_10(ref_begin,ref_ids,weights,data);
         T_calc prediction=0;
         for(uint32_t local_ref_index=0;local_ref_index<ref_num;local_ref_index++)
         {
@@ -18,7 +18,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    __attribute__((always_inline)) inline T_data param_c<T_coord,T_data>::predict_value_one_point_set_10(uint64_t ref_begin,const vector<int>&reference_ids,const vector<T_calc>&weights,const vector<T_data>&data)
+    __attribute__((always_inline)) inline T_data param_c<T_coord,T_data>::predict_value_single_label_10(uint64_t ref_begin,const vector<int>&reference_ids,const vector<T_calc>&weights,const vector<T_data>&data)
     {
         const int *ref_ids=reference_ids.data()+ref_begin;
         const T_calc *ref_weights=weights.data()+ref_begin;
@@ -51,16 +51,16 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    T_data param_c<T_coord,T_data>::predict_value_two_point_sets_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_point_set_id,const vector<uint8_t> *valid_ref_mask)
+    T_data param_c<T_coord,T_data>::predict_value_with_labels_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,const vector<T_data> &data,uint32_t value_label_id,const vector<uint8_t> *valid_ref_mask)
     {
-        const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
+        const vector<uint8_t>&prediction_label_ids=prediction_data_uses_prediction_order?prediction_order_label_id_vec:label_id_vec;
         uint32_t ref_num=min<uint32_t>(rbf_reference_num,ref_ids.size());
         if(!has_rbf_weights)
         {
             for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
             {
                 int ref_id=ref_ids[ref_index];
-                if(prediction_point_set_ids[ref_id]==value_point_set_id&&(!valid_ref_mask||(*valid_ref_mask)[ref_id]))
+                if(prediction_label_ids[ref_id]==value_label_id&&(!valid_ref_mask||(*valid_ref_mask)[ref_id]))
                     return data[ref_id];
             }
             return 0;
@@ -73,7 +73,7 @@ namespace unsz
         for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
         {
             int ref_id=ref_ids[ref_index];
-            if(prediction_point_set_ids[ref_id]!=value_point_set_id||(valid_ref_mask&&!(*valid_ref_mask)[ref_id]))
+            if(prediction_label_ids[ref_id]!=value_label_id||(valid_ref_mask&&!(*valid_ref_mask)[ref_id]))
             {
                 if(any_missing_ref_forces_nearest)
                 {
@@ -82,7 +82,7 @@ namespace unsz
                     for(uint32_t fallback_ref_index=ref_index+1;fallback_ref_index<ref_num;fallback_ref_index++)
                     {
                         int fallback_ref_id=ref_ids[fallback_ref_index];
-                        if(prediction_point_set_ids[fallback_ref_id]==value_point_set_id&&(!valid_ref_mask||(*valid_ref_mask)[fallback_ref_id]))
+                        if(prediction_label_ids[fallback_ref_id]==value_label_id&&(!valid_ref_mask||(*valid_ref_mask)[fallback_ref_id]))
                             return data[fallback_ref_id];
                     }
                     return 0;
@@ -112,7 +112,7 @@ namespace unsz
     template<typename T_coord,typename T_data>
     fused_spatial_prediction_c<T_data> param_c<T_coord,T_data>::predict_fused_spatial_rbf(bool has_rbf_weights,array_view_c<int> ref_ids,array_view_c<T_calc> ref_weights,bool predict_label,const array<spatial_value_source_c<T_data>,2>&spatial_value_sources)
     {
-        const vector<uint8_t>&prediction_point_set_ids=prediction_data_uses_prediction_order?prediction_order_point_set_id_vec:point_set_id_vec;
+        const vector<uint8_t>&prediction_label_ids=prediction_data_uses_prediction_order?prediction_order_label_id_vec:label_id_vec;
         fused_spatial_prediction_c<T_data> result;
         uint32_t ref_num=min<uint32_t>(rbf_reference_num,ref_ids.size());
         T_calc label_prediction=0,value_weight_sum[2]={0,0},weighted_value_sum[2]={0,0};
@@ -122,48 +122,48 @@ namespace unsz
         for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
         {
             int ref_id=ref_ids[ref_index];
-            uint32_t point_set_id=prediction_point_set_ids[ref_id];
+            uint32_t label_id=prediction_label_ids[ref_id];
             T_calc weight=ref_weights[ref_index];
             if(predict_label)
-                label_prediction+=weight*point_set_id;
-            uint32_t other_point_set_id=1-point_set_id;
-            if(spatial_value_sources[other_point_set_id].data)
-                all_refs_match[other_point_set_id]=false;
-            const spatial_value_source_c<T_data>&source=spatial_value_sources[point_set_id];
+                label_prediction+=weight*label_id;
+            uint32_t other_label_id=1-label_id;
+            if(spatial_value_sources[other_label_id].data)
+                all_refs_match[other_label_id]=false;
+            const spatial_value_source_c<T_data>&source=spatial_value_sources[label_id];
             if(source.data)
             {
                 if(source.valid_ref_mask&&!(*source.valid_ref_mask)[ref_id])
-                    all_refs_match[point_set_id]=false;
+                    all_refs_match[label_id]=false;
                 else
                 {
-                    if(nearest_ref_id[point_set_id]<0)
-                        nearest_ref_id[point_set_id]=ref_id;
-                    value_ref_num[point_set_id]++;
+                    if(nearest_ref_id[label_id]<0)
+                        nearest_ref_id[label_id]=ref_id;
+                    value_ref_num[label_id]++;
                     if(has_rbf_weights)
                     {
-                        value_weight_sum[point_set_id]+=weight;
-                        weighted_value_sum[point_set_id]+=weight*(*source.data)[ref_id];
+                        value_weight_sum[label_id]+=weight;
+                        weighted_value_sum[label_id]+=weight*(*source.data)[ref_id];
                     }
                 }
             }
         }
         if(predict_label)
             result.label=label_prediction>(T_calc)0.5;
-        for(uint32_t point_set_id=0;point_set_id<2;point_set_id++)
+        for(uint32_t label_id=0;label_id<2;label_id++)
         {
-            if(!spatial_value_sources[point_set_id].data)
+            if(!spatial_value_sources[label_id].data)
                 continue;
-            if(nearest_ref_id[point_set_id]<0)
+            if(nearest_ref_id[label_id]<0)
                 continue;
-            if(!has_rbf_weights||value_ref_num[point_set_id]<rbf_reference_num||!isfinite(weighted_value_sum[point_set_id]))
-                result.values[point_set_id]=(*spatial_value_sources[point_set_id].data)[nearest_ref_id[point_set_id]];
-            else if(all_refs_match[point_set_id])
-                result.values[point_set_id]=(T_data)weighted_value_sum[point_set_id];
-            else if(isfinite(value_weight_sum[point_set_id])&&value_weight_sum[point_set_id]!=0)
+            if(!has_rbf_weights||value_ref_num[label_id]<rbf_reference_num||!isfinite(weighted_value_sum[label_id]))
+                result.values[label_id]=(*spatial_value_sources[label_id].data)[nearest_ref_id[label_id]];
+            else if(all_refs_match[label_id])
+                result.values[label_id]=(T_data)weighted_value_sum[label_id];
+            else if(isfinite(value_weight_sum[label_id])&&value_weight_sum[label_id]!=0)
             {
-                T_calc prediction=weighted_value_sum[point_set_id]/value_weight_sum[point_set_id];
+                T_calc prediction=weighted_value_sum[label_id]/value_weight_sum[label_id];
                 if(isfinite(prediction))
-                    result.values[point_set_id]=(T_data)prediction;
+                    result.values[label_id]=(T_data)prediction;
             }
         }
         return result;

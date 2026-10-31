@@ -1,4 +1,4 @@
-dataset,task,field,compressor,rel_eb,coordinate_transform_time,prediction_structure_time,automatic_flow_selection_time,compression_preprocessing_time,compression_time,decompression_preprocessing_time,decompression_time,total_time
+dataset,task,field,compressor,rel_eb,coordinate_rescaling_time,prediction_structure_time,automatic_pipeline_selection_time,compression_preprocessing_time,compression_time,decompression_preprocessing_time,decompression_time,total_time
 adcirc-haiyan-1.5km,adcirc_haiyan_depth,depth,unsz,0.001,0.029953,11.203124,0.0,11.233106,0.121613,11.120672,0.037226,22.512617000000002
 adcirc-haiyan-1.5km,adcirc_haiyan_zeta,zeta,unsz,0.001,0.029659,11.125324,0.188951,11.343982,4.804916,11.09247,3.653798,30.895166000000003
 e3sm-h4,e3sm_h4_aoddust,AODDUST,unsz,0.001,0.000321,0.098798,0.033432,0.133337,0.539999,0.099907,0.419706,1.192949

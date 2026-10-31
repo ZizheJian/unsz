@@ -17,7 +17,7 @@
       "unsz",
       "umc"
     ],
-    "time_step_num": 31,
+    "slice_num": 31,
     "coordinate_dim": 3,
     "unsz": {},
     "umc": {
@@ -45,7 +45,7 @@
       "unsz",
       "umc"
     ],
-    "time_step_num": 31,
+    "slice_num": 31,
     "coordinate_dim": 3,
     "unsz": {},
     "umc": {
@@ -73,7 +73,7 @@
       "unsz",
       "umc"
     ],
-    "time_step_num": 31,
+    "slice_num": 31,
     "coordinate_dim": 3,
     "unsz": {},
     "umc": {
@@ -106,7 +106,7 @@
       "unsz",
       "umc"
     ],
-    "time_step_num": 31,
+    "slice_num": 31,
     "coordinate_dim": 3,
     "unsz": {},
     "umc": {

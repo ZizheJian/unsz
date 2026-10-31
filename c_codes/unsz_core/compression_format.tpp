@@ -5,28 +5,28 @@ namespace unsz
     inline constexpr unsigned char compression_file_magic[8]={'U','N','S','Z','P','S','1','1'};
     inline constexpr uint32_t compression_file_version=17;
 
-    inline uint8_t encode_prediction_flow(const string&flow)
+    inline uint8_t encode_prediction_pipeline(const string&pipeline)
     {
-        if(flow=="none")return 0;
-        if(flow=="constant_extrapolation")return 1;
-        if(flow=="linear_interpolation")return 2;
-        if(flow=="constant_extrapolation_spatial_residual")return 3;
-        if(flow=="linear_interpolation_spatial_residual")return 4;
-        if(flow=="anchor_interpolation_stride_8")return 5;
-        if(flow=="anchor_interpolation_stride_8_spatial_residual")return 6;
-        throw runtime_error("不能写入未知预测flow："+flow);
+        if(pipeline=="independent")return 0;
+        if(pipeline=="extrapolation")return 1;
+        if(pipeline=="interpolation")return 2;
+        if(pipeline=="extrapolation_spatial_residual")return 3;
+        if(pipeline=="interpolation_spatial_residual")return 4;
+        if(pipeline=="anchor_interpolation")return 5;
+        if(pipeline=="anchor_interpolation_spatial_residual")return 6;
+        throw runtime_error("不能写入未知预测pipeline："+pipeline);
     }
 
-    inline string decode_prediction_flow(uint8_t flow)
+    inline string decode_prediction_pipeline(uint8_t pipeline)
     {
-        if(flow==0)return "none";
-        if(flow==1)return "constant_extrapolation";
-        if(flow==2)return "linear_interpolation";
-        if(flow==3)return "constant_extrapolation_spatial_residual";
-        if(flow==4)return "linear_interpolation_spatial_residual";
-        if(flow==5)return "anchor_interpolation_stride_8";
-        if(flow==6)return "anchor_interpolation_stride_8_spatial_residual";
-        throw runtime_error("压缩文件包含未知预测flow编号："+to_string(flow));
+        if(pipeline==0)return "independent";
+        if(pipeline==1)return "extrapolation";
+        if(pipeline==2)return "interpolation";
+        if(pipeline==3)return "extrapolation_spatial_residual";
+        if(pipeline==4)return "interpolation_spatial_residual";
+        if(pipeline==5)return "anchor_interpolation";
+        if(pipeline==6)return "anchor_interpolation_spatial_residual";
+        throw runtime_error("压缩文件包含未知预测pipeline编号："+to_string(pipeline));
     }
 
     template<typename T>
@@ -181,85 +181,85 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets>
+    template<bool two_labels>
     void param_c<T_coord,T_data>::decode_current_compression_streams(decompression_file_state_c<T_data>&state)
     {
-        uint32_t &point_set_num=state.point_set_num;
+        uint32_t &label_num=state.label_num;
         bool &has_label=state.has_label;
         uint64_t &label_target_num=state.label_target_num;
         vector<vector<uint8_t>> &structure_label_symbols=state.structure_label_symbols;
-        vector<vector<vector<int32_t>>> &structure_point_set_qb_vec=state.structure_point_set_qb_vec;
+        vector<vector<vector<int32_t>>> &structure_label_quantized_error_vec=state.structure_label_quantized_error_vec;
         vector<const unsigned char*>&structure_unpredictable_value_begin_vec=state.structure_unpredictable_value_begin_vec,&structure_unpredictable_value_end_vec=state.structure_unpredictable_value_end_vec;
         vector<unsigned char> &container=current_compressed_bytes;
         const unsigned char *cursor=container.data(),*end=container.data()+container.size();
         if((uint64_t)(end-cursor)<8||memcmp(cursor,compression_file_magic,8)!=0)
-            throw runtime_error("不是受支持的UNSZ点集文件");
+            throw runtime_error("不是受支持的UNSZ标签文件");
         cursor+=8;
         uint32_t version=read_binary<uint32_t>(cursor,end);
         if(version!=compression_file_version)
             throw runtime_error("不支持的UNSZ文件版本："+to_string(version));
         uint32_t file_point_num=read_binary<uint32_t>(cursor,end);
         uint32_t data_type_bytes=read_binary<uint32_t>(cursor,end);
-        point_set_num=read_binary<uint32_t>(cursor,end);
+        label_num=read_binary<uint32_t>(cursor,end);
         bool file_uses_tensor=read_binary<uint8_t>(cursor,end)!=0;
         if(file_uses_tensor!=current_field_uses_tensor)
             throw runtime_error("压缩文件的tensor模式与解压参数不一致");
         if(file_uses_tensor)
         {
-            tensor_flow_c file_tensor_flow=decode_tensor_flow(read_binary<uint8_t>(cursor,end));
+            tensor_pipeline_c file_tensor_pipeline=decode_tensor_pipeline(read_binary<uint8_t>(cursor,end));
             array<uint32_t,2> file_tensor_shape{{read_binary<uint32_t>(cursor,end),read_binary<uint32_t>(cursor,end)}};
-            if(!tensor_flow_selected||encode_tensor_flow(file_tensor_flow)!=encode_tensor_flow(selected_tensor_flow)||file_tensor_shape!=current_tensor_shape)
-                throw runtime_error("压缩文件记录的tensor flow或形状与解压参数不一致");
+            if(!tensor_pipeline_selected||encode_tensor_pipeline(file_tensor_pipeline)!=encode_tensor_pipeline(selected_tensor_pipeline)||file_tensor_shape!=current_tensor_shape)
+                throw runtime_error("压缩文件记录的tensor pipeline或形状与解压参数不一致");
         }
         else
         {
-            string file_label_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
-            string file_value_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
-            if(file_label_flow!=label_flow||file_value_flow!=value_flow)
-                throw runtime_error("压缩文件记录的预测flow与解压参数不一致");
+            string file_label_pipeline=decode_prediction_pipeline(read_binary<uint8_t>(cursor,end));
+            string file_value_pipeline=decode_prediction_pipeline(read_binary<uint8_t>(cursor,end));
+            if(file_label_pipeline!=label_pipeline||file_value_pipeline!=value_pipeline)
+                throw runtime_error("压缩文件记录的预测pipeline与解压参数不一致");
         }
         if (file_point_num!=point_num)
             throw runtime_error("压缩文件点数与坐标点数不一致");
         if (data_type_bytes!=sizeof(T_data))
             throw runtime_error("压缩文件的数据类型大小与解压程序不一致");
-        if constexpr(two_point_sets)
+        if constexpr(two_labels)
         {
-            if(point_set_num!=2)
-                throw runtime_error("两点集field配置要求码流包含两个点集");
+            if(label_num!=2)
+                throw runtime_error("两种标签field配置要求码流包含两个标签");
         }
-        else if(point_set_num!=1)
-            throw runtime_error("单点集field配置要求码流包含一个点集");
-        if(point_set_num>2)
-            throw runtime_error("UNSZ只支持一个或两个点集");
-        has_label=point_set_num==2;
+        else if(label_num!=1)
+            throw runtime_error("单标签field配置要求码流包含一个标签");
+        if(label_num>2)
+            throw runtime_error("UNSZ只支持一个或两个标签");
+        has_label=label_num==2;
         label_target_num=0;
-        point_set_point_num_vec.resize(point_set_num);
-        point_set_min_data_vec.resize(point_set_num);
-        point_set_max_data_vec.resize(point_set_num);
-        point_set_abs_eb_vec.resize(point_set_num);
-        point_set_codec_vec.resize(point_set_num);
+        label_point_num_vec.resize(label_num);
+        label_min_data_vec.resize(label_num);
+        label_max_data_vec.resize(label_num);
+        label_abs_eb_vec.resize(label_num);
+        label_codec_vec.resize(label_num);
         if(prediction_structure_vec.empty())
             throw runtime_error("UNSZ payload码流缺少预测结构");
         uint64_t metadata_point_num=0;
-        for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+        for(uint32_t label_id=0;label_id<label_num;label_id++)
         {
-            uint8_t source_point_set_id=read_binary<uint8_t>(cursor,end);
-            if(point_set_id>=point_set_source_id_vec.size()||source_point_set_id!=point_set_source_id_vec[point_set_id])
-                throw runtime_error("压缩文件的原始点集编号与当前field配置不一致");
+            uint8_t source_label_id=read_binary<uint8_t>(cursor,end);
+            if(label_id>=label_source_id_vec.size()||source_label_id!=label_source_id_vec[label_id])
+                throw runtime_error("压缩文件的原始标签编号与当前field配置不一致");
             uint8_t effective_codec=read_binary<uint8_t>(cursor,end);
-            if(effective_codec!=(uint8_t)point_set_config_vec[point_set_id].codec)
+            if(effective_codec!=(uint8_t)label_config_vec[label_id].codec)
                 throw runtime_error("压缩文件的effective codec与当前field配置不一致");
             uint8_t codec=read_binary<uint8_t>(cursor,end);
-            if(codec!=(uint8_t)point_set_codec_e::constant&&codec!=(uint8_t)point_set_codec_e::rbf)
-                throw runtime_error("压缩文件包含未知的点集编码方式");
-            point_set_codec_vec[point_set_id]=(point_set_codec_e)codec;
-            point_set_point_num_vec[point_set_id]=read_binary<uint32_t>(cursor,end);
-            metadata_point_num+=point_set_point_num_vec[point_set_id];
-            point_set_min_data_vec[point_set_id]=read_binary<T_data>(cursor,end);
-            point_set_max_data_vec[point_set_id]=read_binary<T_data>(cursor,end);
+            if(codec!=(uint8_t)label_codec_e::constant&&codec!=(uint8_t)label_codec_e::rbf)
+                throw runtime_error("压缩文件包含未知的标签编码方式");
+            label_codec_vec[label_id]=(label_codec_e)codec;
+            label_point_num_vec[label_id]=read_binary<uint32_t>(cursor,end);
+            metadata_point_num+=label_point_num_vec[label_id];
+            label_min_data_vec[label_id]=read_binary<T_data>(cursor,end);
+            label_max_data_vec[label_id]=read_binary<T_data>(cursor,end);
         }
         if(metadata_point_num!=point_num)
-            throw runtime_error("压缩文件中的各点集点数之和与总点数不一致");
+            throw runtime_error("压缩文件中的各标签点数之和与总点数不一致");
         uint32_t payload_num=read_binary<uint32_t>(cursor,end);
         if(payload_num!=prediction_structure_vec.size())
             throw runtime_error("压缩文件的payload数量与当前预测结构数量不一致");
@@ -272,7 +272,7 @@ namespace unsz
             if(payload_begin_vec[payload_id]>payload_begin_vec[payload_id+1])
                 throw runtime_error("payload偏移表不是递增的");
         structure_label_symbols.resize(payload_num);
-        structure_point_set_qb_vec.resize(payload_num,vector<vector<int32_t>>(point_set_num));
+        structure_label_quantized_error_vec.resize(payload_num,vector<vector<int32_t>>(label_num));
         structure_unpredictable_value_begin_vec.resize(payload_num);
         structure_unpredictable_value_end_vec.resize(payload_num);
         const unsigned char *payload_base=cursor;
@@ -297,18 +297,18 @@ namespace unsz
                 }
                 payload_cursor+=zstd_byte_num;
             }
-            for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+            for(uint32_t label_id=0;label_id<label_num;label_id++)
             {
-                uint64_t qb_num=read_binary<uint64_t>(payload_cursor,payload_end);
+                uint64_t quantized_error_num=read_binary<uint64_t>(payload_cursor,payload_end);
                 uint64_t zstd_byte_num=read_binary<uint64_t>(payload_cursor,payload_end);
-                if(qb_num>prediction_structure_vec[payload_id].target_ids.size()||(uint64_t)(payload_end-payload_cursor)<zstd_byte_num)
+                if(quantized_error_num>prediction_structure_vec[payload_id].target_ids.size()||(uint64_t)(payload_end-payload_cursor)<zstd_byte_num)
                     throw runtime_error("payload数值流不完整");
-                if(qb_num==0&&zstd_byte_num!=0)
+                if(quantized_error_num==0&&zstd_byte_num!=0)
                     throw runtime_error("空payload数值流具有非空Zstd字节流");
-                if(qb_num>0)
+                if(quantized_error_num>0)
                 {
                     vector<unsigned char> huffman_bytes=zstd_decompress(payload_cursor,zstd_byte_num);
-                    structure_point_set_qb_vec[payload_id][point_set_id]=huffman_decode<int32_t>(huffman_bytes.data(),huffman_bytes.size(),qb_num);
+                    structure_label_quantized_error_vec[payload_id][label_id]=huffman_decode<int32_t>(huffman_bytes.data(),huffman_bytes.size(),quantized_error_num);
                 }
                 payload_cursor+=zstd_byte_num;
             }
@@ -323,7 +323,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    encoded_compression_payload_c param_c<T_coord,T_data>::encode_compression_payload(vector<uint8_t>&label_symbols,bool has_label,vector<vector<int32_t>>&point_set_qb_vec,vector<T_data>&unpredictable_values)
+    encoded_compression_payload_c param_c<T_coord,T_data>::encode_compression_payload(vector<uint8_t>&label_symbols,bool has_label,vector<vector<int32_t>>&label_quantized_error_vec,vector<T_data>&unpredictable_values)
     {
         encoded_compression_payload_c result;
         if(has_label)
@@ -342,16 +342,16 @@ namespace unsz
             result.label_position_delta_byte_num+=delta_byte_num;
             result.label_zstd_byte_num+=zstd_bytes.size();
         }
-        for(uint32_t point_set_id=0;point_set_id<point_set_qb_vec.size();point_set_id++)
+        for(uint32_t label_id=0;label_id<label_quantized_error_vec.size();label_id++)
         {
-            vector<int32_t> &qb_vec=point_set_qb_vec[point_set_id];
-            vector<unsigned char> huffman_bytes=huffman_encode(qb_vec);
+            vector<int32_t> &quantized_error_vec=label_quantized_error_vec[label_id];
+            vector<unsigned char> huffman_bytes=huffman_encode(quantized_error_vec);
             uint64_t huffman_byte_num=huffman_bytes.size();
             vector<unsigned char> zstd_bytes;
             if(!huffman_bytes.empty())
                 zstd_bytes=zstd_compress(huffman_bytes,zstd_compression_level);
             vector<unsigned char>().swap(huffman_bytes);
-            append_binary<uint64_t>(result.bytes,qb_vec.size());
+            append_binary<uint64_t>(result.bytes,quantized_error_vec.size());
             append_binary<uint64_t>(result.bytes,zstd_bytes.size());
             result.bytes.insert(result.bytes.end(),zstd_bytes.begin(),zstd_bytes.end());
             result.value_huffman_byte_num+=huffman_byte_num;
@@ -370,7 +370,7 @@ namespace unsz
     void param_c<T_coord,T_data>::assemble_current_compression_file(compression_file_state_c&state)
     {
         auto stage_start_time=chrono::steady_clock::now();
-        uint32_t point_set_num=state.point_set_num;
+        uint32_t label_num=state.label_num;
         uint32_t payload_num=prediction_structure_vec.size();
         if(payload_num==0||state.encoded_payload_vec.size()!=payload_num)
             throw runtime_error("压缩payload数量与预测结构数量不一致");
@@ -385,8 +385,8 @@ namespace unsz
             unpredictable_value_byte_num+=payload.unpredictable_value_byte_num;
         }
         vector<unsigned char> container;
-        uint64_t temporal_metadata_byte_num=current_field_uses_tensor?2*sizeof(uint8_t)+2*sizeof(uint32_t):3*sizeof(uint8_t);
-        uint64_t container_byte_num=8+4*sizeof(uint32_t)+temporal_metadata_byte_num+(uint64_t)point_set_num*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data))+sizeof(uint32_t)+(uint64_t)(payload_num+1)*sizeof(uint64_t);
+        uint64_t pipeline_metadata_byte_num=current_field_uses_tensor?2*sizeof(uint8_t)+2*sizeof(uint32_t):3*sizeof(uint8_t);
+        uint64_t container_byte_num=8+4*sizeof(uint32_t)+pipeline_metadata_byte_num+(uint64_t)label_num*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data))+sizeof(uint32_t)+(uint64_t)(payload_num+1)*sizeof(uint64_t);
         for(const encoded_compression_payload_c&payload:payload_vec)
             container_byte_num+=payload.bytes.size();
         container.reserve((size_t)container_byte_num);
@@ -394,29 +394,29 @@ namespace unsz
         append_binary<uint32_t>(container,compression_file_version);
         append_binary<uint32_t>(container,point_num);
         append_binary<uint32_t>(container,sizeof(T_data));
-        append_binary<uint32_t>(container,point_set_num);
+        append_binary<uint32_t>(container,label_num);
         append_binary<uint8_t>(container,current_field_uses_tensor?1:0);
         if(current_field_uses_tensor)
         {
-            if(!tensor_flow_selected)
-                throw runtime_error("写入压缩文件前尚未选择tensor flow");
-            append_binary<uint8_t>(container,encode_tensor_flow(selected_tensor_flow));
+            if(!tensor_pipeline_selected)
+                throw runtime_error("写入压缩文件前尚未选择tensor pipeline");
+            append_binary<uint8_t>(container,encode_tensor_pipeline(selected_tensor_pipeline));
             append_binary<uint32_t>(container,current_tensor_shape[0]);
             append_binary<uint32_t>(container,current_tensor_shape[1]);
         }
         else
         {
-            append_binary<uint8_t>(container,encode_prediction_flow(label_flow));
-            append_binary<uint8_t>(container,encode_prediction_flow(value_flow));
+            append_binary<uint8_t>(container,encode_prediction_pipeline(label_pipeline));
+            append_binary<uint8_t>(container,encode_prediction_pipeline(value_pipeline));
         }
-        for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+        for(uint32_t label_id=0;label_id<label_num;label_id++)
         {
-            append_binary<uint8_t>(container,point_set_source_id_vec[point_set_id]);
-            append_binary<uint8_t>(container,(uint8_t)point_set_config_vec[point_set_id].codec);
-            append_binary<uint8_t>(container,(uint8_t)point_set_codec_vec[point_set_id]);
-            append_binary<uint32_t>(container,point_set_point_num_vec[point_set_id]);
-            append_binary<T_data>(container,point_set_min_data_vec[point_set_id]);
-            append_binary<T_data>(container,point_set_max_data_vec[point_set_id]);
+            append_binary<uint8_t>(container,label_source_id_vec[label_id]);
+            append_binary<uint8_t>(container,(uint8_t)label_config_vec[label_id].codec);
+            append_binary<uint8_t>(container,(uint8_t)label_codec_vec[label_id]);
+            append_binary<uint32_t>(container,label_point_num_vec[label_id]);
+            append_binary<T_data>(container,label_min_data_vec[label_id]);
+            append_binary<T_data>(container,label_max_data_vec[label_id]);
         }
         append_binary<uint32_t>(container,payload_num);
         uint64_t payload_begin=0;
@@ -433,17 +433,17 @@ namespace unsz
         }
         current_compressed_bytes=move(container);
         current_label_stream_bytes=state.has_label?(uint64_t)payload_num*2*sizeof(uint64_t)+label_zstd_byte_num:0;
-        current_value_stream_bytes=(uint64_t)payload_num*point_set_num*2*sizeof(uint64_t)+value_zstd_byte_num+unpredictable_value_byte_num;
+        current_value_stream_bytes=(uint64_t)payload_num*label_num*2*sizeof(uint64_t)+value_zstd_byte_num+unpredictable_value_byte_num;
         current_shared_metadata_bytes=current_compressed_bytes.size()-current_label_stream_bytes-current_value_stream_bytes;
         state.lossless_encoding_time+=seconds_since(stage_start_time);
-        current_compression_diagnostics.point_set_classification_time=state.point_set_classification_time;
-        current_compression_diagnostics.point_set_setup_time=state.point_set_setup_time;
+        current_compression_diagnostics.label_classification_time=state.label_classification_time;
+        current_compression_diagnostics.label_setup_time=state.label_setup_time;
         current_compression_diagnostics.label_prediction_time=state.label_prediction_time;
         current_compression_diagnostics.value_prediction_time=state.value_prediction_time;
         current_compression_diagnostics.lossless_encoding_time=state.lossless_encoding_time;
         current_compression_diagnostics.label_target_num=state.label_target_num;
         current_compression_diagnostics.label_error_num=state.label_error_num;
-        current_compression_diagnostics.cross_time_prediction_num=state.cross_time_prediction_num;
+        current_compression_diagnostics.tensor_prediction_num=state.tensor_prediction_num;
         current_compression_diagnostics.label_position_delta_byte_num=label_position_delta_byte_num;
         current_compression_diagnostics.label_zstd_byte_num=label_zstd_byte_num;
         current_compression_diagnostics.value_huffman_byte_num=value_huffman_byte_num;
@@ -456,29 +456,29 @@ namespace unsz
     {
         const compression_diagnostics_c&diagnostics=current_compression_diagnostics;
         double label_prediction_error_ratio=diagnostics.label_target_num?(double)diagnostics.label_error_num/diagnostics.label_target_num:0;
-        if(current_prediction_framework.value_mode!=time_dimension_mode_e::spatial)
-            printf("cross_time_prediction_num=%llu, ratio=%f\n",(unsigned long long)diagnostics.cross_time_prediction_num,(double)diagnostics.cross_time_prediction_num/point_num);
+        if(current_prediction_framework.value_mode!=slice_prediction_mode_e::independent)
+            printf("cross_time_prediction_num=%llu, ratio=%f\n",(unsigned long long)diagnostics.tensor_prediction_num,(double)diagnostics.tensor_prediction_num/point_num);
         printf("label_prediction_error_ratio=%f, label_position_delta_bytes=%llu, label_zstd_bytes=%llu, zstd_level=%d\n",label_prediction_error_ratio,(unsigned long long)diagnostics.label_position_delta_byte_num,(unsigned long long)diagnostics.label_zstd_byte_num,zstd_compression_level);
         printf("value_huffman_bytes=%llu, value_zstd_bytes=%llu, unpredictable_value_bytes=%llu, file_bytes=%llu\n",(unsigned long long)diagnostics.value_huffman_byte_num,(unsigned long long)diagnostics.value_zstd_byte_num,(unsigned long long)diagnostics.unpredictable_value_byte_num,(unsigned long long)current_compressed_bytes.size());
         printf("label_stream_bytes=%llu, value_stream_bytes=%llu, shared_metadata_bytes=%llu\n",(unsigned long long)current_label_stream_bytes,(unsigned long long)current_value_stream_bytes,(unsigned long long)current_shared_metadata_bytes);
-        printf("point_set_num=%u",(uint32_t)point_set_codec_vec.size());
-        for(uint32_t point_set_id=0;point_set_id<point_set_codec_vec.size();point_set_id++)
+        printf("label_num=%u",(uint32_t)label_codec_vec.size());
+        for(uint32_t label_id=0;label_id<label_codec_vec.size();label_id++)
         {
             const char *codec_name;
-            if(point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
+            if(label_codec_vec[label_id]==label_codec_e::constant)
                 codec_name="constant";
-            else if(point_set_codec_vec[point_set_id]==point_set_codec_e::rbf)
+            else if(label_codec_vec[label_id]==label_codec_e::rbf)
                 codec_name="rbf";
             else
-                throw runtime_error("未知的点集编码方式");
-            printf(", set%u_num=%u, set%u_codec=%s",point_set_id,point_set_point_num_vec[point_set_id],point_set_id,codec_name);
+                throw runtime_error("未知的标签编码方式");
+            printf(", set%u_num=%u, set%u_codec=%s",label_id,label_point_num_vec[label_id],label_id,codec_name);
         }
         printf("\n");
         if(print_compression_stage_time)
         {
-            double point_set_time=diagnostics.point_set_classification_time+diagnostics.point_set_setup_time;
-            printf("compression stage time: point_set=%f s, label_prediction=%f s, value_prediction=%f s, lossless_encoding=%f s\n",point_set_time,diagnostics.label_prediction_time,diagnostics.value_prediction_time,diagnostics.lossless_encoding_time);
-            printf("point set stage time: classification=%f s, setup=%f s\n",diagnostics.point_set_classification_time,diagnostics.point_set_setup_time);
+            double label_time=diagnostics.label_classification_time+diagnostics.label_setup_time;
+            printf("compression stage time: label=%f s, label_prediction=%f s, value_prediction=%f s, lossless_encoding=%f s\n",label_time,diagnostics.label_prediction_time,diagnostics.value_prediction_time,diagnostics.lossless_encoding_time);
+            printf("label stage time: classification=%f s, setup=%f s\n",diagnostics.label_classification_time,diagnostics.label_setup_time);
         }
     }
 
@@ -486,7 +486,7 @@ namespace unsz
     double param_c<T_coord,T_data>::read_compressed_field_metadata()
     {
         if(original_data_path_vec.empty())
-            throw runtime_error("自动flow解压缺少数据文件路径");
+            throw runtime_error("自动pipeline解压缺少数据文件路径");
         constexpr uint64_t maximum_header_byte_num=8+6*sizeof(uint32_t)+3*sizeof(uint8_t)+2*(3*sizeof(uint8_t)+sizeof(uint32_t)+2*sizeof(T_data));
         vector<unsigned char> bytes(maximum_header_byte_num);
         string compressed_path=generated_path(original_data_path_vec.front(),".unsz");
@@ -503,7 +503,7 @@ namespace unsz
         bytes.resize(read_byte_num);
         const unsigned char*cursor=bytes.data(),*end=bytes.data()+bytes.size();
         if((uint64_t)(end-cursor)<8||memcmp(cursor,compression_file_magic,8)!=0)
-            throw runtime_error("不是受支持的UNSZ点集文件");
+            throw runtime_error("不是受支持的UNSZ标签文件");
         cursor+=8;
         uint32_t version=read_binary<uint32_t>(cursor,end);
         if(version!=compression_file_version)
@@ -514,66 +514,66 @@ namespace unsz
         uint32_t file_data_type_size=read_binary<uint32_t>(cursor,end);
         if(file_data_type_size!=sizeof(T_data))
             throw runtime_error("压缩文件的数据类型大小与解压程序不一致");
-        uint32_t point_set_num=read_binary<uint32_t>(cursor,end);
-        if(point_set_num==0||point_set_num>2)
-            throw runtime_error("压缩文件包含无效点集数量");
+        uint32_t label_num=read_binary<uint32_t>(cursor,end);
+        if(label_num==0||label_num>2)
+            throw runtime_error("压缩文件包含无效标签数量");
         bool file_uses_tensor=read_binary<uint8_t>(cursor,end)!=0;
         if(file_uses_tensor!=current_field_uses_tensor)
             throw runtime_error("压缩文件的tensor模式与解压参数不一致");
         if(file_uses_tensor)
         {
-            selected_tensor_flow=decode_tensor_flow(read_binary<uint8_t>(cursor,end));
-            tensor_flow_selected=true;
+            selected_tensor_pipeline=decode_tensor_pipeline(read_binary<uint8_t>(cursor,end));
+            tensor_pipeline_selected=true;
             array<uint32_t,2> file_tensor_shape{{read_binary<uint32_t>(cursor,end),read_binary<uint32_t>(cursor,end)}};
             if(file_tensor_shape!=current_tensor_shape)
                 throw runtime_error("压缩文件记录的tensor形状与metadata不一致");
         }
         else
         {
-            string file_label_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
-            string file_value_flow=decode_prediction_flow(read_binary<uint8_t>(cursor,end));
-            if(label_flow=="auto")
-                label_flow=file_label_flow;
-            else if(label_flow!=file_label_flow)
-                throw runtime_error("压缩文件记录的label flow与解压参数不一致");
-            if(value_flow=="auto")
-                value_flow=file_value_flow;
-            else if(value_flow!=file_value_flow)
-                throw runtime_error("压缩文件记录的value flow与解压参数不一致");
+            string file_label_pipeline=decode_prediction_pipeline(read_binary<uint8_t>(cursor,end));
+            string file_value_pipeline=decode_prediction_pipeline(read_binary<uint8_t>(cursor,end));
+            if(label_pipeline=="auto")
+                label_pipeline=file_label_pipeline;
+            else if(label_pipeline!=file_label_pipeline)
+                throw runtime_error("压缩文件记录的label pipeline与解压参数不一致");
+            if(value_pipeline=="auto")
+                value_pipeline=file_value_pipeline;
+            else if(value_pipeline!=file_value_pipeline)
+                throw runtime_error("压缩文件记录的value pipeline与解压参数不一致");
         }
-        vector<uint8_t> source_ids(point_set_num),effective_codecs(point_set_num);
-        for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+        vector<uint8_t> source_ids(label_num),effective_codecs(label_num);
+        for(uint32_t label_id=0;label_id<label_num;label_id++)
         {
-            source_ids[point_set_id]=read_binary<uint8_t>(cursor,end);
-            effective_codecs[point_set_id]=read_binary<uint8_t>(cursor,end);
+            source_ids[label_id]=read_binary<uint8_t>(cursor,end);
+            effective_codecs[label_id]=read_binary<uint8_t>(cursor,end);
             read_binary<uint8_t>(cursor,end);
             read_binary<uint32_t>(cursor,end);
             read_binary<T_data>(cursor,end);
             read_binary<T_data>(cursor,end);
-            if(source_ids[point_set_id]>=configured_point_set_config_vec.size())
-                throw runtime_error("压缩文件的原始点集编号越界");
-            if(effective_codecs[point_set_id]!=(uint8_t)point_set_codec_e::constant&&effective_codecs[point_set_id]!=(uint8_t)point_set_codec_e::rbf)
+            if(source_ids[label_id]>=configured_label_config_vec.size())
+                throw runtime_error("压缩文件的原始标签编号越界");
+            if(effective_codecs[label_id]!=(uint8_t)label_codec_e::constant&&effective_codecs[label_id]!=(uint8_t)label_codec_e::rbf)
                 throw runtime_error("压缩文件包含未知的effective codec");
         }
-        point_set_config_vec.clear();
-        for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+        label_config_vec.clear();
+        for(uint32_t label_id=0;label_id<label_num;label_id++)
         {
-            point_set_config_vec.push_back(configured_point_set_config_vec[source_ids[point_set_id]]);
-            point_set_config_vec.back().codec=(point_set_codec_e)effective_codecs[point_set_id];
+            label_config_vec.push_back(configured_label_config_vec[source_ids[label_id]]);
+            label_config_vec.back().codec=(label_codec_e)effective_codecs[label_id];
         }
-        point_set_source_id_vec=move(source_ids);
-        if(point_set_num==1)
+        label_source_id_vec=move(source_ids);
+        if(label_num==1)
         {
-            point_set_rule_vec.clear();
-            label_flow="none";
+            label_rule_vec.clear();
+            label_pipeline="independent";
         }
         else
-            point_set_rule_vec=configured_point_set_rule_vec;
-        field_point_set_min_data={{numeric_limits<double>::infinity(),numeric_limits<double>::infinity()}};
-        field_point_set_max_data={{-numeric_limits<double>::infinity(),-numeric_limits<double>::infinity()}};
-        if(any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.error_mode==point_set_error_mode_e::field_relative;}))
+            label_rule_vec=configured_label_rule_vec;
+        field_label_min_data={{numeric_limits<double>::infinity(),numeric_limits<double>::infinity()}};
+        field_label_max_data={{-numeric_limits<double>::infinity(),-numeric_limits<double>::infinity()}};
+        if(any_of(label_config_vec.begin(),label_config_vec.end(),[](const label_config_c&config){return config.error_mode==label_error_mode_e::field_relative;}))
         {
-            // FIELD_REL的ABS EB依赖整个field的range，因此读取全部slice文件头中的各点集min/max；文件读取不计时
+            // FIELD_REL的ABS EB依赖整个field的range，因此读取全部slice文件头中的各标签min/max；文件读取不计时
             for(const string&data_path:original_data_path_vec)
             {
                 string slice_path=generated_path(data_path,".unsz");
@@ -587,12 +587,12 @@ namespace unsz
                 input_time+=seconds_since(slice_input_start_time);
                 const unsigned char*slice_cursor=slice_bytes.data(),*slice_end=slice_bytes.data()+slice_bytes.size();
                 if((uint64_t)(slice_end-slice_cursor)<8||memcmp(slice_cursor,compression_file_magic,8)!=0)
-                    throw runtime_error("不是受支持的UNSZ点集文件："+slice_path);
+                    throw runtime_error("不是受支持的UNSZ标签文件："+slice_path);
                 slice_cursor+=8;
                 for(uint32_t header_value_id=0;header_value_id<3;header_value_id++)
                     read_binary<uint32_t>(slice_cursor,slice_end);
-                if(read_binary<uint32_t>(slice_cursor,slice_end)!=point_set_num)
-                    throw runtime_error("同一field的slice点集数量不一致："+slice_path);
+                if(read_binary<uint32_t>(slice_cursor,slice_end)!=label_num)
+                    throw runtime_error("同一field的slice标签数量不一致："+slice_path);
                 if(read_binary<uint8_t>(slice_cursor,slice_end))
                 {
                     read_binary<uint8_t>(slice_cursor,slice_end);
@@ -604,7 +604,7 @@ namespace unsz
                     read_binary<uint8_t>(slice_cursor,slice_end);
                     read_binary<uint8_t>(slice_cursor,slice_end);
                 }
-                for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
+                for(uint32_t label_id=0;label_id<label_num;label_id++)
                 {
                     for(uint32_t codec_byte_id=0;codec_byte_id<3;codec_byte_id++)
                         read_binary<uint8_t>(slice_cursor,slice_end);
@@ -612,8 +612,8 @@ namespace unsz
                     T_data slice_min=read_binary<T_data>(slice_cursor,slice_end),slice_max=read_binary<T_data>(slice_cursor,slice_end);
                     if(slice_point_num==0)
                         continue;
-                    field_point_set_min_data[point_set_id]=min(field_point_set_min_data[point_set_id],(double)slice_min);
-                    field_point_set_max_data[point_set_id]=max(field_point_set_max_data[point_set_id],(double)slice_max);
+                    field_label_min_data[label_id]=min(field_label_min_data[label_id],(double)slice_min);
+                    field_label_max_data[label_id]=max(field_label_max_data[label_id],(double)slice_max);
                 }
             }
         }

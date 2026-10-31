@@ -48,7 +48,7 @@ def run_field(worker_id,field,cpu,data_dir,metadata,rel_eb,output_dir):
     log_path=output_dir/'logs'/f'{field}.log'
     resource_path=output_dir/'resources'/f'{field}.txt'
     cleanup(data_dir,field,slice_num)
-    write_json(config_path,[{'name':'ocean_large_umc_field_parallel','data_dir':str(data_dir),'csv_path':str(csv_path),'compressor_list':['umc'],'field_list':[field],'time_step_num':slice_num,'coordinate_dim':3,'rel_eb_list':[rel_eb],'cleanup_after_each_test':True,'umc':{'from_edge':1,'reorder':1,'method':'NBP-IDW-INP','neighbor_num':4}}])
+    write_json(config_path,[{'name':'ocean_large_umc_field_parallel','data_dir':str(data_dir),'csv_path':str(csv_path),'compressor_list':['umc'],'field_list':[field],'slice_num':slice_num,'coordinate_dim':3,'rel_eb_list':[rel_eb],'cleanup_after_each_test':True,'umc':{'from_edge':1,'reorder':1,'method':'NBP-IDW-INP','neighbor_num':4}}])
     environment={**os.environ,'OMP_NUM_THREADS':'1','OMP_DYNAMIC':'false','OPENBLAS_NUM_THREADS':'1','MKL_NUM_THREADS':'1'}
     command=['/usr/bin/time','-v','-o',str(resource_path),'taskset','--cpu-list',str(cpu),str(project_root/'unsz_env/bin/python'),'-u',str(project_root/'t1_start_c_code.py'),str(config_path),'--skip-build']
     print(f'BEGIN worker={worker_id},field={field},slices={slice_num},cpu={cpu}',flush=True)

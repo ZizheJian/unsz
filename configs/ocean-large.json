@@ -5,7 +5,7 @@
     "compressor_list": [
       "unsz"
     ],
-    "time_step_num": 12,
+    "slice_num": 12,
     "coordinate_dim": 3,
     "name": "ocean_large_monthly",
     "field_list": [
@@ -104,13 +104,13 @@
     "unsz": {
       "partition_num": 32,
       "thread_num": 32,
-      "coordinate_transform": "auto",
-      "point_set_config_path_list": [
-        "point_set_configs/Ocean_large_monthly_rbf_rel_1e-1.json",
-        "point_set_configs/Ocean_large_monthly_rbf_rel_1e-2.json",
-        "point_set_configs/Ocean_large_monthly_rbf_rel_1e-3.json",
-        "point_set_configs/Ocean_large_monthly_rbf_rel_1e-4.json",
-        "point_set_configs/Ocean_large_monthly_rbf_rel_1e-5.json"
+      "coordinate_rescaling": "auto",
+      "label_config_path_list": [
+        "label_configs/Ocean_large_monthly_rbf_rel_1e-1.json",
+        "label_configs/Ocean_large_monthly_rbf_rel_1e-2.json",
+        "label_configs/Ocean_large_monthly_rbf_rel_1e-3.json",
+        "label_configs/Ocean_large_monthly_rbf_rel_1e-4.json",
+        "label_configs/Ocean_large_monthly_rbf_rel_1e-5.json"
       ]
     }
   }

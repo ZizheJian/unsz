@@ -5,8 +5,8 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_current_spatial_prediction_state(bool for_decompression)
     {
-        bool uses_spatial_prediction=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec!=point_set_codec_e::constant;});
-        if(uses_spatial_prediction&&!use_coordinate_transform)
+        bool uses_spatial_prediction=any_of(label_config_vec.begin(),label_config_vec.end(),[](const label_config_c&config){return config.codec!=label_codec_e::constant;});
+        if(uses_spatial_prediction&&!use_coordinate_rescaling)
         {
             bool generated_shared_state=false;
             call_once(shared_spatial_prediction_cache->initialization_flag,[&]()

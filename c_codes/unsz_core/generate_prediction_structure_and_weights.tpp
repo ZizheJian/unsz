@@ -14,7 +14,7 @@ namespace unsz
             throw runtime_error("MSD排序缓存重查阈值不能大于MSD评分参考点数");
         if(ordering_scope!="global"&&ordering_scope!="local")
             throw runtime_error("ordering_scope必须是global或local");
-        bool uses_rbf=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec==point_set_codec_e::rbf;});
+        bool uses_rbf=any_of(label_config_vec.begin(),label_config_vec.end(),[](const label_config_c&config){return config.codec==label_codec_e::rbf;});
         if(!uses_rbf)
         {
             prediction_structure_vec.assign(1,{});
@@ -46,7 +46,7 @@ namespace unsz
     void param_c<T_coord,T_data>::generate_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf)
     {
         if(point_ids.empty())
-            throw runtime_error("预测点集不能为空");
+            throw runtime_error("预测标签不能为空");
         if(ordering_scope=="global")
             generate_global_prediction_structure_and_weights(tree,point_ids,active_min_coord,active_max_coord,structure,generation_start_time,uses_rbf);
         else
@@ -317,7 +317,7 @@ namespace unsz
                             candidate_queue.pop();
                             int candidate_tree_id=target_tree.structure->original_id_to_tree_id[candidate_id];
                             if(candidate_tree_id<0)
-                                throw runtime_error("MSD候选点不属于当前点集");
+                                throw runtime_error("MSD候选点不属于当前标签");
                             uint64_t cache_begin=(uint64_t)candidate_tree_id*score_query_neighbor_num;
                             uint32_t cached_ref_num=cached_ref_counts[candidate_tree_id],valid_cached_ref_num=0;
                             bool cache_was_initialized=score_cache_initialized[candidate_tree_id];
@@ -442,7 +442,7 @@ namespace unsz
                         reference_tree.update_point_valid_num_to_root(selected_target_id,-1);
                     int selected_reference_tree_id=reference_tree.structure->original_id_to_tree_id[selected_target_id];
                     if(selected_reference_tree_id<0)
-                        throw runtime_error("MSD选中的目标不属于参考点集");
+                        throw runtime_error("MSD选中的目标不属于参考标签");
                     reference_is_valid[selected_reference_tree_id]=0;
                     previous_selected_target_id=selected_target_id;
                     candidate_query_coord=coord_array[selected_target_id];

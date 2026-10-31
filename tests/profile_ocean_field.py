@@ -19,11 +19,11 @@ if len(tasks)!=1:
     raise RuntimeError('内存测试应匹配一个task')
 task=tasks[0]
 config=task|task.get('unsz',{})|{'field':arguments.field}
-config=benchmark.expand_unsz_flows(config)[0]
-point_set_paths=config.get('point_set_config_path_list',[])
-if len(point_set_paths)!=1:
+config=benchmark.expand_unsz_pipelines(config)[0]
+label_paths=config.get('label_config_path_list',[])
+if len(label_paths)!=1:
     raise RuntimeError('内存测试应匹配一个误差界配置')
-config['point_set_config_path']=point_set_paths[0]
+config['label_config_path']=label_paths[0]
 commands=benchmark.build_unsz_commands(config,Path(config['data_dir']))
 if arguments.dry_run:
     print(json.dumps([[str(value) for value in command] for command in commands],indent=2))

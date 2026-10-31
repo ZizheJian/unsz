@@ -9,50 +9,50 @@ namespace unsz
 
     inline string tensor_axis_mode_name(tensor_axis_mode_e mode)
     {
-        if(mode==tensor_axis_mode_e::none)return "none";
-        if(mode==tensor_axis_mode_e::constant_extrapolation)return "extrapolation";
-        if(mode==tensor_axis_mode_e::anchor_interpolation_stride_8)return "anchor8";
+        if(mode==tensor_axis_mode_e::independent)return "independent";
+        if(mode==tensor_axis_mode_e::extrapolation)return "extrapolation";
+        if(mode==tensor_axis_mode_e::anchor_interpolation)return "anchor_interpolation";
         throw runtime_error("未知tensor轴预测模式");
     }
 
-    inline string tensor_flow_name(const tensor_flow_c&flow)
+    inline string tensor_pipeline_name(const tensor_pipeline_c&pipeline)
     {
-        string name="axis0_"+tensor_axis_mode_name(flow.axis_modes[0])+"_axis1_"+tensor_axis_mode_name(flow.axis_modes[1]);
-        if(flow.axis_modes[0]!=tensor_axis_mode_e::none&&flow.axis_modes[1]!=tensor_axis_mode_e::none)
+        string name="axis0_"+tensor_axis_mode_name(pipeline.axis_modes[0])+"_axis1_"+tensor_axis_mode_name(pipeline.axis_modes[1]);
+        if(pipeline.axis_modes[0]!=tensor_axis_mode_e::independent&&pipeline.axis_modes[1]!=tensor_axis_mode_e::independent)
         {
-            name+="_order_"+to_string(flow.axis_order[0])+to_string(flow.axis_order[1]);
-            if(flow.schedule==tensor_schedule_e::interleaved_anchor)
-                name+="_interleaved_"+to_string(flow.interpolation_axis_order[0])+to_string(flow.interpolation_axis_order[1]);
+            name+="_order_"+to_string(pipeline.axis_order[0])+to_string(pipeline.axis_order[1]);
+            if(pipeline.schedule==tensor_schedule_e::interleaved_anchor)
+                name+="_interleaved_"+to_string(pipeline.interpolation_axis_order[0])+to_string(pipeline.interpolation_axis_order[1]);
         }
-        name+=flow.use_spatial_residual?"_spatial_residual":"_no_spatial_residual";
+        name+=pipeline.use_spatial_residual?"_spatial_residual":"_no_spatial_residual";
         return name;
     }
 
-    inline uint8_t encode_tensor_flow(const tensor_flow_c&flow)
+    inline uint8_t encode_tensor_pipeline(const tensor_pipeline_c&pipeline)
     {
-        uint8_t axis0_mode=(uint8_t)flow.axis_modes[0],axis1_mode=(uint8_t)flow.axis_modes[1];
-        if(axis0_mode>2||axis1_mode>2||flow.axis_order[0]>1||flow.axis_order[1]>1||flow.axis_order[0]==flow.axis_order[1]||flow.interpolation_axis_order[0]>1||flow.interpolation_axis_order[1]>1||flow.interpolation_axis_order[0]==flow.interpolation_axis_order[1]||(uint8_t)flow.schedule>1)
-            throw runtime_error("不能编码无效tensor flow");
-        return axis0_mode|(axis1_mode<<2)|(flow.axis_order[0]<<4)|(flow.interpolation_axis_order[0]<<5)|((uint8_t)flow.schedule<<6)|((uint8_t)flow.use_spatial_residual<<7);
+        uint8_t axis0_mode=(uint8_t)pipeline.axis_modes[0],axis1_mode=(uint8_t)pipeline.axis_modes[1];
+        if(axis0_mode>2||axis1_mode>2||pipeline.axis_order[0]>1||pipeline.axis_order[1]>1||pipeline.axis_order[0]==pipeline.axis_order[1]||pipeline.interpolation_axis_order[0]>1||pipeline.interpolation_axis_order[1]>1||pipeline.interpolation_axis_order[0]==pipeline.interpolation_axis_order[1]||(uint8_t)pipeline.schedule>1)
+            throw runtime_error("不能编码无效tensor pipeline");
+        return axis0_mode|(axis1_mode<<2)|(pipeline.axis_order[0]<<4)|(pipeline.interpolation_axis_order[0]<<5)|((uint8_t)pipeline.schedule<<6)|((uint8_t)pipeline.use_spatial_residual<<7);
     }
 
-    inline uint8_t tensor_dependency_plan_id(tensor_flow_c flow)
+    inline uint8_t tensor_slice_dag_id(tensor_pipeline_c pipeline)
     {
-        flow.use_spatial_residual=false;
-        return encode_tensor_flow(flow);
+        pipeline.use_spatial_residual=false;
+        return encode_tensor_pipeline(pipeline);
     }
 
-    inline tensor_flow_c decode_tensor_flow(uint8_t encoded)
+    inline tensor_pipeline_c decode_tensor_pipeline(uint8_t encoded)
     {
-        tensor_flow_c flow;
-        flow.axis_modes={{(tensor_axis_mode_e)(encoded&3),(tensor_axis_mode_e)((encoded>>2)&3)}};
-        flow.axis_order={{(uint8_t)((encoded>>4)&1),(uint8_t)(1-((encoded>>4)&1))}};
-        flow.interpolation_axis_order={{(uint8_t)((encoded>>5)&1),(uint8_t)(1-((encoded>>5)&1))}};
-        flow.schedule=(tensor_schedule_e)((encoded>>6)&1);
-        flow.use_spatial_residual=(encoded>>7)&1;
-        if((uint8_t)flow.axis_modes[0]>2||(uint8_t)flow.axis_modes[1]>2)
+        tensor_pipeline_c pipeline;
+        pipeline.axis_modes={{(tensor_axis_mode_e)(encoded&3),(tensor_axis_mode_e)((encoded>>2)&3)}};
+        pipeline.axis_order={{(uint8_t)((encoded>>4)&1),(uint8_t)(1-((encoded>>4)&1))}};
+        pipeline.interpolation_axis_order={{(uint8_t)((encoded>>5)&1),(uint8_t)(1-((encoded>>5)&1))}};
+        pipeline.schedule=(tensor_schedule_e)((encoded>>6)&1);
+        pipeline.use_spatial_residual=(encoded>>7)&1;
+        if((uint8_t)pipeline.axis_modes[0]>2||(uint8_t)pipeline.axis_modes[1]>2)
             throw runtime_error("压缩文件包含无效tensor轴模式");
-        return flow;
+        return pipeline;
     }
 
     inline vector<uint32_t> generate_tensor_axis_order(uint32_t length,tensor_axis_mode_e mode)
@@ -61,7 +61,7 @@ namespace unsz
             throw runtime_error("tensor轴长度不能为0");
         vector<uint32_t> order;
         order.reserve(length);
-        if(mode!=tensor_axis_mode_e::anchor_interpolation_stride_8||length==1)
+        if(mode!=tensor_axis_mode_e::anchor_interpolation||length==1)
         {
             order.resize(length);
             iota(order.begin(),order.end(),0);
@@ -75,7 +75,7 @@ namespace unsz
             for(uint32_t index=offset;index<length;index+=2*offset)
                 order.push_back(index);
         if(order.size()!=length)
-            throw runtime_error("anchor8轴顺序没有覆盖全部切片");
+            throw runtime_error("anchor_interpolation轴顺序没有覆盖全部切片");
         return order;
     }
 
@@ -84,9 +84,9 @@ namespace unsz
         return axis_coordinates[axis].empty()?(double)index:axis_coordinates[axis][index];
     }
 
-    inline temporal_dependency_c build_tensor_axis_dependency(uint8_t axis,uint32_t target_position,const vector<uint8_t>&ready_positions,const array<vector<double>,2>&axis_coordinates,const function<uint32_t(uint32_t)>&slice_id_from_position,tensor_axis_mode_e mode)
+    inline reference_slices_c build_tensor_axis_dependency(uint8_t axis,uint32_t target_position,const vector<uint8_t>&ready_positions,const array<vector<double>,2>&axis_coordinates,const function<uint32_t(uint32_t)>&slice_id_from_position,tensor_axis_mode_e mode)
     {
-        temporal_dependency_c dependency;
+        reference_slices_c dependency;
         int32_t left=-1,right=-1;
         for(int32_t position=(int32_t)target_position-1;position>=0;position--)
             if(ready_positions[position])
@@ -94,7 +94,7 @@ namespace unsz
                 left=position;
                 break;
             }
-        if(mode==tensor_axis_mode_e::anchor_interpolation_stride_8)
+        if(mode==tensor_axis_mode_e::anchor_interpolation)
             for(uint32_t position=target_position+1;position<ready_positions.size();position++)
                 if(ready_positions[position])
                 {
@@ -126,7 +126,7 @@ namespace unsz
         return dependency;
     }
 
-    inline void validate_tensor_dependency_plan(const array<uint32_t,2>&shape,const temporal_dependency_plan_c&plan)
+    inline void validate_tensor_slice_dag(const array<uint32_t,2>&shape,const slice_dag_c&plan)
     {
         uint64_t slice_num=(uint64_t)shape[0]*shape[1];
         if(slice_num>numeric_limits<uint32_t>::max())
@@ -140,7 +140,7 @@ namespace unsz
             if(slice_id>=slice_num||rank[slice_id]>=0)
                 throw runtime_error("tensor依赖计划包含重复或越界切片");
             rank[slice_id]=order_index;
-            const temporal_dependency_c&dependency=plan.dependencies[slice_id];
+            const reference_slices_c&dependency=plan.dependencies[slice_id];
             if(dependency.source_num>2)
                 throw runtime_error("tensor切片最多只能有两个参考切片");
             double weight_sum=0;
@@ -159,7 +159,7 @@ namespace unsz
         }
     }
 
-    inline temporal_dependency_plan_c generate_tensor_dependency_plan(const array<uint32_t,2>&shape,const array<vector<double>,2>&axis_coordinates,const tensor_flow_c&flow)
+    inline slice_dag_c generate_tensor_slice_dag(const array<uint32_t,2>&shape,const array<vector<double>,2>&axis_coordinates,const tensor_pipeline_c&pipeline)
     {
         if(shape[0]==0||shape[1]==0)
             throw runtime_error("tensor形状不能包含0");
@@ -171,20 +171,20 @@ namespace unsz
                 if(!(axis_coordinates[axis][index]>axis_coordinates[axis][index-1]))
                     throw runtime_error("tensor轴坐标必须严格递增");
         }
-        if(flow.axis_order[0]>1||flow.axis_order[1]>1||flow.axis_order[0]==flow.axis_order[1]||flow.interpolation_axis_order[0]>1||flow.interpolation_axis_order[1]>1||flow.interpolation_axis_order[0]==flow.interpolation_axis_order[1])
+        if(pipeline.axis_order[0]>1||pipeline.axis_order[1]>1||pipeline.axis_order[0]==pipeline.axis_order[1]||pipeline.interpolation_axis_order[0]>1||pipeline.interpolation_axis_order[1]>1||pipeline.interpolation_axis_order[0]==pipeline.interpolation_axis_order[1])
             throw runtime_error("tensor轴顺序必须是0和1的排列");
-        bool active0=flow.axis_modes[0]!=tensor_axis_mode_e::none,active1=flow.axis_modes[1]!=tensor_axis_mode_e::none;
-        if(flow.schedule==tensor_schedule_e::interleaved_anchor&&(!active0||!active1||flow.axis_modes[0]!=tensor_axis_mode_e::anchor_interpolation_stride_8||flow.axis_modes[1]!=tensor_axis_mode_e::anchor_interpolation_stride_8))
-            throw runtime_error("交错tensor计划要求两个轴都使用anchor8");
+        bool active0=pipeline.axis_modes[0]!=tensor_axis_mode_e::independent,active1=pipeline.axis_modes[1]!=tensor_axis_mode_e::independent;
+        if(pipeline.schedule==tensor_schedule_e::interleaved_anchor&&(!active0||!active1||pipeline.axis_modes[0]!=tensor_axis_mode_e::anchor_interpolation||pipeline.axis_modes[1]!=tensor_axis_mode_e::anchor_interpolation))
+            throw runtime_error("交错tensor slice DAG要求两个轴都使用anchor_interpolation");
         uint64_t slice_num_64=(uint64_t)shape[0]*shape[1];
         if(slice_num_64>numeric_limits<uint32_t>::max())
             throw runtime_error("tensor切片数量超过uint32_t范围");
         uint32_t slice_num=(uint32_t)slice_num_64;
-        temporal_dependency_plan_c plan;
+        slice_dag_c plan;
         plan.processing_order.reserve(slice_num);
         plan.dependencies.assign(slice_num,{});
         vector<uint8_t> visited(slice_num,0);
-        auto append_slice=[&](uint32_t slice_id,const temporal_dependency_c&dependency)
+        auto append_slice=[&](uint32_t slice_id,const reference_slices_c&dependency)
         {
             if(slice_id>=slice_num||visited[slice_id])
                 throw runtime_error("重复生成tensor切片");
@@ -198,7 +198,7 @@ namespace unsz
         };
         auto append_axis_line=[&](uint8_t axis,uint32_t fixed_position,bool include_root)
         {
-            tensor_axis_mode_e mode=flow.axis_modes[axis];
+            tensor_axis_mode_e mode=pipeline.axis_modes[axis];
             vector<uint32_t> order=generate_tensor_axis_order(shape[axis],mode);
             vector<uint8_t> ready_positions(shape[axis],0);
             uint32_t root_slice_id=make_slice_id(axis,0,fixed_position);
@@ -211,7 +211,7 @@ namespace unsz
             {
                 uint32_t position=order[order_index];
                 auto slice_id_from_position=[&](uint32_t source_position){return make_slice_id(axis,source_position,fixed_position);};
-                temporal_dependency_c dependency=build_tensor_axis_dependency(axis,position,ready_positions,axis_coordinates,slice_id_from_position,mode);
+                reference_slices_c dependency=build_tensor_axis_dependency(axis,position,ready_positions,axis_coordinates,slice_id_from_position,mode);
                 append_slice(make_slice_id(axis,position,fixed_position),dependency);
                 ready_positions[position]=1;
             }
@@ -230,17 +230,17 @@ namespace unsz
             for(uint32_t fixed_position=0;fixed_position<shape[other_axis];fixed_position++)
                 append_axis_line(active_axis,fixed_position,false);
         }
-        else if(flow.schedule==tensor_schedule_e::separable)
+        else if(pipeline.schedule==tensor_schedule_e::separable)
         {
-            uint8_t first_axis=flow.axis_order[0],second_axis=flow.axis_order[1];
+            uint8_t first_axis=pipeline.axis_order[0],second_axis=pipeline.axis_order[1];
             append_axis_line(first_axis,0,true);
-            vector<uint32_t> first_axis_order=generate_tensor_axis_order(shape[first_axis],flow.axis_modes[first_axis]);
+            vector<uint32_t> first_axis_order=generate_tensor_axis_order(shape[first_axis],pipeline.axis_modes[first_axis]);
             for(uint32_t first_position:first_axis_order)
                 append_axis_line(second_axis,first_position,false);
         }
         else
         {
-            uint8_t first_axis=flow.axis_order[0],second_axis=flow.axis_order[1];
+            uint8_t first_axis=pipeline.axis_order[0],second_axis=pipeline.axis_order[1];
             array<vector<uint8_t>,2> ready_positions{{vector<uint8_t>(shape[0],0),vector<uint8_t>(shape[1],0)}};
             array<vector<uint32_t>,2> ready_position_lists;
             for(uint8_t axis=0;axis<2;axis++)
@@ -257,7 +257,7 @@ namespace unsz
             for(uint32_t position_index=1;position_index<ready_position_lists[first_axis].size();position_index++)
             {
                 uint32_t position=ready_position_lists[first_axis][position_index],source_position=ready_position_lists[first_axis][position_index-1];
-                temporal_dependency_c dependency;
+                reference_slices_c dependency;
                 dependency.source_indices[0]=(int32_t)make_slice_id(first_axis,source_position,0);
                 dependency.source_weights[0]=1;
                 dependency.source_num=1;
@@ -267,7 +267,7 @@ namespace unsz
                 for(uint32_t position_index=1;position_index<ready_position_lists[second_axis].size();position_index++)
                 {
                     uint32_t position=ready_position_lists[second_axis][position_index],source_position=ready_position_lists[second_axis][position_index-1];
-                    temporal_dependency_c dependency;
+                    reference_slices_c dependency;
                     dependency.source_indices[0]=(int32_t)make_slice_id(second_axis,source_position,first_position);
                     dependency.source_weights[0]=1;
                     dependency.source_num=1;
@@ -277,7 +277,7 @@ namespace unsz
             for(uint32_t offset:offsets)
                 for(uint8_t layer_axis_id=0;layer_axis_id<2;layer_axis_id++)
                 {
-                    uint8_t axis=flow.interpolation_axis_order[layer_axis_id],other_axis=1-axis;
+                    uint8_t axis=pipeline.interpolation_axis_order[layer_axis_id],other_axis=1-axis;
                     vector<uint32_t> targets;
                     for(uint32_t position=offset;position<shape[axis];position+=2*offset)
                         if(!ready_positions[axis][position])
@@ -286,7 +286,7 @@ namespace unsz
                         for(uint32_t position:targets)
                         {
                             auto slice_id_from_position=[&](uint32_t source_position){return make_slice_id(axis,source_position,fixed_position);};
-                            temporal_dependency_c dependency=build_tensor_axis_dependency(axis,position,ready_positions[axis],axis_coordinates,slice_id_from_position,tensor_axis_mode_e::anchor_interpolation_stride_8);
+                            reference_slices_c dependency=build_tensor_axis_dependency(axis,position,ready_positions[axis],axis_coordinates,slice_id_from_position,tensor_axis_mode_e::anchor_interpolation);
                             append_slice(make_slice_id(axis,position,fixed_position),dependency);
                         }
                     for(uint32_t position:targets)
@@ -297,72 +297,72 @@ namespace unsz
                     sort(ready_position_lists[axis].begin(),ready_position_lists[axis].end());
                 }
         }
-        validate_tensor_dependency_plan(shape,plan);
+        validate_tensor_slice_dag(shape,plan);
         return plan;
     }
 
-    inline vector<tensor_flow_c> generate_tensor_flow_candidates()
+    inline vector<tensor_pipeline_c> generate_tensor_pipeline_candidates()
     {
-        vector<tensor_flow_c> flows;
-        flows.push_back({});
-        constexpr tensor_axis_mode_e active_modes[]={tensor_axis_mode_e::constant_extrapolation,tensor_axis_mode_e::anchor_interpolation_stride_8};
+        vector<tensor_pipeline_c> pipelines;
+        pipelines.push_back({});
+        constexpr tensor_axis_mode_e active_modes[]={tensor_axis_mode_e::extrapolation,tensor_axis_mode_e::anchor_interpolation};
         for(uint8_t axis=0;axis<2;axis++)
             for(tensor_axis_mode_e mode:active_modes)
                 for(bool residual:{false,true})
                 {
-                    tensor_flow_c flow;
-                    flow.axis_modes[axis]=mode;
-                    flow.use_spatial_residual=residual;
-                    flows.push_back(flow);
+                    tensor_pipeline_c pipeline;
+                    pipeline.axis_modes[axis]=mode;
+                    pipeline.use_spatial_residual=residual;
+                    pipelines.push_back(pipeline);
                 }
         for(tensor_axis_mode_e axis0_mode:active_modes)
             for(tensor_axis_mode_e axis1_mode:active_modes)
                 for(uint8_t first_axis=0;first_axis<2;first_axis++)
                     for(bool residual:{false,true})
                     {
-                        tensor_flow_c flow;
-                        flow.axis_modes={{axis0_mode,axis1_mode}};
-                        flow.axis_order={{first_axis,(uint8_t)(1-first_axis)}};
-                        flow.use_spatial_residual=residual;
-                        flows.push_back(flow);
+                        tensor_pipeline_c pipeline;
+                        pipeline.axis_modes={{axis0_mode,axis1_mode}};
+                        pipeline.axis_order={{first_axis,(uint8_t)(1-first_axis)}};
+                        pipeline.use_spatial_residual=residual;
+                        pipelines.push_back(pipeline);
                     }
         for(uint8_t first_axis=0;first_axis<2;first_axis++)
             for(uint8_t first_interpolation_axis=0;first_interpolation_axis<2;first_interpolation_axis++)
                 for(bool residual:{false,true})
                 {
-                    tensor_flow_c flow;
-                    flow.axis_modes={{tensor_axis_mode_e::anchor_interpolation_stride_8,tensor_axis_mode_e::anchor_interpolation_stride_8}};
-                    flow.axis_order={{first_axis,(uint8_t)(1-first_axis)}};
-                    flow.interpolation_axis_order={{first_interpolation_axis,(uint8_t)(1-first_interpolation_axis)}};
-                    flow.schedule=tensor_schedule_e::interleaved_anchor;
-                    flow.use_spatial_residual=residual;
-                    flows.push_back(flow);
+                    tensor_pipeline_c pipeline;
+                    pipeline.axis_modes={{tensor_axis_mode_e::anchor_interpolation,tensor_axis_mode_e::anchor_interpolation}};
+                    pipeline.axis_order={{first_axis,(uint8_t)(1-first_axis)}};
+                    pipeline.interpolation_axis_order={{first_interpolation_axis,(uint8_t)(1-first_interpolation_axis)}};
+                    pipeline.schedule=tensor_schedule_e::interleaved_anchor;
+                    pipeline.use_spatial_residual=residual;
+                    pipelines.push_back(pipeline);
                 }
-        if(flows.size()!=33)
-            throw runtime_error("二维tensor flow候选数量不是33");
-        return flows;
+        if(pipelines.size()!=33)
+            throw runtime_error("二维tensor pipeline候选数量不是33");
+        return pipelines;
     }
 
-    inline bool tensor_flow_applies_to_shape(const tensor_flow_c&flow,const array<uint32_t,2>&shape)
+    inline bool tensor_pipeline_applies_to_shape(const tensor_pipeline_c&pipeline,const array<uint32_t,2>&shape)
     {
-        return (shape[0]>1||flow.axis_modes[0]==tensor_axis_mode_e::none)&&(shape[1]>1||flow.axis_modes[1]==tensor_axis_mode_e::none);
+        return (shape[0]>1||pipeline.axis_modes[0]==tensor_axis_mode_e::independent)&&(shape[1]>1||pipeline.axis_modes[1]==tensor_axis_mode_e::independent);
     }
 
-    inline vector<tensor_flow_c> generate_tensor_flow_candidates(const array<uint32_t,2>&shape)
+    inline vector<tensor_pipeline_c> generate_tensor_pipeline_candidates(const array<uint32_t,2>&shape)
     {
-        vector<tensor_flow_c> flows=generate_tensor_flow_candidates();
-        flows.erase(remove_if(flows.begin(),flows.end(),[&](const tensor_flow_c&flow){return !tensor_flow_applies_to_shape(flow,shape);}),flows.end());
-        return flows;
+        vector<tensor_pipeline_c> pipelines=generate_tensor_pipeline_candidates();
+        pipelines.erase(remove_if(pipelines.begin(),pipelines.end(),[&](const tensor_pipeline_c&pipeline){return !tensor_pipeline_applies_to_shape(pipeline,shape);}),pipelines.end());
+        return pipelines;
     }
 
-    inline map<uint8_t,temporal_dependency_plan_c> generate_all_tensor_dependency_plans(const array<uint32_t,2>&shape,const array<vector<double>,2>&axis_coordinates)
+    inline map<uint8_t,slice_dag_c> generate_all_tensor_slice_dags(const array<uint32_t,2>&shape,const array<vector<double>,2>&axis_coordinates)
     {
-        map<uint8_t,temporal_dependency_plan_c> plans;
-        for(const tensor_flow_c&flow:generate_tensor_flow_candidates(shape))
+        map<uint8_t,slice_dag_c> plans;
+        for(const tensor_pipeline_c&pipeline:generate_tensor_pipeline_candidates(shape))
         {
-            uint8_t plan_id=tensor_dependency_plan_id(flow);
+            uint8_t plan_id=tensor_slice_dag_id(pipeline);
             if(!plans.count(plan_id))
-                plans.emplace(plan_id,generate_tensor_dependency_plan(shape,axis_coordinates,flow));
+                plans.emplace(plan_id,generate_tensor_slice_dag(shape,axis_coordinates,pipeline));
         }
         return plans;
     }

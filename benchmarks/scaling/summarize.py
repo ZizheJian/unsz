@@ -39,7 +39,7 @@ def prepare_p1():
     unsz_rows=[]
     for path in sorted((project_root/'results/ocean_large_tensor_full/sparse_window').glob('*.csv')):
         unsz_rows.extend(read_rows(path))
-    summaries={'unsz':make_summary('unsz',1,unsz_rows,'time_step_num',None)}
+    summaries={'unsz':make_summary('unsz',1,unsz_rows,'slice_num',None)}
     summaries['unsz']['source']='results/ocean_large_tensor_full/sparse_window'
     for codec in ('sz3','pfpl'):
         source=project_root/f'results/ocean_large_tensor_1d/{codec}/rel_0.001_t1/summary.csv'

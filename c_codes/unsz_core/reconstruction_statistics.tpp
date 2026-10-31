@@ -18,7 +18,7 @@ namespace unsz
             total.max_error=part.max_error;
             total.max_error_abs_eb=part.max_error_abs_eb;
             total.max_error_point_id=part.max_error_point_id;
-            total.max_error_point_set_id=part.max_error_point_set_id;
+            total.max_error_label_id=part.max_error_label_id;
         }
     }
 
@@ -42,16 +42,16 @@ namespace unsz
     }
 
     template<typename T_data>
-    double full_data_range(const vector<uint32_t>&point_set_point_num_vec,const vector<T_data>&point_set_min_data_vec,const vector<T_data>&point_set_max_data_vec)
+    double full_data_range(const vector<uint32_t>&label_point_num_vec,const vector<T_data>&label_min_data_vec,const vector<T_data>&label_max_data_vec)
     {
-        if(point_set_point_num_vec.size()!=point_set_min_data_vec.size()||point_set_point_num_vec.size()!=point_set_max_data_vec.size())
-            throw runtime_error("点集数量和值域数量不一致");
+        if(label_point_num_vec.size()!=label_min_data_vec.size()||label_point_num_vec.size()!=label_max_data_vec.size())
+            throw runtime_error("标签数量和值域数量不一致");
         double minimum=numeric_limits<double>::infinity(),maximum=-numeric_limits<double>::infinity();
-        for(uint32_t point_set_id=0;point_set_id<point_set_point_num_vec.size();point_set_id++)
-            if(point_set_point_num_vec[point_set_id]>0)
+        for(uint32_t label_id=0;label_id<label_point_num_vec.size();label_id++)
+            if(label_point_num_vec[label_id]>0)
             {
-                minimum=min(minimum,(double)point_set_min_data_vec[point_set_id]);
-                maximum=max(maximum,(double)point_set_max_data_vec[point_set_id]);
+                minimum=min(minimum,(double)label_min_data_vec[label_id]);
+                maximum=max(maximum,(double)label_max_data_vec[label_id]);
             }
         if(!isfinite(minimum)||!isfinite(maximum)||maximum<minimum)
             throw runtime_error("无法计算完整数据值域");
@@ -59,9 +59,9 @@ namespace unsz
     }
 
     template<typename T_data>
-    void add_normalized_reconstruction_error(double&normalized_squared_error,uint64_t&normalized_value_num,const reconstruction_statistics_c&statistics,const vector<uint32_t>&point_set_point_num_vec,const vector<T_data>&point_set_min_data_vec,const vector<T_data>&point_set_max_data_vec)
+    void add_normalized_reconstruction_error(double&normalized_squared_error,uint64_t&normalized_value_num,const reconstruction_statistics_c&statistics,const vector<uint32_t>&label_point_num_vec,const vector<T_data>&label_min_data_vec,const vector<T_data>&label_max_data_vec)
     {
-        double data_range=full_data_range(point_set_point_num_vec,point_set_min_data_vec,point_set_max_data_vec);
+        double data_range=full_data_range(label_point_num_vec,label_min_data_vec,label_max_data_vec);
         if(data_range>0)
             normalized_squared_error+=statistics.squared_error/(data_range*data_range);
         else if(statistics.squared_error!=0)
@@ -83,11 +83,11 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    uint32_t param_c<T_coord,T_data>::valid_point_set_id() const
+    uint32_t param_c<T_coord,T_data>::valid_label_id() const
     {
-        for(uint32_t point_set_id=0;point_set_id<point_set_source_id_vec.size();point_set_id++)
-            if(point_set_source_id_vec[point_set_id]==0)
-                return point_set_id;
+        for(uint32_t label_id=0;label_id<label_source_id_vec.size();label_id++)
+            if(label_source_id_vec[label_id]==0)
+                return label_id;
         return numeric_limits<uint32_t>::max();
     }
 
@@ -96,17 +96,17 @@ namespace unsz
     {
         reconstruction_statistics_c result;
         result.point_num=value_num;
-        uint32_t primary_point_set_id=0;
-        while(point_set_point_num_vec[primary_point_set_id]==0)
-            primary_point_set_id++;
-        uint32_t valid_set_id=valid_point_set_id();
+        uint32_t primary_label_id=0;
+        while(label_point_num_vec[primary_label_id]==0)
+            primary_label_id++;
+        uint32_t valid_set_id=valid_label_id();
         for(uint32_t value_id=0;value_id<value_num;value_id++)
         {
             uint32_t point_id=point_offset+value_id;
             double error=(double)original[value_id]-reconstructed[value_id];
             result.squared_error+=error*error;
-            uint32_t point_set_id=point_set_id_vec.empty()?0:point_set_id_vec[point_id];
-            double abs_eb=point_set_abs_eb_vec[point_set_id];
+            uint32_t label_id=label_id_vec.empty()?0:label_id_vec[point_id];
+            double abs_eb=label_abs_eb_vec[label_id];
             double error_ratio;
             if(abs_eb>0)
                 error_ratio=abs(error)/abs_eb;
@@ -120,14 +120,14 @@ namespace unsz
                 result.max_error=error;
                 result.max_error_abs_eb=abs_eb;
                 result.max_error_point_id=point_id;
-                result.max_error_point_set_id=point_set_id;
+                result.max_error_label_id=label_id;
             }
-            if(point_set_id==primary_point_set_id)
+            if(label_id==primary_label_id)
             {
                 result.minimum=min(result.minimum,(double)original[value_id]);
                 result.maximum=max(result.maximum,(double)original[value_id]);
             }
-            if(point_set_id==valid_set_id)
+            if(label_id==valid_set_id)
             {
                 result.valid_point_num++;
                 result.valid_squared_error+=error*error;
@@ -143,18 +143,18 @@ namespace unsz
     {
         reconstruction_statistics_c result;
         result.point_num=point_num;
-        uint32_t primary_point_set_id=0;
-        while(point_set_point_num_vec[primary_point_set_id]==0)
-            primary_point_set_id++;
-        uint32_t valid_set_id=valid_point_set_id();
+        uint32_t primary_label_id=0;
+        while(label_point_num_vec[primary_label_id]==0)
+            primary_label_id++;
+        uint32_t valid_set_id=valid_label_id();
         for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
             for(uint32_t prediction_index=0;prediction_index<structure.target_ids.size();prediction_index++)
             {
                 uint32_t point_id=(uint32_t)structure.target_ids[prediction_index];
                 double error=(double)current_data[point_id]-prediction_order_decompressed_data[structure.prediction_order_offset+prediction_index];
                 result.squared_error+=error*error;
-                uint32_t point_set_id=point_set_id_vec.empty()?0:point_set_id_vec[point_id];
-                double abs_eb=point_set_abs_eb_vec[point_set_id];
+                uint32_t label_id=label_id_vec.empty()?0:label_id_vec[point_id];
+                double abs_eb=label_abs_eb_vec[label_id];
                 double error_ratio;
                 if(abs_eb>0)
                     error_ratio=abs(error)/abs_eb;
@@ -168,14 +168,14 @@ namespace unsz
                     result.max_error=error;
                     result.max_error_abs_eb=abs_eb;
                     result.max_error_point_id=point_id;
-                    result.max_error_point_set_id=point_set_id;
+                    result.max_error_label_id=label_id;
                 }
-                if(point_set_id==primary_point_set_id)
+                if(label_id==primary_label_id)
                 {
                     result.minimum=min(result.minimum,(double)current_data[point_id]);
                     result.maximum=max(result.maximum,(double)current_data[point_id]);
                 }
-                if(point_set_id==valid_set_id)
+                if(label_id==valid_set_id)
                 {
                     result.valid_point_num++;
                     result.valid_squared_error+=error*error;

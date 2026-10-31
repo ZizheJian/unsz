@@ -10,7 +10,7 @@ __pycache__/
 *.pred
 *.unsz
 *.unsz.bin
-*.unsz.coord_transform.txt
+*.unsz.coordinate_rescaling.txt
 results/ocean_large_tensor_full/*_sparse_mem8/s1_compress
 results/ocean_large_tensor_full/*_sparse_mem8/s1_decompress
 results/ocean_large_tensor_1d/*/*/benchmark_*

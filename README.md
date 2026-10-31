@@ -38,7 +38,7 @@ python -m pip install -e third_party/paperfig
 | `coords.dat` | 按点连续保存的坐标，每个点`dim`个float32 |
 | `<field>.dat.<slice>` | 一个slice的float32数据，每个点一个数值，点的顺序与`coords.dat`相同 |
 
-例如三维、31个time step的temperature数据：
+例如三维、31个slice的temperature数据：
 
 ```text
 Ocean/
@@ -51,31 +51,31 @@ Ocean/
 ## 2.2. 压缩与解压
 
 ```bash
-install/bin/s1_compress -data-dir /path/to/Ocean -field temperature -time-step '[0,30]' -M REL 1e-3
-install/bin/s1_decompress -data-dir /path/to/Ocean -field temperature -time-step '[0,30]' -M REL 1e-3
+install/bin/s1_compress -data-dir /path/to/Ocean -field temperature -slice '[0,30]' -M REL 1e-3
+install/bin/s1_decompress -data-dir /path/to/Ocean -field temperature -slice '[0,30]' -M REL 1e-3
 ```
 
-码流写为`<field>.dat.<slice>.unsz`，解压结果写为`<field>.dat.<slice>.unsz.bin`，默认放在数据目录，可用`-output-dir`改到别处。程序打印总BR、PSNR、最大误差与误差上限之比，以及两端的预处理时间和codec时间。码流不保存误差上限，解压时必须给出与压缩时相同的`-M`或点集配置。
+码流写为`<field>.dat.<slice>.unsz`，解压结果写为`<field>.dat.<slice>.unsz.bin`，默认放在数据目录，可用`-output-dir`改到别处。程序打印总BR、PSNR、最大误差与误差上限之比，以及两端的预处理时间和codec时间。码流不保存误差上限，解压时必须给出与压缩时相同的`-M`或标签配置。
 
 | 选项 | 含义 |
 |---|---|
 | `-data-dir`、`-output-dir` | 数据目录；输出目录，默认与数据目录相同 |
 | `-field`、`-field-list` | 一个field，或`{a,b,c}`形式的多个共享坐标的field |
-| `-time-step` | 闭区间`[a,b]`、右开区间`[a,b)`或列表`{a1,a2,...}`，建议加引号 |
-| `-time-step-coordinate-file` | 非等间距time step的实际坐标，float64原始数组，两端必须相同 |
-| `-tensor-metadata` | 二维tensor的field定义（2.4节），与`-time-step`互斥 |
+| `-slice` | 闭区间`[a,b]`、右开区间`[a,b)`或列表`{a1,a2,...}`，建议加引号 |
+| `-slice-coordinate-file` | 非等间距slice的实际坐标，float64原始数组，两端必须相同 |
+| `-tensor-metadata` | 二维tensor的field定义（2.4节），与`-slice`互斥 |
 | `-coordinate-dim` | 坐标维数，默认3 |
-| `-M <REL或ABS> <eb>` | 单点集的误差上限，与`-point-set-config`二选一 |
-| `-point-set-config` | 点集配置JSON（2.3节） |
+| `-M <REL或ABS> <eb>` | 没有异常值时的误差上限，与`-label-config`二选一 |
+| `-label-config` | 标签配置JSON（2.3节） |
 | `-partition-num`、`-thread-num` | 把点划分为2的幂个独立partition，并用OpenMP线程并行处理 |
 | `-field-worker-num`、`-field-worker-map` | 把多个field分给多个worker并行处理（2.5节） |
-| `-value-flow`、`-label-flow`、`-coordinate-transform` | 覆盖自动选择的跨slice预测方案和坐标缩放，只用于诊断和消融实验 |
+| `-value-pipeline`、`-label-pipeline`、`-coordinate-rescaling` | 覆盖自动选择的cross-slice pipeline和坐标缩放，只用于诊断和消融实验。数值pipeline可选`independent`、`extrapolation`、`interpolation`、`anchor_interpolation`，后三者可加后缀`_spatial_residual`；标签pipeline可选`independent`、`extrapolation`、`interpolation_spatial_residual`或`anchor_interpolation`；坐标缩放可选`off`、`on`或`auto` |
 | `-compression-stage-time`、`-decompression-stage-time` | 打印逐阶段耗时 |
 | `-skip-decompressed-output` | 解压时只做逐点误差验证，不写结果文件 |
 
-## 2.3. 点集配置
+## 2.3. 标签配置
 
-不传`-point-set-config`时，全部数据是一个点集，误差上限由`-M`指定。数据含有fill value等异常值时，用点集配置把点分成普通值和异常值两类，例如Katrina：
+不传`-label-config`时，全部数据都是有效值，误差上限由`-M`指定。数据含有fill value等异常值时，用标签配置把点分成有效值（标签0）和异常值（标签1），例如Katrina：
 
 ```json
 {
@@ -87,7 +87,7 @@ install/bin/s1_decompress -data-dir /path/to/Ocean -field temperature -time-step
 }
 ```
 
-`labels`的下标就是点集编号。程序依次测试除最后一个以外的`condition`，第一条成立的条件决定点集，全都不成立时属于最后一个点集，因此最后一个省略`condition`。比较符为`<`、`<=`、`>`、`>=`、`==`或`!=`。`method`为`predict`（RBF预测）或`constant`（常量编码）。`predict`点集必须给出`eb_mode`和`eb_value`：`ABS`直接作为绝对误差上限，`REL`乘以该slice中这个点集的值域，`FIELD_REL`乘以整个field中这个点集的值域。配置了两个点集、但某个field只出现一个点集时，程序自动按单点集压缩。
+`labels`的下标就是标签编号。程序依次测试除最后一个以外的`condition`，第一条成立的条件决定标签，全都不成立时属于最后一个标签，因此最后一个省略`condition`。比较符为`<`、`<=`、`>`、`>=`、`==`或`!=`。`method`为`predict`（RBF预测）或`constant`（常量编码）。`method`为`predict`的标签必须给出`eb_mode`和`eb_value`：`ABS`直接作为绝对误差上限，`REL`乘以该slice中这个标签的值域，`FIELD_REL`乘以整个field中这个标签的值域。配置了两个标签、但某个field只出现一个标签时，程序自动按单标签压缩。
 
 ## 2.4. 二维tensor数据
 
@@ -108,7 +108,7 @@ Ocean-large这类`[time,height,point]`数据用`-tensor-metadata`描述。第一
 }
 ```
 
-坐标文件是严格递增的float64数组。有效层计数文件为每个水平点一个uint32，中心层用offset 0，界面层用offset 1。配置有效层后，`height_index<maxLevelCell+offset`以外的点、非有限值和`-99999`都归入第二个点集。
+坐标文件是严格递增的float64数组。有效层计数文件为每个水平点一个uint32，中心层用offset 0，界面层用offset 1。配置有效层后，`height_index<maxLevelCell+offset`以外的点、非有限值和`-99999`都归入标签1（异常值）。
 
 ## 2.5. 多field与两级并行
 
@@ -124,7 +124,7 @@ Ocean-large这类`[time,height,point]`数据用`-tensor-metadata`描述。第一
 ./unsz_env/bin/python t1_start_c_code.py katrina
 ```
 
-JSON最外层是task list。每个task必须有唯一的`name`、绝对路径`data_dir`和结果路径`csv_path`（多个field时用`{field}`占位）。`field_list`和`compressor_list`是穷举维度。单点集task用`rel_eb_list`列出误差上限，多点集task在`unsz.point_set_config_path_list`中列出完整的点集配置。UMC对每个点集配置中出现的REL EB分别运行，作为同PSNR比较的基线。
+JSON最外层是task list。每个task必须有唯一的`name`、绝对路径`data_dir`和结果路径`csv_path`（多个field时用`{field}`占位）。`field_list`和`compressor_list`是穷举维度。没有异常值的task用`rel_eb_list`列出误差上限，有异常值的task在`unsz.label_config_path_list`中列出完整的标签配置。UMC对每个标签配置中出现的REL EB分别运行，作为同PSNR比较的基线。
 
 ```json
 [
@@ -135,7 +135,7 @@ JSON最外层是task list。每个task必须有唯一的`name`、绝对路径`da
     "field_list":["velocity_x","velocity_y"],
     "rel_eb_list":[0.1,0.01,0.001,0.0001,0.00001],
     "compressor_list":["unsz","umc"],
-    "time_step_num":1,
+    "slice_num":1,
     "coordinate_dim":3,
     "unsz":{},
     "umc":{"from_edge":0,"reorder":1,"method":"NBP-IDW","neighbor_num":4}
@@ -177,15 +177,15 @@ C++代码在`c_codes/`。`s1_compress.cpp`和`compress_cli.cpp`是压缩器入�
 | 文件 | 内容 |
 |---|---|
 | `compress_entry.tpp` | 压缩的整体流程：逐field预处理，再逐slice压缩 |
-| `coordinate_transform.tpp` | 坐标缩放的训练与启用判断 |
+| `coordinate_rescaling.tpp` | 坐标缩放的训练与启用判断 |
 | `tree.tpp`、`partition.tpp` | kd-tree和空间partition |
 | `generate_prediction_structure_and_weights.tpp` | 反向MSD消去，生成预测顺序和参考点 |
 | `prediction_weights.tpp` | 批量求解RBF权重 |
 | `eb_schedule.tpp` | 按预测位置调整误差上限 |
-| `automatic_flow_selection.tpp` | 自动选择跨slice预测方案 |
+| `automatic_pipeline_selection.tpp` | 自动选择跨slice预测方案 |
 | `prediction_framework.tpp` | 每个slice的预测方式，以及把它转换成模板参数的分发函数 |
-| `init.tpp`、`tensor_dependency.tpp`、`temporal_prediction.tpp` | slice的处理顺序、跨slice参考关系和跨slice预测 |
-| `point_set_config.tpp` | 点集配置与误差上限换算 |
+| `init.tpp`、`tensor_dependency.tpp`、`tensor_prediction.tpp` | slice的处理顺序、跨slice参考关系和跨slice预测 |
+| `label_config.tpp` | 标签配置与误差上限换算 |
 | `compress.tpp`、`decompress.tpp` | 逐点预测、量化和重建 |
 | `spatial_prediction.tpp` | 用RBF权重做空间预测 |
 | `compression_format.tpp` | 码流的编码、拼装和解析 |

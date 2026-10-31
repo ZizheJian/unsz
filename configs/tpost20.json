@@ -17,7 +17,7 @@
       "unsz",
       "umc"
     ],
-    "time_step_num": 20,
+    "slice_num": 20,
     "coordinate_dim": 3,
     "unsz": {},
     "umc": {

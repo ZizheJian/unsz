@@ -6,42 +6,42 @@
 
 #include "parsers.hpp"
 
-inline std::vector<uint32_t> parse_time_step_list(std::string expression)
+inline std::vector<uint32_t> parse_slice_list(std::string expression)
 {
     std::vector<uint32_t>result;
     if(expression.size()>=5&&expression.front()=='['&&(expression.back()==']'||expression.back()==')'))
     {
         uint64_t comma_position=expression.find(',');
         if(comma_position==std::string::npos||expression.find(',',comma_position+1)!=std::string::npos)
-            throw std::runtime_error("时间步区间必须包含且只包含一个逗号："+expression);
-        uint32_t left=parse_uint32(expression.substr(1,comma_position-1),"时间步左端点");
-        uint32_t right=parse_uint32(expression.substr(comma_position+1,expression.size()-comma_position-2),"时间步右端点");
+            throw std::runtime_error("slice区间必须包含且只包含一个逗号："+expression);
+        uint32_t left=parse_uint32(expression.substr(1,comma_position-1),"slice左端点");
+        uint32_t right=parse_uint32(expression.substr(comma_position+1,expression.size()-comma_position-2),"slice右端点");
         uint64_t end=(uint64_t)right+(expression.back()==']');
         if((uint64_t)left>=end)
-            throw std::runtime_error("时间步区间为空或端点顺序错误："+expression);
+            throw std::runtime_error("slice区间为空或端点顺序错误："+expression);
         result.reserve(end-left);
-        for(uint64_t time_step=left;time_step<end;time_step++)
-            result.push_back((uint32_t)time_step);
+        for(uint64_t slice=left;slice<end;slice++)
+            result.push_back((uint32_t)slice);
         return result;
     }
     if(expression.size()<3||expression.front()!='{'||expression.back()!='}')
-        throw std::runtime_error("时间步必须写成区间'[a,b]'、'[a,b)'或列表'{a1,a2,...}'："+expression);
+        throw std::runtime_error("slice必须写成区间'[a,b]'、'[a,b)'或列表'{a1,a2,...}'："+expression);
     if(expression[expression.size()-2]==',')
-        throw std::runtime_error("时间步列表末尾不能有逗号："+expression);
-    std::unordered_set<uint32_t>used_time_step_set;
+        throw std::runtime_error("slice列表末尾不能有逗号："+expression);
+    std::unordered_set<uint32_t>used_slice_set;
     for(uint64_t begin=1;begin<expression.size()-1;)
     {
         uint64_t end=expression.find(',',begin);
         if(end==std::string::npos)
             end=expression.size()-1;
-        uint32_t time_step=parse_uint32(expression.substr(begin,end-begin),"时间步");
-        if(!used_time_step_set.insert(time_step).second)
-            throw std::runtime_error("时间步列表中存在重复值："+std::to_string(time_step));
-        result.push_back(time_step);
+        uint32_t slice=parse_uint32(expression.substr(begin,end-begin),"slice");
+        if(!used_slice_set.insert(slice).second)
+            throw std::runtime_error("slice列表中存在重复值："+std::to_string(slice));
+        result.push_back(slice);
         begin=end+1;
     }
     if(result.empty())
-        throw std::runtime_error("时间步列表不能为空");
+        throw std::runtime_error("slice列表不能为空");
     return result;
 }
 

@@ -16,7 +16,7 @@
     "compressor_list": [
       "unsz"
     ],
-    "time_step_num": 1,
+    "slice_num": 1,
     "coordinate_dim": 3,
     "unsz": {}
   },
@@ -37,7 +37,7 @@
     "compressor_list": [
       "unsz"
     ],
-    "time_step_num": 1,
+    "slice_num": 1,
     "coordinate_dim": 3,
     "unsz": {}
   },
@@ -58,7 +58,7 @@
     "compressor_list": [
       "unsz"
     ],
-    "time_step_num": 1,
+    "slice_num": 1,
     "coordinate_dim": 3,
     "unsz": {}
   },
@@ -79,7 +79,7 @@
     "compressor_list": [
       "unsz"
     ],
-    "time_step_num": 1,
+    "slice_num": 1,
     "coordinate_dim": 3,
     "unsz": {}
   },
@@ -100,7 +100,7 @@
     "compressor_list": [
       "unsz"
     ],
-    "time_step_num": 1,
+    "slice_num": 1,
     "coordinate_dim": 3,
     "unsz": {}
   },
@@ -121,7 +121,7 @@
     "compressor_list": [
       "unsz"
     ],
-    "time_step_num": 1,
+    "slice_num": 1,
     "coordinate_dim": 3,
     "unsz": {}
   },
@@ -142,7 +142,7 @@
     "compressor_list": [
       "unsz"
     ],
-    "time_step_num": 1,
+    "slice_num": 1,
     "coordinate_dim": 3,
     "unsz": {}
   }

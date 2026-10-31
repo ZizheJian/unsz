@@ -95,7 +95,7 @@ namespace unsz
                     coordinate_keys[axis]=coordinate_path;
                 }
             }
-            config.dependency_plan_key=to_string(config.shape[0])+"x"+to_string(config.shape[1])+"|"+coordinate_keys[0]+"|"+coordinate_keys[1];
+            config.slice_dag_key=to_string(config.shape[0])+"x"+to_string(config.shape[1])+"|"+coordinate_keys[0]+"|"+coordinate_keys[1];
             auto active_level_iterator=field.object_value.find("active_level_count_file");
             auto active_level_offset_iterator=field.object_value.find("active_level_count_offset");
             if(active_level_iterator!=field.object_value.end())
@@ -127,21 +127,21 @@ namespace unsz
         current_field_uses_tensor=true;
         current_tensor_shape=config.shape;
         current_tensor_axis_coordinates=config.axis_coordinates;
-        current_tensor_dependency_plan_key=config.dependency_plan_key;
+        current_tensor_slice_dag_key=config.slice_dag_key;
         current_active_level_count_path=config.active_level_count_path;
         current_active_level_count_offset=config.active_level_count_offset;
-        if(!current_active_level_count_path.empty()&&configured_point_set_config_vec.size()!=2)
-            throw runtime_error("结构有效层分类要求配置两个点集："+field_name);
+        if(!current_active_level_count_path.empty()&&configured_label_config_vec.size()!=2)
+            throw runtime_error("结构有效层分类要求配置两个标签："+field_name);
         uint64_t slice_num=(uint64_t)config.shape[0]*config.shape[1];
         if(slice_num>numeric_limits<uint32_t>::max())
             throw runtime_error("field的tensor切片数量超过uint32_t范围："+field_name);
-        configured_time_step_vec.resize(slice_num);
-        iota(configured_time_step_vec.begin(),configured_time_step_vec.end(),0);
-        time_step_vec=configured_time_step_vec;
+        configured_slice_vec.resize(slice_num);
+        iota(configured_slice_vec.begin(),configured_slice_vec.end(),0);
+        slice_vec=configured_slice_vec;
         if(slice_num==1)
         {
-            selected_tensor_flow={};
-            tensor_flow_selected=true;
+            selected_tensor_pipeline={};
+            tensor_pipeline_selected=true;
         }
         if(point_num>0)
             load_current_active_level_counts();

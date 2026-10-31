@@ -7,7 +7,7 @@ project_root=Path(__file__).resolve().parents[2]
 data_root=Path('/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data')
 ocean_large_subset=data_root/'Ocean-large/regression_subset_50k'
 ocean_large_fields='{timeMonthly_avg_ssh,timeMonthly_avg_velocityMeridional,timeMonthly_avg_vertVelocityTop}'
-point_set_dir=project_root/'point_set_configs'
+label_config_dir=project_root/'label_configs'
 
 
 def rel(eb):
@@ -19,21 +19,21 @@ def partitions(num):
 
 
 cases={
-    'tpost20':[data_root/'Tpost20',['-field','scalar','-time-step','[0,19]'],rel('1e-3')],
-    'tpost20_1e-5':[data_root/'Tpost20',['-field','scalar','-time-step','[0,19]'],rel('1e-5')],
-    'tpost20_p4':[data_root/'Tpost20',['-field','scalar','-time-step','[0,19]',*partitions(4)],rel('1e-3')],
-    'katrina':[data_root/'Katrina',['-field','attr0','-time-step','[0,161]'],['-point-set-config',str(point_set_dir/'Katrina_attr0_rbf_rel_1e-3.json')]],
-    'katrina_p4':[data_root/'Katrina',['-field','attr0','-time-step','[0,161]',*partitions(4)],['-point-set-config',str(point_set_dir/'Katrina_attr0_rbf_rel_1e-3.json')]],
-    'e3sm_aoddust':[data_root/'E3SM-h4',['-field','AODDUST','-time-step','[0,719]'],['-point-set-config',str(point_set_dir/'E3SM_h4_AODDUST_rbf_rel_1e-3.json')]],
-    'e3sm_mass_dst_srf':[data_root/'E3SM-h4',['-field','Mass_dst_srf','-time-step','[0,719]'],rel('1e-3')],
-    'ocean_salinity':[data_root/'Ocean',['-field','salinity','-time-step','[0,30]'],rel('1e-3')],
-    'ocean_velocity_fields':[data_root/'Ocean',['-field-list','{velocityMeridional,velocityX,velocityY,velocityZ,velocityZonal,zTop}','-time-step','[0,30]'],rel('1e-3')],
-    'haiyan_depth':[data_root/'ADCIRC-Haiyan-1.5km',['-field','depth','-time-step','[0,0]'],rel('1e-3')],
-    'haiyan_zeta':[data_root/'ADCIRC-Haiyan-1.5km',['-field','zeta','-time-step','[0,23]',*partitions(8)],['-point-set-config',str(point_set_dir/'ADCIRC_Haiyan_zeta_rbf_rel_1e-3.json')]],
-    'les_velocity_x_p16':[data_root/'LES',['-field','velocity_x','-time-step','[0,0]',*partitions(16)],rel('1e-3')],
-    'taps_temperature_p16':[data_root/'TAPS',['-field','TEMPERATURE','-time-step','[0,0]',*partitions(16)],rel('1e-3')],
-    'ocean_large_slice':[ocean_large_subset,['-field-list',ocean_large_fields,'-tensor-metadata',str(ocean_large_subset/'tensor_metadata.json'),*partitions(4)],['-point-set-config',str(point_set_dir/'Ocean_large_monthly_rbf_rel_1e-3.json')]],
-    'ocean_large_field_workers':[ocean_large_subset,['-field-list',ocean_large_fields,'-tensor-metadata',str(ocean_large_subset/'tensor_metadata.json'),*partitions(2),'-field-worker-num','2','-field-worker-map','{0,1,1}'],['-point-set-config',str(point_set_dir/'Ocean_large_monthly_rbf_field_rel_1e-3.json')]],
+    'tpost20':[data_root/'Tpost20',['-field','scalar','-slice','[0,19]'],rel('1e-3')],
+    'tpost20_1e-5':[data_root/'Tpost20',['-field','scalar','-slice','[0,19]'],rel('1e-5')],
+    'tpost20_p4':[data_root/'Tpost20',['-field','scalar','-slice','[0,19]',*partitions(4)],rel('1e-3')],
+    'katrina':[data_root/'Katrina',['-field','attr0','-slice','[0,161]'],['-label-config',str(label_config_dir/'Katrina_attr0_rbf_rel_1e-3.json')]],
+    'katrina_p4':[data_root/'Katrina',['-field','attr0','-slice','[0,161]',*partitions(4)],['-label-config',str(label_config_dir/'Katrina_attr0_rbf_rel_1e-3.json')]],
+    'e3sm_aoddust':[data_root/'E3SM-h4',['-field','AODDUST','-slice','[0,719]'],['-label-config',str(label_config_dir/'E3SM_h4_AODDUST_rbf_rel_1e-3.json')]],
+    'e3sm_mass_dst_srf':[data_root/'E3SM-h4',['-field','Mass_dst_srf','-slice','[0,719]'],rel('1e-3')],
+    'ocean_salinity':[data_root/'Ocean',['-field','salinity','-slice','[0,30]'],rel('1e-3')],
+    'ocean_velocity_fields':[data_root/'Ocean',['-field-list','{velocityMeridional,velocityX,velocityY,velocityZ,velocityZonal,zTop}','-slice','[0,30]'],rel('1e-3')],
+    'haiyan_depth':[data_root/'ADCIRC-Haiyan-1.5km',['-field','depth','-slice','[0,0]'],rel('1e-3')],
+    'haiyan_zeta':[data_root/'ADCIRC-Haiyan-1.5km',['-field','zeta','-slice','[0,23]',*partitions(8)],['-label-config',str(label_config_dir/'ADCIRC_Haiyan_zeta_rbf_rel_1e-3.json')]],
+    'les_velocity_x_p16':[data_root/'LES',['-field','velocity_x','-slice','[0,0]',*partitions(16)],rel('1e-3')],
+    'taps_temperature_p16':[data_root/'TAPS',['-field','TEMPERATURE','-slice','[0,0]',*partitions(16)],rel('1e-3')],
+    'ocean_large_slice':[ocean_large_subset,['-field-list',ocean_large_fields,'-tensor-metadata',str(ocean_large_subset/'tensor_metadata.json'),*partitions(4)],['-label-config',str(label_config_dir/'Ocean_large_monthly_rbf_rel_1e-3.json')]],
+    'ocean_large_field_workers':[ocean_large_subset,['-field-list',ocean_large_fields,'-tensor-metadata',str(ocean_large_subset/'tensor_metadata.json'),*partitions(2),'-field-worker-num','2','-field-worker-map','{0,1,1}'],['-label-config',str(label_config_dir/'Ocean_large_monthly_rbf_field_rel_1e-3.json')]],
 }
 
 

@@ -1,27 +1,27 @@
 #pragma once
 
-// 自动flow选择：在DAG和RBF权重生成之后、正式压缩之前，为当前field选一种跨slice预测方案（flow）。
-// 做法是在少量slice、少量点上把每个候选flow按正式流程试压缩一遍，估计它的标签和数值码流大小，选估计值最小的flow。
+// 自动pipeline选择：在DAG和RBF权重生成之后、正式压缩之前，为当前field选一种跨slice预测方案（pipeline）。
+// 做法是在少量slice、少量点上把每个候选pipeline按正式流程试压缩一遍，估计它的标签和数值码流大小，选估计值最小的pipeline。
 namespace unsz
 {
     // 在14个field上以REL 1e-3做无截距最小二乘，实际标签和数值码流分别约为估计值的0.412倍和0.732倍，
-    // 因此选择分数取0.56≈0.412/0.732倍的估计标签字节加估计数值字节。权重在约0.15到10.7之间时，命中实际最佳flow的field数都是14个中的13个。
-    constexpr double automatic_flow_label_weight=0.56;
+    // 因此选择分数取0.56≈0.412/0.732倍的估计标签字节加估计数值字节。权重在约0.15到10.7之间时，命中实际最佳pipeline的field数都是14个中的13个。
+    constexpr double automatic_pipeline_label_weight=0.56;
     // 采样规模和标签权重都是在REL 1e-3上标定的，更宽的REL EB统一按1e-3估算，正式压缩仍用用户指定的EB。
-    constexpr double automatic_flow_max_decision_rel_eb=1e-3;
+    constexpr double automatic_pipeline_max_decision_rel_eb=1e-3;
 
     template<typename T_data>
-    struct automatic_flow_time_statistics_c
+    struct automatic_pipeline_slice_statistics_c
     {
-        array<T_data,2> point_set_abs_eb{{0,0}};
-        array<point_set_codec_e,2> point_set_codec{{point_set_codec_e::constant,point_set_codec_e::constant}};
-        vector<array<uint32_t,2>> structure_point_set_point_num;
+        array<T_data,2> label_abs_eb{{0,0}};
+        array<label_codec_e,2> label_codec{{label_codec_e::constant,label_codec_e::constant}};
+        vector<array<uint32_t,2>> structure_label_point_num;
     };
 
     // 采样窗口：每个prediction structure的预测顺序均分为若干段（region），每段取一个从start开始、长度为width的连续窗口。
     // 窗口到region_end后回绕到region_begin。窗口内的目标在预测顺序上连续，后面的目标会用到前面目标的重建值，与正式压缩一致。
-    // quota是该窗口要采样的第一点集目标数。两点集时窗口需要加宽，使每个评估slice都能在窗口内找到quota个第一点集目标。
-    struct automatic_flow_window_c
+    // quota是该窗口要采样的标签0目标数。两种标签时窗口需要加宽，使每个评估slice都能在窗口内找到quota个标签0目标。
+    struct automatic_pipeline_window_c
     {
         uint32_t region_begin=0,region_end=0,start=0,width=0,quota=0;
 
@@ -52,7 +52,7 @@ namespace unsz
     };
 
     template<typename T_calc>
-    struct automatic_flow_sample_target_c
+    struct automatic_pipeline_sample_target_c
     {
         uint32_t prediction_index=0,target_sample_id=0,window_id=0;
         vector<int> reference_sample_ids;
@@ -60,45 +60,45 @@ namespace unsz
         bool has_rbf_weights=true;
     };
 
-    struct automatic_flow_candidate_c
+    struct automatic_pipeline_candidate_c
     {
-        string label_flow,value_flow;
-        const temporal_dependency_plan_c*dependency_plan=nullptr,*label_dependency_plan=nullptr;
-        tensor_flow_c tensor_flow;
+        string label_pipeline,value_pipeline;
+        const slice_dag_c*slice_dag=nullptr,*label_slice_dag=nullptr;
+        tensor_pipeline_c tensor_pipeline;
         bool use_spatial_residual=false;
         double estimated_label_bytes=0,estimated_value_bytes=0,evaluation_time=0;
 
         double estimated_total_bytes() const{return estimated_label_bytes+estimated_value_bytes;}
-        double selection_score() const{return automatic_flow_label_weight*estimated_label_bytes+estimated_value_bytes;}
+        double selection_score() const{return automatic_pipeline_label_weight*estimated_label_bytes+estimated_value_bytes;}
     };
 
-    // 自动flow选择各步骤之间共享的采样状态和计时累加器，由select_automatic_flows创建，依次交给各步骤函数填写和读取。
+    // 自动pipeline选择各步骤之间共享的采样状态和计时累加器，由select_automatic_pipelines创建，依次交给各步骤函数填写和读取。
     template<typename T_data,typename T_calc>
-    struct automatic_flow_sample_c
+    struct automatic_pipeline_sample_c
     {
-        uint32_t time_step_num=0,structure_num=0;
-        bool two_point_sets=false;
+        uint32_t slice_num=0,structure_num=0;
+        bool two_labels=false;
         double decision_eb_scale=1;//决策EB与用户EB之比
-        vector<vector<automatic_flow_window_c>> structure_windows;//每个prediction structure的采样窗口
-        vector<uint32_t> full_scan_time_indices;//评估slice，按编号升序
-        vector<double> evaluation_time_step_weight;//每个slice的权重，非评估slice为0
-        vector<uint8_t> evaluate_time_step,read_sampled_time_step;//是否评估、是否需要读取样本值
-        uint32_t sampled_time_step_num=0;
-        vector<automatic_flow_time_statistics_c<T_data>> time_statistics;//每个评估slice的点集EB、编码方式和各structure的点数
+        vector<vector<automatic_pipeline_window_c>> structure_windows;//每个prediction structure的采样窗口
+        vector<uint32_t> full_scan_slice_indices;//评估slice，按编号升序
+        vector<double> evaluation_slice_weight;//每个slice的权重，非评估slice为0
+        vector<uint8_t> evaluate_slice,read_sampled_slice;//是否评估、是否需要读取样本值
+        uint32_t sampled_slice_num=0;
+        vector<automatic_pipeline_slice_statistics_c<T_data>> slice_statistics;//每个评估slice的标签EB、编码方式和各structure的点数
         vector<vector<vector<uint32_t>>> selected_target_indices;//[slice][structure]的数值目标，先存预测序号，读样本后改存structure_targets中的下标
         vector<uint32_t> sample_original_ids;//样本点的原始编号，样本编号即它在这个数组中的下标
-        vector<vector<automatic_flow_sample_target_c<T_calc>>> structure_targets;//每个structure的样本目标及其参考点
+        vector<vector<automatic_pipeline_sample_target_c<T_calc>>> structure_targets;//每个structure的样本目标及其参考点
         vector<vector<uint32_t>> structure_window_target_indices,structure_label_prediction_indices,structure_label_target_indices;
         uint64_t sampled_target_num=0,sampled_window_num=0;
         vector<vector<T_data>> sampled_values;//[slice][样本编号]
         vector<vector<uint8_t>> sampled_labels;
-        unordered_map<string,double> estimated_label_bytes_by_flow;
+        unordered_map<string,double> estimated_label_bytes_by_pipeline;
         double excluded_input_time=0,file_statistics_time=0,sample_structure_time=0,sample_value_preparation_time=0,candidate_evaluation_time=0,shared_label_estimation_time=0;
     };
 
     // 只读取采样点的数值：采样点覆盖的1MiB块不到文件的30%时按块读取，否则整个文件读入更快。
     template<typename T_data>
-    vector<T_data> read_automatic_flow_sample_values(const string&path,const vector<uint32_t>&sample_ids,uint32_t point_num,double&input_time)
+    vector<T_data> read_automatic_pipeline_sample_values(const string&path,const vector<uint32_t>&sample_ids,uint32_t point_num,double&input_time)
     {
         vector<T_data> result(sample_ids.size());
         if(sample_ids.empty())
@@ -166,12 +166,12 @@ namespace unsz
         if(fclose(file)!=0)
             throw runtime_error("关闭文件失败："+path);
         if(sample_begin!=sample_ids.size())
-            throw runtime_error("自动flow采样值没有完整读取");
+            throw runtime_error("自动pipeline采样值没有完整读取");
         return result;
     }
 
     // log2(C(n,k))：在n个标签中标出k个预测错误位置所需的最少比特数，用来估计标签码流大小。
-    inline double automatic_flow_log2_combination(uint64_t n,uint64_t k)
+    inline double automatic_pipeline_log2_combination(uint64_t n,uint64_t k)
     {
         if(k==0||k==n)
             return 0;
@@ -179,35 +179,35 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::validate_automatic_flow_selection() const
+    void param_c<T_coord,T_data>::validate_automatic_pipeline_selection() const
     {
-        bool automatic_label=label_flow=="auto",automatic_value=value_flow=="auto";
+        bool automatic_label=label_pipeline=="auto",automatic_value=value_pipeline=="auto";
         if(!automatic_label&&!automatic_value)
             return;
-        if(point_set_config_vec.size()==1)
+        if(label_config_vec.size()==1)
         {
             if(automatic_label||!automatic_value)
-                throw runtime_error("单点集自动flow选择只支持将value设置为auto");
-            if(point_set_config_vec[0].codec==point_set_codec_e::constant)
-                throw runtime_error("单点集自动flow选择要求点集使用RBF");
+                throw runtime_error("单标签自动pipeline选择只支持将value设置为auto");
+            if(label_config_vec[0].codec==label_codec_e::constant)
+                throw runtime_error("单标签自动pipeline选择要求标签使用RBF");
         }
-        else if(point_set_config_vec.size()==2)
+        else if(label_config_vec.size()==2)
         {
             if(!automatic_label||!automatic_value)
-                throw runtime_error("两点集自动flow选择要求label和value同时设置为auto");
-            if(point_set_config_vec[0].codec==point_set_codec_e::constant||point_set_config_vec[1].codec!=point_set_codec_e::constant)
-                throw runtime_error("两点集自动flow选择要求点集0使用RBF、点集1使用constant");
+                throw runtime_error("两种标签自动pipeline选择要求label和value同时设置为auto");
+            if(label_config_vec[0].codec==label_codec_e::constant||label_config_vec[1].codec!=label_codec_e::constant)
+                throw runtime_error("两种标签自动pipeline选择要求标签0使用RBF、标签1使用constant");
         }
         else
-            throw runtime_error("自动flow选择只支持一个或两个点集");
-        if(time_step_vec.size()<2)
-            throw runtime_error("自动flow选择至少需要两个time step");
+            throw runtime_error("自动pipeline选择只支持一个或两个标签");
+        if(slice_vec.size()<2)
+            throw runtime_error("自动pipeline选择至少需要两个slice");
     }
 
-    // 第1步：布置采样窗口。总共automatic_flow_sample_num个目标均分给各prediction structure，每个structure再分给automatic_flow_start_num个窗口。
+    // 第1步：布置采样窗口。总共automatic_pipeline_sample_num个目标均分给各prediction structure，每个structure再分给automatic_pipeline_start_num个窗口。
     // 窗口起点用固定的整数哈希（乘大奇数常数，其中第一个是2^64/黄金比例）在各段内伪随机选取，保证同样的输入总是选中同样的点。
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::prepare_automatic_flow_windows(automatic_flow_sample_c<T_data,T_calc>&sample)
+    void param_c<T_coord,T_data>::prepare_automatic_pipeline_windows(automatic_pipeline_sample_c<T_data,T_calc>&sample)
     {
         auto&structure_num=sample.structure_num;
         auto&structure_windows=sample.structure_windows;
@@ -217,14 +217,14 @@ namespace unsz
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
         {
             uint32_t target_num=(uint32_t)prediction_structure_vec[structure_id].target_ids.size();
-            uint32_t structure_sample_num=automatic_flow_sample_num/structure_num+(structure_id<automatic_flow_sample_num%structure_num);
-            uint32_t start_num=min<uint32_t>(min(automatic_flow_start_num,structure_sample_num),target_num);
+            uint32_t structure_sample_num=automatic_pipeline_sample_num/structure_num+(structure_id<automatic_pipeline_sample_num%structure_num);
+            uint32_t start_num=min<uint32_t>(min(automatic_pipeline_start_num,structure_sample_num),target_num);
             if(start_num==0)
                 continue;
             structure_windows[structure_id].resize(start_num);
             for(uint32_t window_id=0;window_id<start_num;window_id++)
             {
-                automatic_flow_window_c&window=structure_windows[structure_id][window_id];
+                automatic_pipeline_window_c&window=structure_windows[structure_id][window_id];
                 window.region_begin=(uint64_t)target_num*window_id/start_num;
                 window.region_end=(uint64_t)target_num*(window_id+1)/start_num;
                 uint32_t region_size=window.region_end-window.region_begin;
@@ -238,20 +238,20 @@ namespace unsz
 
     // 第2步：选出约32个评估slice，并给每个评估slice一个权重，使权重之和等于slice总数，评估slice的估计值加权求和即为全部slice的估计值。
     // 二维tensor分层抽样：第0层是根slice，第1、2层是过根的两条轴线，第3层是内部。
-    // 根slice没有跨slice参考，轴线上的slice在一些flow中只能沿一个轴预测，因此各层分开抽样，保证每层都被抽到，每层的权重为层大小/抽样数。
+    // 根slice没有跨slice参考，轴线上的slice在一些pipeline中只能沿一个轴预测，因此各层分开抽样，保证每层都被抽到，每层的权重为层大小/抽样数。
     // 内部用拉丁超立方抽样，两个轴的位置各分成同样多的区间，每个区间恰好抽一次。
     // 伪随机数由field名的FNV-1a哈希作种子，再经splitmix64混合得到，>>11后乘2^-53变成[0,1)内的小数。
-    // 非tensor数据在时间上均匀取最多32个slice，权重相同。
+    // 非tensor数据按slice编号均匀取最多32个slice，权重相同。
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::choose_automatic_flow_evaluation_slices(automatic_flow_sample_c<T_data,T_calc>&sample)
+    void param_c<T_coord,T_data>::choose_automatic_pipeline_evaluation_slices(automatic_pipeline_sample_c<T_data,T_calc>&sample)
     {
-        auto&time_step_num=sample.time_step_num;
-        auto&full_scan_time_indices=sample.full_scan_time_indices;
-        auto&evaluation_time_step_weight=sample.evaluation_time_step_weight;
-        auto&evaluate_time_step=sample.evaluate_time_step;
-        auto&time_statistics=sample.time_statistics;
-        time_statistics.resize(time_step_num);
-        evaluation_time_step_weight.assign(time_step_num,0);
+        auto&slice_num=sample.slice_num;
+        auto&full_scan_slice_indices=sample.full_scan_slice_indices;
+        auto&evaluation_slice_weight=sample.evaluation_slice_weight;
+        auto&evaluate_slice=sample.evaluate_slice;
+        auto&slice_statistics=sample.slice_statistics;
+        slice_statistics.resize(slice_num);
+        evaluation_slice_weight.assign(slice_num,0);
         if(current_field_uses_tensor&&current_tensor_shape[0]>1&&current_tensor_shape[1]>1)
         {
             constexpr uint32_t sample_budget=32;
@@ -265,7 +265,7 @@ namespace unsz
                 value=(value^(value>>27))*10723151780598845931ULL;
                 return value^(value>>31);
             };
-            auto add_stratum=[&](uint32_t stratum_id,uint32_t stratum_size,uint32_t sample_num,const function<uint32_t(uint32_t)>&time_index_from_offset)
+            auto add_stratum=[&](uint32_t stratum_id,uint32_t stratum_size,uint32_t sample_num,const function<uint32_t(uint32_t)>&slice_index_from_offset)
             {
                 if(stratum_size==0||sample_num==0)return;
                 sample_num=min(sample_num,stratum_size);
@@ -274,16 +274,16 @@ namespace unsz
                 {
                     uint32_t region_begin=(uint64_t)stratum_size*sample_id/sample_num,region_end=(uint64_t)stratum_size*(sample_id+1)/sample_num;
                     uint32_t offset=region_begin+(uint32_t)(random_value(stratum_id,sample_id)%(region_end-region_begin));
-                    uint32_t time_index=time_index_from_offset(offset);
-                    full_scan_time_indices.push_back(time_index);
-                    evaluation_time_step_weight[time_index]=weight;
+                    uint32_t slice_index=slice_index_from_offset(offset);
+                    full_scan_slice_indices.push_back(slice_index);
+                    evaluation_slice_weight[slice_index]=weight;
                 }
             };
             uint32_t axis0_num=current_tensor_shape[0],axis1_num=current_tensor_shape[1];
             array<uint32_t,4>stratum_sizes{{1,axis0_num-1,axis1_num-1,(axis0_num-1)*(axis1_num-1)}};
             array<uint32_t,4>sample_nums;
             for(uint32_t stratum_id=0;stratum_id<3;stratum_id++)
-                sample_nums[stratum_id]=min<uint32_t>(stratum_sizes[stratum_id],max<uint32_t>(3,((uint64_t)sample_budget*stratum_sizes[stratum_id]+time_step_num-1)/time_step_num));
+                sample_nums[stratum_id]=min<uint32_t>(stratum_sizes[stratum_id],max<uint32_t>(3,((uint64_t)sample_budget*stratum_sizes[stratum_id]+slice_num-1)/slice_num));
             uint32_t allocated_sample_num=sample_nums[0]+sample_nums[1]+sample_nums[2];
             sample_nums[3]=min<uint32_t>(stratum_sizes[3],sample_budget-min(sample_budget,allocated_sample_num));
             add_stratum(0,stratum_sizes[0],sample_nums[0],[&](uint32_t){return 0;});
@@ -302,150 +302,150 @@ namespace unsz
                 double axis1_fraction=(axis1_strata[sample_id]+(double)(random_value(5,sample_id)>>11)*random_scale)/interior_sample_num;
                 uint32_t axis0_position=1+min<uint32_t>(axis0_num-2,(uint32_t)(axis0_fraction*(axis0_num-1)));
                 uint32_t axis1_position=1+min<uint32_t>(axis1_num-2,(uint32_t)(axis1_fraction*(axis1_num-1)));
-                uint32_t time_index=tensor_slice_id(current_tensor_shape,axis0_position,axis1_position);
-                full_scan_time_indices.push_back(time_index);
-                evaluation_time_step_weight[time_index]=interior_weight;
+                uint32_t slice_index=tensor_slice_id(current_tensor_shape,axis0_position,axis1_position);
+                full_scan_slice_indices.push_back(slice_index);
+                evaluation_slice_weight[slice_index]=interior_weight;
             }
-            sort(full_scan_time_indices.begin(),full_scan_time_indices.end());
+            sort(full_scan_slice_indices.begin(),full_scan_slice_indices.end());
         }
         else
         {
-            uint32_t full_scan_time_step_num=min<uint32_t>(time_step_num,32);
-            full_scan_time_indices.reserve(full_scan_time_step_num);
-            for(uint32_t scan_id=0;scan_id<full_scan_time_step_num;scan_id++)
+            uint32_t full_scan_slice_num=min<uint32_t>(slice_num,32);
+            full_scan_slice_indices.reserve(full_scan_slice_num);
+            for(uint32_t scan_id=0;scan_id<full_scan_slice_num;scan_id++)
             {
-                uint32_t time_index=full_scan_time_step_num==1?0:(uint64_t)scan_id*(time_step_num-1)/(full_scan_time_step_num-1);
-                if(full_scan_time_indices.empty()||full_scan_time_indices.back()!=time_index)
-                    full_scan_time_indices.push_back(time_index);
+                uint32_t slice_index=full_scan_slice_num==1?0:(uint64_t)scan_id*(slice_num-1)/(full_scan_slice_num-1);
+                if(full_scan_slice_indices.empty()||full_scan_slice_indices.back()!=slice_index)
+                    full_scan_slice_indices.push_back(slice_index);
             }
-            double weight=(double)time_step_num/full_scan_time_indices.size();
-            for(uint32_t time_index:full_scan_time_indices)
-                evaluation_time_step_weight[time_index]=weight;
+            double weight=(double)slice_num/full_scan_slice_indices.size();
+            for(uint32_t slice_index:full_scan_slice_indices)
+                evaluation_slice_weight[slice_index]=weight;
         }
-        if(full_scan_time_indices.empty())
-            throw runtime_error("自动flow没有生成评估time step");
-        double evaluation_weight_sum=accumulate(evaluation_time_step_weight.begin(),evaluation_time_step_weight.end(),0.0);
-        if(abs(evaluation_weight_sum-time_step_num)>1e-9*max<uint32_t>(1,time_step_num))
-            throw runtime_error("自动flow评估time step权重之和不正确");
-        for(uint32_t time_index:full_scan_time_indices)
-            if(!(evaluation_time_step_weight[time_index]>0))
-                throw runtime_error("自动flow评估time step缺少权重");
-        evaluate_time_step.assign(time_step_num,0);
-        for(uint32_t time_index:full_scan_time_indices)
+        if(full_scan_slice_indices.empty())
+            throw runtime_error("自动pipeline没有生成评估slice");
+        double evaluation_weight_sum=accumulate(evaluation_slice_weight.begin(),evaluation_slice_weight.end(),0.0);
+        if(abs(evaluation_weight_sum-slice_num)>1e-9*max<uint32_t>(1,slice_num))
+            throw runtime_error("自动pipeline评估slice权重之和不正确");
+        for(uint32_t slice_index:full_scan_slice_indices)
+            if(!(evaluation_slice_weight[slice_index]>0))
+                throw runtime_error("自动pipeline评估slice缺少权重");
+        evaluate_slice.assign(slice_num,0);
+        for(uint32_t slice_index:full_scan_slice_indices)
         {
-            if(evaluate_time_step[time_index])
-                throw runtime_error("自动flow重复选择评估time step");
-            evaluate_time_step[time_index]=1;
+            if(evaluate_slice[slice_index])
+                throw runtime_error("自动pipeline重复选择评估slice");
+            evaluate_slice[slice_index]=1;
         }
     }
 
-    // 第3步：列出候选flow。tensor数据枚举各轴的预测方式和顺序。
-    // 其他数据的候选为纯空间、零阶外插（用前一个slice）、anchor8，后两种各有带空间残差和不带的版本。
-    // anchor8先处理0,8,16,...号锚点slice（从前一个锚点外插），再按间距4、2、1逐层在两侧已重建的slice之间线性插值，类似SZ3的分层插值。
-    // 两点集时标签flow跟随数值flow。
+    // 第3步：列出候选pipeline。tensor数据枚举各轴的预测方式和顺序。
+    // 其他数据的候选为independent（每个slice单独做空间预测）、extrapolation（用前一个slice）和anchor_interpolation，后两种各有带空间残差和不带的版本。
+    // anchor_interpolation先处理0,8,16,...号锚点slice（从前一个锚点外插），再按间距4、2、1逐层在两侧已重建的slice之间线性插值，类似SZ3的分层插值。
+    // 两种标签时标签pipeline跟随数值pipeline。
     template<typename T_coord,typename T_data>
-    vector<automatic_flow_candidate_c> param_c<T_coord,T_data>::list_automatic_flow_candidates(automatic_flow_sample_c<T_data,T_calc>&sample)
+    vector<automatic_pipeline_candidate_c> param_c<T_coord,T_data>::list_automatic_pipeline_candidates(automatic_pipeline_sample_c<T_data,T_calc>&sample)
     {
-        auto&time_step_num=sample.time_step_num;
-        auto&two_point_sets=sample.two_point_sets;
-        vector<automatic_flow_candidate_c> candidates;
-        auto add_candidate=[&](const string&candidate_label_flow,const string&candidate_value_flow)
+        auto&slice_num=sample.slice_num;
+        auto&two_labels=sample.two_labels;
+        vector<automatic_pipeline_candidate_c> candidates;
+        auto add_candidate=[&](const string&candidate_label_pipeline,const string&candidate_value_pipeline)
         {
-            automatic_flow_candidate_c candidate;
-            candidate.label_flow=candidate_label_flow;
-            candidate.value_flow=candidate_value_flow;
-            candidate.dependency_plan=&get_temporal_dependency_plan(candidate_value_flow);
-            candidate.label_dependency_plan=&get_temporal_dependency_plan(candidate_label_flow);
-            candidate.use_spatial_residual=candidate_value_flow=="constant_extrapolation_spatial_residual"||candidate_value_flow=="linear_interpolation_spatial_residual"||candidate_value_flow=="anchor_interpolation_stride_8_spatial_residual";
+            automatic_pipeline_candidate_c candidate;
+            candidate.label_pipeline=candidate_label_pipeline;
+            candidate.value_pipeline=candidate_value_pipeline;
+            candidate.slice_dag=&get_slice_dag(candidate_value_pipeline);
+            candidate.label_slice_dag=&get_slice_dag(candidate_label_pipeline);
+            candidate.use_spatial_residual=candidate_value_pipeline=="extrapolation_spatial_residual"||candidate_value_pipeline=="interpolation_spatial_residual"||candidate_value_pipeline=="anchor_interpolation_spatial_residual";
             candidates.push_back(move(candidate));
         };
         if(current_field_uses_tensor)
         {
-            for(const tensor_flow_c&flow:generate_tensor_flow_candidates(current_tensor_shape))
+            for(const tensor_pipeline_c&pipeline:generate_tensor_pipeline_candidates(current_tensor_shape))
             {
-                automatic_flow_candidate_c candidate;
-                candidate.label_flow=tensor_flow_name(flow);
-                candidate.value_flow=candidate.label_flow;
-                candidate.dependency_plan=&get_tensor_dependency_plan(flow);
-                candidate.label_dependency_plan=candidate.dependency_plan;
-                candidate.tensor_flow=flow;
-                candidate.use_spatial_residual=flow.use_spatial_residual;
+                automatic_pipeline_candidate_c candidate;
+                candidate.label_pipeline=tensor_pipeline_name(pipeline);
+                candidate.value_pipeline=candidate.label_pipeline;
+                candidate.slice_dag=&get_tensor_slice_dag(pipeline);
+                candidate.label_slice_dag=candidate.slice_dag;
+                candidate.tensor_pipeline=pipeline;
+                candidate.use_spatial_residual=pipeline.use_spatial_residual;
                 candidates.push_back(move(candidate));
             }
         }
         else
         {
-            add_candidate("none","none");
-            add_candidate(two_point_sets?"constant_extrapolation":"none","constant_extrapolation");
-            add_candidate(two_point_sets?"constant_extrapolation":"none","constant_extrapolation_spatial_residual");
-            bool anchor_compatible=time_step_vec.front()==0;
-            for(uint32_t time_index=1;time_index<time_step_num;time_index++)
-                anchor_compatible&=time_step_vec[time_index]==time_step_vec[time_index-1]+1;
+            add_candidate("independent","independent");
+            add_candidate(two_labels?"extrapolation":"independent","extrapolation");
+            add_candidate(two_labels?"extrapolation":"independent","extrapolation_spatial_residual");
+            bool anchor_compatible=slice_vec.front()==0;
+            for(uint32_t slice_index=1;slice_index<slice_num;slice_index++)
+                anchor_compatible&=slice_vec[slice_index]==slice_vec[slice_index-1]+1;
             if(anchor_compatible)
             {
-                add_candidate(two_point_sets?"anchor_interpolation_stride_8":"none","anchor_interpolation_stride_8");
-                add_candidate(two_point_sets?"anchor_interpolation_stride_8":"none","anchor_interpolation_stride_8_spatial_residual");
+                add_candidate(two_labels?"anchor_interpolation":"independent","anchor_interpolation");
+                add_candidate(two_labels?"anchor_interpolation":"independent","anchor_interpolation_spatial_residual");
             }
         }
         return candidates;
     }
 
-    // 第4步：在每个评估slice上确定数值目标，统计每个structure中两个点集各有多少点（用于把样本估计放大到整个slice）。
-    // 单点集时窗口就是从start开始的quota个连续目标。两点集时要在窗口内找到quota个第一点集目标，窗口宽度取所有评估slice所需宽度的最大值。
+    // 第4步：在每个评估slice上确定数值目标，统计每个structure中两个标签各有多少点（用于把样本估计放大到整个slice）。
+    // 单标签时窗口就是从start开始的quota个连续目标。两种标签时要在窗口内找到quota个标签0目标，窗口宽度取所有评估slice所需宽度的最大值。
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::select_automatic_flow_value_targets(automatic_flow_sample_c<T_data,T_calc>&sample)
+    void param_c<T_coord,T_data>::select_automatic_pipeline_value_targets(automatic_pipeline_sample_c<T_data,T_calc>&sample)
     {
-        auto&time_step_num=sample.time_step_num;
+        auto&slice_num=sample.slice_num;
         auto&structure_num=sample.structure_num;
-        auto&two_point_sets=sample.two_point_sets;
+        auto&two_labels=sample.two_labels;
         auto&structure_windows=sample.structure_windows;
-        auto&full_scan_time_indices=sample.full_scan_time_indices;
-        auto&time_statistics=sample.time_statistics;
+        auto&full_scan_slice_indices=sample.full_scan_slice_indices;
+        auto&slice_statistics=sample.slice_statistics;
         auto&selected_target_indices=sample.selected_target_indices;
         auto&excluded_input_time=sample.excluded_input_time;
         auto&file_statistics_time=sample.file_statistics_time;
         auto&sample_structure_time=sample.sample_structure_time;
-        selected_target_indices.assign(time_step_num,vector<vector<uint32_t>>(structure_num));
-        if(two_point_sets)
+        selected_target_indices.assign(slice_num,vector<vector<uint32_t>>(structure_num));
+        if(two_labels)
             current_data.resize(point_num);
-        for(uint32_t time_index:full_scan_time_indices)
+        for(uint32_t slice_index:full_scan_slice_indices)
         {
-            current_time_step=time_step_vec[time_index];
-            if(two_point_sets)
+            current_slice=slice_vec[slice_index];
+            if(two_labels)
             {
                 auto input_start=chrono::steady_clock::now();
-                read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
+                read_binary_file_exact(original_data_path_vec[slice_index],current_data.data(),point_num);
                 excluded_input_time+=seconds_since(input_start);
                 auto statistics_start_time=chrono::steady_clock::now();
                 compression_file_state_c state;
-                classify_current_point_sets<true,false>(state);
+                classify_current_labels<true,false>(state);
                 file_statistics_time+=seconds_since(statistics_start_time);
             }
             auto sample_structure_start_time=chrono::steady_clock::now();
-            automatic_flow_time_statistics_c<T_data>&statistics=time_statistics[time_index];
-            statistics.point_set_abs_eb=compression_file_point_set_abs_eb_vec[time_index];
-            statistics.point_set_codec=compression_file_point_set_codec_vec[time_index];
-            statistics.structure_point_set_point_num.resize(structure_num);
+            automatic_pipeline_slice_statistics_c<T_data>&statistics=slice_statistics[slice_index];
+            statistics.label_abs_eb=compression_file_label_abs_eb_vec[slice_index];
+            statistics.label_codec=compression_file_label_codec_vec[slice_index];
+            statistics.structure_label_point_num.resize(structure_num);
             for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
             {
                 const vector<int>&target_ids=prediction_structure_vec[structure_id].target_ids;
-                uint32_t first_point_set_num=two_point_sets?0:(uint32_t)target_ids.size();
-                if(two_point_sets)
+                uint32_t first_label_num=two_labels?0:(uint32_t)target_ids.size();
+                if(two_labels)
                     for(int target_id:target_ids)
-                        first_point_set_num+=point_set_id_vec[target_id]==0;
-                statistics.structure_point_set_point_num[structure_id][0]=first_point_set_num;
-                statistics.structure_point_set_point_num[structure_id][1]=(uint32_t)target_ids.size()-first_point_set_num;
-                vector<uint32_t>&value_indices=selected_target_indices[time_index][structure_id];
-                for(automatic_flow_window_c&window:structure_windows[structure_id])
+                        first_label_num+=label_id_vec[target_id]==0;
+                statistics.structure_label_point_num[structure_id][0]=first_label_num;
+                statistics.structure_label_point_num[structure_id][1]=(uint32_t)target_ids.size()-first_label_num;
+                vector<uint32_t>&value_indices=selected_target_indices[slice_index][structure_id];
+                for(automatic_pipeline_window_c&window:structure_windows[structure_id])
                 {
-                    if(!two_point_sets)
+                    if(!two_labels)
                     {
                         window.width=min(window.quota,window.region_end-window.region_begin);
                         for(uint32_t offset=0;offset<window.width;offset++)
                             value_indices.push_back(window.region_begin+(window.start-window.region_begin+offset)%(window.region_end-window.region_begin));
                         continue;
                     }
-                    uint32_t required_width=window.collect_value_candidates(target_ids,point_set_id_vec,value_indices);
+                    uint32_t required_width=window.collect_value_candidates(target_ids,label_id_vec,value_indices);
                     window.width=max(window.width,required_width);
                 }
             }
@@ -453,15 +453,15 @@ namespace unsz
         }
     }
 
-    // 第5步：按最终的公共窗口裁剪每个评估slice的数值目标。标签目标是每个窗口开头的quota个点，不区分点集。
+    // 第5步：按最终的公共窗口裁剪每个评估slice的数值目标。标签目标是每个窗口开头的quota个点，不区分标签。
     // 所有目标及其空间参考点合起来就是要读取数值的样本点，它们按点编号排序后重新编号为样本编号，之后的计算都在样本编号上进行。
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::collect_automatic_flow_sample_targets(automatic_flow_sample_c<T_data,T_calc>&sample)
+    void param_c<T_coord,T_data>::collect_automatic_pipeline_sample_targets(automatic_pipeline_sample_c<T_data,T_calc>&sample)
     {
         auto&structure_num=sample.structure_num;
         auto&structure_windows=sample.structure_windows;
-        auto&full_scan_time_indices=sample.full_scan_time_indices;
-        auto&time_statistics=sample.time_statistics;
+        auto&full_scan_slice_indices=sample.full_scan_slice_indices;
+        auto&slice_statistics=sample.slice_statistics;
         auto&selected_target_indices=sample.selected_target_indices;
         auto&sample_original_ids=sample.sample_original_ids;
         auto&structure_targets=sample.structure_targets;
@@ -478,7 +478,7 @@ namespace unsz
                 return reference_id;
             int64_t local_reference_index=(int64_t)reference_id-structure.prediction_order_offset;
             if(local_reference_index<0||local_reference_index>=(int64_t)structure.target_ids.size())
-                throw runtime_error("自动flow的空间参考点跨越prediction structure");
+                throw runtime_error("自动pipeline的空间参考点跨越prediction structure");
             return structure.target_ids[(uint32_t)local_reference_index];
         };
         structure_targets.resize(structure_num);
@@ -490,10 +490,10 @@ namespace unsz
             const prediction_structure_c<T_calc>&structure=prediction_structure_vec[structure_id];
             vector<uint32_t>&window_target_indices=structure_window_target_indices[structure_id];
             vector<uint32_t>&label_prediction_indices=structure_label_prediction_indices[structure_id];
-            for(uint32_t time_index:full_scan_time_indices)
+            for(uint32_t slice_index:full_scan_slice_indices)
             {
-                vector<uint32_t>&value_indices=selected_target_indices[time_index][structure_id];
-                if(time_statistics[time_index].point_set_codec[0]==point_set_codec_e::constant)
+                vector<uint32_t>&value_indices=selected_target_indices[slice_index][structure_id];
+                if(slice_statistics[slice_index].label_codec[0]==label_codec_e::constant)
                 {
                     vector<uint32_t>().swap(value_indices);
                     continue;
@@ -507,7 +507,7 @@ namespace unsz
                         window_id++;
                         selected_in_window=0;
                     }
-                    const automatic_flow_window_c&window=structure_windows[structure_id][window_id];
+                    const automatic_pipeline_window_c&window=structure_windows[structure_id][window_id];
                     if(!window.contains(prediction_index)||selected_in_window>=window.quota)
                         continue;
                     selected_in_window++;
@@ -518,7 +518,7 @@ namespace unsz
             }
             for(uint32_t window_id=0;window_id<structure_windows[structure_id].size();window_id++)
             {
-                const automatic_flow_window_c&window=structure_windows[structure_id][window_id];
+                const automatic_pipeline_window_c&window=structure_windows[structure_id][window_id];
                 uint32_t region_size=window.region_end-window.region_begin;
                 for(uint32_t offset=0;offset<min(window.quota,region_size);offset++)
                     label_prediction_indices.push_back(window.region_begin+(window.start-window.region_begin+offset)%region_size);
@@ -551,7 +551,7 @@ namespace unsz
         {
             auto iterator=lower_bound(sample_original_ids.begin(),sample_original_ids.end(),original_id);
             if(iterator==sample_original_ids.end()||*iterator!=original_id)
-                throw runtime_error("自动flow采样编号映射不完整");
+                throw runtime_error("自动pipeline采样编号映射不完整");
             return (uint32_t)(iterator-sample_original_ids.begin());
         };
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
@@ -561,14 +561,14 @@ namespace unsz
             uint32_t window_id=0;
             for(uint32_t prediction_index:structure_window_target_indices[structure_id])
             {
-                automatic_flow_sample_target_c<T_calc> target;
+                automatic_pipeline_sample_target_c<T_calc> target;
                 target.prediction_index=prediction_index;
                 target.target_sample_id=find_sample_id((uint32_t)structure.target_ids[prediction_index]);
                 while(window_id+1<structure_windows[structure_id].size()&&prediction_index>=structure_windows[structure_id][window_id].region_end)
                     window_id++;
-                const automatic_flow_window_c&window=structure_windows[structure_id][window_id];
+                const automatic_pipeline_window_c&window=structure_windows[structure_id][window_id];
                 if(prediction_index<window.region_begin||prediction_index>=window.region_end)
-                    throw runtime_error("自动flow采样目标不属于任何采样窗口");
+                    throw runtime_error("自动pipeline采样目标不属于任何采样窗口");
                 target.window_id=window_id;
                 typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,standard_reference_layout);
                 target.reference_sample_ids.reserve(reference_range.num);
@@ -595,23 +595,23 @@ namespace unsz
                 }
             }
             if(label_prediction_position!=label_prediction_indices.size())
-                throw runtime_error("自动flow的label采样目标映射不完整");
+                throw runtime_error("自动pipeline的label采样目标映射不完整");
         }
         sample_structure_time+=seconds_since(sample_structure_start_time);
     }
 
-    // 第6步：确定需要读取样本值的slice，即评估slice加上任一候选flow中评估slice直接参考的slice，再稀疏读取样本点的数值并分类得到标签。
+    // 第6步：确定需要读取样本值的slice，即评估slice加上任一候选pipeline中评估slice直接参考的slice，再稀疏读取样本点的数值并分类得到标签。
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::load_automatic_flow_samples(automatic_flow_sample_c<T_data,T_calc>&sample,const vector<automatic_flow_candidate_c>&candidates)
+    void param_c<T_coord,T_data>::load_automatic_pipeline_samples(automatic_pipeline_sample_c<T_data,T_calc>&sample,const vector<automatic_pipeline_candidate_c>&candidates)
     {
-        auto&time_step_num=sample.time_step_num;
+        auto&slice_num=sample.slice_num;
         auto&structure_num=sample.structure_num;
-        auto&two_point_sets=sample.two_point_sets;
-        auto&full_scan_time_indices=sample.full_scan_time_indices;
-        auto&evaluate_time_step=sample.evaluate_time_step;
-        auto&read_sampled_time_step=sample.read_sampled_time_step;
-        auto&sampled_time_step_num=sample.sampled_time_step_num;
-        auto&time_statistics=sample.time_statistics;
+        auto&two_labels=sample.two_labels;
+        auto&full_scan_slice_indices=sample.full_scan_slice_indices;
+        auto&evaluate_slice=sample.evaluate_slice;
+        auto&read_sampled_slice=sample.read_sampled_slice;
+        auto&sampled_slice_num=sample.sampled_slice_num;
+        auto&slice_statistics=sample.slice_statistics;
         auto&selected_target_indices=sample.selected_target_indices;
         auto&sample_original_ids=sample.sample_original_ids;
         auto&structure_window_target_indices=sample.structure_window_target_indices;
@@ -620,52 +620,52 @@ namespace unsz
         auto&excluded_input_time=sample.excluded_input_time;
         auto&sample_structure_time=sample.sample_structure_time;
         auto&sample_value_preparation_time=sample.sample_value_preparation_time;
-        read_sampled_time_step=evaluate_time_step;
-        for(const automatic_flow_candidate_c&candidate:candidates)
+        read_sampled_slice=evaluate_slice;
+        for(const automatic_pipeline_candidate_c&candidate:candidates)
         {
-            const temporal_dependency_plan_c&label_dependency_plan=*candidate.label_dependency_plan;
-            for(uint32_t time_index:full_scan_time_indices)
+            const slice_dag_c&label_slice_dag=*candidate.label_slice_dag;
+            for(uint32_t slice_index:full_scan_slice_indices)
             {
-                const temporal_dependency_c&value_dependency=candidate.dependency_plan->dependencies[time_index];
-                const temporal_dependency_c&label_dependency=label_dependency_plan.dependencies[time_index];
+                const reference_slices_c&value_dependency=candidate.slice_dag->dependencies[slice_index];
+                const reference_slices_c&label_dependency=label_slice_dag.dependencies[slice_index];
                 for(uint32_t source_id=0;source_id<value_dependency.source_num;source_id++)
-                    read_sampled_time_step[(uint32_t)value_dependency.source_indices[source_id]]=1;
+                    read_sampled_slice[(uint32_t)value_dependency.source_indices[source_id]]=1;
                 for(uint32_t source_id=0;source_id<label_dependency.source_num;source_id++)
-                    read_sampled_time_step[(uint32_t)label_dependency.source_indices[source_id]]=1;
+                    read_sampled_slice[(uint32_t)label_dependency.source_indices[source_id]]=1;
             }
         }
-        sampled_time_step_num=accumulate(read_sampled_time_step.begin(),read_sampled_time_step.end(),0U);
-        sampled_values.resize(time_step_num);
-        sampled_labels.resize(time_step_num);
+        sampled_slice_num=accumulate(read_sampled_slice.begin(),read_sampled_slice.end(),0U);
+        sampled_values.resize(slice_num);
+        sampled_labels.resize(slice_num);
         auto sample_value_start_time=chrono::steady_clock::now();
         double sample_value_input_begin=excluded_input_time;
-        for(uint32_t time_index=0;time_index<time_step_num;time_index++)
+        for(uint32_t slice_index=0;slice_index<slice_num;slice_index++)
         {
-            if(!read_sampled_time_step[time_index])
+            if(!read_sampled_slice[slice_index])
                 continue;
-            sampled_values[time_index]=read_automatic_flow_sample_values<T_data>(original_data_path_vec[time_index],sample_original_ids,point_num,excluded_input_time);
-            sampled_labels[time_index].resize(sample_original_ids.size());
-            if(two_point_sets)
+            sampled_values[slice_index]=read_automatic_pipeline_sample_values<T_data>(original_data_path_vec[slice_index],sample_original_ids,point_num,excluded_input_time);
+            sampled_labels[slice_index].resize(sample_original_ids.size());
+            if(two_labels)
                 for(uint32_t sample_id=0;sample_id<sample_original_ids.size();sample_id++)
-                    sampled_labels[time_index][sample_id]=classify_point_set(sampled_values[time_index][sample_id],sample_original_ids[sample_id],time_step_vec[time_index]);
-            automatic_flow_time_statistics_c<T_data>&statistics=time_statistics[time_index];
-            statistics.point_set_abs_eb=compression_file_point_set_abs_eb_vec[time_index];
-            statistics.point_set_codec=compression_file_point_set_codec_vec[time_index];
+                    sampled_labels[slice_index][sample_id]=classify_label(sampled_values[slice_index][sample_id],sample_original_ids[sample_id],slice_vec[slice_index]);
+            automatic_pipeline_slice_statistics_c<T_data>&statistics=slice_statistics[slice_index];
+            statistics.label_abs_eb=compression_file_label_abs_eb_vec[slice_index];
+            statistics.label_codec=compression_file_label_codec_vec[slice_index];
         }
         sample_value_preparation_time=seconds_since(sample_value_start_time)-(excluded_input_time-sample_value_input_begin);
         auto sample_structure_start_time=chrono::steady_clock::now();
-        for(uint32_t time_index:full_scan_time_indices)
+        for(uint32_t slice_index:full_scan_slice_indices)
         {
             for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
             {
                 const vector<uint32_t>&target_indices=structure_window_target_indices[structure_id];
                 uint32_t target_index=0;
-                for(uint32_t&prediction_index:selected_target_indices[time_index][structure_id])
+                for(uint32_t&prediction_index:selected_target_indices[slice_index][structure_id])
                 {
                     while(target_index<target_indices.size()&&target_indices[target_index]<prediction_index)
                         target_index++;
                     if(target_index==target_indices.size()||target_indices[target_index]!=prediction_index)
-                        throw runtime_error("自动flow的value采样目标映射不完整");
+                        throw runtime_error("自动pipeline的value采样目标映射不完整");
                     prediction_index=target_index;
                 }
             }
@@ -673,45 +673,45 @@ namespace unsz
         sample_structure_time+=seconds_since(sample_structure_start_time);
     }
 
-    // 第7步：估计标签码流。每种标签flow只估一次：有一个参考slice时沿用它的标签，有两个时一致则沿用、不一致则用空间预测，没有时用空间预测。
+    // 第7步：估计标签码流。每种标签pipeline只估一次：有一个参考slice时沿用它的标签，有两个时一致则沿用、不一致则用空间预测，没有时用空间预测。
     // 预测错误数按样本比例放大到整个structure，码流大小取log2(C(n,k))/8字节，再按slice权重求和。
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::estimate_automatic_flow_label_bytes(automatic_flow_sample_c<T_data,T_calc>&sample,const vector<automatic_flow_candidate_c>&candidates)
+    void param_c<T_coord,T_data>::estimate_automatic_pipeline_label_bytes(automatic_pipeline_sample_c<T_data,T_calc>&sample,const vector<automatic_pipeline_candidate_c>&candidates)
     {
         auto&structure_num=sample.structure_num;
-        auto&two_point_sets=sample.two_point_sets;
-        auto&evaluation_time_step_weight=sample.evaluation_time_step_weight;
-        auto&evaluate_time_step=sample.evaluate_time_step;
+        auto&two_labels=sample.two_labels;
+        auto&evaluation_slice_weight=sample.evaluation_slice_weight;
+        auto&evaluate_slice=sample.evaluate_slice;
         auto&structure_targets=sample.structure_targets;
         auto&structure_label_target_indices=sample.structure_label_target_indices;
         auto&sampled_labels=sample.sampled_labels;
-        auto&estimated_label_bytes_by_flow=sample.estimated_label_bytes_by_flow;
+        auto&estimated_label_bytes_by_pipeline=sample.estimated_label_bytes_by_pipeline;
         auto&candidate_evaluation_time=sample.candidate_evaluation_time;
         auto&shared_label_estimation_time=sample.shared_label_estimation_time;
         auto shared_label_start_time=chrono::steady_clock::now();
-        if(!two_point_sets)
-            for(const automatic_flow_candidate_c&candidate:candidates)
-                estimated_label_bytes_by_flow[candidate.label_flow]=0;
-        else for(const automatic_flow_candidate_c&candidate:candidates)
+        if(!two_labels)
+            for(const automatic_pipeline_candidate_c&candidate:candidates)
+                estimated_label_bytes_by_pipeline[candidate.label_pipeline]=0;
+        else for(const automatic_pipeline_candidate_c&candidate:candidates)
         {
-            if(estimated_label_bytes_by_flow.count(candidate.label_flow))
+            if(estimated_label_bytes_by_pipeline.count(candidate.label_pipeline))
                 continue;
-            const temporal_dependency_plan_c&label_dependency_plan=*candidate.label_dependency_plan;
+            const slice_dag_c&label_slice_dag=*candidate.label_slice_dag;
             double estimated_label_bytes=0;
-            for(uint32_t time_index:label_dependency_plan.processing_order)
+            for(uint32_t slice_index:label_slice_dag.processing_order)
             {
-                if(!evaluate_time_step[time_index])
+                if(!evaluate_slice[slice_index])
                     continue;
-                const temporal_dependency_c&dependency=label_dependency_plan.dependencies[time_index];
-                double time_estimated_label_bytes=0;
+                const reference_slices_c&dependency=label_slice_dag.dependencies[slice_index];
+                double slice_estimated_label_bytes=0;
                 for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
                 {
-                    const vector<automatic_flow_sample_target_c<T_calc>>&targets=structure_targets[structure_id];
+                    const vector<automatic_pipeline_sample_target_c<T_calc>>&targets=structure_targets[structure_id];
                     const vector<uint32_t>&label_target_indices=structure_label_target_indices[structure_id];
                     uint64_t label_error_num=0;
                     for(uint32_t target_index:label_target_indices)
                     {
-                        const automatic_flow_sample_target_c<T_calc>&target=targets[target_index];
+                        const automatic_pipeline_sample_target_c<T_calc>&target=targets[target_index];
                         array_view_c<int> reference_ids(target.reference_sample_ids);
                         uint32_t target_sample_id=target.target_sample_id,predicted_label;
                         if(dependency.source_num==1)
@@ -719,66 +719,66 @@ namespace unsz
                         else if(dependency.source_num==2)
                         {
                             uint8_t left_label=sampled_labels[(uint32_t)dependency.source_indices[0]][target_sample_id],right_label=sampled_labels[(uint32_t)dependency.source_indices[1]][target_sample_id];
-                            predicted_label=left_label==right_label?left_label:predict_label(0,reference_ids.size(),target.reference_sample_ids,target.reference_weights,sampled_labels[time_index]);
+                            predicted_label=left_label==right_label?left_label:predict_label(0,reference_ids.size(),target.reference_sample_ids,target.reference_weights,sampled_labels[slice_index]);
                         }
                         else
-                            predicted_label=predict_label(0,reference_ids.size(),target.reference_sample_ids,target.reference_weights,sampled_labels[time_index]);
-                        label_error_num+=predicted_label!=sampled_labels[time_index][target_sample_id];
+                            predicted_label=predict_label(0,reference_ids.size(),target.reference_sample_ids,target.reference_weights,sampled_labels[slice_index]);
+                        label_error_num+=predicted_label!=sampled_labels[slice_index][target_sample_id];
                     }
                     if(!label_target_indices.empty())
                     {
                         uint64_t actual_label_num=prediction_structure_vec[structure_id].target_ids.size();
                         uint64_t estimated_label_errors=(uint64_t)llround((double)label_error_num/label_target_indices.size()*actual_label_num);
                         estimated_label_errors=min<uint64_t>(estimated_label_errors,actual_label_num);
-                        time_estimated_label_bytes+=automatic_flow_log2_combination(actual_label_num,estimated_label_errors)/8;
+                        slice_estimated_label_bytes+=automatic_pipeline_log2_combination(actual_label_num,estimated_label_errors)/8;
                     }
                 }
-                estimated_label_bytes+=time_estimated_label_bytes*evaluation_time_step_weight[time_index];
+                estimated_label_bytes+=slice_estimated_label_bytes*evaluation_slice_weight[slice_index];
             }
-            estimated_label_bytes_by_flow[candidate.label_flow]=estimated_label_bytes;
+            estimated_label_bytes_by_pipeline[candidate.label_pipeline]=estimated_label_bytes;
         }
         shared_label_estimation_time=seconds_since(shared_label_start_time);
         candidate_evaluation_time+=shared_label_estimation_time;
     }
 
-    // 第8步：估计数值码流。按候选flow的处理顺序逐个评估slice，用正式的跨slice预测、空间预测和量化压缩样本目标，量化后的重建值供后续预测使用。
-    // 跨slice预测只用于自身和参考slice都属于第一点集的样本点，其余样本点用空间预测。
+    // 第8步：估计数值码流。按候选pipeline的处理顺序逐个评估slice，用正式的跨slice预测、空间预测和量化压缩样本目标，量化后的重建值供后续预测使用。
+    // 跨slice预测只用于自身和参考slice都属于标签0的样本点，其余样本点用空间预测。
     // 每个structure的量化码真的做一遍Huffman和Zstd。Huffman码表不随点数成比例增长，不放大，其余字节按实际点数/样本数放大，再按slice权重求和。
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::estimate_automatic_flow_value_bytes(automatic_flow_sample_c<T_data,T_calc>&sample,vector<automatic_flow_candidate_c>&candidates)
+    void param_c<T_coord,T_data>::estimate_automatic_pipeline_value_bytes(automatic_pipeline_sample_c<T_data,T_calc>&sample,vector<automatic_pipeline_candidate_c>&candidates)
     {
         auto&structure_num=sample.structure_num;
         auto&decision_eb_scale=sample.decision_eb_scale;
-        auto&evaluation_time_step_weight=sample.evaluation_time_step_weight;
-        auto&evaluate_time_step=sample.evaluate_time_step;
-        auto&time_statistics=sample.time_statistics;
+        auto&evaluation_slice_weight=sample.evaluation_slice_weight;
+        auto&evaluate_slice=sample.evaluate_slice;
+        auto&slice_statistics=sample.slice_statistics;
         auto&selected_target_indices=sample.selected_target_indices;
         auto&sample_original_ids=sample.sample_original_ids;
         auto&structure_targets=sample.structure_targets;
         auto&sampled_values=sample.sampled_values;
         auto&sampled_labels=sample.sampled_labels;
-        auto&estimated_label_bytes_by_flow=sample.estimated_label_bytes_by_flow;
+        auto&estimated_label_bytes_by_pipeline=sample.estimated_label_bytes_by_pipeline;
         auto&candidate_evaluation_time=sample.candidate_evaluation_time;
-        for(automatic_flow_candidate_c&candidate:candidates)
+        for(automatic_pipeline_candidate_c&candidate:candidates)
         {
             auto candidate_start_time=chrono::steady_clock::now();
-            candidate.estimated_label_bytes=estimated_label_bytes_by_flow.at(candidate.label_flow);
+            candidate.estimated_label_bytes=estimated_label_bytes_by_pipeline.at(candidate.label_pipeline);
             vector<vector<T_data>> reconstructed_sampled_values=sampled_values;
             bool use_spatial_residual=candidate.use_spatial_residual;
-            vector<T_data> temporal_baseline(sample_original_ids.size()),temporal_residual(sample_original_ids.size());
-            vector<uint8_t> temporal_valid(sample_original_ids.size());
-            vector<vector<int32_t>> qb_vec(structure_num);
+            vector<T_data> tensor_baseline(sample_original_ids.size()),tensor_residual(sample_original_ids.size());
+            vector<uint8_t> tensor_valid(sample_original_ids.size());
+            vector<vector<int32_t>> quantized_error_vec(structure_num);
             vector<vector<T_data>> unpredictable_value_vec(structure_num);
             for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
-                qb_vec[structure_id].reserve(structure_targets[structure_id].size());
-            for(uint32_t time_index:candidate.dependency_plan->processing_order)
+                quantized_error_vec[structure_id].reserve(structure_targets[structure_id].size());
+            for(uint32_t slice_index:candidate.slice_dag->processing_order)
             {
-                if(!evaluate_time_step[time_index])
+                if(!evaluate_slice[slice_index])
                     continue;
-                point_set_id_vec=sampled_labels[time_index];
-                const temporal_dependency_c&dependency=candidate.dependency_plan->dependencies[time_index];
-                array<T_calc,2> time_weights{{(T_calc)dependency.source_weights[0],(T_calc)dependency.source_weights[1]}};
-                fill(temporal_valid.begin(),temporal_valid.end(),0);
+                label_id_vec=sampled_labels[slice_index];
+                const reference_slices_c&dependency=candidate.slice_dag->dependencies[slice_index];
+                array<T_calc,2> slice_weights{{(T_calc)dependency.source_weights[0],(T_calc)dependency.source_weights[1]}};
+                fill(tensor_valid.begin(),tensor_valid.end(),0);
                 if(dependency.source_num>0)
                 {
                     for(uint32_t sample_id=0;sample_id<sample_original_ids.size();sample_id++)
@@ -787,66 +787,66 @@ namespace unsz
                         T_calc prediction=0;
                         for(uint32_t source_id=0;source_id<dependency.source_num;source_id++)
                         {
-                            uint32_t source_time_index=(uint32_t)dependency.source_indices[source_id];
-                            if(sampled_labels[source_time_index][sample_id]!=0)
+                            uint32_t source_slice_index=(uint32_t)dependency.source_indices[source_id];
+                            if(sampled_labels[source_slice_index][sample_id]!=0)
                             {
                                 valid=false;
                                 break;
                             }
-                            prediction+=time_weights[source_id]*(T_calc)reconstructed_sampled_values[source_time_index][sample_id];
+                            prediction+=slice_weights[source_id]*(T_calc)reconstructed_sampled_values[source_slice_index][sample_id];
                         }
-                        if(valid&&sampled_labels[time_index][sample_id]==0)
+                        if(valid&&sampled_labels[slice_index][sample_id]==0)
                         {
-                            temporal_valid[sample_id]=1;
-                            temporal_baseline[sample_id]=(T_data)prediction;
-                            temporal_residual[sample_id]=reconstructed_sampled_values[time_index][sample_id]-(T_data)prediction;
+                            tensor_valid[sample_id]=1;
+                            tensor_baseline[sample_id]=(T_data)prediction;
+                            tensor_residual[sample_id]=reconstructed_sampled_values[slice_index][sample_id]-(T_data)prediction;
                         }
                     }
                 }
                 for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
                 {
-                    const vector<automatic_flow_sample_target_c<T_calc>>&targets=structure_targets[structure_id];
-                    vector<int32_t>&qbs=qb_vec[structure_id];
+                    const vector<automatic_pipeline_sample_target_c<T_calc>>&targets=structure_targets[structure_id];
+                    vector<int32_t>&quantized_errors=quantized_error_vec[structure_id];
                     vector<T_data>&unpredictable_values=unpredictable_value_vec[structure_id];
-                    qbs.clear();
+                    quantized_errors.clear();
                     unpredictable_values.clear();
-                    for(uint32_t target_index:selected_target_indices[time_index][structure_id])
+                    for(uint32_t target_index:selected_target_indices[slice_index][structure_id])
                     {
-                        const automatic_flow_sample_target_c<T_calc>&target=targets[target_index];
+                        const automatic_pipeline_sample_target_c<T_calc>&target=targets[target_index];
                         array_view_c<int> reference_ids(target.reference_sample_ids);
                         array_view_c<T_calc> reference_weights(target.reference_weights);
                         uint32_t target_sample_id=target.target_sample_id;
                         T_data prediction;
-                        if(temporal_valid[target_sample_id])
+                        if(tensor_valid[target_sample_id])
                         {
-                            prediction=temporal_baseline[target_sample_id];
+                            prediction=tensor_baseline[target_sample_id];
                             if(use_spatial_residual)
                             {
-                                prediction+=predict_value_two_point_sets_rbf(target.has_rbf_weights,reference_ids,reference_weights,temporal_residual,0,&temporal_valid);
+                                prediction+=predict_value_with_labels_rbf(target.has_rbf_weights,reference_ids,reference_weights,tensor_residual,0,&tensor_valid);
                             }
                         }
                         else
-                            prediction=predict_value_two_point_sets_rbf(target.has_rbf_weights,reference_ids,reference_weights,reconstructed_sampled_values[time_index],0);
-                        T_data decision_base_abs_eb=time_statistics[time_index].point_set_abs_eb[0]*(T_data)decision_eb_scale;
+                            prediction=predict_value_with_labels_rbf(target.has_rbf_weights,reference_ids,reference_weights,reconstructed_sampled_values[slice_index],0);
+                        T_data decision_base_abs_eb=slice_statistics[slice_index].label_abs_eb[0]*(T_data)decision_eb_scale;
                         T_data abs_eb=decision_base_abs_eb*prediction_structure_vec[structure_id].eb_multiplier[target.prediction_index];
                         T_data inverse_double_abs_eb=(T_data)0.5/decision_base_abs_eb*prediction_structure_vec[structure_id].inverse_eb_multiplier[target.prediction_index];
                         T_data reconstructed;
-                        qbs.push_back(quantize_or_store_unpredictable(sampled_values[time_index][target_sample_id],prediction,abs_eb,inverse_double_abs_eb,unpredictable_values,reconstructed));
-                        reconstructed_sampled_values[time_index][target_sample_id]=reconstructed;
-                        if(temporal_valid[target_sample_id])
-                            temporal_residual[target_sample_id]=reconstructed-temporal_baseline[target_sample_id];
+                        quantized_errors.push_back(quantize_or_store_unpredictable(sampled_values[slice_index][target_sample_id],prediction,abs_eb,inverse_double_abs_eb,unpredictable_values,reconstructed));
+                        reconstructed_sampled_values[slice_index][target_sample_id]=reconstructed;
+                        if(tensor_valid[target_sample_id])
+                            tensor_residual[target_sample_id]=reconstructed-tensor_baseline[target_sample_id];
                     }
-                    uint32_t actual_value_num=time_statistics[time_index].structure_point_set_point_num[structure_id][0];
-                    if(!qbs.empty()&&time_statistics[time_index].point_set_codec[0]!=point_set_codec_e::constant)
+                    uint32_t actual_value_num=slice_statistics[slice_index].structure_label_point_num[structure_id][0];
+                    if(!quantized_errors.empty()&&slice_statistics[slice_index].label_codec[0]!=label_codec_e::constant)
                     {
                         uint64_t huffman_header_byte_num=0;
-                        vector<unsigned char> huffman_bytes=huffman_encode<int32_t>(qbs,nullptr,nullptr,&huffman_header_byte_num);
+                        vector<unsigned char> huffman_bytes=huffman_encode<int32_t>(quantized_errors,nullptr,nullptr,&huffman_header_byte_num);
                         vector<unsigned char> zstd_bytes=zstd_compress(huffman_bytes,zstd_compression_level);
                         vector<unsigned char> huffman_header(huffman_bytes.begin(),huffman_bytes.begin()+huffman_header_byte_num);
                         vector<unsigned char> zstd_header=zstd_compress(huffman_header,zstd_compression_level);
                         double scalable_zstd_bytes=max<double>(0,(double)zstd_bytes.size()-zstd_header.size());
-                        double scale=(double)actual_value_num/qbs.size();
-                        candidate.estimated_value_bytes+=(zstd_header.size()+(scalable_zstd_bytes+unpredictable_values.size()*sizeof(T_data))*scale)*evaluation_time_step_weight[time_index];
+                        double scale=(double)actual_value_num/quantized_errors.size();
+                        candidate.estimated_value_bytes+=(zstd_header.size()+(scalable_zstd_bytes+unpredictable_values.size()*sizeof(T_data))*scale)*evaluation_slice_weight[slice_index];
                     }
                 }
             }
@@ -856,39 +856,39 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    double param_c<T_coord,T_data>::select_automatic_flows()
+    double param_c<T_coord,T_data>::select_automatic_pipelines()
     {
-        bool automatic_label=label_flow=="auto",automatic_value=value_flow=="auto";
+        bool automatic_label=label_pipeline=="auto",automatic_value=value_pipeline=="auto";
         if(!automatic_label&&!automatic_value)
             return 0;
-        validate_automatic_flow_selection();
-        if(compression_file_point_set_abs_eb_vec.size()!=time_step_vec.size()||compression_file_point_set_codec_vec.size()!=time_step_vec.size())
-            throw runtime_error("自动flow选择缺少逐time step预统计");
+        validate_automatic_pipeline_selection();
+        if(compression_file_label_abs_eb_vec.size()!=slice_vec.size()||compression_file_label_codec_vec.size()!=slice_vec.size())
+            throw runtime_error("自动pipeline选择缺少逐slice预统计");
         auto selection_start_time=chrono::steady_clock::now();
-        automatic_flow_sample_c<T_data,T_calc> sample;
-        sample.time_step_num=(uint32_t)time_step_vec.size();
+        automatic_pipeline_sample_c<T_data,T_calc> sample;
+        sample.slice_num=(uint32_t)slice_vec.size();
         sample.structure_num=(uint32_t)prediction_structure_vec.size();
-        sample.two_point_sets=point_set_config_vec.size()==2;
-        if(point_set_config_vec[0].error_mode!=point_set_error_mode_e::absolute&&point_set_config_vec[0].eb>automatic_flow_max_decision_rel_eb)
-            sample.decision_eb_scale=automatic_flow_max_decision_rel_eb/point_set_config_vec[0].eb;
-        prepare_automatic_flow_windows(sample);
-        choose_automatic_flow_evaluation_slices(sample);
-        vector<automatic_flow_candidate_c> candidates=list_automatic_flow_candidates(sample);
-        select_automatic_flow_value_targets(sample);
-        collect_automatic_flow_sample_targets(sample);
-        load_automatic_flow_samples(sample,candidates);
-        // 下面复用正式压缩的空间预测函数，它们从成员变量读取参考点的点集编号。
-        // 样本的参考点用样本编号表示，所以这里暂时关闭预测顺序编号，并在估计每个slice前把point_set_id_vec换成样本标签，结束后恢复。
+        sample.two_labels=label_config_vec.size()==2;
+        if(label_config_vec[0].error_mode!=label_error_mode_e::absolute&&label_config_vec[0].eb>automatic_pipeline_max_decision_rel_eb)
+            sample.decision_eb_scale=automatic_pipeline_max_decision_rel_eb/label_config_vec[0].eb;
+        prepare_automatic_pipeline_windows(sample);
+        choose_automatic_pipeline_evaluation_slices(sample);
+        vector<automatic_pipeline_candidate_c> candidates=list_automatic_pipeline_candidates(sample);
+        select_automatic_pipeline_value_targets(sample);
+        collect_automatic_pipeline_sample_targets(sample);
+        load_automatic_pipeline_samples(sample,candidates);
+        // 下面复用正式压缩的空间预测函数，它们从成员变量读取参考点的标签编号。
+        // 样本的参考点用样本编号表示，所以这里暂时关闭预测顺序编号，并在估计每个slice前把label_id_vec换成样本标签，结束后恢复。
         bool saved_prediction_order=prediction_data_uses_prediction_order;
         prediction_data_uses_prediction_order=false;
-        estimate_automatic_flow_label_bytes(sample,candidates);
-        estimate_automatic_flow_value_bytes(sample,candidates);
+        estimate_automatic_pipeline_label_bytes(sample,candidates);
+        estimate_automatic_pipeline_value_bytes(sample,candidates);
         prediction_data_uses_prediction_order=saved_prediction_order;
-        auto&time_step_num=sample.time_step_num;
+        auto&slice_num=sample.slice_num;
         auto&structure_num=sample.structure_num;
         auto&decision_eb_scale=sample.decision_eb_scale;
-        auto&full_scan_time_indices=sample.full_scan_time_indices;
-        auto&sampled_time_step_num=sample.sampled_time_step_num;
+        auto&full_scan_slice_indices=sample.full_scan_slice_indices;
+        auto&sampled_slice_num=sample.sampled_slice_num;
         auto&sample_original_ids=sample.sample_original_ids;
         auto&sampled_target_num=sample.sampled_target_num;
         auto&sampled_window_num=sample.sampled_window_num;
@@ -899,33 +899,33 @@ namespace unsz
         auto&candidate_evaluation_time=sample.candidate_evaluation_time;
         auto&shared_label_estimation_time=sample.shared_label_estimation_time;
         // 第9步：选分数最小的候选，并恢复被用作临时空间的成员变量。
-        auto best=min_element(candidates.begin(),candidates.end(),[](const automatic_flow_candidate_c&a,const automatic_flow_candidate_c&b){return a.selection_score()<b.selection_score();});
+        auto best=min_element(candidates.begin(),candidates.end(),[](const automatic_pipeline_candidate_c&a,const automatic_pipeline_candidate_c&b){return a.selection_score()<b.selection_score();});
         if(current_field_uses_tensor)
         {
-            selected_tensor_flow=best->tensor_flow;
-            tensor_flow_selected=true;
+            selected_tensor_pipeline=best->tensor_pipeline;
+            tensor_pipeline_selected=true;
         }
         else
         {
-            label_flow=best->label_flow;
-            value_flow=best->value_flow;
+            label_pipeline=best->label_pipeline;
+            value_pipeline=best->value_pipeline;
         }
         current_data.clear();
-        point_set_id_vec.clear();
+        label_id_vec.clear();
         double selection_time=seconds_since(selection_start_time)-excluded_input_time;
         double other_time=selection_time-file_statistics_time-sample_structure_time-sample_value_preparation_time-candidate_evaluation_time;
-        printf("automatic flow decision EB: configured_mode=%s,configured_eb=%.9g,decision_eb=%.9g\n",point_set_config_vec[0].error_mode==point_set_error_mode_e::relative?"REL":point_set_config_vec[0].error_mode==point_set_error_mode_e::field_relative?"FIELD_REL":"ABS",point_set_config_vec[0].eb,point_set_config_vec[0].eb*decision_eb_scale);
-        printf("automatic flow sampling: full_scan_time_steps=%u,read_time_steps=%u,structures=%u,windows=%llu,target_candidates=%llu,read_points=%llu\n",(uint32_t)full_scan_time_indices.size(),sampled_time_step_num,structure_num,(unsigned long long)sampled_window_num,(unsigned long long)sampled_target_num,(unsigned long long)sample_original_ids.size());
-        double point_time_num=(double)point_num*time_step_num;
-        for(const automatic_flow_candidate_c&candidate:candidates)
-            printf("automatic flow candidate: label=%s,value=%s,estimated_label_bytes=%.3f,estimated_value_bytes=%.3f,estimated_total_bytes=%.3f,selection_score=%.3f,estimated_label_br=%.6f,estimated_value_br=%.6f,evaluation_time=%.6f s\n",candidate.label_flow.c_str(),candidate.value_flow.c_str(),candidate.estimated_label_bytes,candidate.estimated_value_bytes,candidate.estimated_total_bytes(),candidate.selection_score(),candidate.estimated_label_bytes*8/point_time_num,candidate.estimated_value_bytes*8/point_time_num,candidate.evaluation_time);
+        printf("automatic pipeline decision EB: configured_mode=%s,configured_eb=%.9g,decision_eb=%.9g\n",label_config_vec[0].error_mode==label_error_mode_e::relative?"REL":label_config_vec[0].error_mode==label_error_mode_e::field_relative?"FIELD_REL":"ABS",label_config_vec[0].eb,label_config_vec[0].eb*decision_eb_scale);
+        printf("automatic pipeline sampling: full_scan_slices=%u,read_slices=%u,structures=%u,windows=%llu,target_candidates=%llu,read_points=%llu\n",(uint32_t)full_scan_slice_indices.size(),sampled_slice_num,structure_num,(unsigned long long)sampled_window_num,(unsigned long long)sampled_target_num,(unsigned long long)sample_original_ids.size());
+        double point_slice_num=(double)point_num*slice_num;
+        for(const automatic_pipeline_candidate_c&candidate:candidates)
+            printf("automatic pipeline candidate: label=%s,value=%s,estimated_label_bytes=%.3f,estimated_value_bytes=%.3f,estimated_total_bytes=%.3f,selection_score=%.3f,estimated_label_br=%.6f,estimated_value_br=%.6f,evaluation_time=%.6f s\n",candidate.label_pipeline.c_str(),candidate.value_pipeline.c_str(),candidate.estimated_label_bytes,candidate.estimated_value_bytes,candidate.estimated_total_bytes(),candidate.selection_score(),candidate.estimated_label_bytes*8/point_slice_num,candidate.estimated_value_bytes*8/point_slice_num,candidate.evaluation_time);
         if(current_field_uses_tensor)
-            printf("automatic tensor flow selected: %s,selection_score=%.3f\n",tensor_flow_name(selected_tensor_flow).c_str(),best->selection_score());
+            printf("automatic tensor pipeline selected: %s,selection_score=%.3f\n",tensor_pipeline_name(selected_tensor_pipeline).c_str(),best->selection_score());
         else
-            printf("automatic flow selected: label=%s,value=%s,selection_score=%.3f\n",label_flow.c_str(),value_flow.c_str(),best->selection_score());
-        printf("automatic flow selection breakdown: file_statistics=%.6f s,sample_structure=%.6f s,sample_value_preparation=%.6f s,candidate_evaluation=%.6f s,shared_label_estimation=%.6f s,other=%.6f s\n",file_statistics_time,sample_structure_time,sample_value_preparation_time,candidate_evaluation_time,shared_label_estimation_time,other_time);
-        printf("automatic flow selection time excluding data input= %f s\n",selection_time);
-        printf("automatic flow data input time excluded from reported time= %f s\n",excluded_input_time);
+            printf("automatic pipeline selected: label=%s,value=%s,selection_score=%.3f\n",label_pipeline.c_str(),value_pipeline.c_str(),best->selection_score());
+        printf("automatic pipeline selection breakdown: file_statistics=%.6f s,sample_structure=%.6f s,sample_value_preparation=%.6f s,candidate_evaluation=%.6f s,shared_label_estimation=%.6f s,other=%.6f s\n",file_statistics_time,sample_structure_time,sample_value_preparation_time,candidate_evaluation_time,shared_label_estimation_time,other_time);
+        printf("automatic pipeline selection time excluding data input= %f s\n",selection_time);
+        printf("automatic pipeline data input time excluded from reported time= %f s\n",excluded_input_time);
         return selection_time;
     }
 }

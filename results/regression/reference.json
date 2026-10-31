@@ -1,46 +1,47 @@
 {
+ "note": "改名为论文术语后重新生成。码流和解压结果与改名前的参考输出逐字节一致，坐标缩放文件仅文件名和首行标识不同。",
  "binary_sha256": {
-  "s1_compress": "e6a4d68bfdc77a5e0b1dfe89939e5147100d5f5c976f65f972534df9915be968",
-  "s1_decompress": "357aee47c1d95bf0e6cfc51367d6d1c06ca067a265f9d6cc5de048c36aced4b7"
+  "s1_compress": "f7113b74e35b2fa98dfed15d97ba84c1196870ea3016ba93f863848d25afff6e",
+  "s1_decompress": "bd212e0fbaa83df05cac05954f03d047c2f260a22f7372efb6de0dca31b80976"
  },
  "cases": {
   "tpost20": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20",
      "-field",
      "scalar",
-     "-time-step",
+     "-slice",
      "[0,19]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/tpost20",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/tpost20",
      "-M",
      "REL",
      "1e-3"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20",
      "-field",
      "scalar",
-     "-time-step",
+     "-slice",
      "[0,19]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/tpost20",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/tpost20",
      "-M",
      "REL",
      "1e-3"
     ]
    },
-   "compress_seconds": 2.03,
-   "decompress_seconds": 0.84,
+   "compress_seconds": 1.46,
+   "decompress_seconds": 0.98,
    "files": {
     "scalar.dat.0.unsz": "27f67b9564530adf2232cf749e25945c5ab97abaa9f3d7514add135c12139ee5",
     "scalar.dat.0.unsz.bin": "de4ca87667423c89a1ba84b0a9e446fdeb0978815babbff24ee9ae88d3340662",
@@ -82,46 +83,46 @@
     "scalar.dat.8.unsz.bin": "5a2e7f907fdc56408a060e050e1836c530d89a97fdec17427a0d96565686448f",
     "scalar.dat.9.unsz": "df7933bcb60f2c7f14be1fe1778c90a8ec06a62b3147db2c5bfc60526baa7454",
     "scalar.dat.9.unsz.bin": "c0a58abf717f19198a9208d3fda96ad5e5b988a2a7144f4fd689c38d18dae0ae",
-    "scalar.unsz.coord_transform.txt": "2f10540b5383366f55ca989b6342a412ae18109485cd806217ecdfbbf81e47a0"
+    "scalar.unsz.coordinate_rescaling.txt": "eff519f71842b3a021cc036967cc49eb35d617b980d02f665925a35a203e3e6a"
    }
   },
   "tpost20_1e-5": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20",
      "-field",
      "scalar",
-     "-time-step",
+     "-slice",
      "[0,19]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/tpost20_1e-5",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/tpost20_1e-5",
      "-M",
      "REL",
      "1e-5"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20",
      "-field",
      "scalar",
-     "-time-step",
+     "-slice",
      "[0,19]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/tpost20_1e-5",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/tpost20_1e-5",
      "-M",
      "REL",
      "1e-5"
     ]
    },
-   "compress_seconds": 32.28,
-   "decompress_seconds": 1.41,
+   "compress_seconds": 1.12,
+   "decompress_seconds": 0.95,
    "files": {
     "scalar.dat.0.unsz": "1f9e25e47a6abf3e68c0dc162c79cbda99ca76d4372908e34e2f2e5657354a2b",
     "scalar.dat.0.unsz.bin": "bc54423fea23678ff403a1e70a26a50b152aa41129019b99d4f70201654881e2",
@@ -163,18 +164,18 @@
     "scalar.dat.8.unsz.bin": "ca66154ba0930bb99afde8efe1ee101c1e6d92a6abd17c7d364fccf8e011d3a9",
     "scalar.dat.9.unsz": "ca0d4293c5fbddfbd16e08430074f2f5f38184fc92e8eb9e88a2fbf5dd2e81be",
     "scalar.dat.9.unsz.bin": "2eef2f917bf6f1d864f7debe58f6b76136278ca6aa40445e59fc52da1b10811b",
-    "scalar.unsz.coord_transform.txt": "2f10540b5383366f55ca989b6342a412ae18109485cd806217ecdfbbf81e47a0"
+    "scalar.unsz.coordinate_rescaling.txt": "eff519f71842b3a021cc036967cc49eb35d617b980d02f665925a35a203e3e6a"
    }
   },
   "tpost20_p4": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20",
      "-field",
      "scalar",
-     "-time-step",
+     "-slice",
      "[0,19]",
      "-partition-num",
      "4",
@@ -183,18 +184,18 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/tpost20_p4",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/tpost20_p4",
      "-M",
      "REL",
      "1e-3"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20",
      "-field",
      "scalar",
-     "-time-step",
+     "-slice",
      "[0,19]",
      "-partition-num",
      "4",
@@ -203,14 +204,14 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/tpost20_p4",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/tpost20_p4",
      "-M",
      "REL",
      "1e-3"
     ]
    },
-   "compress_seconds": 0.51,
-   "decompress_seconds": 0.48,
+   "compress_seconds": 0.55,
+   "decompress_seconds": 0.5,
    "files": {
     "scalar.dat.0.unsz": "3dcac72b660635ffced9150ac8cf0077d7403a096da4dd94fd88819589cce5fd",
     "scalar.dat.0.unsz.bin": "f2366a0508e4a11e59b12d2ee307ced084fe0796161d41e7b26d73609618b024",
@@ -252,44 +253,44 @@
     "scalar.dat.8.unsz.bin": "301141b2fc3fe7ec1a47590c5ea298d6a475c3d3d1bedd4847db476a22135b3e",
     "scalar.dat.9.unsz": "39024b5d5e8dec8b7239587713f0f6a1b84ed2cc2554af8324b49af4d04ab707",
     "scalar.dat.9.unsz.bin": "fef24cf90564e3d39ab21c2091e84ef1fe8cd39c0b39ba97b517e38211206b27",
-    "scalar.unsz.coord_transform.txt": "2f10540b5383366f55ca989b6342a412ae18109485cd806217ecdfbbf81e47a0"
+    "scalar.unsz.coordinate_rescaling.txt": "eff519f71842b3a021cc036967cc49eb35d617b980d02f665925a35a203e3e6a"
    }
   },
   "katrina": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina",
      "-field",
      "attr0",
-     "-time-step",
+     "-slice",
      "[0,161]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/katrina",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/Katrina_attr0_rbf_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/katrina",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/Katrina_attr0_rbf_rel_1e-3.json"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina",
      "-field",
      "attr0",
-     "-time-step",
+     "-slice",
      "[0,161]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/katrina",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/Katrina_attr0_rbf_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/katrina",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/Katrina_attr0_rbf_rel_1e-3.json"
     ]
    },
-   "compress_seconds": 23.69,
-   "decompress_seconds": 5.75,
+   "compress_seconds": 12.35,
+   "decompress_seconds": 4.74,
    "files": {
     "attr0.dat.0.unsz": "b9151ebbcabaa20281b9a8bd818d8b7e6c7cf5ccde7d91fb9da3c1be1a7b52b6",
     "attr0.dat.0.unsz.bin": "96eb572482165ddf7877feca01b8eef488225916bf7288c6601e8cc945ad9e5d",
@@ -615,18 +616,18 @@
     "attr0.dat.98.unsz.bin": "ce3a8ed9fa49308bb8ec7048f1c1150257b91693f883215d51fb7f80cb72e90a",
     "attr0.dat.99.unsz": "07568debb130c83c112888b2c3134d2751dbdbfe9a4f99987cac0b286bafa6e1",
     "attr0.dat.99.unsz.bin": "d4d52ce801ee05ef4206711c4ef83640c090ec0487fcb1b47eb284a5782f1148",
-    "attr0.unsz.coord_transform.txt": "3ac0c6a8eef719ad8d39d8ada9319f23b03df364a861096ef94803663626f266"
+    "attr0.unsz.coordinate_rescaling.txt": "2e71c9b6430e819dfe737ad7dc246997008013f023953635fef80ed039867dfb"
    }
   },
   "katrina_p4": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina",
      "-field",
      "attr0",
-     "-time-step",
+     "-slice",
      "[0,161]",
      "-partition-num",
      "4",
@@ -635,17 +636,17 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/katrina_p4",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/Katrina_attr0_rbf_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/katrina_p4",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/Katrina_attr0_rbf_rel_1e-3.json"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina",
      "-field",
      "attr0",
-     "-time-step",
+     "-slice",
      "[0,161]",
      "-partition-num",
      "4",
@@ -654,13 +655,13 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/katrina_p4",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/Katrina_attr0_rbf_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/katrina_p4",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/Katrina_attr0_rbf_rel_1e-3.json"
     ]
    },
-   "compress_seconds": 9.04,
-   "decompress_seconds": 9.53,
+   "compress_seconds": 6.17,
+   "decompress_seconds": 4.03,
    "files": {
     "attr0.dat.0.unsz": "a6592ad81cf8d7f077a7d99a444dca3f3de32a88c4b1c29e0e3b937620f59018",
     "attr0.dat.0.unsz.bin": "dfbd58dd5e6968df60678011c3a7d690db6031ca8bb3024628f29d3437552ff4",
@@ -986,44 +987,44 @@
     "attr0.dat.98.unsz.bin": "cbff29543ee4bec45b0c1fbf40bfaa754b0c9615789b4b11c26b3ae7764b6551",
     "attr0.dat.99.unsz": "04a98a41974ce60fca58f05d431b6c6f70aa072afcd333f004b825d5277b5b49",
     "attr0.dat.99.unsz.bin": "e42f1b67a5d4b31ca2d9c03127a68e61a887587e090c2a59653241b03e32d201",
-    "attr0.unsz.coord_transform.txt": "3ac0c6a8eef719ad8d39d8ada9319f23b03df364a861096ef94803663626f266"
+    "attr0.unsz.coordinate_rescaling.txt": "2e71c9b6430e819dfe737ad7dc246997008013f023953635fef80ed039867dfb"
    }
   },
   "e3sm_aoddust": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h4",
      "-field",
      "AODDUST",
-     "-time-step",
+     "-slice",
      "[0,719]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/e3sm_aoddust",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/e3sm_aoddust",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h4",
      "-field",
      "AODDUST",
-     "-time-step",
+     "-slice",
      "[0,719]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/e3sm_aoddust",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/e3sm_aoddust",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json"
     ]
    },
-   "compress_seconds": 48.91,
-   "decompress_seconds": 19.95,
+   "compress_seconds": 20.94,
+   "decompress_seconds": 3.6,
    "files": {
     "AODDUST.dat.0.unsz": "fae6ee7eceb6574337b2836da39faa7a1d875194aa092591544993bc51a09c77",
     "AODDUST.dat.0.unsz.bin": "087070a24a20d9ffc600ee561cbcd3dfa6b8136117e67f805616b2c321b0d764",
@@ -2465,46 +2466,46 @@
     "AODDUST.dat.98.unsz.bin": "9444cb576fb9e9f1065f72b9e9e931871f7c95b5fd7471956b0e457c6c5c8e3f",
     "AODDUST.dat.99.unsz": "533b39c4fbbdf6dfea47c30c7f8b744cdc737d6177f823f0c2ff1af4c24f1fb9",
     "AODDUST.dat.99.unsz.bin": "df836b1de56eceddbdceb1db4e188571b56f249178c79f339d997aae4b95dd16",
-    "AODDUST.unsz.coord_transform.txt": "908aa0e617c3e9d19467c4b1bfd6425c1afee6675d3002e8dd88adda85923e8b"
+    "AODDUST.unsz.coordinate_rescaling.txt": "c84455c27546756531d058f3c6a7f035de0277619bc1466fbaf5ba2499edab26"
    }
   },
   "e3sm_mass_dst_srf": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h4",
      "-field",
      "Mass_dst_srf",
-     "-time-step",
+     "-slice",
      "[0,719]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/e3sm_mass_dst_srf",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/e3sm_mass_dst_srf",
      "-M",
      "REL",
      "1e-3"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h4",
      "-field",
      "Mass_dst_srf",
-     "-time-step",
+     "-slice",
      "[0,719]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/e3sm_mass_dst_srf",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/e3sm_mass_dst_srf",
      "-M",
      "REL",
      "1e-3"
     ]
    },
-   "compress_seconds": 35.49,
-   "decompress_seconds": 1.86,
+   "compress_seconds": 27.36,
+   "decompress_seconds": 14.11,
    "files": {
     "Mass_dst_srf.dat.0.unsz": "c74e6e14fea9e3ff880a4271e2012559f8a4cb87753b00166dce578fa108e9be",
     "Mass_dst_srf.dat.0.unsz.bin": "3a1ccce8baa0f40a240a3ca69fd520a5ef062946848a8477b9b7909cc1d761fe",
@@ -3946,46 +3947,46 @@
     "Mass_dst_srf.dat.98.unsz.bin": "3f7960d32f8cc2458fbde5667d745f2e6315165ae8698730480fc0ed09819a6a",
     "Mass_dst_srf.dat.99.unsz": "ab16ed9aabc8b14d6e0e29fe3e5164d8e392716fb794872b1c352826cc20b57f",
     "Mass_dst_srf.dat.99.unsz.bin": "2b70d3a23beaf42ae3a13a963438c18041127b27526451360eb7409dc720774c",
-    "Mass_dst_srf.unsz.coord_transform.txt": "908aa0e617c3e9d19467c4b1bfd6425c1afee6675d3002e8dd88adda85923e8b"
+    "Mass_dst_srf.unsz.coordinate_rescaling.txt": "c84455c27546756531d058f3c6a7f035de0277619bc1466fbaf5ba2499edab26"
    }
   },
   "ocean_salinity": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean",
      "-field",
      "salinity",
-     "-time-step",
+     "-slice",
      "[0,30]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/ocean_salinity",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/ocean_salinity",
      "-M",
      "REL",
      "1e-3"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean",
      "-field",
      "salinity",
-     "-time-step",
+     "-slice",
      "[0,30]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/ocean_salinity",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/ocean_salinity",
      "-M",
      "REL",
      "1e-3"
     ]
    },
-   "compress_seconds": 3.07,
-   "decompress_seconds": 1.32,
+   "compress_seconds": 2.86,
+   "decompress_seconds": 1.26,
    "files": {
     "salinity.dat.0.unsz": "81df4988f6014788c7753c1f9e2772ea810ae28220d392800be7e56071102dbe",
     "salinity.dat.0.unsz.bin": "d2c22351175d3661b25c926cab792c45dac4fb0f9a3c1f0b5b4267469512c576",
@@ -4049,46 +4050,46 @@
     "salinity.dat.8.unsz.bin": "57c8b27c513e63f86e64dafd01ccf66d3e82bcf808d8e34fc3e85f80e997cf70",
     "salinity.dat.9.unsz": "e49e86a0d03b3dcdc10bf89b7cfa0701fd615891edf65c619c1d30e55972fdd6",
     "salinity.dat.9.unsz.bin": "bcf2ba63378fec0b23e4b4e60562ee7f2d19d2e81dffa43961dc64b5b0f5d32c",
-    "salinity.unsz.coord_transform.txt": "d5f0da8e88a4cb4afd1dad114c2159b6504205a381130d14136cba7bbdc0209b"
+    "salinity.unsz.coordinate_rescaling.txt": "0cce31f2314082a8e1267481def9d8ab92e1abc75636c787fd24b13188a95621"
    }
   },
   "ocean_velocity_fields": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean",
      "-field-list",
      "{velocityMeridional,velocityX,velocityY,velocityZ,velocityZonal,zTop}",
-     "-time-step",
+     "-slice",
      "[0,30]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/ocean_velocity_fields",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/ocean_velocity_fields",
      "-M",
      "REL",
      "1e-3"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean",
      "-field-list",
      "{velocityMeridional,velocityX,velocityY,velocityZ,velocityZonal,zTop}",
-     "-time-step",
+     "-slice",
      "[0,30]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/ocean_velocity_fields",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/ocean_velocity_fields",
      "-M",
      "REL",
      "1e-3"
     ]
    },
-   "compress_seconds": 10.63,
-   "decompress_seconds": 1.98,
+   "compress_seconds": 9.11,
+   "decompress_seconds": 3.09,
    "files": {
     "velocityMeridional.dat.0.unsz": "98f7450ea78ce82d72395a06caf29c1f39bd1c977a1bf4ec1aff24374dbbd413",
     "velocityMeridional.dat.0.unsz.bin": "f7e07422c5cf08623dd21064b191d8f65372aceb1d5a68f233b54d9cd9ac800e",
@@ -4152,7 +4153,7 @@
     "velocityMeridional.dat.8.unsz.bin": "6976f9494aa046e66c3338cb69141f48ac5194d13dbb40ea9b3a0a32fa357e92",
     "velocityMeridional.dat.9.unsz": "3ade03331f11aefa2e9d46d58f397466905b78b21457a7589a85f7af3474d166",
     "velocityMeridional.dat.9.unsz.bin": "bfb39cf0ef85a330c89a9aee6ad10149851eb7fdba6148e8cced0f09e3756a14",
-    "velocityMeridional.unsz.coord_transform.txt": "9c924cb38364fb7fd35534551c89e2704de7567588aefbea2939661b7fca9ad2",
+    "velocityMeridional.unsz.coordinate_rescaling.txt": "7fc0f7bca54cb9fc5d9e8554d936cb2b992357f3d2bbea398f52e3e6253c4520",
     "velocityX.dat.0.unsz": "e400a7ddd4f8f7674c398d6323c29c4cb32cf1136dbf809ab927112a1cd70251",
     "velocityX.dat.0.unsz.bin": "2b3a27a886ac1728d273a835668b37bb3a0d7c35f7e7775b22cfb8a4373394b6",
     "velocityX.dat.1.unsz": "af268425366d52aef2b55456d786af0a7ebe2baba31c15bf88df3568d8306b2c",
@@ -4215,7 +4216,7 @@
     "velocityX.dat.8.unsz.bin": "e9304cab81e2c539a91628dbd482d81237792715337db5e2812240f6e291532a",
     "velocityX.dat.9.unsz": "985f1ca654cebe27fdf240291ac4e5e9ed73e7980bac9598ea50ed7a192e0ca6",
     "velocityX.dat.9.unsz.bin": "081ff6a51e14445e9baa06ffc536e5bb5e4b7cfd29956e99889bab57ae9d32dc",
-    "velocityX.unsz.coord_transform.txt": "c13585f327f913e9a03fc35ea5aae8e36e6ce0dd4d40a4106a256415b0d5fe97",
+    "velocityX.unsz.coordinate_rescaling.txt": "2cef26f81eca20cf5ad2443113da4cf1653543845b5639c3e8cdf69e52166eef",
     "velocityY.dat.0.unsz": "0ea943881caac5b747fa6c7983a2e2c5239230e5dcb700719a9f9539ba4aa448",
     "velocityY.dat.0.unsz.bin": "37cab169bdf34f4f53036d980fcbfba88b51e627e8d1263f4f2939bc71a872b4",
     "velocityY.dat.1.unsz": "57aa46525dcc7daf8fd5b68e11715c07055e4f0f3d722a863c7c52c21de4c4bb",
@@ -4278,7 +4279,7 @@
     "velocityY.dat.8.unsz.bin": "ad05b94c5214c79de9c437d0bc34f1327746c7ec6c3fab2096c29c149c635d59",
     "velocityY.dat.9.unsz": "d2bfefe1a64e01dbee7e18206e1dff388ce24f2fdd068647f38937dcc5cb23c0",
     "velocityY.dat.9.unsz.bin": "43fe1a47a77f4648b346cf2cd9c38509c62b00100619891d6b6a09bd3b6df1a0",
-    "velocityY.unsz.coord_transform.txt": "40107692f84dd49b48d5ee85ba47a631a92a19eb0d6c56359660b57483d4e47a",
+    "velocityY.unsz.coordinate_rescaling.txt": "d785c95bb158b1cbc71861962a950cbdc582e729cc4303f83d40b0ed9dfb1ccb",
     "velocityZ.dat.0.unsz": "7871dcf2c2f837100f364027cf02a5ae30279a65f593a4bb6d0f3043758c698d",
     "velocityZ.dat.0.unsz.bin": "9cf7ceae02af0ceb9d55ee5750614e8f447540e69bb9fc19229d5cd958cfac88",
     "velocityZ.dat.1.unsz": "ff6b0725616d13d858a811d4348effb05e90602b8f69f26b2a7ba6e624ddf988",
@@ -4341,7 +4342,7 @@
     "velocityZ.dat.8.unsz.bin": "dcbf87d20b5a4f694e0c2ab959cad338d0457c41e61b2f4058760b723df329d0",
     "velocityZ.dat.9.unsz": "8212042bbf0f693d5b59249c50ef937823a3f5d09f60cdf2ada8e1861af1ce4e",
     "velocityZ.dat.9.unsz.bin": "7210afddac3ea0989c349ae36b30acfe3cb9e63c076573797bf059255cd6c6c2",
-    "velocityZ.unsz.coord_transform.txt": "b3dabfb7106c4d053ac6ad2b8cebcf0c325c0871fe347526af1b0d5d9567ba6d",
+    "velocityZ.unsz.coordinate_rescaling.txt": "e6bb15f43cceb5ec722f75b193753cba98fa4c81a2e8103cf5b584d4727861ac",
     "velocityZonal.dat.0.unsz": "962d30a1f68795c707d798b2c9d32a055d49581ef08cb1a7c3325242a0dbf6b5",
     "velocityZonal.dat.0.unsz.bin": "a20adaee02a6d9246433bb3306deb76eb8b16ffc74404ded6dc8494fcd7da6c5",
     "velocityZonal.dat.1.unsz": "81f7893efbff060f6a1b622a04a56d41a7a0e404075ff8adb69d0e545862bf25",
@@ -4404,7 +4405,7 @@
     "velocityZonal.dat.8.unsz.bin": "cfa8249fc34407a25685f27319f14e57f53a8e12a78c936f734a9866d1f93828",
     "velocityZonal.dat.9.unsz": "43981cb7eecb99baa787de37b51fe15eb53565fa785d163496091ee64dbac3f7",
     "velocityZonal.dat.9.unsz.bin": "e9ad95a00e4a9f7925672e033a60c712d318a496ba2a00618523e81de1362819",
-    "velocityZonal.unsz.coord_transform.txt": "b2e6d6bb653af17b6fc5443ca2355a27c03a818d74c40579ee4e6bc45a7722a5",
+    "velocityZonal.unsz.coordinate_rescaling.txt": "df4521ea630678a84b2a3665b17227bcab85da8821ed9486ff558b039c26c873",
     "zTop.dat.0.unsz": "4d0c49b647cc4b30e960309014aea422d04527203995d6b29284e7aa0f989ab3",
     "zTop.dat.0.unsz.bin": "84d3780cfb975a37f387b1f897204dbe8c4a976013ca48f5aaa90c29287b5871",
     "zTop.dat.1.unsz": "9e007143be3f8c5f3320a6cb3c6b92675318c1a3b4e769e6ea26892bcc4a3b90",
@@ -4467,61 +4468,61 @@
     "zTop.dat.8.unsz.bin": "4ad5e1181c71555bff8ccc98de61d925b69a53a7b24f20042c2993fd594e5abe",
     "zTop.dat.9.unsz": "1af9c325907bf923c6b225dbe42fed6ec3d4cfdb45b6be1a258cc5f520360449",
     "zTop.dat.9.unsz.bin": "42675ba757009705a412826a6d002e7bc17ebe18f5248c0207e900025a44fa2b",
-    "zTop.unsz.coord_transform.txt": "9e17743dc83df4844913e5a2e1a129031130862ec0e30784a68c60819ad63e9d"
+    "zTop.unsz.coordinate_rescaling.txt": "b99bfcd9449486d5bf041a2a262e84bd3255e2a8b8bac3044fffbfee7339aaea"
    }
   },
   "haiyan_depth": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/ADCIRC-Haiyan-1.5km",
      "-field",
      "depth",
-     "-time-step",
+     "-slice",
      "[0,0]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/haiyan_depth",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/haiyan_depth",
      "-M",
      "REL",
      "1e-3"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/ADCIRC-Haiyan-1.5km",
      "-field",
      "depth",
-     "-time-step",
+     "-slice",
      "[0,0]",
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/haiyan_depth",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/haiyan_depth",
      "-M",
      "REL",
      "1e-3"
     ]
    },
-   "compress_seconds": 10.28,
-   "decompress_seconds": 10.06,
+   "compress_seconds": 10.42,
+   "decompress_seconds": 10.22,
    "files": {
     "depth.dat.0.unsz": "5647c6d1b14068f731b02d9fe292d20d876deb9a6ec351511db70b915ce4661a",
     "depth.dat.0.unsz.bin": "fe893f2c9b82a0d490b0783f1bc9ba937a76047863dfa54b73d47e83b41c59a0",
-    "depth.unsz.coord_transform.txt": "908aa0e617c3e9d19467c4b1bfd6425c1afee6675d3002e8dd88adda85923e8b"
+    "depth.unsz.coordinate_rescaling.txt": "c84455c27546756531d058f3c6a7f035de0277619bc1466fbaf5ba2499edab26"
    }
   },
   "haiyan_zeta": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/ADCIRC-Haiyan-1.5km",
      "-field",
      "zeta",
-     "-time-step",
+     "-slice",
      "[0,23]",
      "-partition-num",
      "8",
@@ -4530,17 +4531,17 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/haiyan_zeta",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/haiyan_zeta",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-3.json"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/ADCIRC-Haiyan-1.5km",
      "-field",
      "zeta",
-     "-time-step",
+     "-slice",
      "[0,23]",
      "-partition-num",
      "8",
@@ -4549,13 +4550,13 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/haiyan_zeta",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/haiyan_zeta",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-3.json"
     ]
    },
-   "compress_seconds": 11.02,
-   "decompress_seconds": 8.34,
+   "compress_seconds": 10.03,
+   "decompress_seconds": 8.08,
    "files": {
     "zeta.dat.0.unsz": "fc17d957a3118da934ccbaee6922a6388c8917fe8b5027516e78322aa274e27f",
     "zeta.dat.0.unsz.bin": "6f3726c939441d9ce2b4119336d3aafe0b3ef27c2a801367762509296e93d470",
@@ -4605,18 +4606,18 @@
     "zeta.dat.8.unsz.bin": "9add2ff75a556bb611c92acddd45fa5f5a3ea0f42a0d0677705cde47c69d9f91",
     "zeta.dat.9.unsz": "2d8cb6b3007ef6aa7245ed38967a55201584e02395be2e252a084186a655ed9c",
     "zeta.dat.9.unsz.bin": "4090416b5ade439839584ad1b6a56b17fb31051a6349a7c4851a4f44812b5f07",
-    "zeta.unsz.coord_transform.txt": "908aa0e617c3e9d19467c4b1bfd6425c1afee6675d3002e8dd88adda85923e8b"
+    "zeta.unsz.coordinate_rescaling.txt": "c84455c27546756531d058f3c6a7f035de0277619bc1466fbaf5ba2499edab26"
    }
   },
   "les_velocity_x_p16": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/LES",
      "-field",
      "velocity_x",
-     "-time-step",
+     "-slice",
      "[0,0]",
      "-partition-num",
      "16",
@@ -4625,18 +4626,18 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/les_velocity_x_p16",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/les_velocity_x_p16",
      "-M",
      "REL",
      "1e-3"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/LES",
      "-field",
      "velocity_x",
-     "-time-step",
+     "-slice",
      "[0,0]",
      "-partition-num",
      "16",
@@ -4645,29 +4646,29 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/les_velocity_x_p16",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/les_velocity_x_p16",
      "-M",
      "REL",
      "1e-3"
     ]
    },
-   "compress_seconds": 59.3,
-   "decompress_seconds": 54.57,
+   "compress_seconds": 61.42,
+   "decompress_seconds": 59.6,
    "files": {
     "velocity_x.dat.0.unsz": "9455288a412c2a2d09f54cdf4f47b1324c4121665ead9714f424109e4618c3b2",
     "velocity_x.dat.0.unsz.bin": "8440bc9a8a167d42bfdfc1de1bdd45b016992c321fc247a02c43715b8c9c95a9",
-    "velocity_x.unsz.coord_transform.txt": "7ec0d31e4b624384d1512e1d4826dbbc1021405658a37fe9d60385ad8914f8ce"
+    "velocity_x.unsz.coordinate_rescaling.txt": "c9dfdcb2e06d237eb1ce294071e2b2dca67f69243545ba2771aba38d2ce3752d"
    }
   },
   "taps_temperature_p16": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
      "-field",
      "TEMPERATURE",
-     "-time-step",
+     "-slice",
      "[0,0]",
      "-partition-num",
      "16",
@@ -4676,18 +4677,18 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/taps_temperature_p16",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/taps_temperature_p16",
      "-M",
      "REL",
      "1e-3"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
      "-field",
      "TEMPERATURE",
-     "-time-step",
+     "-slice",
      "[0,0]",
      "-partition-num",
      "16",
@@ -4696,24 +4697,24 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/taps_temperature_p16",
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/taps_temperature_p16",
      "-M",
      "REL",
      "1e-3"
     ]
    },
-   "compress_seconds": 60.63,
-   "decompress_seconds": 56.9,
+   "compress_seconds": 60.92,
+   "decompress_seconds": 58.32,
    "files": {
     "TEMPERATURE.dat.0.unsz": "c7b74142dc0c1f7306ed57ec12fcc989f857f3aa3089af1209e8abcd8b20c473",
     "TEMPERATURE.dat.0.unsz.bin": "9499ca51ee7769b4fb6aab826f3a1ab2ff9149883877b15d49c069462ea8ae4c",
-    "TEMPERATURE.unsz.coord_transform.txt": "c811b9d4eed7d2bc50d7c478b2f0304dc64eb645476b5ec08891f5b7097b7a02"
+    "TEMPERATURE.unsz.coordinate_rescaling.txt": "7678cae2f800cab7ab98f6341de434eb5e14c2ad240a97b4fde13feec514423b"
    }
   },
   "ocean_large_slice": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/regression_subset_50k",
      "-field-list",
@@ -4727,12 +4728,12 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/ocean_large_slice",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/Ocean_large_monthly_rbf_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/ocean_large_slice",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/Ocean_large_monthly_rbf_rel_1e-3.json"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/regression_subset_50k",
      "-field-list",
@@ -4746,13 +4747,13 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/ocean_large_slice",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/Ocean_large_monthly_rbf_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/ocean_large_slice",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/Ocean_large_monthly_rbf_rel_1e-3.json"
     ]
    },
-   "compress_seconds": 268.49,
-   "decompress_seconds": 169.18,
+   "compress_seconds": 82.79,
+   "decompress_seconds": 44.12,
    "files": {
     "timeMonthly_avg_ssh.dat.0.unsz": "c6b9f6fa51691c8cfb919d19f2eff61061b7fff1e06759a12c98e995050e3eb0",
     "timeMonthly_avg_ssh.dat.0.unsz.bin": "c517323950928ae1de5f88ebde4df249b0e4ae9e5f43ec076af46934a4e1f809",
@@ -4778,7 +4779,7 @@
     "timeMonthly_avg_ssh.dat.8.unsz.bin": "ff78fe5e3b169a2721f9b75920a96dc6e392928b1bcf92bb8b48c3e124487215",
     "timeMonthly_avg_ssh.dat.9.unsz": "5cc321d4992c4aab8251b28526c6fc773d23957726418477d3f2e5955887512f",
     "timeMonthly_avg_ssh.dat.9.unsz.bin": "f1bc59991ae19233ec25cca7c0defd4463df4f13e19776f62de1efc26fde4f2b",
-    "timeMonthly_avg_ssh.unsz.coord_transform.txt": "3dff1f75e73e33d6860870dc90d4a643df93b2e19fe4eb990f1c0b5a69b75d82",
+    "timeMonthly_avg_ssh.unsz.coordinate_rescaling.txt": "652973a77be64790e8d1b43e2359fe477a6bb15403aa9abbdc455f9cb1bf0386",
     "timeMonthly_avg_velocityMeridional.dat.0.unsz": "19b1dc0bf632082e3765b97b0c8d1c4616ac8dcba84e1c7de363d02cbc99b00d",
     "timeMonthly_avg_velocityMeridional.dat.0.unsz.bin": "f3850fdb4e05dccb4194e144d3bd8cc9e3b2dd214797a83cbcdd2d2d88dad50c",
     "timeMonthly_avg_velocityMeridional.dat.1.unsz": "d9776337ba15a4c2ba07342ade8312ebfbeeb6bbce05232e32067d1933dd9355",
@@ -6699,7 +6700,7 @@
     "timeMonthly_avg_velocityMeridional.dat.98.unsz.bin": "0703d554953465d0a76dc13d8dd0dd95aa91edafec82b0350ec82ac29b89b727",
     "timeMonthly_avg_velocityMeridional.dat.99.unsz": "69a3edb9624549dc760d804722def580d0836b5bb05596f0969afc7d17816437",
     "timeMonthly_avg_velocityMeridional.dat.99.unsz.bin": "743216b1a5b87e4e49dc2669db70ec5b2e15b2edc7c9754114c3cad2f7ecde05",
-    "timeMonthly_avg_velocityMeridional.unsz.coord_transform.txt": "3f7cdcfecca2f0755e8cf3c2c0937c1e8b513c0110cc0810937907a8d70fc8c7",
+    "timeMonthly_avg_velocityMeridional.unsz.coordinate_rescaling.txt": "e3c2dbc7c76da9e8972d2d2097cb9552cdbe90f94079726a36f93f54612e76df",
     "timeMonthly_avg_vertVelocityTop.dat.0.unsz": "d1b10489bd3b03bd71448b1190225797bb312a03ee448f1afc8df3cac739e3eb",
     "timeMonthly_avg_vertVelocityTop.dat.0.unsz.bin": "aac921212bd1df81dd1e615b74f4b8ef283d859d1dfc5328a074422d6caec086",
     "timeMonthly_avg_vertVelocityTop.dat.1.unsz": "9facd63643de7fbcc497d1443edc90eb977bb772228e6971a823e4b96ca4bcf1",
@@ -8644,13 +8645,13 @@
     "timeMonthly_avg_vertVelocityTop.dat.98.unsz.bin": "7fa7150ebee977d10c50e9176f98832c0655fd067b1bcbf937a931954e82f6a7",
     "timeMonthly_avg_vertVelocityTop.dat.99.unsz": "70345e16dca3d5d1b045304b026812c132dbcfc2f958b4dff0ad61fdd4a2f1d8",
     "timeMonthly_avg_vertVelocityTop.dat.99.unsz.bin": "d3a97464c3faa4b737d066ebbad9b8b15b8533a58049c4b35d8a36ee5f98916d",
-    "timeMonthly_avg_vertVelocityTop.unsz.coord_transform.txt": "28d116bc70deba08cd02ad132682a5001b1eeb6cca48e5ec37413beefd6f3333"
+    "timeMonthly_avg_vertVelocityTop.unsz.coordinate_rescaling.txt": "c0b9b8467763b3443bf09e484b2e6a0866249672e4cd267d34075098ffb17db9"
    }
   },
   "ocean_large_field_workers": {
    "commands": {
     "compress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_compress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_compress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/regression_subset_50k",
      "-field-list",
@@ -8668,12 +8669,12 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/ocean_large_field_workers",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/Ocean_large_monthly_rbf_field_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/ocean_large_field_workers",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/Ocean_large_monthly_rbf_field_rel_1e-3.json"
     ],
     "decompress": [
-     "/home/x-zjian1/unsz/build/regression_ref/install/bin/s1_decompress",
+     "/home/x-zjian1/unsz/build/regression_new/install/bin/s1_decompress",
      "-data-dir",
      "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/regression_subset_50k",
      "-field-list",
@@ -8691,13 +8692,13 @@
      "-coordinate-dim",
      "3",
      "-output-dir",
-     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/reference/ocean_large_field_workers",
-     "-point-set-config",
-     "/home/x-zjian1/unsz/point_set_configs/Ocean_large_monthly_rbf_field_rel_1e-3.json"
+     "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/regression_work/candidate/ocean_large_field_workers",
+     "-label-config",
+     "/home/x-zjian1/unsz/label_configs/Ocean_large_monthly_rbf_field_rel_1e-3.json"
     ]
    },
-   "compress_seconds": 158.95,
-   "decompress_seconds": 118.51,
+   "compress_seconds": 69.74,
+   "decompress_seconds": 59.17,
    "files": {
     "timeMonthly_avg_ssh.dat.0.unsz": "32af9896e7d92f36522edc94295b768526e910a74c707cbf8888c4985d38bcae",
     "timeMonthly_avg_ssh.dat.0.unsz.bin": "316faabfee81c2caec8e0ddcf715781e8bf36b101776453b285460ff4592de44",
@@ -8723,7 +8724,7 @@
     "timeMonthly_avg_ssh.dat.8.unsz.bin": "b814fbfe065633146a378e85fe2d6a6c745b79f8ccd25d2b27ca8209ae775ab5",
     "timeMonthly_avg_ssh.dat.9.unsz": "2cfa44c5b81df67b6f4ba57c130f12f876d42c5bbdf756a0edae42dfe28689a0",
     "timeMonthly_avg_ssh.dat.9.unsz.bin": "24949e3dc860958a8908a7938fd6c73b0449482dd9570dd21a8040d23b559293",
-    "timeMonthly_avg_ssh.unsz.coord_transform.txt": "3dff1f75e73e33d6860870dc90d4a643df93b2e19fe4eb990f1c0b5a69b75d82",
+    "timeMonthly_avg_ssh.unsz.coordinate_rescaling.txt": "652973a77be64790e8d1b43e2359fe477a6bb15403aa9abbdc455f9cb1bf0386",
     "timeMonthly_avg_velocityMeridional.dat.0.unsz": "d3d7896dcb026782642d3473ce6ce23a29f227e9c12a358a8280f36be7dd1f96",
     "timeMonthly_avg_velocityMeridional.dat.0.unsz.bin": "8c56ab234166981cb811471742f14d75131c88c4c75c2d8c6aba6b5fb5bf955d",
     "timeMonthly_avg_velocityMeridional.dat.1.unsz": "04093e361331e697c6465b74f5d4c65b5aa77c2654807bcc5026290503aefeac",
@@ -10644,7 +10645,7 @@
     "timeMonthly_avg_velocityMeridional.dat.98.unsz.bin": "5ef07c30dcdc99b64a8d3637952cff8daf3d2ce4d9e2bc2f9ca61f511071902c",
     "timeMonthly_avg_velocityMeridional.dat.99.unsz": "2a71988920c803a8fe65717359697af4cac2c5cd102caa4c6c3553d0bc2bb460",
     "timeMonthly_avg_velocityMeridional.dat.99.unsz.bin": "4db75b8cbbe15da0314d747d24789f318cc9c08a9010422a0d6f68d679c88d62",
-    "timeMonthly_avg_velocityMeridional.unsz.coord_transform.txt": "3f7cdcfecca2f0755e8cf3c2c0937c1e8b513c0110cc0810937907a8d70fc8c7",
+    "timeMonthly_avg_velocityMeridional.unsz.coordinate_rescaling.txt": "e3c2dbc7c76da9e8972d2d2097cb9552cdbe90f94079726a36f93f54612e76df",
     "timeMonthly_avg_vertVelocityTop.dat.0.unsz": "a2e46b4af260093c28b54def98aecdc1c572bc94f1d0ef15d7cb31a571c39116",
     "timeMonthly_avg_vertVelocityTop.dat.0.unsz.bin": "efe546fa8fc3b7d30f2359421628a0c7a5091dbe1e1ef51545be8c0128f86ddf",
     "timeMonthly_avg_vertVelocityTop.dat.1.unsz": "871b10163d193edb178b90f95eb91ebb9a1618a7434440eaf4a1274b4a31fa23",
@@ -12589,7 +12590,7 @@
     "timeMonthly_avg_vertVelocityTop.dat.98.unsz.bin": "63e15bd184ec8e1ecc37c6fa9d3ce22a84aab050ab9a9c0895a54e92d43ec180",
     "timeMonthly_avg_vertVelocityTop.dat.99.unsz": "df6995a96eda124bf0d9b35962b52fe6b2adce672ab79d6f5e771533fb286654",
     "timeMonthly_avg_vertVelocityTop.dat.99.unsz.bin": "ebbbc175eeef4bada2c4a0c49d5b399eada0f6ee971e9a6c2a9ff40d0c2d7f02",
-    "timeMonthly_avg_vertVelocityTop.unsz.coord_transform.txt": "28d116bc70deba08cd02ad132682a5001b1eeb6cca48e5ec37413beefd6f3333"
+    "timeMonthly_avg_vertVelocityTop.unsz.coordinate_rescaling.txt": "c0b9b8467763b3443bf09e484b2e6a0866249672e4cd267d34075098ffb17db9"
    }
   }
  }

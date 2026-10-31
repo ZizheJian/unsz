@@ -12,10 +12,10 @@ namespace unsz
             total_target_num+=structure.target_ids.size();
         if(total_target_num!=point_num)
             return;
-        bool has_predicted_point_set=false;
-        for(const point_set_config_c&config:point_set_config_vec)
-            has_predicted_point_set|=config.codec!=point_set_codec_e::constant;
-        if(!has_predicted_point_set)
+        bool has_predicted_label=false;
+        for(const label_config_c&config:label_config_vec)
+            has_predicted_label|=config.codec!=label_codec_e::constant;
+        if(!has_predicted_label)
             return;
         original_to_prediction_order.assign(point_num,-1);
         uint32_t prediction_order_offset=0;

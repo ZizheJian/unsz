@@ -86,7 +86,7 @@ def geometric_metric_ratio_at_same_psnr(reference,test,name):
     return test_mean/reference_mean
 
 def experiment_identity(row):
-    return row["task"],row["field"],row["time_step_num"],row["label_flow"],row["value_flow"],row.get("label_value_execution","not_applicable")
+    return row["task"],row["field"],row["slice_num"],row["label_pipeline"],row["value_pipeline"],row.get("label_value_execution","not_applicable")
 
 def main():
     summary=[]
@@ -99,14 +99,14 @@ def main():
             if row["compressor"]=="unsz":
                 unsz_group_dict.setdefault(experiment_identity(row),[]).append(row)
         for identity,unsz in unsz_group_dict.items():
-            task,field,time_step_num,label_flow,value_flow,label_value_execution=identity
+            task,field,slice_num,label_pipeline,value_pipeline,label_value_execution=identity
             unsz=sorted(unsz,key=lambda row:float(row["psnr"]))
-            umc=sorted((row for row in rows if row["compressor"]=="umc" and row["task"]==task and row["field"]==field and row["time_step_num"]==time_step_num),key=lambda row:float(row["psnr"]))
+            umc=sorted((row for row in rows if row["compressor"]=="umc" and row["task"]==task and row["field"]==field and row["slice_num"]==slice_num),key=lambda row:float(row["psnr"]))
             if len(unsz)<2 or umc and len(umc)<2:
                 raise RuntimeError(f"{path}的实验{identity}没有可插值的完整曲线：UNSZ={len(unsz)},UMC={len(umc)}")
             data_dir=unsz[0].get("data_dir",unsz[0].get("dataset",""))
             unsz_total_throughput=""
-            item={"task":task,"field":field,"label_flow":label_flow,"value_flow":value_flow,"label_value_execution":label_value_execution,"data_dir":data_dir,"time_step_num":time_step_num,"representative_psnr":"","representative_cr_ratio_vs_umc":"","representative_total_time_ratio_vs_umc":"","bd_rate_vs_umc":"","compression_ratio_vs_umc":"","total_time_ratio_vs_umc":"","compression_time_ratio_vs_umc":"","decompression_time_ratio_vs_umc":"","unsz_total_throughput_MB_s":unsz_total_throughput,"umc_total_throughput_MB_s":""}
+            item={"task":task,"field":field,"label_pipeline":label_pipeline,"value_pipeline":value_pipeline,"label_value_execution":label_value_execution,"data_dir":data_dir,"slice_num":slice_num,"representative_psnr":"","representative_cr_ratio_vs_umc":"","representative_total_time_ratio_vs_umc":"","bd_rate_vs_umc":"","compression_ratio_vs_umc":"","total_time_ratio_vs_umc":"","compression_time_ratio_vs_umc":"","decompression_time_ratio_vs_umc":"","unsz_total_throughput_MB_s":unsz_total_throughput,"umc_total_throughput_MB_s":""}
             if umc:
                 bd_rate=calculate_bd_rate(umc,unsz)
                 representative_row=min(umc,key=lambda row:abs(float(row["rel_eb"])-1e-3))
