@@ -5,7 +5,6 @@ namespace unsz
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::remap_prediction_data_to_prediction_order(bool for_decompression)
     {
-        (void)for_decompression;
         prediction_data_uses_prediction_order=false;
         original_to_prediction_order.clear();
         uint64_t total_target_num=0;

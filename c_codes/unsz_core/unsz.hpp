@@ -240,15 +240,6 @@ namespace unsz
             return uses_prediction_order?prediction_order_offset+prediction_index:(uint32_t)target_id;
         }
 
-        array_view_c<int> get_reference_ids(uint32_t prediction_id) const
-        {
-            uint64_t begin=reference_offsets[prediction_id];
-            uint32_t reference_num=(uint32_t)(reference_offsets[prediction_id+1]-begin);
-            if(reference_num==0)
-                return {};
-            return {reference_ids.data()+begin,reference_num};
-        }
-
         bool uses_standard_reference_layout(uint32_t max_reference_num) const
         {
             uint32_t initial_target_num=min<uint32_t>(max_reference_num,target_ids.size());
