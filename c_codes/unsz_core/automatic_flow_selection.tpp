@@ -99,7 +99,7 @@ namespace unsz
             vector<T_data> full_data(point_num);
             auto input_start=chrono::steady_clock::now();
             read_binary_file_exact(path,full_data.data(),point_num);
-            input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start).count();
+            input_time+=seconds_since(input_start);
             for(uint32_t sample_id=0;sample_id<sample_ids.size();sample_id++)
                 result[sample_id]=full_data[sample_ids[sample_id]];
             return result;
@@ -127,7 +127,7 @@ namespace unsz
             block_data.resize(value_num);
             auto input_start=chrono::steady_clock::now();
             bool read_failed=fseek(file,(long)(value_begin*sizeof(T_data)),SEEK_SET)!=0||fread(block_data.data(),sizeof(T_data),value_num,file)!=value_num;
-            input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start).count();
+            input_time+=seconds_since(input_start);
             if(read_failed)
             {
                 fclose(file);
@@ -229,7 +229,7 @@ namespace unsz
                 window.quota=structure_sample_num/start_num+(window_id<structure_sample_num%start_num);
             }
         }
-        sample_structure_time+=chrono::duration<double>(chrono::steady_clock::now()-sample_structure_start_time).count();
+        sample_structure_time+=seconds_since(sample_structure_start_time);
         vector<automatic_flow_time_statistics_c<T_data>> time_statistics(time_step_num);
         vector<uint32_t> full_scan_time_indices;
         vector<double> evaluation_time_step_weight(time_step_num,0);
@@ -395,11 +395,11 @@ namespace unsz
             {
                 auto input_start=chrono::steady_clock::now();
                 read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
-                excluded_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start).count();
+                excluded_input_time+=seconds_since(input_start);
                 auto statistics_start_time=chrono::steady_clock::now();
                 compression_file_state_c state;
                 classify_current_point_sets<true,false>(state);
-                file_statistics_time+=chrono::duration<double>(chrono::steady_clock::now()-statistics_start_time).count();
+                file_statistics_time+=seconds_since(statistics_start_time);
             }
             sample_structure_start_time=chrono::steady_clock::now();
             automatic_flow_time_statistics_c<T_data>&statistics=time_statistics[time_index];
@@ -429,7 +429,7 @@ namespace unsz
                     window.width=max(window.width,required_width);
                 }
             }
-            sample_structure_time+=chrono::duration<double>(chrono::steady_clock::now()-sample_structure_start_time).count();
+            sample_structure_time+=seconds_since(sample_structure_start_time);
         }
         // 第5步：按最终的公共窗口裁剪每个评估slice的数值目标。标签目标是每个窗口开头的quota个点，不区分点集。
         // 所有目标及其空间参考点合起来就是要读取数值的样本点，它们按点编号排序后重新编号为样本编号，之后的计算都在样本编号上进行。
@@ -551,7 +551,7 @@ namespace unsz
             if(label_prediction_position!=label_prediction_indices.size())
                 throw runtime_error("自动flow的label采样目标映射不完整");
         }
-        sample_structure_time+=chrono::duration<double>(chrono::steady_clock::now()-sample_structure_start_time).count();
+        sample_structure_time+=seconds_since(sample_structure_start_time);
         // 第6步：稀疏读取样本点在所需slice上的数值，并分类得到标签。
         vector<vector<T_data>> sampled_values(time_step_num);
         vector<vector<uint8_t>> sampled_labels(time_step_num);
@@ -570,7 +570,7 @@ namespace unsz
             statistics.point_set_abs_eb=compression_file_point_set_abs_eb_vec[time_index];
             statistics.point_set_codec=compression_file_point_set_codec_vec[time_index];
         }
-        sample_value_preparation_time=chrono::duration<double>(chrono::steady_clock::now()-sample_value_start_time).count()-(excluded_input_time-sample_value_input_begin);
+        sample_value_preparation_time=seconds_since(sample_value_start_time)-(excluded_input_time-sample_value_input_begin);
         sample_structure_start_time=chrono::steady_clock::now();
         for(uint32_t time_index:full_scan_time_indices)
         {
@@ -588,7 +588,7 @@ namespace unsz
                 }
             }
         }
-        sample_structure_time+=chrono::duration<double>(chrono::steady_clock::now()-sample_structure_start_time).count();
+        sample_structure_time+=seconds_since(sample_structure_start_time);
         // 下面复用正式压缩的空间预测函数，它们从成员变量读取参考点的点集编号。
         // 样本的参考点用样本编号表示，所以这里暂时关闭预测顺序编号，并在估计每个slice前把point_set_id_vec换成样本标签，结束后恢复。
         bool saved_prediction_order=prediction_data_uses_prediction_order;
@@ -645,7 +645,7 @@ namespace unsz
             }
             estimated_label_bytes_by_flow[candidate.label_flow]=estimated_label_bytes;
         }
-        shared_label_estimation_time=chrono::duration<double>(chrono::steady_clock::now()-shared_label_start_time).count();
+        shared_label_estimation_time=seconds_since(shared_label_start_time);
         candidate_evaluation_time+=shared_label_estimation_time;
         // 第8步：估计数值码流。按候选flow的处理顺序逐个评估slice，用正式的跨slice预测、空间预测和量化压缩样本目标，量化后的重建值供后续预测使用。
         // 跨slice预测只用于自身和参考slice都属于第一点集的样本点，其余样本点用空间预测。
@@ -741,7 +741,7 @@ namespace unsz
                     }
                 }
             }
-            candidate.evaluation_time=chrono::duration<double>(chrono::steady_clock::now()-candidate_start_time).count();
+            candidate.evaluation_time=seconds_since(candidate_start_time);
             candidate_evaluation_time+=candidate.evaluation_time;
         }
         prediction_data_uses_prediction_order=saved_prediction_order;
@@ -759,7 +759,7 @@ namespace unsz
         }
         current_data.clear();
         point_set_id_vec.clear();
-        double selection_time=chrono::duration<double>(chrono::steady_clock::now()-selection_start_time).count()-excluded_input_time;
+        double selection_time=seconds_since(selection_start_time)-excluded_input_time;
         double other_time=selection_time-file_statistics_time-sample_structure_time-sample_value_preparation_time-candidate_evaluation_time;
         printf("automatic flow decision EB: configured_mode=%s,configured_eb=%.9g,decision_eb=%.9g\n",point_set_config_vec[0].error_mode==point_set_error_mode_e::relative?"REL":point_set_config_vec[0].error_mode==point_set_error_mode_e::field_relative?"FIELD_REL":"ABS",point_set_config_vec[0].eb,point_set_config_vec[0].eb*decision_eb_scale);
         printf("automatic flow sampling: full_scan_time_steps=%u,read_time_steps=%u,structures=%u,windows=%llu,target_candidates=%llu,read_points=%llu\n",(uint32_t)full_scan_time_indices.size(),sampled_time_step_num,structure_num,(unsigned long long)sampled_window_num,(unsigned long long)sampled_target_num,(unsigned long long)sample_original_ids.size());

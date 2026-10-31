@@ -219,7 +219,7 @@ namespace unsz
             throw runtime_error("坐标变换训练暂不支持预测点集混用REL和ABS误差模式");
         auto sample_geometry_start_time=chrono::steady_clock::now();
         prepare_coordinate_transform_sample_geometry((uint32_t)training_files.size());
-        double sample_geometry_time=chrono::duration<double>(chrono::steady_clock::now()-sample_geometry_start_time).count();
+        double sample_geometry_time=seconds_since(sample_geometry_start_time);
         printf("coordinate transform first sample ratio=%.6f,planned second targets=%llu\n",coordinate_transform_first_sample_ratio,(unsigned long long)coordinate_transform_sample_target_ids.size());
         vector<double>&coordinate_differences=coordinate_transform_training_coordinate_differences;
         vector<double>&value_differences=coordinate_transform_training_value_differences;
@@ -259,7 +259,7 @@ namespace unsz
         {
             auto input_start_time=chrono::steady_clock::now();
             read_binary_file_exact(training_files[sample_file_id].path,data.data(),point_num);
-            coordinate_transform_training_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start_time).count();
+            coordinate_transform_training_input_time+=seconds_since(input_start_time);
             uint32_t normalization_group_id=sample_file_id;
             uint32_t target_begin=coordinate_transform_sample_target_offsets[sample_file_id],target_end=coordinate_transform_sample_target_offsets[sample_file_id+1];
             for(uint32_t target_index=target_begin;target_index<target_end;target_index++)
@@ -304,7 +304,7 @@ namespace unsz
         const char*normalization_name=normalize_by_sample_file?"per-field-time-step predicted-value range":"none";
         printf("coordinate transform training normalization=%s,sample_files=%llu,value_scale_range=[%.12g,%.12g]\n",normalization_name,(unsigned long long)training_files.size(),minimum_value_scale,maximum_value_scale);
         printf("coordinate transform sampled targets=%u,retained targets=%u,complete targets=%u,pairs=%llu\n",sampled_target_num,retained_target_num,complete_target_num,(unsigned long long)value_differences.size());
-        double pair_assembly_time=chrono::duration<double>(chrono::steady_clock::now()-pair_assembly_start_time).count()-coordinate_transform_training_input_time;
+        double pair_assembly_time=seconds_since(pair_assembly_start_time)-coordinate_transform_training_input_time;
         printf("coordinate transform training-data breakdown: shared_geometry=%.6f s,pair_assembly=%.6f s,input_excluded=%.6f s\n",sample_geometry_time,pair_assembly_time,coordinate_transform_training_input_time);
     }
 

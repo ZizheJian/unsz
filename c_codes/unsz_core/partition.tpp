@@ -5,18 +5,10 @@ namespace unsz
     template<typename T_coord,typename T_data>
     vector<vector<int>> param_c<T_coord,T_data>::build_partitions()
     {
-        if(partition_size==0&&partition_num==0)
+        if(partition_num==0)
             return {};
-        if(partition_size>0&&partition_num>0)
-            throw runtime_error("不能同时指定partition大小和partition数量");
         uint32_t requested_partition_num=partition_num;
-        if(requested_partition_num==0)
-        {
-            requested_partition_num=1;
-            while(((uint64_t)point_num+requested_partition_num-1)/requested_partition_num>partition_size)
-                requested_partition_num*=2;
-        }
-        if(requested_partition_num==0||requested_partition_num>point_num||(requested_partition_num&(requested_partition_num-1))!=0)
+        if(requested_partition_num>point_num||(requested_partition_num&(requested_partition_num-1))!=0)
             throw runtime_error("partition数量必须是不超过点数的2的幂");
 
         vector<vector<int>> partition_point_ids_vec(1,vector<int>(point_num));
@@ -76,34 +68,20 @@ namespace unsz
         prediction_structure_vec.clear();
         prediction_structure_vec.resize(partition_point_ids_vec.size());
         printf("Generating independent partition prediction structures: partition_num=%u,thread_num=%u\n",(uint32_t)partition_point_ids_vec.size(),thread_num);
-        exception_ptr generation_exception;
-#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(thread_num>1)
-        for(int64_t partition_index=0;partition_index<(int64_t)partition_point_ids_vec.size();partition_index++)
+        parallel_for_tasks((uint32_t)partition_point_ids_vec.size(),thread_num,[&](uint32_t partition_id)
         {
-            try
-            {
-                uint32_t partition_id=(uint32_t)partition_index;
-                const vector<int>&point_ids=partition_point_ids_vec[partition_id];
-                vector<T_coord> partition_min_coord(dim,numeric_limits<T_coord>::infinity()),partition_max_coord(dim,-numeric_limits<T_coord>::infinity());
-                for(int point_id:point_ids)
-                    for(uint32_t dimension=0;dimension<dim;dimension++)
-                    {
-                        partition_min_coord[dimension]=min(partition_min_coord[dimension],coord_array[point_id][dimension]);
-                        partition_max_coord[dimension]=max(partition_max_coord[dimension],coord_array[point_id][dimension]);
-                    }
-                auto partition_start_time=chrono::steady_clock::now();
-                block_tree_c<T_coord> tree(coord_array,partition_min_coord,partition_max_coord,point_ids,kd_tree_leaf_size);
-                generate_prediction_structure_and_weights(tree,point_ids,partition_min_coord,partition_max_coord,prediction_structure_vec[partition_id],partition_start_time,uses_rbf);
-            }
-            catch(...)
-            {
-#pragma omp critical
-                if(!generation_exception)
-                    generation_exception=current_exception();
-            }
-        }
-        if(generation_exception)
-            rethrow_exception(generation_exception);
+            const vector<int>&point_ids=partition_point_ids_vec[partition_id];
+            vector<T_coord> partition_min_coord(dim,numeric_limits<T_coord>::infinity()),partition_max_coord(dim,-numeric_limits<T_coord>::infinity());
+            for(int point_id:point_ids)
+                for(uint32_t dimension=0;dimension<dim;dimension++)
+                {
+                    partition_min_coord[dimension]=min(partition_min_coord[dimension],coord_array[point_id][dimension]);
+                    partition_max_coord[dimension]=max(partition_max_coord[dimension],coord_array[point_id][dimension]);
+                }
+            auto partition_start_time=chrono::steady_clock::now();
+            block_tree_c<T_coord> tree(coord_array,partition_min_coord,partition_max_coord,point_ids,kd_tree_leaf_size);
+            generate_prediction_structure_and_weights(tree,point_ids,partition_min_coord,partition_max_coord,prediction_structure_vec[partition_id],partition_start_time,uses_rbf);
+        });
         partition_point_ids_vec.clear();
         uint64_t generated_target_num=0,generated_reference_num=0;
         for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
@@ -113,6 +91,6 @@ namespace unsz
         }
         if(generated_target_num!=point_num)
             throw runtime_error("partition预测结构没有覆盖所有点");
-        printf("Generated %llu partition prediction entries and %llu references, total time: %f s\n",(unsigned long long)generated_target_num,(unsigned long long)generated_reference_num,chrono::duration<double>(chrono::steady_clock::now()-generation_start_time).count());
+        printf("Generated %llu partition prediction entries and %llu references, total time: %f s\n",(unsigned long long)generated_target_num,(unsigned long long)generated_reference_num,seconds_since(generation_start_time));
     }
 }

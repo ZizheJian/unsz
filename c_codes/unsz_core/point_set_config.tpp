@@ -184,4 +184,17 @@ namespace unsz
             point_set_rule_vec.push_back(parsed_rule);
         }
     }
+
+    // 把点集的误差上限换算成绝对误差上限：ABS直接使用，REL乘以当前slice中该点集的值域，FIELD_REL乘以整个field中该点集的值域。
+    // 压缩端扫描完全部slice之前不知道field值域，此时field_range_known=false，FIELD_REL先按slice值域计算，扫描结束后统一改写。
+    template<typename T_coord,typename T_data>
+    T_data param_c<T_coord,T_data>::point_set_abs_eb(uint32_t point_set_id,bool field_range_known) const
+    {
+        const point_set_config_c&config=point_set_config_vec[point_set_id];
+        if(config.error_mode==point_set_error_mode_e::absolute)
+            return (T_data)config.eb;
+        if(config.error_mode==point_set_error_mode_e::field_relative&&field_range_known)
+            return (T_data)(config.eb*(field_point_set_max_data[point_set_id]-field_point_set_min_data[point_set_id]));
+        return (T_data)(config.eb*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]));
+    }
 }

@@ -19,6 +19,16 @@ namespace unsz
         return numeric_limits<int32_t>::min();
     }
 
+    // 各prediction structure并行完成预测和编码，只能测到两者合计的墙钟时间。按两部分累计CPU时间的比例把墙钟时间拆开，返回（预测时间，编码时间）。
+    inline pair<double,double> split_wall_time(double wall_time,const vector<double>&prediction_durations,const vector<double>&encoding_durations)
+    {
+        double prediction_cpu_time=accumulate(prediction_durations.begin(),prediction_durations.end(),0.0);
+        double encoding_cpu_time=accumulate(encoding_durations.begin(),encoding_durations.end(),0.0);
+        double measured_cpu_time=prediction_cpu_time+encoding_cpu_time;
+        double prediction_time=measured_cpu_time>0?wall_time*prediction_cpu_time/measured_cpu_time:0;
+        return {prediction_time,wall_time-prediction_time};
+    }
+
     template<typename T_coord,typename T_data>
     template<bool two_point_sets,time_dimension_mode_e value_mode,time_dimension_mode_e label_mode>
     void param_c<T_coord,T_data>::compress_current_file()
@@ -212,7 +222,7 @@ namespace unsz
         }
         else
             throw runtime_error("双点集压缩要求恰好一条分类规则");
-        state.point_set_classification_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
+        state.point_set_classification_time=seconds_since(stage_start_time);
     }
 
     template<typename T_coord,typename T_data>
@@ -243,16 +253,11 @@ namespace unsz
                 point_set_codec_vec[point_set_id]=config.codec;
             if(!is_constant&&point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
                 throw runtime_error("非常量点集不能使用常量编码");
-            if (is_constant)
-                point_set_abs_eb_vec[point_set_id]=0;
-            else if (config.error_mode==point_set_error_mode_e::absolute)
-                point_set_abs_eb_vec[point_set_id]=(T_data)config.eb;
-            else
-                point_set_abs_eb_vec[point_set_id]=(T_data)(config.eb*(point_set_max_data_vec[point_set_id]-point_set_min_data_vec[point_set_id]));
+            point_set_abs_eb_vec[point_set_id]=is_constant?0:point_set_abs_eb(point_set_id,false);
             if(!is_constant&&!(point_set_abs_eb_vec[point_set_id]>0))
                 throw runtime_error("点集"+to_string(point_set_id)+"的绝对误差上限必须大于0");
         }
-        state.point_set_setup_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
+        state.point_set_setup_time=seconds_since(stage_start_time);
     }
 
     template<typename T_coord,typename T_data>
@@ -273,7 +278,7 @@ namespace unsz
             current_time_step=time_step_vec[time_index];
             auto input_start_time=chrono::steady_clock::now();
             read_binary_file_exact(original_data_path_vec[time_index],current_data.data(),point_num);
-            point_set_statistics_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start_time).count();
+            point_set_statistics_input_time+=seconds_since(input_start_time);
             compression_file_state_c state;
             if(two_point_sets)
                 classify_current_point_sets<true,true>(state);
@@ -302,7 +307,7 @@ namespace unsz
             const point_set_config_c&config=point_set_config_vec[point_set_id];
             if(config.error_mode!=point_set_error_mode_e::field_relative||field_point_set_point_num[point_set_id]==0)
                 continue;
-            T_data field_abs_eb=(T_data)(config.eb*(field_point_set_max_data[point_set_id]-field_point_set_min_data[point_set_id]));
+            T_data field_abs_eb=point_set_abs_eb(point_set_id,true);
             for(uint32_t time_index=0;time_index<original_data_path_vec.size();time_index++)
                 if(compression_file_point_set_codec_vec[time_index][point_set_id]!=point_set_codec_e::constant)
                     compression_file_point_set_abs_eb_vec[time_index][point_set_id]=field_abs_eb;
@@ -369,7 +374,7 @@ namespace unsz
             point_set_abs_eb_vec[point_set_id]=compression_file_point_set_abs_eb_vec[current_time_step_index][point_set_id];
             point_set_codec_vec[point_set_id]=compression_file_point_set_codec_vec[current_time_step_index][point_set_id];
         }
-        state.point_set_setup_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
+        state.point_set_setup_time=seconds_since(stage_start_time);
     }
 
     template<typename T_coord,typename T_data>
@@ -510,37 +515,19 @@ namespace unsz
         auto stage_start_time=chrono::steady_clock::now();
         vector<uint64_t> cross_time_prediction_num_vec(prediction_structure_vec.size(),0);
         vector<double> prediction_duration_vec(prediction_structure_vec.size()),encoding_duration_vec(prediction_structure_vec.size());
-        exception_ptr prediction_exception;
-#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(prediction_structure_vec.size()>1&&thread_num>1)
-        for(int64_t structure_index=0;structure_index<(int64_t)prediction_structure_vec.size();structure_index++)
+        parallel_for_tasks((uint32_t)prediction_structure_vec.size(),thread_num,[&](uint32_t structure_index)
         {
-            try
-            {
-                auto prediction_start_time=chrono::steady_clock::now();
-                value_compression_result_c<T_data> result=compress_structure_values<value_mode>(prediction_structure_vec[structure_index]);
-                prediction_duration_vec[structure_index]=chrono::duration<double>(chrono::steady_clock::now()-prediction_start_time).count();
-                cross_time_prediction_num_vec[structure_index]=result.cross_time_prediction_num;
-                vector<uint8_t> empty_label_symbols;
-                auto encoding_start_time=chrono::steady_clock::now();
-                state.encoded_payload_vec[structure_index]=encode_compression_payload(empty_label_symbols,state.has_label,result.point_set_qb_vec,result.unpredictable_value_vec);
-                encoding_duration_vec[structure_index]=chrono::duration<double>(chrono::steady_clock::now()-encoding_start_time).count();
-            }
-            catch(...)
-            {
-#pragma omp critical
-                if(!prediction_exception)
-                    prediction_exception=current_exception();
-            }
-        }
-        if(prediction_exception)
-            rethrow_exception(prediction_exception);
+            auto prediction_start_time=chrono::steady_clock::now();
+            value_compression_result_c<T_data> result=compress_structure_values<value_mode>(prediction_structure_vec[structure_index]);
+            prediction_duration_vec[structure_index]=seconds_since(prediction_start_time);
+            cross_time_prediction_num_vec[structure_index]=result.cross_time_prediction_num;
+            vector<uint8_t> empty_label_symbols;
+            auto encoding_start_time=chrono::steady_clock::now();
+            state.encoded_payload_vec[structure_index]=encode_compression_payload(empty_label_symbols,state.has_label,result.point_set_qb_vec,result.unpredictable_value_vec);
+            encoding_duration_vec[structure_index]=seconds_since(encoding_start_time);
+        });
         state.cross_time_prediction_num=accumulate(cross_time_prediction_num_vec.begin(),cross_time_prediction_num_vec.end(),(uint64_t)0);
-        double combined_wall_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
-        double prediction_cpu_time=accumulate(prediction_duration_vec.begin(),prediction_duration_vec.end(),0.0);
-        double encoding_cpu_time=accumulate(encoding_duration_vec.begin(),encoding_duration_vec.end(),0.0);
-        double measured_cpu_time=prediction_cpu_time+encoding_cpu_time;
-        state.value_prediction_time=measured_cpu_time>0?combined_wall_time*prediction_cpu_time/measured_cpu_time:0;
-        state.lossless_encoding_time=combined_wall_time-state.value_prediction_time;
+        tie(state.value_prediction_time,state.lossless_encoding_time)=split_wall_time(seconds_since(stage_start_time),prediction_duration_vec,encoding_duration_vec);
     }
 
     template<typename T_coord,typename T_data>
@@ -661,43 +648,25 @@ namespace unsz
         };
         vector<pair<uint64_t,uint64_t>> counts(prediction_structure_vec.size());
         vector<double> prediction_duration_vec(prediction_structure_vec.size()),encoding_duration_vec(prediction_structure_vec.size());
-        exception_ptr compression_exception;
-#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(prediction_structure_vec.size()>1&&thread_num>1)
-        for(int64_t structure_index=0;structure_index<(int64_t)prediction_structure_vec.size();structure_index++)
+        parallel_for_tasks((uint32_t)prediction_structure_vec.size(),thread_num,[&](uint32_t structure_index)
         {
-            try
-            {
-                vector<uint8_t> label_symbols;
-                vector<vector<int32_t>> point_set_qbs(state.point_set_num);
-                vector<T_data> unpredictable_values;
-                auto prediction_start_time=chrono::steady_clock::now();
-                counts[structure_index]=compress_targets(prediction_structure_vec[structure_index],label_symbols,point_set_qbs,unpredictable_values);
-                prediction_duration_vec[structure_index]=chrono::duration<double>(chrono::steady_clock::now()-prediction_start_time).count();
-                auto encoding_start_time=chrono::steady_clock::now();
-                state.encoded_payload_vec[structure_index]=encode_compression_payload(label_symbols,true,point_set_qbs,unpredictable_values);
-                encoding_duration_vec[structure_index]=chrono::duration<double>(chrono::steady_clock::now()-encoding_start_time).count();
-            }
-            catch(...)
-            {
-#pragma omp critical
-                if(!compression_exception)
-                    compression_exception=current_exception();
-            }
-        }
-        if(compression_exception)
-            rethrow_exception(compression_exception);
+            vector<uint8_t> label_symbols;
+            vector<vector<int32_t>> point_set_qbs(state.point_set_num);
+            vector<T_data> unpredictable_values;
+            auto prediction_start_time=chrono::steady_clock::now();
+            counts[structure_index]=compress_targets(prediction_structure_vec[structure_index],label_symbols,point_set_qbs,unpredictable_values);
+            prediction_duration_vec[structure_index]=seconds_since(prediction_start_time);
+            auto encoding_start_time=chrono::steady_clock::now();
+            state.encoded_payload_vec[structure_index]=encode_compression_payload(label_symbols,true,point_set_qbs,unpredictable_values);
+            encoding_duration_vec[structure_index]=seconds_since(encoding_start_time);
+        });
         for(uint32_t structure_id=0;structure_id<counts.size();structure_id++)
         {
             state.label_error_num+=counts[structure_id].first;
             state.cross_time_prediction_num+=counts[structure_id].second;
         }
         state.label_target_num=point_num;
-        double combined_wall_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
-        double prediction_cpu_time=accumulate(prediction_duration_vec.begin(),prediction_duration_vec.end(),0.0);
-        double encoding_cpu_time=accumulate(encoding_duration_vec.begin(),encoding_duration_vec.end(),0.0);
-        double measured_cpu_time=prediction_cpu_time+encoding_cpu_time;
-        state.label_prediction_time=measured_cpu_time>0?combined_wall_time*prediction_cpu_time/measured_cpu_time:0;
-        state.lossless_encoding_time=combined_wall_time-state.label_prediction_time;
+        tie(state.label_prediction_time,state.lossless_encoding_time)=split_wall_time(seconds_since(stage_start_time),prediction_duration_vec,encoding_duration_vec);
     }
 
 }

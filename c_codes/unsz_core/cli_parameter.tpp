@@ -16,8 +16,8 @@ namespace unsz
         bool got_point_set_config=!point_set_config_path.empty();
         if(got_error_mode==got_point_set_config)
             throw runtime_error("必须且只能在-M和-point-set-config之间选择一个");
-        if(thread_num>1&&partition_size==0&&partition_num==0)
-            throw runtime_error("多线程模式需要指定partition数量或大小");
+        if(thread_num>1&&partition_num==0)
+            throw runtime_error("多线程模式需要指定partition数量");
         if(field_worker_num==1&&!field_worker_id_vec.empty())
             throw runtime_error("-field-worker-map只能和大于1的-field-worker-num一起使用");
         if(field_worker_num>1)

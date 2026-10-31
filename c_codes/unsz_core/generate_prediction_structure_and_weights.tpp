@@ -25,7 +25,7 @@ namespace unsz
             printf("Generated identity prediction structure for constant field\n");
             return;
         }
-        if(partition_size>0||partition_num>0)
+        if(partition_num>0)
         {
             generate_partition_prediction_structures(uses_rbf);
             return;

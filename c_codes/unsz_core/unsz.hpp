@@ -46,6 +46,31 @@ using namespace std;
 // MSD：mean squared distance，见generate_prediction_structure_and_weights.tpp。
 namespace unsz
 {
+    inline double seconds_since(chrono::steady_clock::time_point start){return chrono::duration<double>(chrono::steady_clock::now()-start).count();}
+
+    // 用OpenMP并行执行function(0)..function(task_num-1)。异常不能抛出OpenMP并行区，因此记录第一个异常，全部任务结束后再抛出。
+    template<typename Function>
+    void parallel_for_tasks(uint32_t task_num,uint32_t thread_num,Function function)
+    {
+        exception_ptr first_exception;
+#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(task_num>1&&thread_num>1)
+        for(int64_t task_id=0;task_id<(int64_t)task_num;task_id++)
+        {
+            try
+            {
+                function((uint32_t)task_id);
+            }
+            catch(...)
+            {
+#pragma omp critical
+                if(!first_exception)
+                    first_exception=current_exception();
+            }
+        }
+        if(first_exception)
+            rethrow_exception(first_exception);
+    }
+
     template<typename T>
     class shared_vector_c
     {
@@ -488,8 +513,7 @@ namespace unsz
             uint32_t ordering_candidate_num=16;
             uint32_t ordering_score_max_ref_num=1;
             uint32_t kd_tree_leaf_size=32;
-            uint32_t partition_size=0;//0表示不分区；非0时所有参考点必须来自同一partition
-            uint32_t partition_num=0;//直接指定2、4、8等2的幂个partition
+            uint32_t partition_num=0;//0表示不分区；否则为2、4、8等2的幂，所有参考点必须来自同一partition
             uint32_t thread_num=1;
             uint32_t field_worker_num=1;
             vector<uint32_t>field_worker_id_vec;
@@ -505,7 +529,6 @@ namespace unsz
             vector<T_coord> min_coord,max_coord,original_min_coord,original_max_coord;
             shared_vector_c<prediction_structure_c<T_calc>>prediction_structure_vec;//未切分时只有一个结构；切分后每个结构独立完整
             shared_ptr<shared_spatial_prediction_cache_c<T_calc>>shared_spatial_prediction_cache=make_shared<shared_spatial_prediction_cache_c<T_calc>>();
-            bool current_spatial_prediction_state_is_shared=false;
             vector<T_data> current_data,current_decompressed_data,prediction_order_decompressed_data;
             shared_vector_c<int>original_to_prediction_order;
             vector<uint32_t> time_step_vec;
@@ -547,6 +570,7 @@ namespace unsz
             void prepare_time_step_order_from_flows();
             void configure_point_sets();
             uint8_t classify_point_set(T_data value,uint32_t point_id,uint32_t slice_id) const;
+            T_data point_set_abs_eb(uint32_t point_set_id,bool field_range_known) const;
             void load_tensor_metadata();
             void activate_tensor_field(const tensor_field_config_c&config);
             void load_current_active_level_counts();

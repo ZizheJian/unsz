@@ -32,7 +32,6 @@ namespace unsz
         original_to_prediction_order.reset();
         generate_prediction_structures_and_weights();
         finalize_current_spatial_prediction_state(for_decompression);
-        current_spatial_prediction_state_is_shared=false;
     }
 
     template<typename T_coord,typename T_data>
@@ -59,7 +58,6 @@ namespace unsz
         prediction_structure_vec=state->structures;
         original_to_prediction_order=state->original_to_prediction_order;
         prediction_data_uses_prediction_order=state->uses_prediction_order;
-        current_spatial_prediction_state_is_shared=true;
         return true;
     }
 
@@ -69,6 +67,5 @@ namespace unsz
         prediction_structure_vec.reset();
         original_to_prediction_order.reset();
         prediction_data_uses_prediction_order=false;
-        current_spatial_prediction_state_is_shared=false;
     }
 }

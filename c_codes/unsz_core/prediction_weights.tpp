@@ -248,7 +248,7 @@ namespace unsz
                 }
             }
         }
-        printf("Batched RBF weights: vectorized_targets=%llu,boundary_fallback_targets=%llu,rbf_targets=%llu,nearest_fallback_targets=%llu,time=%f s\n",(unsigned long long)batched_target_ids.size(),(unsigned long long)boundary_fallback_target_num,(unsigned long long)rbf_target_num,(unsigned long long)nearest_fallback_target_num,chrono::duration<double>(chrono::steady_clock::now()-start_time).count());
+        printf("Batched RBF weights: vectorized_targets=%llu,boundary_fallback_targets=%llu,rbf_targets=%llu,nearest_fallback_targets=%llu,time=%f s\n",(unsigned long long)batched_target_ids.size(),(unsigned long long)boundary_fallback_target_num,(unsigned long long)rbf_target_num,(unsigned long long)nearest_fallback_target_num,seconds_since(start_time));
     }
 
 }

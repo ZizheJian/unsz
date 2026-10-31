@@ -276,61 +276,47 @@ namespace unsz
         structure_unpredictable_value_begin_vec.resize(payload_num);
         structure_unpredictable_value_end_vec.resize(payload_num);
         const unsigned char *payload_base=cursor;
-        exception_ptr lossless_exception;
-#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(payload_num>1&&thread_num>1)
-        for(int64_t payload_index=0;payload_index<(int64_t)payload_num;payload_index++)
+        parallel_for_tasks(payload_num,thread_num,[&](uint32_t payload_id)
         {
-            try
+            const unsigned char *payload_cursor=payload_base+payload_begin_vec[payload_id];
+            const unsigned char *payload_end=payload_base+payload_begin_vec[payload_id+1];
+            if(has_label)
             {
-                uint32_t payload_id=(uint32_t)payload_index;
-                const unsigned char *payload_cursor=payload_base+payload_begin_vec[payload_id];
-                const unsigned char *payload_end=payload_base+payload_begin_vec[payload_id+1];
-                if(has_label)
+                uint64_t target_num=read_binary<uint64_t>(payload_cursor,payload_end);
+                uint64_t zstd_byte_num=read_binary<uint64_t>(payload_cursor,payload_end);
+                if(target_num!=prediction_structure_vec[payload_id].target_ids.size())
+                    throw runtime_error("payload标签符号数量与预测目标数量不一致");
+                if((uint64_t)(payload_end-payload_cursor)<zstd_byte_num)
+                    throw runtime_error("payload标签流不完整");
+                if(target_num==0&&zstd_byte_num!=0)
+                    throw runtime_error("空payload标签流具有非空Zstd字节流");
+                if(target_num>0)
                 {
-                    uint64_t target_num=read_binary<uint64_t>(payload_cursor,payload_end);
-                    uint64_t zstd_byte_num=read_binary<uint64_t>(payload_cursor,payload_end);
-                    if(target_num!=prediction_structure_vec[payload_id].target_ids.size())
-                        throw runtime_error("payload标签符号数量与预测目标数量不一致");
-                    if((uint64_t)(payload_end-payload_cursor)<zstd_byte_num)
-                        throw runtime_error("payload标签流不完整");
-                    if(target_num==0&&zstd_byte_num!=0)
-                        throw runtime_error("空payload标签流具有非空Zstd字节流");
-                    if(target_num>0)
-                    {
-                        vector<unsigned char> delta_bytes=zstd_decompress(payload_cursor,zstd_byte_num);
-                        structure_label_symbols[payload_id]=decode_binary_one_position_delta_vec(delta_bytes,target_num);
-                    }
-                    payload_cursor+=zstd_byte_num;
+                    vector<unsigned char> delta_bytes=zstd_decompress(payload_cursor,zstd_byte_num);
+                    structure_label_symbols[payload_id]=decode_binary_one_position_delta_vec(delta_bytes,target_num);
                 }
-                for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
-                {
-                    uint64_t qb_num=read_binary<uint64_t>(payload_cursor,payload_end);
-                    uint64_t zstd_byte_num=read_binary<uint64_t>(payload_cursor,payload_end);
-                    if(qb_num>prediction_structure_vec[payload_id].target_ids.size()||(uint64_t)(payload_end-payload_cursor)<zstd_byte_num)
-                        throw runtime_error("payload数值流不完整");
-                    if(qb_num==0&&zstd_byte_num!=0)
-                        throw runtime_error("空payload数值流具有非空Zstd字节流");
-                    if(qb_num>0)
-                    {
-                        vector<unsigned char> huffman_bytes=zstd_decompress(payload_cursor,zstd_byte_num);
-                        structure_point_set_qb_vec[payload_id][point_set_id]=huffman_decode<int32_t>(huffman_bytes.data(),huffman_bytes.size(),qb_num);
-                    }
-                    payload_cursor+=zstd_byte_num;
-                }
-                if((payload_end-payload_cursor)%sizeof(T_data)!=0)
-                    throw runtime_error("payload不可预测值流的字节数不完整");
-                structure_unpredictable_value_begin_vec[payload_id]=payload_cursor;
-                structure_unpredictable_value_end_vec[payload_id]=payload_end;
+                payload_cursor+=zstd_byte_num;
             }
-            catch(...)
+            for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
             {
-#pragma omp critical
-                if(!lossless_exception)
-                    lossless_exception=current_exception();
+                uint64_t qb_num=read_binary<uint64_t>(payload_cursor,payload_end);
+                uint64_t zstd_byte_num=read_binary<uint64_t>(payload_cursor,payload_end);
+                if(qb_num>prediction_structure_vec[payload_id].target_ids.size()||(uint64_t)(payload_end-payload_cursor)<zstd_byte_num)
+                    throw runtime_error("payload数值流不完整");
+                if(qb_num==0&&zstd_byte_num!=0)
+                    throw runtime_error("空payload数值流具有非空Zstd字节流");
+                if(qb_num>0)
+                {
+                    vector<unsigned char> huffman_bytes=zstd_decompress(payload_cursor,zstd_byte_num);
+                    structure_point_set_qb_vec[payload_id][point_set_id]=huffman_decode<int32_t>(huffman_bytes.data(),huffman_bytes.size(),qb_num);
+                }
+                payload_cursor+=zstd_byte_num;
             }
-        }
-        if(lossless_exception)
-            rethrow_exception(lossless_exception);
+            if((payload_end-payload_cursor)%sizeof(T_data)!=0)
+                throw runtime_error("payload不可预测值流的字节数不完整");
+            structure_unpredictable_value_begin_vec[payload_id]=payload_cursor;
+            structure_unpredictable_value_end_vec[payload_id]=payload_end;
+        });
         for(const vector<uint8_t>&label_symbols:structure_label_symbols)
             label_target_num+=label_symbols.size();
         cursor=end;
@@ -449,7 +435,7 @@ namespace unsz
         current_label_stream_bytes=state.has_label?(uint64_t)payload_num*2*sizeof(uint64_t)+label_zstd_byte_num:0;
         current_value_stream_bytes=(uint64_t)payload_num*point_set_num*2*sizeof(uint64_t)+value_zstd_byte_num+unpredictable_value_byte_num;
         current_shared_metadata_bytes=current_compressed_bytes.size()-current_label_stream_bytes-current_value_stream_bytes;
-        state.lossless_encoding_time+=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
+        state.lossless_encoding_time+=seconds_since(stage_start_time);
         current_compression_diagnostics.point_set_classification_time=state.point_set_classification_time;
         current_compression_diagnostics.point_set_setup_time=state.point_set_setup_time;
         current_compression_diagnostics.label_prediction_time=state.label_prediction_time;
@@ -510,7 +496,7 @@ namespace unsz
             throw runtime_error("找不到文件："+compressed_path);
         uint64_t read_byte_num=fread(bytes.data(),1,bytes.size(),file);
         fclose(file);
-        double input_time=chrono::duration<double>(chrono::steady_clock::now()-input_start_time).count();
+        double input_time=seconds_since(input_start_time);
         constexpr uint64_t fixed_header_byte_num=8+4*sizeof(uint32_t)+2*sizeof(uint8_t);
         if(read_byte_num<fixed_header_byte_num)
             throw runtime_error("UNSZ压缩文件头不完整："+compressed_path);
@@ -598,7 +584,7 @@ namespace unsz
                     throw runtime_error("找不到文件："+slice_path);
                 slice_bytes.resize(fread(slice_bytes.data(),1,slice_bytes.size(),slice_file));
                 fclose(slice_file);
-                input_time+=chrono::duration<double>(chrono::steady_clock::now()-slice_input_start_time).count();
+                input_time+=seconds_since(slice_input_start_time);
                 const unsigned char*slice_cursor=slice_bytes.data(),*slice_end=slice_bytes.data()+slice_bytes.size();
                 if((uint64_t)(slice_end-slice_cursor)<8||memcmp(slice_cursor,compression_file_magic,8)!=0)
                     throw runtime_error("不是受支持的UNSZ点集文件："+slice_path);

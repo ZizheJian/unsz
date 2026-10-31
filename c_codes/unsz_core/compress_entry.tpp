@@ -44,7 +44,7 @@ namespace unsz
                 coordinate_transform_input_time=coordinate_transform_training_input_time;
                 auto coordinate_transform_optimization_start_time=chrono::steady_clock::now();
                 train_coordinate_transform();
-                printf("coordinate transform optimization time= %.6f s\n",chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_optimization_start_time).count());
+                printf("coordinate transform optimization time= %.6f s\n",seconds_since(coordinate_transform_optimization_start_time));
                 transformed_flatness=calculate_coordinate_flatness(*coordinate_covariance,dim,&coordinate_transform_diagonal);
                 flatness_ratio=original_flatness>0?transformed_flatness/original_flatness:numeric_limits<double>::infinity();
                 if(coordinate_transform_mode=="on")
@@ -60,14 +60,14 @@ namespace unsz
         {
             auto coordinate_transform_output_start_time=chrono::steady_clock::now();
             write_coordinate_transform_file();
-            coordinate_transform_output_time=chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_output_start_time).count();
+            coordinate_transform_output_time=seconds_since(coordinate_transform_output_start_time);
         }
-        coordinate_transform_time=chrono::duration<double>(chrono::steady_clock::now()-coordinate_transform_start_time).count()-coordinate_transform_input_time-coordinate_transform_output_time;
+        coordinate_transform_time=seconds_since(coordinate_transform_start_time)-coordinate_transform_input_time-coordinate_transform_output_time;
         if(coordinate_transform_mode!="off")
             printf("coordinate transform metadata output time excluded from reported time= %f s\n",coordinate_transform_output_time);
         auto prediction_structure_start_time=chrono::steady_clock::now();
         prepare_current_spatial_prediction_state(false);
-        double prediction_structure_time=chrono::duration<double>(chrono::steady_clock::now()-prediction_structure_start_time).count();
+        double prediction_structure_time=seconds_since(prediction_structure_start_time);
         return {coordinate_transform_time,prediction_structure_time};
     }
 
@@ -78,7 +78,7 @@ namespace unsz
         auto temporal_dependency_start_time=chrono::steady_clock::now();
         prepare_time_step_order_from_flows();
         prepare_temporal_dependencies();
-        double temporal_dependency_time=chrono::duration<double>(chrono::steady_clock::now()-temporal_dependency_start_time).count();
+        double temporal_dependency_time=seconds_since(temporal_dependency_start_time);
         return {automatic_flow_time,temporal_dependency_time};
     }
 
@@ -104,10 +104,10 @@ namespace unsz
             current_data.resize(point_num);
             auto input_start_time=chrono::steady_clock::now();
             read_binary_file_exact(original_data_path,current_data.data(),point_num);
-            total_data_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start_time).count();
+            total_data_input_time+=seconds_since(input_start_time);
             auto compression_start_time=chrono::steady_clock::now();
             compress_current_file_by_mode();
-            double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count();
+            double compression_time=seconds_since(compression_start_time);
             if(print_file_details)
                 print_current_compression_diagnostics();
             total_original_bytes+=(uint64_t)point_num*sizeof(T_data);
@@ -127,7 +127,7 @@ namespace unsz
                 printf("cr= %f, br= %f, psnr= %f\n",file_cr,file_br,reconstruction_psnr(file_statistics));
             auto time_state_update_start=chrono::steady_clock::now();
             update_time_prediction_state();
-            double time_state_update_time=chrono::duration<double>(chrono::steady_clock::now()-time_state_update_start).count();
+            double time_state_update_time=seconds_since(time_state_update_start);
             total_time_prediction_state_update_time+=time_state_update_time;
             compression_time+=time_state_update_time;
             total_compression_time+=compression_time;
@@ -138,7 +138,7 @@ namespace unsz
             }
             auto output_start_time=chrono::steady_clock::now();
             write_binary_file(compressed_data_path,current_compressed_bytes.data(),current_compressed_bytes.size());
-            total_compressed_output_time+=chrono::duration<double>(chrono::steady_clock::now()-output_start_time).count();
+            total_compressed_output_time+=seconds_since(output_start_time);
         }
         printf("全部文件最大误差/用户误差上限= %.9f\n",total_statistics.max_error_ratio);
         if(total_statistics.max_error_ratio>1.01)
@@ -182,7 +182,7 @@ namespace unsz
         }
         else if(param.tensor_dependency_plan_cache.empty())
             param.precompute_all_tensor_dependency_plans();
-        temporal_dependency_plan_time=chrono::duration<double>(chrono::steady_clock::now()-temporal_dependency_plan_start_time).count();
+        temporal_dependency_plan_time=seconds_since(temporal_dependency_plan_start_time);
         printf("temporal dependency plan preprocessing time= %f s\n",temporal_dependency_plan_time);
         uint32_t field_num=(uint32_t)param.field_name_vec.size();
         param.point_set_statistics_input_time=0;
@@ -192,7 +192,7 @@ namespace unsz
             param.activate_field(field_id);
             auto point_set_statistics_start_time=chrono::steady_clock::now();
             param.precompute_current_field_point_set_statistics();
-            point_set_statistics_time+=chrono::duration<double>(chrono::steady_clock::now()-point_set_statistics_start_time).count();
+            point_set_statistics_time+=seconds_since(point_set_statistics_start_time);
             if(field_num>1||param.field_worker_num>1)
                 printf("BEGIN UNSZ FIELD %s\n",param.field_name.c_str());
             auto [coordinate_transform_time,prediction_structure_time]=param.preprocess_current_compression_geometry();
