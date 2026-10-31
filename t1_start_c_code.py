@@ -242,8 +242,10 @@ def build_unsz_commands(config,data_dir):
         rel_eb=config["rel_eb"]
         compression_error=["-M","REL",rel_eb]
         decompression_error=["-M","REL",rel_eb]
-    compression_command=[project_root/"install/bin/s1_compress",*compression_error,*arguments]
-    decompression_command=[project_root/"install/bin/s1_decompress",*decompression_error,*arguments,"-skip-decompressed-output"]
+    # 环境变量UNSZ_INSTALL_DIR可以指定另一份安装，供与正在运行的作业隔离的实验使用
+    install_dir=Path(os.environ.get("UNSZ_INSTALL_DIR",project_root/"install"))
+    compression_command=[install_dir/"bin/s1_compress",*compression_error,*arguments]
+    decompression_command=[install_dir/"bin/s1_decompress",*decompression_error,*arguments,"-skip-decompressed-output"]
     return compression_command,decompression_command
 
 def expand_unsz_pipelines(config):

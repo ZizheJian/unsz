@@ -112,8 +112,8 @@ namespace unsz
             else if(option=="-ordering")
             {
                 param.ordering_scope=read_value();
-                if(param.ordering_scope!="global"&&param.ordering_scope!="local")
-                    throw runtime_error("-ordering必须是global或local");
+                if(param.ordering_scope!="global"&&param.ordering_scope!="local"&&param.ordering_scope!="forward")
+                    throw runtime_error("-ordering必须是global、local或forward");
             }
             else if(option=="-weights")
             {

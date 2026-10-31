@@ -511,7 +511,7 @@ namespace unsz
             vector<uint32_t> coordinate_rescaling_sample_target_offsets;
             vector<int> coordinate_rescaling_sample_target_ids,coordinate_rescaling_sample_reference_ids;
             bool print_compression_stage_time=false,prediction_data_uses_prediction_order=false,coordinates_are_original=true,write_decompressed_output=true;
-            string ordering_scope="global";//正式压缩使用global，local只用于消融实验
+            string ordering_scope="global";//正式压缩使用global，local和forward只用于消融实验
             uint32_t ordering_score_min_ref_num=1;
             uint32_t ordering_candidate_num=16;
             uint32_t ordering_score_max_ref_num=1;
@@ -623,6 +623,7 @@ namespace unsz
             void generate_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf);
             void generate_global_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf);
             void generate_local_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf);
+            void generate_forward_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf);
             template<bool global_order>
             void sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,vector<vector<int>>&target_id_groups,prediction_structure_c<T_calc>&structure);
             T_data predict_value_single_label(uint64_t ref_begin,uint32_t ref_num,const vector<int>&ref_ids,const vector<T_calc>&weights,const vector<T_data>&data);

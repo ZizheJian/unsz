@@ -33,6 +33,7 @@ variants={
     'eb_schedule_off':(lambda task,field:True,lambda task:{'extra_arguments':['-eb-schedule','none']}),
     'local_ordering':(lambda task,field:True,lambda task:{'extra_arguments':['-ordering','local']}),
     'idw_weights':(lambda task,field:True,lambda task:{'extra_arguments':['-weights','idw']}),
+    'forward_dag':(lambda task,field:True,lambda task:{'extra_arguments':['-ordering','forward']}),
 }
 
 

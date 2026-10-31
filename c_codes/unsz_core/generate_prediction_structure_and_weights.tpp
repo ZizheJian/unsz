@@ -12,8 +12,8 @@ namespace unsz
             throw runtime_error("prediction_round_num必须在[1,63]内");
         if(ordering_score_min_ref_num>ordering_score_max_ref_num)
             throw runtime_error("MSD排序缓存重查阈值不能大于MSD评分参考点数");
-        if(ordering_scope!="global"&&ordering_scope!="local")
-            throw runtime_error("ordering_scope必须是global或local");
+        if(ordering_scope!="global"&&ordering_scope!="local"&&ordering_scope!="forward")
+            throw runtime_error("ordering_scope必须是global、local或forward");
         bool uses_rbf=any_of(label_config_vec.begin(),label_config_vec.end(),[](const label_config_c&config){return config.codec==label_codec_e::rbf;});
         if(!uses_rbf)
         {
@@ -49,6 +49,8 @@ namespace unsz
             throw runtime_error("预测标签不能为空");
         if(ordering_scope=="global")
             generate_global_prediction_structure_and_weights(tree,point_ids,active_min_coord,active_max_coord,structure,generation_start_time,uses_rbf);
+        else if(ordering_scope=="forward")
+            generate_forward_prediction_structure_and_weights(tree,point_ids,active_min_coord,active_max_coord,structure,generation_start_time,uses_rbf);
         else
             generate_local_prediction_structure_and_weights(tree,point_ids,active_min_coord,active_max_coord,structure,generation_start_time,uses_rbf);
     }
@@ -150,6 +152,111 @@ namespace unsz
             }
         if(uses_rbf)
             generate_batched_rbf_weights(target_ids,reference_ids,reference_offsets,prediction_weights,rbf_fallback_flags);
+        auto end_time=chrono::steady_clock::now();
+        printf("Prediction reference generation time: %f s\n",chrono::duration<double>(end_time-reference_generation_start_time).count());
+        printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)target_ids.size(),chrono::duration<double>(end_time-generation_start_time).count());
+    }
+
+    // 消融实验：正向构造DAG，即论文中先于反向消去的直观做法。每个预测目标需要两次kd-tree查询：
+    // 一次在已编码点中找它的参考点（结果同时用于给候选打分），一次在未编码点中找下一个目标的候选。
+    // 选点规则与反向MSD消去相同：候选是当前目标附近ordering_candidate_num个未编码点，选其中离最近已编码点最近的一个
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::generate_forward_prediction_structure_and_weights(block_tree_c<T_coord>&tree,const vector<int>&point_ids,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,prediction_structure_c<T_calc>&structure,chrono::steady_clock::time_point generation_start_time,bool uses_rbf)
+    {
+        auto&target_ids=structure.target_ids;
+        auto&reference_ids=structure.reference_ids;
+        auto&reference_offsets=structure.reference_offsets;
+        uint32_t active_point_num=point_ids.size();
+        printf("Arranging forward prediction order\n");
+        auto sorting_start_time=chrono::steady_clock::now();
+        target_ids.clear();
+        target_ids.reserve(active_point_num);
+        reference_ids.clear();
+        reference_ids.reserve((uint64_t)active_point_num*rbf_reference_num);
+        reference_offsets.assign(1,0);
+        reference_offsets.reserve((uint64_t)active_point_num+1);
+        structure.prediction_weights.clear();
+        structure.rbf_fallback_flags.clear();
+        // tree标记未编码点，compressed_tree标记已编码点，两者共用树结构
+        tree.clear_all_valid_num();
+        for(int point_id:point_ids)
+            tree.set_point_valid(point_id,true);
+        tree.update_all_valid_num(0);
+        block_tree_c<T_coord> compressed_tree(tree);
+        compressed_tree.clear_all_valid_num();
+        compressed_tree.update_all_valid_num(0);
+        vector<T_coord> center_coord(dim);
+        for(uint32_t dimension=0;dimension<dim;dimension++)
+            center_coord[dimension]=(active_min_coord[dimension]+active_max_coord[dimension])/2;
+        uint32_t compressed_query_num=max(ordering_candidate_num,rbf_reference_num)+1;
+        nearest_queue_c<T_coord> uncompressed_queue,compressed_queue,score_queue;
+        vector<pair<T_coord,int>> compressed_neighbors;
+        uint64_t query_num=1,fallback_query_num=0;
+        // 第一个目标取离包围盒中心最近的点
+        tree.find_original_nearest(uncompressed_queue,coord_array,1,0,center_coord.data(),true);
+        int current_id=uncompressed_queue.top().second;
+        uncompressed_queue.pop();
+        while(true)
+        {
+            target_ids.push_back(current_id);
+            tree.update_point_valid_num_to_root(current_id,-1);
+            compressed_tree.update_point_valid_num_to_root(current_id,1);
+            uint32_t compressed_num=(uint32_t)target_ids.size();
+            // 第一次查询：当前目标附近的已编码点。除去它自身后，最近的rbf_reference_num个就是它的参考点
+            compressed_tree.find_original_nearest(compressed_queue,coord_array,min(compressed_query_num,compressed_num),0,coord_array[current_id],true);
+            query_num++;
+            compressed_neighbors.clear();
+            while(!compressed_queue.empty())
+            {
+                if(compressed_queue.top().second!=current_id)
+                    compressed_neighbors.push_back(compressed_queue.top());
+                compressed_queue.pop();
+            }
+            reverse(compressed_neighbors.begin(),compressed_neighbors.end());
+            uint32_t ref_num=min<uint32_t>(rbf_reference_num,(uint32_t)compressed_neighbors.size());
+            for(uint32_t ref_index=0;ref_index<ref_num;ref_index++)
+                reference_ids.push_back(compressed_neighbors[ref_index].second);
+            reference_offsets.push_back(reference_ids.size());
+            if(compressed_num==active_point_num)
+                break;
+            // 第二次查询：当前目标附近的未编码点，作为下一个目标的候选
+            tree.find_original_nearest(uncompressed_queue,coord_array,min(ordering_candidate_num,active_point_num-compressed_num),0,coord_array[current_id],true);
+            query_num++;
+            // 第一次查询结果以外的已编码点到当前目标的距离不小于query_radius，由三角不等式，它们到距当前目标r的候选的距离不小于query_radius-r
+            bool all_compressed_known=compressed_neighbors.size()+1==compressed_num;
+            T_coord query_radius=compressed_neighbors.empty()?0:sqrt(compressed_neighbors.back().first);
+            int best_id=-1;
+            T_coord best_score=numeric_limits<T_coord>::infinity(),best_route=numeric_limits<T_coord>::infinity();
+            while(!uncompressed_queue.empty())
+            {
+                int candidate_id=uncompressed_queue.top().second;
+                T_coord route=uncompressed_queue.top().first;
+                uncompressed_queue.pop();
+                T_coord score=route;
+                for(const auto&neighbor:compressed_neighbors)
+                    score=min(score,get_dist_to_coord(coord_array[candidate_id],coord_array[neighbor.second],dim));
+                T_coord guaranteed_radius=all_compressed_known?numeric_limits<T_coord>::infinity():(query_radius-sqrt(route))*(T_coord)0.999;
+                if(!(guaranteed_radius>0&&score<guaranteed_radius*guaranteed_radius))
+                {
+                    compressed_tree.find_original_nearest(score_queue,coord_array,1,0,coord_array[candidate_id],true);
+                    score=score_queue.top().first;
+                    score_queue.pop();
+                    fallback_query_num++;
+                }
+                if(best_id==-1||score<best_score||(score==best_score&&route<best_route))
+                {
+                    best_id=candidate_id;
+                    best_score=score;
+                    best_route=route;
+                }
+            }
+            current_id=best_id;
+        }
+        printf("Forward ordering kd-tree queries: %llu, score fallback queries: %llu\n",(unsigned long long)query_num,(unsigned long long)fallback_query_num);
+        printf("Target sorting time: %f s\n",seconds_since(sorting_start_time));
+        auto reference_generation_start_time=chrono::steady_clock::now();
+        if(uses_rbf)
+            generate_batched_rbf_weights(target_ids,reference_ids,reference_offsets,structure.prediction_weights,structure.rbf_fallback_flags);
         auto end_time=chrono::steady_clock::now();
         printf("Prediction reference generation time: %f s\n",chrono::duration<double>(end_time-reference_generation_start_time).count());
         printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)target_ids.size(),chrono::duration<double>(end_time-generation_start_time).count());

@@ -75,8 +75,8 @@ namespace unsz
         configured_label_pipeline=label_pipeline;
         configured_value_pipeline=value_pipeline;
         activate_field(0);
-        // global排序只有一轮，local排序使用默认的8轮
-        if(ordering_scope=="global")
+        // global和forward排序只有一轮，local排序使用默认的8轮
+        if(ordering_scope!="local")
             prediction_round_num=1;
     }
 

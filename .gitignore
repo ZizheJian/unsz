@@ -1,5 +1,6 @@
 build/*
 install/*
+install_ablation/
 unsz_env/*
 __pycache__/
 *.py[cod]
