@@ -37,6 +37,43 @@ namespace unsz
                 weights[begin]=1;
             nearest_fallback_target_num++;
         }
+        if(weight_mode=="idw")
+        {
+            // 消融实验：与UMC相同的反距离权重w_i∝1/d_i，参考点与RBF相同。目标与某个参考点重合时直接复制该参考点
+            for(uint32_t prediction_index:batched_target_ids)
+            {
+                uint64_t begin=ref_begin[prediction_index];
+                int target_id=target_ids[prediction_index];
+                T_calc inverse_distance_sum=0;
+                int zero_distance_ref=-1;
+                for(uint32_t ref_index=0;ref_index<rbf_reference_num&&zero_distance_ref<0;ref_index++)
+                {
+                    T_calc squared_distance=0;
+                    for(uint32_t dimension=0;dimension<dim;dimension++)
+                    {
+                        T_calc difference=(T_calc)coord_array[ref_ids[begin+ref_index]][dimension]-(T_calc)coord_array[target_id][dimension];
+                        squared_distance+=difference*difference;
+                    }
+                    if(squared_distance==0)
+                        zero_distance_ref=(int)ref_index;
+                    else
+                    {
+                        weights[begin+ref_index]=1/sqrt(squared_distance);
+                        inverse_distance_sum+=weights[begin+ref_index];
+                    }
+                }
+                if(zero_distance_ref>=0)
+                {
+                    fill(weights.begin()+begin,weights.begin()+begin+rbf_reference_num,0);
+                    weights[begin+zero_distance_ref]=1;
+                }
+                else
+                    for(uint32_t ref_index=0;ref_index<rbf_reference_num;ref_index++)
+                        weights[begin+ref_index]/=inverse_distance_sum;
+            }
+            printf("IDW weights: targets=%llu,boundary_fallback_targets=%llu,time=%f s\n",(unsigned long long)batched_target_ids.size(),(unsigned long long)boundary_fallback_target_num,seconds_since(start_time));
+            return;
+        }
 
         // 每批同时求解batch_capacity个目标，每个目标占一个lane。矩阵和向量按[行][列][lane]存放，最内层循环遍历lane，便于编译器向量化。
         // valid[lane]=0的lane仍按单位矩阵参与计算，使所有lane执行相同的指令，最后再退回最近参考点。

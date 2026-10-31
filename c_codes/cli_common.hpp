@@ -95,6 +95,32 @@ namespace unsz
                 if(param.coordinate_rescaling_mode!="off"&&param.coordinate_rescaling_mode!="on"&&param.coordinate_rescaling_mode!="auto")
                     throw runtime_error("-coordinate-rescaling必须是off、on或auto");
             }
+            // 以下选项只用于消融实验，正式压缩使用默认值
+            else if(option=="-spatial-residual")
+            {
+                string mode=read_value();
+                if(mode!="on"&&mode!="off")
+                    throw runtime_error("-spatial-residual必须是on或off");
+                param.spatial_residual_enabled=mode=="on";
+            }
+            else if(option=="-eb-schedule")
+            {
+                param.eb_schedule=read_value();
+                if(param.eb_schedule!="inverse_rank_log2"&&param.eb_schedule!="none")
+                    throw runtime_error("-eb-schedule必须是inverse_rank_log2或none");
+            }
+            else if(option=="-ordering")
+            {
+                param.ordering_scope=read_value();
+                if(param.ordering_scope!="global"&&param.ordering_scope!="local")
+                    throw runtime_error("-ordering必须是global或local");
+            }
+            else if(option=="-weights")
+            {
+                param.weight_mode=read_value();
+                if(param.weight_mode!="rbf"&&param.weight_mode!="idw")
+                    throw runtime_error("-weights必须是rbf或idw");
+            }
             else if(!parse_side_option(option,read_value))
                 throw runtime_error("未知参数："+option);
         }

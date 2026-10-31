@@ -363,6 +363,8 @@ namespace unsz
         {
             for(const tensor_pipeline_c&pipeline:generate_tensor_pipeline_candidates(current_tensor_shape))
             {
+                if(pipeline.use_spatial_residual&&!spatial_residual_enabled)
+                    continue;
                 automatic_pipeline_candidate_c candidate;
                 candidate.label_pipeline=tensor_pipeline_name(pipeline);
                 candidate.value_pipeline=candidate.label_pipeline;
@@ -377,14 +379,16 @@ namespace unsz
         {
             add_candidate("independent","independent");
             add_candidate(two_labels?"extrapolation":"independent","extrapolation");
-            add_candidate(two_labels?"extrapolation":"independent","extrapolation_spatial_residual");
+            if(spatial_residual_enabled)
+                add_candidate(two_labels?"extrapolation":"independent","extrapolation_spatial_residual");
             bool anchor_compatible=slice_vec.front()==0;
             for(uint32_t slice_index=1;slice_index<slice_num;slice_index++)
                 anchor_compatible&=slice_vec[slice_index]==slice_vec[slice_index-1]+1;
             if(anchor_compatible)
             {
                 add_candidate(two_labels?"anchor_interpolation":"independent","anchor_interpolation");
-                add_candidate(two_labels?"anchor_interpolation":"independent","anchor_interpolation_spatial_residual");
+                if(spatial_residual_enabled)
+                    add_candidate(two_labels?"anchor_interpolation":"independent","anchor_interpolation_spatial_residual");
             }
         }
         return candidates;

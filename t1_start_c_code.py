@@ -12,7 +12,7 @@ umc_root=project_root/"third_party/umc"
 umc_inp_batch=10
 build_max_cpus=get_max_cpus(8)
 silent_build=False
-allowed_unsz_config_keys={"label_config_path_list","partition_num","partition_size","thread_num","pipeline","coordinate_rescaling"}
+allowed_unsz_config_keys={"label_config_path_list","partition_num","thread_num","pipeline","coordinate_rescaling","extra_arguments"}
 
 # JSON配置
 def resolve_json_path(path_or_name):
@@ -179,21 +179,18 @@ def build_spatial_prediction_arguments(config,data_dir,time_expression):
         if coordinate_rescaling not in ("off","on","auto"):
             raise ValueError(f"未知坐标缩放模式：{coordinate_rescaling}")
         arguments.extend(("-coordinate-rescaling",coordinate_rescaling))
-    has_partition_num="partition_num" in config
-    has_partition_size="partition_size" in config
-    if has_partition_num and has_partition_size:
-        raise ValueError("partition_num和partition_size不能同时设置")
-    if has_partition_num or has_partition_size:
+    if "partition_num" in config:
         if "thread_num" not in config:
             raise ValueError("启用partition时必须显式设置thread_num")
-        partition_name="partition_num" if has_partition_num else "partition_size"
-        if not isinstance(config[partition_name],int) or config[partition_name]<=0:
-            raise ValueError(f"{partition_name}必须是正整数")
+        if not isinstance(config["partition_num"],int) or config["partition_num"]<=0:
+            raise ValueError("partition_num必须是正整数")
         if not isinstance(config["thread_num"],int) or config["thread_num"]<=0:
             raise ValueError("thread_num必须是正整数")
-        arguments.extend(("-"+partition_name.replace("_","-"),config[partition_name],"-thread-num",config["thread_num"]))
+        arguments.extend(("-partition-num",config["partition_num"],"-thread-num",config["thread_num"]))
     elif "thread_num" in config:
-        raise ValueError("thread_num只能和partition_num或partition_size一起设置")
+        raise ValueError("thread_num只能和partition_num一起设置")
+    # 消融实验追加的选项，压缩和解压都会带上
+    arguments.extend(config.get("extra_arguments",[]))
     return arguments
 
 def build_spatial_unsz_arguments(config,data_dir):

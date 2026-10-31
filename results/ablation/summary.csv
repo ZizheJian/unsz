@@ -1,0 +1,6 @@
+variant,task,field,bit_rate_ratio
+exceptional_values_off,adcirc_haiyan_zeta,zeta,1.0342997368336788
+exceptional_values_off,e3sm_h4_aoddust,AODDUST,4.689563809713013
+exceptional_values_off,katrina_attr0,attr0,5.743975412355131
+exceptional_values_off,mean_over_affected_fields,3,3.031543553205353
+exceptional_values_off,mean_over_all_fields,24,1.148703585091908

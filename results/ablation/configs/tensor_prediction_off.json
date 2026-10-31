@@ -1,0 +1,259 @@
+[
+ {
+  "name": "adcirc_haiyan_zeta",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/ADCIRC-Haiyan-1.5km",
+  "csv_path": "results/ablation/tensor_prediction_off/fields/adcirc_haiyan_1_5km_{field}.csv",
+  "field_list": [
+   "zeta"
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 24,
+  "coordinate_dim": 3,
+  "unsz": {
+   "label_config_path_list": [
+    "label_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-1.json",
+    "label_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-2.json",
+    "label_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-3.json",
+    "label_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-4.json",
+    "label_configs/ADCIRC_Haiyan_zeta_rbf_rel_1e-5.json"
+   ],
+   "pipeline": {
+    "pair": [
+     [
+      "independent",
+      "independent"
+     ]
+    ]
+   }
+  }
+ },
+ {
+  "name": "e3sm_h4_aoddust",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h4",
+  "csv_path": "results/ablation/tensor_prediction_off/fields/e3sm_h4_{field}.csv",
+  "field_list": [
+   "AODDUST"
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 720,
+  "coordinate_dim": 3,
+  "unsz": {
+   "label_config_path_list": [
+    "label_configs/E3SM_h4_AODDUST_rbf_rel_1e-1.json",
+    "label_configs/E3SM_h4_AODDUST_rbf_rel_1e-2.json",
+    "label_configs/E3SM_h4_AODDUST_rbf_rel_1e-3.json",
+    "label_configs/E3SM_h4_AODDUST_rbf_rel_1e-4.json",
+    "label_configs/E3SM_h4_AODDUST_rbf_rel_1e-5.json"
+   ],
+   "pipeline": {
+    "pair": [
+     [
+      "independent",
+      "independent"
+     ]
+    ]
+   }
+  }
+ },
+ {
+  "name": "e3sm_h4_mass_dst_srf",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/E3SM-h4",
+  "csv_path": "results/ablation/tensor_prediction_off/fields/e3sm_h4_{field}.csv",
+  "field_list": [
+   "Mass_dst_srf"
+  ],
+  "rel_eb_list": [
+   0.1,
+   0.01,
+   0.001,
+   0.0001,
+   1e-05
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 720,
+  "coordinate_dim": 3,
+  "unsz": {
+   "pipeline": {
+    "value": [
+     "independent"
+    ]
+   }
+  }
+ },
+ {
+  "name": "katrina_attr0",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina",
+  "csv_path": "results/ablation/tensor_prediction_off/fields/katrina_{field}.csv",
+  "field_list": [
+   "attr0"
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 162,
+  "coordinate_dim": 3,
+  "unsz": {
+   "label_config_path_list": [
+    "label_configs/Katrina_attr0_rbf_rel_1e-1.json",
+    "label_configs/Katrina_attr0_rbf_rel_1e-2.json",
+    "label_configs/Katrina_attr0_rbf_rel_1e-3.json",
+    "label_configs/Katrina_attr0_rbf_rel_1e-4.json",
+    "label_configs/Katrina_attr0_rbf_rel_1e-5.json"
+   ],
+   "pipeline": {
+    "pair": [
+     [
+      "independent",
+      "independent"
+     ]
+    ]
+   }
+  }
+ },
+ {
+  "name": "ocean_layer_thickness",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean",
+  "csv_path": "results/ablation/tensor_prediction_off/fields/ocean_{field}.csv",
+  "field_list": [
+   "layerThickness"
+  ],
+  "rel_eb_list": [
+   0.1,
+   0.01,
+   0.001,
+   0.0001,
+   1e-05
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 31,
+  "coordinate_dim": 3,
+  "unsz": {
+   "pipeline": {
+    "value": [
+     "independent"
+    ]
+   }
+  }
+ },
+ {
+  "name": "ocean_salinity",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean",
+  "csv_path": "results/ablation/tensor_prediction_off/fields/ocean_{field}.csv",
+  "field_list": [
+   "salinity"
+  ],
+  "rel_eb_list": [
+   0.1,
+   0.01,
+   0.001,
+   0.0001,
+   1e-05
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 31,
+  "coordinate_dim": 3,
+  "unsz": {
+   "pipeline": {
+    "value": [
+     "independent"
+    ]
+   }
+  }
+ },
+ {
+  "name": "ocean_temperature",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean",
+  "csv_path": "results/ablation/tensor_prediction_off/fields/ocean_{field}.csv",
+  "field_list": [
+   "temperature"
+  ],
+  "rel_eb_list": [
+   0.1,
+   0.01,
+   0.001,
+   0.0001,
+   1e-05
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 31,
+  "coordinate_dim": 3,
+  "unsz": {
+   "pipeline": {
+    "value": [
+     "independent"
+    ]
+   }
+  }
+ },
+ {
+  "name": "ocean_velocity_fields",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean",
+  "csv_path": "results/ablation/tensor_prediction_off/fields/ocean_{field}.csv",
+  "field_list": [
+   "velocityMeridional",
+   "velocityX",
+   "velocityY",
+   "velocityZ",
+   "velocityZonal",
+   "zTop"
+  ],
+  "rel_eb_list": [
+   0.1,
+   0.01,
+   0.001,
+   0.0001,
+   1e-05
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 31,
+  "coordinate_dim": 3,
+  "unsz": {
+   "pipeline": {
+    "value": [
+     "independent"
+    ]
+   }
+  }
+ },
+ {
+  "name": "tpost20_scalar",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Tpost20",
+  "csv_path": "results/ablation/tensor_prediction_off/fields/tpost20_{field}.csv",
+  "field_list": [
+   "scalar"
+  ],
+  "rel_eb_list": [
+   0.1,
+   0.01,
+   0.001,
+   0.0001,
+   1e-05
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 20,
+  "coordinate_dim": 3,
+  "unsz": {
+   "pipeline": {
+    "value": [
+     "independent"
+    ]
+   }
+  }
+ }
+]

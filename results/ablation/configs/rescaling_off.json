@@ -1,0 +1,94 @@
+[
+ {
+  "name": "katrina_attr0",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Katrina",
+  "csv_path": "results/ablation/rescaling_off/fields/katrina_{field}.csv",
+  "field_list": [
+   "attr0"
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 162,
+  "coordinate_dim": 3,
+  "unsz": {
+   "label_config_path_list": [
+    "label_configs/Katrina_attr0_rbf_rel_1e-1.json",
+    "label_configs/Katrina_attr0_rbf_rel_1e-2.json",
+    "label_configs/Katrina_attr0_rbf_rel_1e-3.json",
+    "label_configs/Katrina_attr0_rbf_rel_1e-4.json",
+    "label_configs/Katrina_attr0_rbf_rel_1e-5.json"
+   ],
+   "coordinate_rescaling": "off"
+  }
+ },
+ {
+  "name": "taps_temperature",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+  "csv_path": "results/ablation/rescaling_off/fields/taps_{field}.csv",
+  "field_list": [
+   "TEMPERATURE"
+  ],
+  "rel_eb_list": [
+   0.1,
+   0.01,
+   0.001,
+   0.0001,
+   1e-05
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 1,
+  "coordinate_dim": 3,
+  "unsz": {
+   "coordinate_rescaling": "off"
+  }
+ },
+ {
+  "name": "taps_velocity_x",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+  "csv_path": "results/ablation/rescaling_off/fields/taps_{field}.csv",
+  "field_list": [
+   "VELOCITY_X"
+  ],
+  "rel_eb_list": [
+   0.1,
+   0.01,
+   0.001,
+   0.0001,
+   1e-05
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 1,
+  "coordinate_dim": 3,
+  "unsz": {
+   "coordinate_rescaling": "off"
+  }
+ },
+ {
+  "name": "taps_co2",
+  "data_dir": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/TAPS",
+  "csv_path": "results/ablation/rescaling_off/fields/taps_{field}.csv",
+  "field_list": [
+   "CO2"
+  ],
+  "rel_eb_list": [
+   0.1,
+   0.01,
+   0.001,
+   0.0001,
+   1e-05
+  ],
+  "compressor_list": [
+   "unsz"
+  ],
+  "slice_num": 1,
+  "coordinate_dim": 3,
+  "unsz": {
+   "coordinate_rescaling": "off"
+  }
+ }
+]

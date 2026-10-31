@@ -511,7 +511,7 @@ namespace unsz
             vector<uint32_t> coordinate_rescaling_sample_target_offsets;
             vector<int> coordinate_rescaling_sample_target_ids,coordinate_rescaling_sample_reference_ids;
             bool print_compression_stage_time=false,prediction_data_uses_prediction_order=false,coordinates_are_original=true,write_decompressed_output=true;
-            string ordering_scope="global";//正式压缩固定使用global
+            string ordering_scope="global";//正式压缩使用global，local只用于消融实验
             uint32_t ordering_score_min_ref_num=1;
             uint32_t ordering_candidate_num=16;
             uint32_t ordering_score_max_ref_num=1;
@@ -520,7 +520,9 @@ namespace unsz
             uint32_t thread_num=1;
             uint32_t field_worker_num=1;
             vector<uint32_t>field_worker_id_vec;
-            string eb_schedule="inverse_rank_log2";//none / inverse_rank_log2
+            string eb_schedule="inverse_rank_log2";//none / inverse_rank_log2，none只用于消融实验
+            string weight_mode="rbf";//rbf / idw，idw只用于消融实验
+            bool spatial_residual_enabled=true;//false时自动选择不考虑空间残差预测，只用于消融实验
             double eb_schedule_start_ratio=0.8;
             double eb_schedule_log2_shift=0.5;//inverse_rank_log2的指数位移
             double eb_schedule_max_log2_exponent=7;//inverse_rank_log2的最小EB倍率由该指数限制，不依赖预测轮数
