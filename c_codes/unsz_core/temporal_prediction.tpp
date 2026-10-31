@@ -338,6 +338,44 @@ namespace unsz
         return false;
     }
 
+    // 单点集时跨slice预测对整个slice要么都可用、要么都不可用。返回是否可用，以及按存放位置计算跨slice预测值的函数。
+    // 算式与predict_temporal_value相同，只是把参考slice的查找移到逐点循环之外。
+    template<typename T_coord,typename T_data>
+    template<time_dimension_mode_e value_mode>
+    auto param_c<T_coord,T_data>::get_single_point_set_cross_slice_predictor() const
+    {
+        constexpr bool interpolation=value_mode==time_dimension_mode_e::linear_interpolation||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
+        constexpr bool extrapolation=value_mode==time_dimension_mode_e::constant_extrapolation||value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual;
+        bool available=false;
+        const vector<T_data>*left_data=nullptr,*right_data=nullptr;
+        if constexpr(extrapolation)
+        {
+            available=previous_time_value_available;
+            left_data=previous_time_value_source;
+        }
+        else if constexpr(interpolation)
+        {
+            available=temporal_value_interpolation_available;
+            if(available)
+            {
+                const temporal_dependency_c&dependency=temporal_value_dependency_vec[current_time_step_index];
+                left_data=&reconstructed_time_data_vec[(uint32_t)dependency.source_indices[0]];
+                right_data=&reconstructed_time_data_vec[(uint32_t)dependency.source_indices[1]];
+            }
+        }
+        array<T_calc,2> weights=temporal_weights;
+        auto predict=[left_data,right_data,weights](uint32_t storage_id)->T_data
+        {
+            if constexpr(interpolation)
+                return (T_data)(weights[0]*(T_calc)(*left_data)[storage_id]+weights[1]*(T_calc)(*right_data)[storage_id]);
+            else if constexpr(extrapolation)
+                return (*left_data)[storage_id];
+            else
+                return 0;
+        };
+        return pair<bool,decltype(predict)>(available,predict);
+    }
+
     template<typename T_coord,typename T_data>
     template<time_dimension_mode_e value_mode>
     void param_c<T_coord,T_data>::store_temporal_residual(uint32_t storage_id,bool used_temporal_prediction,T_data temporal_prediction)

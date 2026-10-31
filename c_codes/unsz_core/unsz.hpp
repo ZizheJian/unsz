@@ -258,7 +258,7 @@ namespace unsz
 
         // 标准参考布局：global DAG中预测序号为k（从0开始）的目标前面只有k个点，k<10时只有k个参考点，前10个目标共有0+1+...+9=45个参考点。
         // k>=10的目标恰好有10个参考点，从45+(k-10)*10开始，不必读reference_offsets。
-        // 这个函数检查当前结构是否满足该布局（local排序或点数很少的partition可能不满足），满足时快速路径直接按上式算参考区间。
+        // 这个函数检查当前结构是否满足该布局（local排序或点数很少的partition可能不满足），满足时单点集逐点循环的第二段直接按上式递推参考区间，并固定使用10点预测。
         bool uses_standard_reference_layout(uint32_t max_reference_num) const
         {
             uint32_t initial_target_num=min<uint32_t>(max_reference_num,target_ids.size());
@@ -563,6 +563,8 @@ namespace unsz
             bool predict_temporal_value(uint32_t storage_id,uint32_t point_set_id,T_data &prediction);
             template<time_dimension_mode_e value_mode>
             void store_temporal_residual(uint32_t storage_id,bool used_temporal_prediction,T_data temporal_prediction);
+            template<time_dimension_mode_e value_mode>
+            auto get_single_point_set_cross_slice_predictor() const;
             template<time_dimension_mode_e label_mode>
             bool predict_temporal_label(uint32_t storage_id,uint32_t label_channel_id,uint32_t &prediction);
             void update_time_prediction_state();
@@ -570,7 +572,7 @@ namespace unsz
             bool uses_anchor_interpolation_stride_8_flow() const;
             bool current_time_step_is_regular_anchor() const;
             void resolve_single_point_set_time_mode();
-            void dispatch_single_point_set_compression();
+            void check_label_value_time_step_order() const;
             bool coordinate_transform_value_is_trainable(T_data value) const;
             void prepare_coordinate_transform_sample_geometry(uint32_t sample_file_num);
             void prepare_coordinate_transform_training_data();
@@ -610,8 +612,10 @@ namespace unsz
             uint32_t valid_point_set_id() const;
             reconstruction_statistics_c calculate_reconstruction_statistics(const T_data*original,const T_data*reconstructed,uint32_t value_num,uint32_t point_offset=0) const;
             reconstruction_statistics_c calculate_prediction_order_reconstruction_statistics() const;
-            void compress_files(void(param_c<T_coord,T_data>::*compress_file)());
-            void dispatch_fused_compression();
+            void compress_files();
+            void compress_current_file_by_mode();
+            template<bool two_point_sets,time_dimension_mode_e value_mode,time_dimension_mode_e label_mode>
+            void compress_current_file();
             template<bool two_point_sets,bool collect_statistics>
             void classify_current_point_sets(compression_file_state_c&state);
             void prepare_current_point_set_codecs_and_eb(compression_file_state_c&state);
@@ -622,9 +626,9 @@ namespace unsz
             void initialize_current_compression_buffers(compression_file_state_c&state);
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void prepare_current_compression(compression_file_state_c&state);
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode>
+            template<time_dimension_mode_e value_mode>
             value_compression_result_c<T_data> compress_structure_values(const prediction_structure_c<T_calc>&prediction_structure);
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode>
+            template<time_dimension_mode_e value_mode>
             void compress_values(compression_file_state_c&state);
             template<time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void compress_labels_and_values(compression_file_state_c&state);
@@ -633,17 +637,15 @@ namespace unsz
             void print_current_compression_diagnostics() const;
             template<bool two_point_sets>
             void decode_current_compression_streams(decompression_file_state_c<T_data>&state);
-            void dispatch_single_point_set_decompression();
-            void dispatch_two_point_sets_decompression_by_mode();
+            void decompress_current_file_by_mode();
             void print_current_decompression_diagnostics() const;
             void validate_decoded_point_set_counts() const;
             template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void decompress_current_file();
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
+            template<time_dimension_mode_e value_mode>
             void decompress_values(decompression_file_state_c<T_data>&state);
-            template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
+            template<time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
             void decompress_labels_and_values(decompression_file_state_c<T_data>&state);
-            
     };
 }
 
@@ -668,10 +670,6 @@ namespace unsz
 #include "prediction_weights.tpp"
 #include "prediction_order.tpp"
 #include "spatial_prediction_state.tpp"
-#include "compression_flows.tpp"
-#include "decompression_flows.tpp"
-#include "one_point_set_compress_entry.tpp"
-#include "two_point_sets_compress_entry.tpp"
 #include "compress_entry.tpp"
 #include "compress.tpp"
 #include "automatic_flow_selection.tpp"

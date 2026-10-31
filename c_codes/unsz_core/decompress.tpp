@@ -3,15 +3,21 @@
 namespace unsz
 {
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::dispatch_single_point_set_decompression()
+    void param_c<T_coord,T_data>::decompress_current_file_by_mode()
     {
-        one_point_set::decompress(*this);
-    }
-
-    template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::dispatch_two_point_sets_decompression_by_mode()
-    {
-        two_point_sets::fused::decompress(*this);
+        uint32_t point_set_num=(uint32_t)point_set_config_vec.size();
+        if(point_set_num!=1&&point_set_num!=2)
+            throw runtime_error("解压只支持一个或两个点集");
+        if(point_set_num==1)
+            resolve_single_point_set_time_mode();
+        check_label_value_time_step_order();
+        for(const point_set_config_c&config:point_set_config_vec)
+            if(config.codec!=point_set_codec_e::constant&&config.codec!=point_set_codec_e::rbf)
+                throw runtime_error("解压只支持constant或RBF空间预测器");
+        dispatch_prediction_framework(get_prediction_framework(point_set_num),[&](auto two_point_sets,auto value_mode,auto label_mode)
+        {
+            this->template decompress_current_file<decltype(two_point_sets)::value,decltype(value_mode)::value,decltype(label_mode)::value>();
+        });
     }
 
     template<typename T_coord,typename T_data>
@@ -81,18 +87,16 @@ namespace unsz
             prediction_order_point_set_id_vec.clear();
         }
         if constexpr(two_point_sets)
-        {
-            decompress_labels_and_values<two_point_sets,fixed_value_mode,fixed_label_mode>(state);
-        }
+            decompress_labels_and_values<fixed_value_mode,fixed_label_mode>(state);
         else
-            decompress_values<two_point_sets,fixed_value_mode,fixed_label_mode>(state);
+            decompress_values<fixed_value_mode>(state);
         current_decompression_diagnostics.stream_decode_time=state.stream_decode_time;
         current_decompression_diagnostics.label_decode_time=state.label_decode_time;
         current_decompression_diagnostics.value_decode_time=state.value_decode_time;
     }
 
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
+    template<time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
     void param_c<T_coord,T_data>::decompress_labels_and_values(decompression_file_state_c<T_data>&state)
     {
         constexpr bool try_time_label=fixed_label_mode==time_dimension_mode_e::constant_extrapolation||fixed_label_mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual;
@@ -239,280 +243,101 @@ namespace unsz
     }
 
 
+    // 单点集时逐点解压，与compress_structure_values一一对应。
     template<typename T_coord,typename T_data>
-    template<bool two_point_sets,time_dimension_mode_e fixed_value_mode,time_dimension_mode_e fixed_label_mode>
+    template<time_dimension_mode_e value_mode>
     void param_c<T_coord,T_data>::decompress_values(decompression_file_state_c<T_data>&state)
     {
-        uint32_t point_set_num=state.point_set_num;
+        constexpr bool use_spatial_residual=value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual;
         vector<vector<vector<int32_t>>> &structure_point_set_qb_vec=state.structure_point_set_qb_vec;
         vector<const unsigned char*>&structure_unpredictable_value_begin_vec=state.structure_unpredictable_value_begin_vec,&structure_unpredictable_value_end_vec=state.structure_unpredictable_value_end_vec;
-        constexpr bool supports_single_point_set_fast_path=!two_point_sets&&(fixed_value_mode==time_dimension_mode_e::spatial||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual);
-        bool use_single_point_set_fast_path=supports_single_point_set_fast_path&&point_set_codec_vec[0]!=point_set_codec_e::constant;
-        if constexpr(supports_single_point_set_fast_path)
-            for(const prediction_structure_c<T_calc>&structure:prediction_structure_vec)
-                use_single_point_set_fast_path&=structure.prediction_weights.size()==structure.reference_ids.size();
-        if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
-            use_single_point_set_fast_path&=previous_time_value_available;
-        else if constexpr(fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-            use_single_point_set_fast_path&=temporal_value_interpolation_available;
         current_decompressed_data.resize(point_num);
         if(prediction_data_uses_prediction_order)
             prediction_order_decompressed_data.resize(point_num);
+        vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
         auto stage_start_time=chrono::steady_clock::now();
-        if constexpr(!two_point_sets)
-            if(point_set_codec_vec[0]==point_set_codec_e::constant)
-            {
-                for(uint32_t structure_id=0;structure_id<prediction_structure_vec.size();structure_id++)
-                {
-                    if(!structure_point_set_qb_vec[structure_id][0].empty())
-                        throw runtime_error("常量点集的数值流不能包含量化索引");
-                    if(structure_unpredictable_value_begin_vec[structure_id]!=structure_unpredictable_value_end_vec[structure_id])
-                        throw runtime_error("常量点集的数值流不能包含不可预测值");
-                }
-                vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
-                fill(reconstructed_data.begin(),reconstructed_data.end(),point_set_min_data_vec[0]);
-                state.value_decode_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
-                return;
-            }
-        auto decompress_targets=[&](const prediction_structure_c<T_calc>&prediction_structure,auto get_qb,auto get_unpredictable_value)
+        if(point_set_codec_vec[0]==point_set_codec_e::constant)
         {
-            const vector<int>&target_ids=prediction_structure.target_ids;
-            const vector<int>&reference_ids=prediction_structure.reference_ids;
-            const vector<T_calc>&prediction_weights=prediction_structure.prediction_weights;
-            const vector<uint8_t>&rbf_fallback=prediction_structure.rbf_fallback_flags;
-            const vector<T_calc>&pred_eb_multiplier_vec=prediction_structure.eb_multiplier;
-            bool standard_reference_layout=prediction_structure.uses_standard_reference_layout(rbf_reference_num);
-            vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
-            for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
+            for(uint32_t structure_id=0;structure_id<prediction_structure_vec.size();structure_id++)
             {
-                int pred_id=target_ids[prediction_index];
-                uint32_t storage_id=prediction_structure.get_storage_id(prediction_index,pred_id,prediction_data_uses_prediction_order);
-                uint32_t point_set_id=two_point_sets?point_set_id_vec[pred_id]:0;
-                if(point_set_codec_vec[point_set_id]==point_set_codec_e::constant)
-                {
-                    reconstructed_data[storage_id]=point_set_min_data_vec[point_set_id];
-                    continue;
-                }
-                auto predict_spatial_value=[&](vector<T_data>&data,const vector<uint8_t>*valid_ref_mask=nullptr)
-                {
-                    typename prediction_structure_c<T_calc>::reference_range_c reference_range=prediction_structure.get_reference_range(prediction_index,rbf_reference_num,standard_reference_layout);
-                    array_view_c<int> ref_ids(reference_range.num?reference_ids.data()+reference_range.begin:nullptr,reference_range.num);
-                    if constexpr(!two_point_sets)
-                        return predict_value_one_point_set(reference_range.begin,reference_range.num,reference_ids,prediction_weights,data);
-                    array_view_c<T_calc> ref_weights(reference_range.num?prediction_weights.data()+reference_range.begin:nullptr,reference_range.num);
-                    return predict_value_two_point_sets_rbf(!rbf_fallback[prediction_index],ref_ids,ref_weights,data,point_set_id,valid_ref_mask);
-                };
-                T_data pred=0,temporal_prediction=0;
-                bool use_cross_time_prediction=false;
-                if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation||fixed_value_mode==time_dimension_mode_e::linear_interpolation||fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-                {
-                    use_cross_time_prediction=predict_temporal_value<fixed_value_mode>(storage_id,point_set_id,temporal_prediction);
-                    pred=temporal_prediction;
-                    if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual||fixed_value_mode==time_dimension_mode_e::linear_interpolation_spatial_residual)
-                        if(use_cross_time_prediction)
-                            pred+=predict_spatial_value(current_time_spatial_residual_data,&current_time_spatial_residual_valid);
-                }
-                if(!use_cross_time_prediction)
-                    pred=predict_spatial_value(reconstructed_data);
-                int32_t qb=get_qb(prediction_index,point_set_id);
-                T_data point_abs_eb=point_set_abs_eb_vec[point_set_id]*pred_eb_multiplier_vec[prediction_index];
-                if(qb==numeric_limits<int32_t>::min())
-                {
-                    T_data unpredictable_value=get_unpredictable_value(point_set_id);
-                    reconstructed_data[storage_id]=unpredictable_value;
-                }
-                else
-                    reconstructed_data[storage_id]=pred+(T_data)qb*((T_data)2*point_abs_eb);
-                store_temporal_residual<fixed_value_mode>(storage_id,use_cross_time_prediction,temporal_prediction);
+                if(!structure_point_set_qb_vec[structure_id][0].empty())
+                    throw runtime_error("常量点集的数值流不能包含量化索引");
+                if(structure_unpredictable_value_begin_vec[structure_id]!=structure_unpredictable_value_end_vec[structure_id])
+                    throw runtime_error("常量点集的数值流不能包含不可预测值");
             }
-        };
-        if(use_single_point_set_fast_path)
+            fill(reconstructed_data.begin(),reconstructed_data.end(),point_set_min_data_vec[0]);
+            state.value_decode_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
+            return;
+        }
+        T_data base_abs_eb=point_set_abs_eb_vec[0];
+        auto cross_slice_predictor=get_single_point_set_cross_slice_predictor<value_mode>();
+        bool use_cross_slice_prediction=cross_slice_predictor.first;
+        const auto&predict_cross_slice=cross_slice_predictor.second;
+        exception_ptr prediction_exception;
+#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(prediction_structure_vec.size()>1&&thread_num>1)
+        for(int64_t structure_index=0;structure_index<(int64_t)prediction_structure_vec.size();structure_index++)
         {
-            auto decompress_structure=[&](uint32_t structure_index)
+            try
             {
                 const prediction_structure_c<T_calc>&structure=prediction_structure_vec[structure_index];
+                const vector<int>&target_ids=structure.target_ids;
                 const vector<int32_t>&qb_vec=structure_point_set_qb_vec[structure_index][0];
-                uint32_t target_num=(uint32_t)structure.target_ids.size();
-                if(qb_vec.size()!=target_num)
-                    throw runtime_error("单点集快速路径的量化索引数量与目标数量不一致");
+                if(qb_vec.size()!=target_ids.size())
+                    throw runtime_error("单点集数值流的量化索引数量与目标数量不一致");
                 const unsigned char *unpredictable_value_cursor=structure_unpredictable_value_begin_vec[structure_index],*unpredictable_value_end=structure_unpredictable_value_end_vec[structure_index];
-                vector<T_data>&reconstructed_data=prediction_data_uses_prediction_order?prediction_order_decompressed_data:current_decompressed_data;
-                if constexpr(fixed_value_mode==time_dimension_mode_e::spatial)
+                // 跨slice预测是否可用对整个slice相同，因此生成可用和不可用两个循环版本，循环内不再判断。
+                auto decompress_targets=[&](auto use_cross_slice_constant)
                 {
-                    double base_abs_eb=point_set_abs_eb_vec[0];
-                    auto reconstruct_prediction=[&](uint32_t prediction_index,T_data prediction)
+                    constexpr bool use_cross_slice=decltype(use_cross_slice_constant)::value;
+                    auto decompress_target=[&](uint32_t prediction_index,uint64_t ref_begin,uint32_t ref_num) __attribute__((always_inline))
                     {
-                        uint32_t pred_id=(uint32_t)structure.target_ids[prediction_index];
-                        uint32_t reconstructed_id=structure.get_storage_id(prediction_index,pred_id,prediction_data_uses_prediction_order);
-                        T_data point_abs_eb=base_abs_eb*structure.eb_multiplier[prediction_index];
-                        int32_t qb=qb_vec[prediction_index];
-                        if(qb==numeric_limits<int32_t>::min())
-                            reconstructed_data[reconstructed_id]=read_binary<T_data>(unpredictable_value_cursor,unpredictable_value_end);
-                        else
-                            reconstructed_data[reconstructed_id]=prediction+(T_data)qb*((T_data)2*point_abs_eb);
-                    };
-                    uint32_t general_target_num=min<uint32_t>(rbf_reference_num,target_num);
-                    for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
-                    {
-                        typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,false);
-                        reconstruct_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,reconstructed_data));
-                    }
-                    bool standard_reference_layout=structure.uses_standard_reference_layout(rbf_reference_num);
-                    uint64_t fixed_ref_begin=(uint64_t)rbf_reference_num*(rbf_reference_num-1)/2;
-                    if(standard_reference_layout)
-                    {
-                        for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,fixed_ref_begin+=10)
-                            reconstruct_prediction(prediction_index,predict_value_one_point_set_10(fixed_ref_begin,structure.reference_ids,structure.prediction_weights,reconstructed_data));
-                    }
-                    else
-                    {
-                        for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++)
+                        uint32_t storage_id=structure.get_storage_id(prediction_index,target_ids[prediction_index],prediction_data_uses_prediction_order);
+                        T_data cross_slice_prediction=0,prediction;
+                        if constexpr(use_cross_slice)
                         {
-                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,false);
-                            reconstruct_prediction(prediction_index,predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,reconstructed_data));
+                            cross_slice_prediction=predict_cross_slice(storage_id);
+                            prediction=cross_slice_prediction;
+                            if constexpr(use_spatial_residual)
+                                prediction+=predict_value_one_point_set(ref_begin,ref_num,structure.reference_ids,structure.prediction_weights,current_time_spatial_residual_data);
                         }
-                    }
-                }
-                else
-                {
-                    const vector<T_data>*left_time_data=nullptr,*right_time_data=nullptr;
-                    if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
-                        left_time_data=previous_time_value_source;
-                    else
-                    {
-                        const temporal_dependency_c&dependency=temporal_value_dependency_vec[current_time_step_index];
-                        left_time_data=&reconstructed_time_data_vec[(uint32_t)dependency.source_indices[0]];
-                        right_time_data=&reconstructed_time_data_vec[(uint32_t)dependency.source_indices[1]];
-                    }
-                    auto predict_temporal=[&](uint32_t storage_id)
-                    {
-                        if constexpr(fixed_value_mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
-                            return (*left_time_data)[storage_id];
-                        return (T_data)(temporal_weights[0]*(T_calc)(*left_time_data)[storage_id]+temporal_weights[1]*(T_calc)(*right_time_data)[storage_id]);
-                    };
-                    auto reconstruct_prediction=[&](uint32_t prediction_index,T_data prediction,T_data temporal_prediction)
-                    {
-                        uint32_t pred_id=(uint32_t)structure.target_ids[prediction_index];
-                        uint32_t storage_id=structure.get_storage_id(prediction_index,pred_id,prediction_data_uses_prediction_order);
-                        T_data point_abs_eb=point_set_abs_eb_vec[0]*structure.eb_multiplier[prediction_index];
+                        else
+                            prediction=predict_value_one_point_set(ref_begin,ref_num,structure.reference_ids,structure.prediction_weights,reconstructed_data);
                         int32_t qb=qb_vec[prediction_index];
+                        T_data point_abs_eb=base_abs_eb*structure.eb_multiplier[prediction_index];
                         if(qb==numeric_limits<int32_t>::min())
                             reconstructed_data[storage_id]=read_binary<T_data>(unpredictable_value_cursor,unpredictable_value_end);
                         else
                             reconstructed_data[storage_id]=prediction+(T_data)qb*((T_data)2*point_abs_eb);
-                        current_time_spatial_residual_data[storage_id]=reconstructed_data[storage_id]-temporal_prediction;
-                        current_time_spatial_residual_valid[storage_id]=1;
+                        if constexpr(use_spatial_residual&&use_cross_slice)
+                            current_time_spatial_residual_data[storage_id]=reconstructed_data[storage_id]-cross_slice_prediction;
                     };
-                    uint32_t general_target_num=min<uint32_t>(rbf_reference_num,target_num);
+                    // 与compress_structure_values相同，标准参考布局时第二个循环直接递推参考区间。
+                    uint32_t target_num=(uint32_t)target_ids.size(),general_target_num=structure.uses_standard_reference_layout(rbf_reference_num)?min<uint32_t>(rbf_reference_num,target_num):target_num;
                     for(uint32_t prediction_index=0;prediction_index<general_target_num;prediction_index++)
                     {
-                        uint32_t storage_id=structure.get_storage_id(prediction_index,structure.target_ids[prediction_index],prediction_data_uses_prediction_order);
-                        T_data temporal_prediction=predict_temporal(storage_id);
                         typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,false);
-                        T_data spatial_prediction=predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,current_time_spatial_residual_data);
-                        reconstruct_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
+                        decompress_target(prediction_index,reference_range.begin,reference_range.num);
                     }
-                    bool standard_reference_layout=structure.uses_standard_reference_layout(rbf_reference_num);
-                    uint64_t fixed_ref_begin=(uint64_t)rbf_reference_num*(rbf_reference_num-1)/2;
-                    if(standard_reference_layout)
-                    {
-                        for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,fixed_ref_begin+=10)
-                        {
-                            uint32_t storage_id=structure.get_storage_id(prediction_index,structure.target_ids[prediction_index],prediction_data_uses_prediction_order);
-                            T_data temporal_prediction=predict_temporal(storage_id);
-                            T_data spatial_prediction=predict_value_one_point_set_10(fixed_ref_begin,structure.reference_ids,structure.prediction_weights,current_time_spatial_residual_data);
-                            reconstruct_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
-                        }
-                    }
-                    else
-                    {
-                        for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++)
-                        {
-                            uint32_t storage_id=structure.get_storage_id(prediction_index,structure.target_ids[prediction_index],prediction_data_uses_prediction_order);
-                            T_data temporal_prediction=predict_temporal(storage_id);
-                            typename prediction_structure_c<T_calc>::reference_range_c reference_range=structure.get_reference_range(prediction_index,rbf_reference_num,false);
-                            T_data spatial_prediction=predict_value_one_point_set(reference_range.begin,reference_range.num,structure.reference_ids,structure.prediction_weights,current_time_spatial_residual_data);
-                            reconstruct_prediction(prediction_index,temporal_prediction+spatial_prediction,temporal_prediction);
-                        }
-                    }
-                }
+                    uint64_t ref_begin=(uint64_t)rbf_reference_num*(rbf_reference_num-1)/2;
+                    for(uint32_t prediction_index=general_target_num;prediction_index<target_num;prediction_index++,ref_begin+=rbf_reference_num)
+                        decompress_target(prediction_index,ref_begin,rbf_reference_num);
+                };
+                if(use_cross_slice_prediction)
+                    decompress_targets(true_type());
+                else
+                    decompress_targets(false_type());
                 if(unpredictable_value_cursor!=unpredictable_value_end)
-                    throw runtime_error("单点集快速路径存在未使用的不可预测值");
-            };
-            exception_ptr prediction_exception;
-#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(prediction_structure_vec.size()>1&&thread_num>1)
-            for(int64_t structure_index=0;structure_index<(int64_t)prediction_structure_vec.size();structure_index++)
-            {
-                try
-                {
-                    decompress_structure((uint32_t)structure_index);
-                }
-                catch(...)
-                {
-#pragma omp critical
-                    if(!prediction_exception)
-                        prediction_exception=current_exception();
-                }
+                    throw runtime_error("单点集数值流存在未使用的不可预测值");
             }
-            if(prediction_exception)
-                rethrow_exception(prediction_exception);
-        }
-        else
-        {
-            exception_ptr prediction_exception;
-#pragma omp parallel for schedule(dynamic) num_threads(thread_num) if(prediction_structure_vec.size()>1&&thread_num>1)
-            for(int64_t structure_index=0;structure_index<(int64_t)prediction_structure_vec.size();structure_index++)
+            catch(...)
             {
-                try
-                {
-                    const unsigned char *unpredictable_value_cursor=structure_unpredictable_value_begin_vec[structure_index],*unpredictable_value_end=structure_unpredictable_value_end_vec[structure_index];
-                    auto get_unpredictable_value=[&](uint32_t)
-                    {
-                        return read_binary<T_data>(unpredictable_value_cursor,unpredictable_value_end);
-                    };
-                    if constexpr(!two_point_sets)
-                    {
-                        const vector<int32_t>&qb_vec=structure_point_set_qb_vec[structure_index][0];
-                        bool constant_point_set=point_set_codec_vec[0]==point_set_codec_e::constant;
-                        if((constant_point_set&&!qb_vec.empty())||(!constant_point_set&&qb_vec.size()!=prediction_structure_vec[structure_index].target_ids.size()))
-                            throw runtime_error("单点集数值流的量化索引数量与目标数量不一致");
-                        auto get_qb=[&](uint32_t prediction_index,uint32_t)
-                        {
-                            return qb_vec[prediction_index];
-                        };
-                        decompress_targets(prediction_structure_vec[structure_index],get_qb,get_unpredictable_value);
-                    }
-                    else
-                    {
-                        vector<uint64_t> local_qb_index_vec(point_set_num,0);
-                        auto get_qb=[&](uint32_t,uint32_t point_set_id)
-                        {
-                            const vector<int32_t>&qb_vec=structure_point_set_qb_vec[structure_index][point_set_id];
-                            if(local_qb_index_vec[point_set_id]>=qb_vec.size())
-                                throw runtime_error("数值流的量化索引不足");
-                            return qb_vec[local_qb_index_vec[point_set_id]++];
-                        };
-                        decompress_targets(prediction_structure_vec[structure_index],get_qb,get_unpredictable_value);
-                        for(uint32_t point_set_id=0;point_set_id<point_set_num;point_set_id++)
-                        {
-                            const vector<int32_t>&qb_vec=structure_point_set_qb_vec[structure_index][point_set_id];
-                            if(local_qb_index_vec[point_set_id]!=qb_vec.size())
-                                throw runtime_error("数值流存在未使用的量化索引");
-                        }
-                    }
-                    if(unpredictable_value_cursor!=unpredictable_value_end)
-                        throw runtime_error("数值流存在未使用的不可预测值");
-                }
-                catch(...)
-                {
 #pragma omp critical
-                    if(!prediction_exception)
-                        prediction_exception=current_exception();
-                }
+                if(!prediction_exception)
+                    prediction_exception=current_exception();
             }
-            if(prediction_exception)
-                rethrow_exception(prediction_exception);
         }
+        if(prediction_exception)
+            rethrow_exception(prediction_exception);
         state.value_decode_time=chrono::duration<double>(chrono::steady_clock::now()-stage_start_time).count();
     }
 }

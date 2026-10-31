@@ -83,7 +83,7 @@ namespace unsz
     }
 
     template<typename T_coord,typename T_data>
-    void param_c<T_coord,T_data>::compress_files(void(param_c<T_coord,T_data>::*compress_file)())
+    void param_c<T_coord,T_data>::compress_files()
     {
         uint64_t total_original_bytes=0,total_compressed_bytes=0,total_label_stream_bytes=0,total_value_stream_bytes=0,total_shared_metadata_bytes=0;
         double total_compression_time=0,total_time_prediction_state_update_time=0,total_data_input_time=0,total_compressed_output_time=0,total_normalized_squared_error=0,total_slice_valid_normalized_squared_error=0,total_slice_normalized_squared_error=0;
@@ -106,7 +106,7 @@ namespace unsz
             read_binary_file_exact(original_data_path,current_data.data(),point_num);
             total_data_input_time+=chrono::duration<double>(chrono::steady_clock::now()-input_start_time).count();
             auto compression_start_time=chrono::steady_clock::now();
-            (this->*compress_file)();
+            compress_current_file_by_mode();
             double compression_time=chrono::duration<double>(chrono::steady_clock::now()-compression_start_time).count();
             if(print_file_details)
                 print_current_compression_diagnostics();
@@ -210,10 +210,8 @@ namespace unsz
             total_preprocessing_time+=field_preprocessing_time;
             printf("preprocessing time excluding coordinate and field-data input= %f s\n",field_preprocessing_time);
             param.current_field_preprocessing_time=field_preprocessing_time;
-            if(param.point_set_config_vec.size()==1)
-                one_point_set::compress(param);
-            else
-                two_point_sets::compress(param);
+            param.check_label_value_time_step_order();
+            param.compress_files();
             param.release_current_spatial_prediction_state();
             if(field_num>1||param.field_worker_num>1)
                 printf("END UNSZ FIELD %s\n",param.field_name.c_str());

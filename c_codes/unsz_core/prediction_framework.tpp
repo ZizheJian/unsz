@@ -1,32 +1,61 @@
 #pragma once
 
-namespace unsz::time_flow
-{
-    template<uint32_t time_ref_num>
-    constexpr time_dimension_mode_e label_mode()
-    {
-        if constexpr(time_ref_num==1)
-            return time_dimension_mode_e::constant_extrapolation;
-        return time_dimension_mode_e::label_linear_interpolation_spatial_residual;
-    }
-
-    template<uint32_t time_ref_num,bool use_spatial_residual>
-    constexpr time_dimension_mode_e value_mode()
-    {
-        if constexpr(time_ref_num==1)
-        {
-            if constexpr(use_spatial_residual)
-                return time_dimension_mode_e::constant_extrapolation_spatial_residual;
-            return time_dimension_mode_e::constant_extrapolation;
-        }
-        if constexpr(use_spatial_residual)
-            return time_dimension_mode_e::linear_interpolation_spatial_residual;
-        return time_dimension_mode_e::linear_interpolation;
-    }
-}
-
 namespace unsz
 {
+    constexpr uint32_t cross_slice_reference_num(time_dimension_mode_e mode)
+    {
+        if(mode==time_dimension_mode_e::constant_extrapolation||mode==time_dimension_mode_e::constant_extrapolation_spatial_residual)
+            return 1;
+        if(mode==time_dimension_mode_e::linear_interpolation||mode==time_dimension_mode_e::linear_interpolation_spatial_residual||mode==time_dimension_mode_e::label_linear_interpolation_spatial_residual)
+            return 2;
+        return 0;
+    }
+
+    // 每个slice的预测方式在运行时才确定，而压缩和解压的内层循环要针对每种方式单独编译。
+    // 这里把运行时的点集数、数值和标签预测方式转换成编译期常量，调用function(two_point_sets,value_mode,label_mode)，三个参数都是integral_constant。
+    // 两点集时，标签和数值要么有一方只用空间预测，要么使用相同数量的参考slice。
+    template<typename Function>
+    void dispatch_prediction_framework(const prediction_framework_c&framework,Function function)
+    {
+        using mode_e=time_dimension_mode_e;
+        auto dispatch_value_mode=[&](auto two_point_sets,auto label_mode)
+        {
+            auto call=[&](auto value_mode)
+            {
+                constexpr uint32_t label_ref_num=cross_slice_reference_num(decltype(label_mode)::value),value_ref_num=cross_slice_reference_num(decltype(value_mode)::value);
+                if constexpr(label_ref_num==0||value_ref_num==0||label_ref_num==value_ref_num)
+                    function(two_point_sets,value_mode,label_mode);
+                else
+                    throw runtime_error("两点集的标签和数值必须使用相同数量的参考slice，或其中一方只用空间预测");
+            };
+            switch(framework.value_mode)
+            {
+                case mode_e::spatial:return call(integral_constant<mode_e,mode_e::spatial>());
+                case mode_e::constant_extrapolation:return call(integral_constant<mode_e,mode_e::constant_extrapolation>());
+                case mode_e::linear_interpolation:return call(integral_constant<mode_e,mode_e::linear_interpolation>());
+                case mode_e::constant_extrapolation_spatial_residual:return call(integral_constant<mode_e,mode_e::constant_extrapolation_spatial_residual>());
+                case mode_e::linear_interpolation_spatial_residual:return call(integral_constant<mode_e,mode_e::linear_interpolation_spatial_residual>());
+                default:throw runtime_error("未知的数值预测方式");
+            }
+        };
+        if(!framework.has_label)
+            return dispatch_value_mode(false_type(),integral_constant<mode_e,mode_e::not_applicable>());
+        switch(framework.label_mode)
+        {
+            case mode_e::spatial:return dispatch_value_mode(true_type(),integral_constant<mode_e,mode_e::spatial>());
+            case mode_e::constant_extrapolation:return dispatch_value_mode(true_type(),integral_constant<mode_e,mode_e::constant_extrapolation>());
+            case mode_e::label_linear_interpolation_spatial_residual:return dispatch_value_mode(true_type(),integral_constant<mode_e,mode_e::label_linear_interpolation_spatial_residual>());
+            default:throw runtime_error("未知的标签预测方式");
+        }
+    }
+
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::check_label_value_time_step_order() const
+    {
+        if(point_set_config_vec.size()==2&&label_flow!="none"&&value_flow!="none"&&get_time_step_order(label_flow)!=get_time_step_order(value_flow))
+            throw runtime_error("两点集要求label和value使用相同time step顺序");
+    }
+
     template<typename T_coord,typename T_data>
     bool param_c<T_coord,T_data>::uses_anchor_interpolation_stride_8_flow() const
     {

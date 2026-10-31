@@ -52,14 +52,8 @@ double run_decompression_field(unsz::param_c<T_coord,float>&param,double preproc
     uint64_t total_normalized_value_num=0;
     unsz::reconstruction_statistics_c total_statistics;
     string max_error_data_path;
-    using param_type=unsz::param_c<T_coord,float>;
     if(param.point_set_config_vec.size()!=1&&param.point_set_config_vec.size()!=2)
         throw runtime_error("解压只支持一个或两个点集");
-    void(param_type::*decompress_field)();
-    if(param.point_set_config_vec.size()==1)
-        decompress_field=&param_type::dispatch_single_point_set_decompression;
-    else
-        decompress_field=&param_type::dispatch_two_point_sets_decompression_by_mode;
     vector<float> original_data(param.point_num);
     for (uint32_t file_id=0;file_id<param.original_data_path_vec.size();file_id++)
     {
@@ -74,7 +68,7 @@ double run_decompression_field(unsz::param_c<T_coord,float>&param,double preproc
         total_compressed_bytes+=param.current_compressed_bytes.size();
 
         auto decompression_start_time=chrono::steady_clock::now();
-        (param.*decompress_field)();
+        param.decompress_current_file_by_mode();
         if(param.prediction_data_uses_prediction_order)
         {
             auto restore_start_time=chrono::steady_clock::now();
