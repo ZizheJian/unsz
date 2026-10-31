@@ -1,14 +1,22 @@
 #pragma once
 
+// 坐标缩放：为每个坐标轴学习一个缩放系数s_d，把坐标x换成x⊙s后再建kd-tree、生成DAG和RBF权重，数据值本身不变。
+// 目标是让缩放后的距离与数值差成正比，即|Δv|≈‖Δx⊙s‖，这样沿不同坐标轴“近”的含义在数值上一致。
+// 是否启用由点云形状决定，形状用flatness=sqrt(λmin/λmax)衡量，λ是坐标协方差矩阵的特征值。
+// 注意flatness越小点云越扁，等于1时各方向同样分散。这个名字沿用到了日志、解析脚本和结果CSV中，因此没有改名。
 namespace unsz
 {
+    // 自动模式的经验阈值，由多个数据集上显式off/on的率失真和耗时对比确定（见README 2.3节）：
+    // 原始flatness<=0.05：点云极扁，一定启用。原始flatness>=0.75：点云接近各向同性，不训练直接关闭。
+    // 其余情况先训练，缩放后flatness至少变为原来的1.21倍才启用，否则收益抵不上单独生成DAG的成本。
     inline constexpr double coordinate_transform_original_flatness_enable_threshold=0.05;
     inline constexpr double coordinate_transform_original_flatness_reject_threshold=0.75;
     inline constexpr double coordinate_transform_relative_flatness_enable_threshold=1.21;
-    inline constexpr double coordinate_transform_difficult_group_loss_power=3;
-    inline constexpr uint32_t coordinate_transform_sample_file_num=3;
-    inline constexpr uint32_t coordinate_transform_second_sample_num=3000;
+    inline constexpr double coordinate_transform_difficult_group_loss_power=3;//各组损失取3次方再求和，使拟合较差的组不会被其他组平均掉
+    inline constexpr uint32_t coordinate_transform_sample_file_num=3;//最多用3个均匀分布的slice训练
+    inline constexpr uint32_t coordinate_transform_second_sample_num=3000;//所有训练slice合计最多3000个目标点
 
+    // 用Jacobi旋转求对称矩阵的最小和最大特征值：每次选绝对值最大的非对角元，旋转把它消为0，直到非对角元可以忽略。
     inline pair<double,double> coordinate_covariance_eigenvalue_range(vector<double> covariance,uint32_t dim)
     {
         if(dim==0||covariance.size()!=(uint64_t)dim*dim)
@@ -57,6 +65,7 @@ namespace unsz
         return {minimum,maximum};
     }
 
+    // 用Welford在线算法一次遍历求坐标协方差矩阵（未除以点数，不影响特征值之比）。
     template<typename T_coord>
     vector<double> calculate_coordinate_covariance(const Array2D<T_coord>&coordinates,uint32_t dim)
     {
@@ -82,6 +91,7 @@ namespace unsz
         return covariance;
     }
 
+    // 返回sqrt(λmin/λmax)。给出diagonal时计算缩放后坐标的flatness，缩放后的协方差为D·C·D，D=diag(s)。
     inline double calculate_coordinate_flatness(const vector<double>&covariance,uint32_t dim,const vector<double>*diagonal=nullptr)
     {
         vector<double> transformed_covariance=covariance;
@@ -121,6 +131,8 @@ namespace unsz
         return point_set_config_vec[point_set_id].codec!=point_set_codec_e::constant;
     }
 
+    // 训练点对的几何部分只依赖坐标，因此同一组坐标的多个field共用。
+    // 先用固定种子随机保留30%的点建kd-tree，再在其中给每个训练slice抽目标点，每个目标取10个最近邻组成训练点对。
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_coordinate_transform_sample_geometry(uint32_t sample_file_num)
     {
@@ -176,6 +188,8 @@ namespace unsz
         printf("coordinate transform shared sample geometry: first_sample_points=%u/%u,targets=%llu,references=%llu\n",first_sample_num,point_num,(unsigned long long)coordinate_transform_sample_target_ids.size(),(unsigned long long)coordinate_transform_sample_reference_ids.size());
     }
 
+    // 读取训练slice的数值，把每个点对展开成坐标差Δx和数值差Δv，跳过属于常量点集（如异常值）的点。
+    // REL任务中每个训练slice是一组，Δv除以该slice可预测点集的值域，避免数值幅度大的slice主导训练。ABS任务不分组、不归一化。
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::prepare_coordinate_transform_training_data()
     {
@@ -305,6 +319,7 @@ namespace unsz
         coordinates_are_original=true;
     }
 
+    // 用列主元高斯消元解dim×dim的正规方程，主元过小或结果非有限时返回false。
     inline bool solve_coordinate_transform_normal_equation(vector<double> matrix,vector<double> right_hand_side,vector<double>&solution)
     {
         uint32_t n=(uint32_t)right_hand_side.size();
@@ -343,6 +358,7 @@ namespace unsz
         return true;
     }
 
+    // 残差r_i=|Δv_i|-‖Δx_i⊙s‖。不分组时损失为Σr_i²，分组时为Σ_g(m_g)^p，m_g是第g组的平均r_i²。
     inline double coordinate_transform_squared_loss(const vector<double>&coordinate_differences,const vector<double>&value_differences,const vector<double>&diagonal,const vector<uint32_t>&pair_group_ids,uint32_t group_num,double group_loss_power)
     {
         uint32_t dim=(uint32_t)diagonal.size();
@@ -385,6 +401,11 @@ namespace unsz
             throw runtime_error("坐标变换缺少训练数据");
         if(group_num>0&&pair_group_ids.size()!=value_differences.size())
             throw runtime_error("坐标变换训练点对分组数量错误");
+        // 用Gauss-Newton法最小化coordinate_transform_squared_loss，从s=1出发。
+        // 分组损失Σ_g(m_g)^p对s求导后，第g组每个点对的权重为m_g^(p-1)/N_g（常数因子不影响步长），每轮按当前s更新权重。
+        // 正规方程为(Σw·J·Jᵀ)Δs=-Σw·J·r，其中J_d=∂r/∂s_d=-Δx_d²·s_d/‖Δx⊙s‖。
+        // 每一步做回溯线搜索：步长从1开始减半，直到损失下降，最小到1/256。总共最多计算100次损失。
+        // 收敛后取绝对值，并归一化使Σs_d²=dim，因为只有各轴之间的相对比例影响最近邻关系。
         auto fit_diagonal=[&](double group_loss_power)
         {
             vector<double>diagonal(dim,1);

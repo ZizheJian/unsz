@@ -1,8 +1,13 @@
 #pragma once
 
+// 自动flow选择：在DAG和RBF权重生成之后、正式压缩之前，为当前field选一种跨slice预测方案（flow）。
+// 做法是在少量slice、少量点上把每个候选flow按正式流程试压缩一遍，估计它的标签和数值码流大小，选估计值最小的flow。
 namespace unsz
 {
+    // 在14个field上以REL 1e-3做无截距最小二乘，实际标签和数值码流分别约为估计值的0.412倍和0.732倍，
+    // 因此选择分数取0.56≈0.412/0.732倍的估计标签字节加估计数值字节。权重在约0.15到10.7之间时，命中实际最佳flow的field数都是14个中的13个。
     constexpr double automatic_flow_label_weight=0.56;
+    // 采样规模和标签权重都是在REL 1e-3上标定的，更宽的REL EB统一按1e-3估算，正式压缩仍用用户指定的EB。
     constexpr double automatic_flow_max_decision_rel_eb=1e-3;
 
     template<typename T_data>
@@ -13,6 +18,9 @@ namespace unsz
         vector<array<uint32_t,2>> structure_point_set_point_num;
     };
 
+    // 采样窗口：每个prediction structure的预测顺序均分为若干段（region），每段取一个从start开始、长度为width的连续窗口。
+    // 窗口到region_end后回绕到region_begin。窗口内的目标在预测顺序上连续，后面的目标会用到前面目标的重建值，与正式压缩一致。
+    // quota是该窗口要采样的第一点集目标数。两点集时窗口需要加宽，使每个评估slice都能在窗口内找到quota个第一点集目标。
     struct automatic_flow_window_c
     {
         uint32_t region_begin=0,region_end=0,start=0,width=0,quota=0;
@@ -64,6 +72,7 @@ namespace unsz
         double selection_score() const{return automatic_flow_label_weight*estimated_label_bytes+estimated_value_bytes;}
     };
 
+    // 只读取采样点的数值：采样点覆盖的1MiB块不到文件的30%时按块读取，否则整个文件读入更快。
     template<typename T_data>
     vector<T_data> read_automatic_flow_sample_values(const string&path,const vector<uint32_t>&sample_ids,uint32_t point_num,double&input_time)
     {
@@ -137,6 +146,7 @@ namespace unsz
         return result;
     }
 
+    // log2(C(n,k))：在n个标签中标出k个预测错误位置所需的最少比特数，用来估计标签码流大小。
     inline double automatic_flow_log2_combination(uint64_t n,uint64_t k)
     {
         if(k==0||k==n)
@@ -187,6 +197,8 @@ namespace unsz
         double decision_eb_scale=1;
         if(point_set_config_vec[0].error_mode!=point_set_error_mode_e::absolute&&point_set_config_vec[0].eb>automatic_flow_max_decision_rel_eb)
             decision_eb_scale=automatic_flow_max_decision_rel_eb/point_set_config_vec[0].eb;
+        // 第1步：布置采样窗口。总共automatic_flow_sample_num个目标均分给各prediction structure，每个structure再分给automatic_flow_start_num个窗口。
+        // 窗口起点用固定的整数哈希（乘大奇数常数，其中第一个是2^64/黄金比例）在各段内伪随机选取，保证同样的输入总是选中同样的点。
         auto sample_structure_start_time=chrono::steady_clock::now();
         vector<vector<automatic_flow_window_c>> structure_windows(structure_num);
         auto reference_original_id=[&](const prediction_structure_c<T_calc>&structure,int reference_id)
@@ -221,6 +233,12 @@ namespace unsz
         vector<automatic_flow_time_statistics_c<T_data>> time_statistics(time_step_num);
         vector<uint32_t> full_scan_time_indices;
         vector<double> evaluation_time_step_weight(time_step_num,0);
+        // 第2步：选出约32个评估slice，并给每个评估slice一个权重，使权重之和等于slice总数，评估slice的估计值加权求和即为全部slice的估计值。
+        // 二维tensor分层抽样：第0层是根slice，第1、2层是过根的两条轴线，第3层是内部。
+        // 根slice没有跨slice参考，轴线上的slice在一些flow中只能沿一个轴预测，因此各层分开抽样，保证每层都被抽到，每层的权重为层大小/抽样数。
+        // 内部用拉丁超立方抽样，两个轴的位置各分成同样多的区间，每个区间恰好抽一次。
+        // 伪随机数由field名的FNV-1a哈希作种子，再经splitmix64混合得到，>>11后乘2^-53变成[0,1)内的小数。
+        // 非tensor数据在时间上均匀取最多32个slice，权重相同。
         if(current_field_uses_tensor&&current_tensor_shape[0]>1&&current_tensor_shape[1]>1)
         {
             constexpr uint32_t sample_budget=32;
@@ -306,6 +324,10 @@ namespace unsz
                 throw runtime_error("自动flow重复选择评估time step");
             evaluate_time_step[time_index]=1;
         }
+        // 第3步：列出候选flow。tensor数据枚举各轴的预测方式和顺序。
+        // 其他数据的候选为纯空间、零阶外插（用前一个slice）、anchor8，后两种各有带空间残差和不带的版本。
+        // anchor8先处理0,8,16,...号锚点slice（从前一个锚点外插），再按间距4、2、1逐层在两侧已重建的slice之间线性插值，类似SZ3的分层插值。
+        // 两点集时标签flow跟随数值flow。
         vector<automatic_flow_candidate_c> candidates;
         auto add_candidate=[&](const string&candidate_label_flow,const string&candidate_value_flow)
         {
@@ -345,6 +367,7 @@ namespace unsz
                 add_candidate(two_point_sets?"anchor_interpolation_stride_8":"none","anchor_interpolation_stride_8_spatial_residual");
             }
         }
+        // 需要读取采样值的slice：评估slice，加上任一候选flow中评估slice直接参考的slice。
         vector<uint8_t> read_sampled_time_step=evaluate_time_step;
         for(const automatic_flow_candidate_c&candidate:candidates)
         {
@@ -361,6 +384,8 @@ namespace unsz
         }
         uint32_t sampled_time_step_num=accumulate(read_sampled_time_step.begin(),read_sampled_time_step.end(),0U);
         vector<vector<vector<uint32_t>>> selected_target_indices(time_step_num,vector<vector<uint32_t>>(structure_num));
+        // 第4步：在每个评估slice上确定数值目标，统计每个structure中两个点集各有多少点（用于把样本估计放大到整个slice）。
+        // 单点集时窗口就是从start开始的quota个连续目标。两点集时要在窗口内找到quota个第一点集目标，窗口宽度取所有评估slice所需宽度的最大值。
         if(two_point_sets)
             current_data.resize(point_num);
         for(uint32_t time_index:full_scan_time_indices)
@@ -406,6 +431,8 @@ namespace unsz
             }
             sample_structure_time+=chrono::duration<double>(chrono::steady_clock::now()-sample_structure_start_time).count();
         }
+        // 第5步：按最终的公共窗口裁剪每个评估slice的数值目标。标签目标是每个窗口开头的quota个点，不区分点集。
+        // 所有目标及其空间参考点合起来就是要读取数值的样本点，它们按点编号排序后重新编号为样本编号，之后的计算都在样本编号上进行。
         sample_structure_start_time=chrono::steady_clock::now();
         vector<uint32_t> sample_original_ids;
         vector<vector<automatic_flow_sample_target_c<T_calc>>> structure_targets(structure_num);
@@ -525,6 +552,7 @@ namespace unsz
                 throw runtime_error("自动flow的label采样目标映射不完整");
         }
         sample_structure_time+=chrono::duration<double>(chrono::steady_clock::now()-sample_structure_start_time).count();
+        // 第6步：稀疏读取样本点在所需slice上的数值，并分类得到标签。
         vector<vector<T_data>> sampled_values(time_step_num);
         vector<vector<uint8_t>> sampled_labels(time_step_num);
         auto sample_value_start_time=chrono::steady_clock::now();
@@ -561,8 +589,12 @@ namespace unsz
             }
         }
         sample_structure_time+=chrono::duration<double>(chrono::steady_clock::now()-sample_structure_start_time).count();
+        // 下面复用正式压缩的空间预测函数，它们从成员变量读取参考点的点集编号。
+        // 样本的参考点用样本编号表示，所以这里暂时关闭预测顺序编号，并在估计每个slice前把point_set_id_vec换成样本标签，结束后恢复。
         bool saved_prediction_order=prediction_data_uses_prediction_order;
         prediction_data_uses_prediction_order=false;
+        // 第7步：估计标签码流。每种标签flow只估一次：有一个参考slice时沿用它的标签，有两个时一致则沿用、不一致则用空间预测，没有时用空间预测。
+        // 预测错误数按样本比例放大到整个structure，码流大小取log2(C(n,k))/8字节，再按slice权重求和。
         unordered_map<string,double> estimated_label_bytes_by_flow;
         auto shared_label_start_time=chrono::steady_clock::now();
         if(!two_point_sets)
@@ -615,6 +647,9 @@ namespace unsz
         }
         shared_label_estimation_time=chrono::duration<double>(chrono::steady_clock::now()-shared_label_start_time).count();
         candidate_evaluation_time+=shared_label_estimation_time;
+        // 第8步：估计数值码流。按候选flow的处理顺序逐个评估slice，用正式的跨slice预测、空间预测和量化压缩样本目标，量化后的重建值供后续预测使用。
+        // 跨slice预测只用于自身和参考slice都属于第一点集的样本点，其余样本点用空间预测。
+        // 每个structure的量化码真的做一遍Huffman和Zstd。Huffman码表不随点数成比例增长，不放大，其余字节按实际点数/样本数放大，再按slice权重求和。
         for(automatic_flow_candidate_c&candidate:candidates)
         {
             auto candidate_start_time=chrono::steady_clock::now();
@@ -710,6 +745,7 @@ namespace unsz
             candidate_evaluation_time+=candidate.evaluation_time;
         }
         prediction_data_uses_prediction_order=saved_prediction_order;
+        // 第9步：选分数最小的候选，并恢复被用作临时空间的成员变量。
         auto best=min_element(candidates.begin(),candidates.end(),[](const automatic_flow_candidate_c&a,const automatic_flow_candidate_c&b){return a.selection_score()<b.selection_score();});
         if(current_field_uses_tensor)
         {

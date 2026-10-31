@@ -12,6 +12,9 @@ namespace unsz
         use_coordinate_transform=false;
         coordinate_transform_diagonal.assign(dim,1);
         bool uses_spatial_prediction=any_of(point_set_config_vec.begin(),point_set_config_vec.end(),[](const point_set_config_c&config){return config.codec!=point_set_codec_e::constant;});
+        // 坐标缩放的决策流程，阈值含义见coordinate_transform.tpp开头：
+        // auto模式先算原始flatness，点云接近各向同性时直接关闭；否则训练缩放系数，再按原始flatness或缩放前后flatness之比决定是否启用。
+        // on模式总是训练并启用，off模式不训练。
         if(coordinate_transform_mode!="off"&&uses_spatial_prediction)
         {
             const vector<double>*coordinate_covariance=nullptr;

@@ -155,6 +155,12 @@ namespace unsz
         printf("Generated %llu prediction entries, total time: %f s\n",(unsigned long long)target_ids.size(),chrono::duration<double>(end_time-generation_start_time).count());
     }
 
+    // 反向MSD消去：从预测顺序的最后一个点开始，倒着确定预测顺序。
+    // MSD（mean squared distance）指一个点到离它最近的ordering_score_max_ref_num个剩余点的平均平方距离，正式配置只用1个点，即到最近剩余点的平方距离。
+    // 每一步在上一个被消去点附近取ordering_candidate_num个剩余点作为候选，把MSD最小的候选消去，作为剩余点中最后预测的点。MSD小说明它在剩余点中仍有很近的参考点。
+    // 消去顺序倒过来就是预测顺序。一个点被消去时，所有剩余点都排在它前面，所以它的最近剩余点就是它在DAG中的参考点。
+    // global_order=true时target_tree和reference_tree是同一棵树，全部点一起排序。
+    // global_order=false用于local多轮排序：target_tree只含当前轮的目标，reference_tree还含更早的轮次，因此从最后一轮开始倒着排。
     template<typename T_coord,typename T_data>
     template<bool global_order>
     void param_c<T_coord,T_data>::sort_targets_by_reverse_msd(block_tree_c<T_coord>&target_tree,block_tree_c<T_coord>&reference_tree,const vector<T_coord>&active_min_coord,const vector<T_coord>&active_max_coord,vector<vector<int>>&target_id_groups,prediction_structure_c<T_calc>&structure)
@@ -177,6 +183,7 @@ namespace unsz
             printf("Global MSD: target and scoring queries share one kd-tree validity state\n");
         printf("Using reverse MSD elimination with %u nearby candidates and %u references\n",ordering_candidate_num,rbf_reference_num);
         uint32_t score_query_neighbor_num=min<uint64_t>((uint64_t)ordering_score_max_ref_num+1,active_point_num);
+        // MSD评分缓存按tree_id索引：cached_score_ref_ids保存每个点上次算MSD时用到的评分参考点，reference_is_valid标记一个点是否尚未被消去。
         {
             vector<T_coord> cached_msd_scores;
             vector<uint32_t> cached_ref_counts;
@@ -214,6 +221,7 @@ namespace unsz
                 vector<T_coord> current_target_ref_squared_distances;
                 if(use_candidate_score_geometry_reuse)
                     queried_neighbor_group.reserve(ordering_neighbor_query_num);
+                // 开启print_compression_stage_time时，每256次kd-tree查询抽一次计时，用来估计平均查询耗时，不影响排序结果。
                 auto query_score_references=[&](int candidate_id)
                 {
                     auto execute_query=[&]()
@@ -248,7 +256,10 @@ namespace unsz
                         throw runtime_error("无法找到尚未剔除的预测目标");
                     if constexpr(global_order)
                     {
-                        // 当前查询围绕上一个反向选中的目标进行，因此最近点就是它在正向DAG中的参考点。
+                        // 这次候选查询以上一个被消去的点为中心，而它刚从树中删除，查询只返回排在它前面的剩余点。
+                        // 因此查询结果中最近的rbf_reference_num个点正是它在DAG中的参考点，同一次查询既给出本轮候选，又给出上一个点的参考关系，不需要再查kd-tree。
+                        // 它被消去前剩余remaining_target_num个点，所以它的预测序号是remaining_target_num。参考点按距离从近到远存放，第0个是最近点。
+                        // queried_neighbor_group按距离从远到近记录这次查询的全部结果，供下面的三角不等式剪枝使用。
                         if(previous_selected_target_id>=0)
                         {
                             nearest_queue_c<T_coord> ref_queue=candidate_queue;
@@ -329,6 +340,9 @@ namespace unsz
                             bool cache_valid=score_cache_initialized[candidate_tree_id]&&cached_ref_num>0&&valid_cached_ref_num>=required_cached_ref_num;
                             T_coord candidate_msd;
                             // 优先复用仍然有效的评分参考点，避免再次查询kd-tree。
+                            // 剩余点只会减少，所以缓存的参考点全部未被消去时，它们仍是最近的剩余点，MSD不变，可直接复用。
+                            // 部分参考点被消去时，只要还剩至少ordering_score_min_ref_num个，就用剩下的参考点重算MSD，这时结果是近似值。
+                            // 正式配置的评分参考点数和重查阈值都是1，缓存失效时一定重新查询，因此结果是精确的。
                             if(cache_valid)
                             {
                                 if(reference_list_unchanged)
@@ -348,6 +362,10 @@ namespace unsz
                             else
                             {
                                 // global一点MSD可先用本轮候选几何严格证明最近点；无法证明时才查询kd-tree。
+                                // 记上一个被消去的点为q，本轮查询返回的点中离q最远的距离为R，候选点c到q的距离为r。
+                                // 查询结果以外的剩余点p满足|pq|>=R，由三角不等式得|pc|>=|pq|-|qc|>=R-r。
+                                // 所以如果查询结果中离c最近的点距离小于R-r，它就是c在全部剩余点中的最近点。
+                                // 系数0.999为浮点误差留出余量。查询结果已包含全部剩余点时，不存在p，半径视为无穷大。
                                 bool certified_nearest=false;
                                 int certified_ref_id=-1;
                                 T_coord certified_squared_dist=numeric_limits<T_coord>::infinity();

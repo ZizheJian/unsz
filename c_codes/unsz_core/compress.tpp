@@ -90,6 +90,9 @@ namespace unsz
         });
     }
 
+    // 把当前slice的点分到各点集，并统计每个点集的点数和min/max。
+    // 循环手工展开成4路，各路用独立的min/max累加器，打破相邻迭代间的依赖，编译器才能向量化。
+    // 实测（gcc 11.2，-O3 -march=native）单点集快约9倍，两点集快约1.4倍，结果与普通循环逐位相同。
     template<typename T_coord,typename T_data>
     template<bool two_point_sets,bool collect_statistics>
     void param_c<T_coord,T_data>::classify_current_point_sets(compression_file_state_c&state)

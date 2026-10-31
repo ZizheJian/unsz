@@ -2,6 +2,14 @@
 
 namespace unsz
 {
+    // 为每个预测目标计算rbf_reference_num个参考点的RBF插值权重，预测值是参考点重建值的加权和。
+    // 记参考点为x_1..x_n，目标为x，h为目标到各参考点平方距离的平均值，核函数φ(d²)=exp(-rbf_shape*sqrt(d²/h))。
+    // 除以h使核函数与坐标的绝对尺度无关。
+    // 权重w满足带常数项的RBF插值方程：A w+μ1=k，1ᵀw=1，其中A_ij=φ(|x_i-x_j|²)+rbf_nugget·δ_ij，k_i=φ(|x-x_i|²)。
+    // nugget给对角线加一个小量，防止参考点很近时A接近奇异。1ᵀw=1保证常数场被准确预测。
+    // 解法：先解A u=k和A v=1，再取μ=(1ᵀu-1)/(1ᵀv)，w=u-μv。A是对称正定矩阵，用LDLᵀ分解求解。
+    // 退化情况都退回最近参考点（权重全给第0个参考点）并置rbf_fallback：参考点不足n个、分解主元过小、结果出现非有限值。
+    // 目标与某个参考点重合时直接复制该参考点，不置rbf_fallback。
     template<typename T_coord,typename T_data>
     void param_c<T_coord,T_data>::generate_batched_rbf_weights(const vector<int>&target_ids,const vector<int>&ref_ids,const vector<uint64_t>&ref_begin,vector<T_calc>&weights,vector<uint8_t>&rbf_fallback)
     {
@@ -13,6 +21,7 @@ namespace unsz
         vector<uint32_t> batched_target_ids;
         batched_target_ids.reserve(target_ids.size());
         uint64_t boundary_fallback_target_num=0,rbf_target_num=0,nearest_fallback_target_num=0;
+        // 参考点不足rbf_reference_num个的目标（预测顺序中最前面的点）直接用最近参考点，其余目标进入批量求解。
         for(uint32_t prediction_index=0;prediction_index<target_ids.size();prediction_index++)
         {
             uint64_t begin=ref_begin[prediction_index];
@@ -29,6 +38,8 @@ namespace unsz
             nearest_fallback_target_num++;
         }
 
+        // 每批同时求解batch_capacity个目标，每个目标占一个lane。矩阵和向量按[行][列][lane]存放，最内层循环遍历lane，便于编译器向量化。
+        // valid[lane]=0的lane仍按单位矩阵参与计算，使所有lane执行相同的指令，最后再退回最近参考点。
         constexpr uint32_t batch_capacity=32;
         uint32_t ref_num=rbf_reference_num;
         vector<T_calc> matrix((uint64_t)ref_num*ref_num*batch_capacity),target_squared_distance((uint64_t)ref_num*batch_capacity),target_kernel((uint64_t)ref_num*batch_capacity),target_solution((uint64_t)ref_num*batch_capacity),constant_solution((uint64_t)ref_num*batch_capacity),distance_normalizer(batch_capacity),work_value(batch_capacity);
@@ -54,6 +65,7 @@ namespace unsz
         for(uint64_t batch_begin=0;batch_begin<batched_target_ids.size();batch_begin+=batch_capacity)
         {
             uint32_t lane_num=(uint32_t)min<uint64_t>(batch_capacity,batched_target_ids.size()-batch_begin);
+            // 第1步：计算目标到各参考点的平方距离和归一化系数h。
             for(uint32_t lane=0;lane<lane_num;lane++)
             {
                 uint32_t prediction_index=batched_target_ids[batch_begin+lane];
@@ -94,6 +106,7 @@ namespace unsz
                 valid[lane]=distance_normalizer[lane]>0&&isfinite(distance_normalizer[lane]);
             }
 
+            // 第2步：组装对称矩阵A（参考点两两之间的核函数值，对角线加nugget）和右端向量k（目标到各参考点的核函数值）。
             for(uint32_t row=0;row<ref_num;row++)
             {
                 for(uint32_t column=row;column<ref_num;column++)
@@ -123,6 +136,8 @@ namespace unsz
                 }
             }
 
+            // 第3步：原地做LDLᵀ分解，A=L·D·Lᵀ。对角线保存D，下三角保存L（L的对角线为1，不存）。
+            // D_r=A_rr-Σ_{c<r}L_rc²·D_c，L_nr=(A_nr-Σ_{c<r}L_nc·L_rc·D_c)/D_r。D_r不大于1e-12时视为退化。
             for(uint32_t row=0;row<ref_num;row++)
             {
                 #pragma omp simd
@@ -158,6 +173,7 @@ namespace unsz
                 }
             }
 
+            // 第4步：同时解A u=k（target_solution）和A v=1（constant_solution），依次做前代L y=b、除以D、回代Lᵀx=y。
             for(uint32_t row=0;row<ref_num;row++)
             {
                 #pragma omp simd
@@ -198,6 +214,7 @@ namespace unsz
                     }
                 }
             }
+            // 第5步：用拉格朗日乘子μ=(1ᵀu-1)/(1ᵀv)施加权重和为1的约束，w=u-μv。退化的目标退回最近参考点。
             for(uint32_t lane=0;lane<lane_num;lane++)
             {
                 if(direct_solution[lane])

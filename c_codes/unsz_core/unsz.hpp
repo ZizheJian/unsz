@@ -33,6 +33,17 @@ using namespace std;
 
 #include "simple_json.hpp"
 
+// 代码术语与论文术语对照：
+// point set（点集）：按数值规则把点分成两类，点集0是普通值，点集1是异常值（如-99999）。只有一类时称单点集。
+// label（标签）：每个点属于哪个点集。label stream即论文中的异常值标签流。
+// time step / time / temporal：slice和跨slice预测。名字沿用最早按时间步组织数据的写法，二维tensor（如月份×层）的两个轴也用这套名字。
+// flow：跨slice预测方案，value_flow用于数值，label_flow用于标签。prediction framework/mode是某个slice按flow解析出的具体预测方式。
+// tensor flow：二维tensor的跨slice预测方案，指定每个轴的预测方式和两个轴的处理顺序。
+// anchor8（anchor_interpolation_stride_8）：每8个slice取一个锚点，锚点之间按间距4、2、1分层插值。
+// spatial residual：跨slice预测之后，再对邻近点上的跨slice预测残差做空间预测，加到跨slice预测上。
+// prediction structure：一个partition内的DAG，包括预测顺序、参考点和RBF权重。不分区时只有一个。
+// qb：量化bin编号。unpredictable value：量化后仍超出误差上限而原样保存的值。
+// MSD：mean squared distance，见generate_prediction_structure_and_weights.tpp。
 namespace unsz
 {
     template<typename T>
@@ -68,6 +79,8 @@ namespace unsz
     enum class point_set_codec_e:uint8_t{constant=2,rbf=5};
     enum class point_set_error_mode_e:uint8_t{relative=0,absolute=1,field_relative=2};
     enum class point_set_rule_operator_e:uint8_t{less=0,less_equal=1,greater=2,greater_equal=3,equal=4,not_equal=5};
+    // label_linear_interpolation_spatial_residual：对标签做两侧slice的线性插值，两侧标签一致时插值结果就是该标签。
+    // 不一致时插值得到0.5，无法判定，改用空间预测补充。流程与数值的“插值＋空间残差”相似，因此沿用这个名字。
     enum class time_dimension_mode_e:uint8_t{not_applicable=0,spatial=1,constant_extrapolation=2,label_linear_interpolation_spatial_residual=5,linear_interpolation=6,linear_interpolation_spatial_residual=8,constant_extrapolation_spatial_residual=9};
     enum class time_step_order_e:uint8_t{chronological=0,interpolation=1,anchor_stride_8=2};
     enum class tensor_axis_mode_e:uint8_t{none=0,constant_extrapolation=1,anchor_interpolation_stride_8=2};
@@ -228,6 +241,9 @@ namespace unsz
             uint32_t num;
         };
 
+        // target_ids按预测顺序列出目标点编号。第i个目标的参考点是reference_ids[reference_offsets[i]..reference_offsets[i+1])，按距离从近到远。
+        // remap_prediction_data_to_prediction_order之后，reference_ids原地改存参考点的预测顺序下标而不是点编号，重建值也按预测顺序存放。
+        // 原地复写省掉了第二个参考数组，get_storage_id据此给出重建值的存放位置。
         vector<int> target_ids,reference_ids;
         vector<uint64_t> reference_offsets;
         vector<T_calc> prediction_weights;
@@ -240,6 +256,9 @@ namespace unsz
             return uses_prediction_order?prediction_order_offset+prediction_index:(uint32_t)target_id;
         }
 
+        // 标准参考布局：global DAG中预测序号为k（从0开始）的目标前面只有k个点，k<10时只有k个参考点，前10个目标共有0+1+...+9=45个参考点。
+        // k>=10的目标恰好有10个参考点，从45+(k-10)*10开始，不必读reference_offsets。
+        // 这个函数检查当前结构是否满足该布局（local排序或点数很少的partition可能不满足），满足时快速路径直接按上式算参考区间。
         bool uses_standard_reference_layout(uint32_t max_reference_num) const
         {
             uint32_t initial_target_num=min<uint32_t>(max_reference_num,target_ids.size());
