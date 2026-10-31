@@ -9,7 +9,7 @@
     "s1_decompress": "87ed06bf0c099d2f306bcdc57afb908ad6dfc61617c1187d5ad17c254be7d2d8"
   },
   "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
-  "point_set_config_sha256": "dab9a926ca93688dbb66c5f450a3f95ebd592daadeefd8e07ffdf80234642ac1",
+  "label_config_sha256": "dab9a926ca93688dbb66c5f450a3f95ebd592daadeefd8e07ffdf80234642ac1",
   "slurm_cpus": 8,
   "partition_num": 1,
   "thread_num": 1,

@@ -40,15 +40,15 @@ if metadata_sha256!=json.loads((project_root/'results/ocean_large_tensor_1d/sz3/
 field_list=list(metadata["fields"])
 if len(field_list)!=95:
     raise RuntimeError(f"完整Ocean-large应包含95个field，实际为{len(field_list)}")
-point_set_path=Path('point_set_configs')/f'Ocean_large_monthly_rbf_rel_{eb_tag}.json'
-point_set=json.loads((project_root/point_set_path).read_text())
-if point_set!={'version':3,'labels':[{'method':'predict','eb_mode':'REL','eb_value':arguments.rel_eb,'condition':{'operator':'!=','value':-99999}},{'method':'constant'}]}:
-    raise RuntimeError('点集配置与正式实验规则不一致')
-config=[{"data_dir":str(data_dir),"csv_path":str(output_dir/'{field}.csv'),"compressor_list":["unsz"],"coordinate_dim":3,"name":"ocean_large_tensor_full","field_list":field_list,"tensor_metadata":"tensor_metadata.json","cleanup_after_each_test":True,"unsz":{"partition_num":1,"thread_num":1,"coordinate_transform":"auto","point_set_config_path_list":[str(point_set_path)]}}]
+label_path=Path('label_configs')/f'Ocean_large_monthly_rbf_rel_{eb_tag}.json'
+label=json.loads((project_root/label_path).read_text())
+if label!={'version':3,'labels':[{'method':'predict','eb_mode':'REL','eb_value':arguments.rel_eb,'condition':{'operator':'!=','value':-99999}},{'method':'constant'}]}:
+    raise RuntimeError('标签配置与正式实验规则不一致')
+config=[{"data_dir":str(data_dir),"csv_path":str(output_dir/'{field}.csv'),"compressor_list":["unsz"],"coordinate_dim":3,"name":"ocean_large_tensor_full","field_list":field_list,"tensor_metadata":"tensor_metadata.json","cleanup_after_each_test":True,"unsz":{"partition_num":1,"thread_num":1,"coordinate_rescaling":"auto","label_config_path_list":[str(label_path)]}}]
 config_path=output_dir/f'config_rel_{eb_tag}.json'
 config_path.write_text(json.dumps(config,ensure_ascii=False,indent=2)+"\n")
 revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=project_root,text=True).strip()
-manifest_path.write_text(json.dumps({'git_revision':revision,'source_sha256':{str(path.relative_to(project_root)):hashlib.sha256(path.read_bytes()).hexdigest() for path in (Path(__file__).resolve(),project_root/'t1_start_c_code.py')},'binary_sha256':binary_sha256,'metadata_sha256':metadata_sha256,'point_set_config_sha256':hashlib.sha256((project_root/point_set_path).read_bytes()).hexdigest(),'slurm_cpus':8,'partition_num':1,'thread_num':1,'rel_eb':arguments.rel_eb,'field_num':len(field_list)},indent=2)+'\n')
+manifest_path.write_text(json.dumps({'git_revision':revision,'source_sha256':{str(path.relative_to(project_root)):hashlib.sha256(path.read_bytes()).hexdigest() for path in (Path(__file__).resolve(),project_root/'t1_start_c_code.py')},'binary_sha256':binary_sha256,'metadata_sha256':metadata_sha256,'label_config_sha256':hashlib.sha256((project_root/label_path).read_bytes()).hexdigest(),'slurm_cpus':8,'partition_num':1,'thread_num':1,'rel_eb':arguments.rel_eb,'field_num':len(field_list)},indent=2)+'\n')
 if arguments.prepare_only:
     print(config_path)
     sys.exit(0)

@@ -11,14 +11,14 @@ def prepare_tpost20(source_path,output_dir):
     output_dir.mkdir(parents=True,exist_ok=True)
     with gzip.open(source_path,"rt") as source_file:
         point_num=int(source_file.readline())
-        time_step_num=int(source_file.readline())
+        slice_num=int(source_file.readline())
         cell_num=int(source_file.readline())
         coord_array=np.empty((point_num,3),dtype=np.float32)
-        data_array=np.empty((time_step_num,point_num),dtype=np.float32)
+        data_array=np.empty((slice_num,point_num),dtype=np.float32)
         for point_id in range(point_num):
             value=np.fromstring(source_file.readline(),sep=" ",dtype=np.float32)
-            if value.size!=3+time_step_num:
-                raise RuntimeError(f"Tpost20第{point_id}个点应有{3+time_step_num}个数，实际为{value.size}")
+            if value.size!=3+slice_num:
+                raise RuntimeError(f"Tpost20第{point_id}个点应有{3+slice_num}个数，实际为{value.size}")
             coord_array[point_id]=value[:3]
             data_array[:,point_id]=value[3:]
         connectivity=np.empty((cell_num,4),dtype=np.uint32)
@@ -31,9 +31,9 @@ def prepare_tpost20(source_path,output_dir):
             raise RuntimeError("Tpost20文件末尾存在未解析内容")
     coord_array.tofile(output_dir/"coords.dat")
     connectivity.tofile(output_dir/"conn.dat")
-    for time_step in range(time_step_num):
-        data_array[time_step].tofile(output_dir/f"scalar.dat.{time_step}")
-    print(f"Tpost20转换完成：point_num={point_num},time_step_num={time_step_num},cell_num={cell_num}")
+    for slice_id in range(slice_num):
+        data_array[slice_id].tofile(output_dir/f"scalar.dat.{slice_id}")
+    print(f"Tpost20转换完成：point_num={point_num},slice_num={slice_num},cell_num={cell_num}")
 
 
 def main(command_line_arguments=None):

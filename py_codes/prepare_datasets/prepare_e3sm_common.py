@@ -47,19 +47,19 @@ def prepare_e3sm(source_path,grid_path,output_dir,field_vec,stream_name):
         cos_latitude=np.cos(latitude)
         write_interleaved_float32(output_dir/"coords.dat",(cos_latitude*np.cos(longitude),cos_latitude*np.sin(longitude),np.sin(latitude)))
         prepare_scrip_cell_edges(grid_path,output_dir/"conn.dat")
-        time_step_num=int(dataset.sizes["time"])
+        slice_num=int(dataset.sizes["time"])
         point_num=int(dataset.sizes["ncol"])
         for field in field_vec:
             variable=dataset[field]
             if variable.dims!=("time","ncol"):
                 raise ValueError(f"E3SM field {field}维度不是(time,ncol)：{variable.dims}")
-            for time_step in range(time_step_num):
-                data=np.asarray(variable.isel(time=time_step).values,dtype=np.float32)
+            for slice_id in range(slice_num):
+                data=np.asarray(variable.isel(time=slice_id).values,dtype=np.float32)
                 invalid=~np.isfinite(data)
                 if np.any(invalid):
                     data=data.copy()
                     data[invalid]=-99999
-                data.tofile(output_dir/f"{field}.dat.{time_step}")
-        print(f"E3SM {stream_name}转换完成：point_num={point_num},time_step_num={time_step_num},field={','.join(field_vec)}")
+                data.tofile(output_dir/f"{field}.dat.{slice_id}")
+        print(f"E3SM {stream_name}转换完成：point_num={point_num},slice_num={slice_num},field={','.join(field_vec)}")
     finally:
         dataset.close()

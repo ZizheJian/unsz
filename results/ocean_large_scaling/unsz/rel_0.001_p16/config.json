@@ -110,9 +110,9 @@
     "unsz": {
       "partition_num": 16,
       "thread_num": 16,
-      "coordinate_transform": "auto",
-      "point_set_config_path_list": [
-        "point_set_configs/Ocean_large_monthly_rbf_rel_1e-3.json"
+      "coordinate_rescaling": "auto",
+      "label_config_path_list": [
+        "label_configs/Ocean_large_monthly_rbf_rel_1e-3.json"
       ]
     }
   }

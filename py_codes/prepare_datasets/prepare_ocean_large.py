@@ -81,7 +81,7 @@ def prepare_ocean_large_monthly(source_dir,mesh_source_path,output_dir):
         point_num,valid_edge_num=prepare_mesh(mesh_dataset,output_dir)
     field_manifest=None
     invalid_num_by_field={}
-    for time_step,source_path in enumerate(source_path_vec):
+    for slice_id,source_path in enumerate(source_path_vec):
         with Dataset(source_path,"r") as dataset:
             dataset.set_auto_mask(False)
             if len(dataset.dimensions["nCells"])!=point_num:
@@ -94,16 +94,16 @@ def prepare_ocean_large_monthly(source_dir,mesh_source_path,output_dir):
                 raise RuntimeError(f"{source_path.name}的月度field列表与第一个文件不一致")
             for field in single_level:
                 data,invalid_num=read_monthly_field(dataset.variables[field],False)
-                data.tofile(output_dir/f"{field}.dat.{time_step}")
+                data.tofile(output_dir/f"{field}.dat.{slice_id}")
                 invalid_num_by_field[field]=invalid_num_by_field.get(field,0)+invalid_num
             for field in multi_level:
                 data,invalid_num=read_monthly_field(dataset.variables[field],True)
-                data.tofile(output_dir/f"{field}.dat.{time_step}")
+                data.tofile(output_dir/f"{field}.dat.{slice_id}")
                 invalid_num_by_field[field]=invalid_num_by_field.get(field,0)+invalid_num
-        print(f"Ocean-large月度输出已转换：time_step={time_step},source={source_path.name}")
+        print(f"Ocean-large月度输出已转换：slice={slice_id},source={source_path.name}")
     manifest={
         "selection":"NetCDF中全部58个(Time,nCells)float32变量，以及全部33个(Time,nCells,nVertLevels)float32变量的第0层；UMC公开仓库未提供varnames_91.txt，因此这是根据91=58+33恢复的推定口径",
-        "time_step_num":len(source_path_vec),
+        "slice_num":len(source_path_vec),
         "point_num":point_num,
         "edge_num":valid_edge_num,
         "invalid_value":float(monthly_invalid_value),
@@ -112,7 +112,7 @@ def prepare_ocean_large_monthly(source_dir,mesh_source_path,output_dir):
         "multi_level_level0_fields":field_manifest["multi_level_level0"]
     }
     (output_dir/"monthly_fields.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n")
-    print(f"Ocean-large月度输出转换完成：point_num={point_num},edge_num={valid_edge_num},field_num={len(field_manifest['single_level'])+len(field_manifest['multi_level_level0'])},time_step_num={len(source_path_vec)}")
+    print(f"Ocean-large月度输出转换完成：point_num={point_num},edge_num={valid_edge_num},field_num={len(field_manifest['single_level'])+len(field_manifest['multi_level_level0'])},slice_num={len(source_path_vec)}")
 
 
 def prepare_ocean_large(source_path,output_dir,field_vec,level):
@@ -165,8 +165,8 @@ def prepare_ocean_large(source_path,output_dir,field_vec,level):
                         for level_id,output_file in enumerate(output_files):
                             data[:,level_id].tofile(output_file)
                 for level_id in range(level_num):
-                    print(f"Ocean-large field范围：field={field},time_step={level_id},coordinate={level_coordinates[level_id]},min={minimum[level_id]},max={maximum[level_id]}")
-                print(f"Ocean-large三维field已按层转为time step：field={field},time_step_num={level_num},coordinate_file={coordinate_name}")
+                    print(f"Ocean-large field范围：field={field},slice={level_id},coordinate={level_coordinates[level_id]},min={minimum[level_id]},max={maximum[level_id]}")
+                print(f"Ocean-large三维field已按层转为slice_id：field={field},slice_num={level_num},coordinate_file={coordinate_name}")
             else:
                 if level is not None:
                     raise RuntimeError(f"二维field {field}不能指定-level")

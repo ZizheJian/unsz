@@ -9,7 +9,7 @@ from py_codes.prepare_datasets.prepare_dataset_common import data_root_default,e
 
 point_num=2187832
 cell_num=4032359
-time_step_num=24
+slice_num=24
 
 
 def prepare_haiyan_mesh(source_path,output_dir):
@@ -40,9 +40,9 @@ def prepare_haiyan_mesh(source_path,output_dir):
 
 
 def prepare_haiyan_zeta(source_path,output_dir):
-    for time_step in range(time_step_num):
-        extract_hdf5_float32(source_path,"/zeta",output_dir/f"zeta.dat.{time_step}",(point_num,),f"{time_step},0",f"1,{point_num}")
-    print(f"ADCIRC Haiyan zeta转换完成：time_step_num={time_step_num}")
+    for slice_id in range(slice_num):
+        extract_hdf5_float32(source_path,"/zeta",output_dir/f"zeta.dat.{slice_id}",(point_num,),f"{slice_id},0",f"1,{point_num}")
+    print(f"ADCIRC Haiyan zeta转换完成：slice_num={slice_num}")
 
 
 def prepare_haiyan_depth(source_path,output_dir):

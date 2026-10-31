@@ -1,5 +1,5 @@
 {
-  "plot_script_sha256": "13de621320d0e2cfd8de785e12cfc7aed766a24132a5ceecf8243d5410d91bd8",
+  "plot_script_sha256": "7226cd84d0adf37a2bc0788583a4992239beecb6291255e89a37861d126c512f",
   "sources": [
     {
       "path": "/home/x-zjian1/unsz/results/ocean_large_tensor_1d/sz3/rel_1e-05_t1/summary.csv",
@@ -95,116 +95,6 @@
       "manifest": {
         "codec": "sz3",
         "binary_sha256": "f25323db1f3d340298a4c868318b5f7e0e6c16eadde1a58bcb7e5b1218e73033",
-        "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
-        "rel_eb": 0.1,
-        "threads": 1,
-        "layout": "one original-order unstructured slice per 1D array",
-        "range_excludes": -99999,
-        "input_keeps_sentinel": true,
-        "git_revision": "e1f6c46f20cca06260a526f74f092cf1dd90471e",
-        "upstream_revisions": {
-          "SZ3": "d5ab1d1490e61d9e18340e3dda2465407751c863",
-          "zfp": "709952d8a058b134f7a616b679b8504354eeec8f",
-          "PFPL": "36f5aaef42744ed78b4d1525b03a7fb2168b363c"
-        },
-        "codec_error_bound_mode": "ABS",
-        "abs_eb_rule": "rel_eb*(valid_max-valid_min),computed separately for each slice"
-      }
-    },
-    {
-      "path": "/home/x-zjian1/unsz/results/ocean_large_tensor_1d/zfp/rel_1e-05_t1/summary.csv",
-      "sha256": "4f6b6dfb03a6a206bd3ed303ebdaa20ee3e9ce223d43d370754970525501dea1",
-      "manifest": {
-        "codec": "zfp",
-        "binary_sha256": "b7f931bae1fae03b6363bf06deb5ac44ce45dde15cc4c20930c7b1868fa7182b",
-        "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
-        "rel_eb": 1e-05,
-        "threads": 1,
-        "layout": "one original-order unstructured slice per 1D array",
-        "range_excludes": -99999,
-        "input_keeps_sentinel": true,
-        "git_revision": "e1f6c46f20cca06260a526f74f092cf1dd90471e",
-        "upstream_revisions": {
-          "SZ3": "d5ab1d1490e61d9e18340e3dda2465407751c863",
-          "zfp": "709952d8a058b134f7a616b679b8504354eeec8f",
-          "PFPL": "36f5aaef42744ed78b4d1525b03a7fb2168b363c"
-        },
-        "codec_error_bound_mode": "ABS",
-        "abs_eb_rule": "rel_eb*(valid_max-valid_min),computed separately for each slice"
-      }
-    },
-    {
-      "path": "/home/x-zjian1/unsz/results/ocean_large_tensor_1d/zfp/rel_0.0001_t1/summary.csv",
-      "sha256": "a2169d8c20b67add50fc603fbec8f953b86c21ac7a57056c3e0c142304738dde",
-      "manifest": {
-        "codec": "zfp",
-        "binary_sha256": "b7f931bae1fae03b6363bf06deb5ac44ce45dde15cc4c20930c7b1868fa7182b",
-        "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
-        "rel_eb": 0.0001,
-        "threads": 1,
-        "layout": "one original-order unstructured slice per 1D array",
-        "range_excludes": -99999,
-        "input_keeps_sentinel": true,
-        "git_revision": "e1f6c46f20cca06260a526f74f092cf1dd90471e",
-        "upstream_revisions": {
-          "SZ3": "d5ab1d1490e61d9e18340e3dda2465407751c863",
-          "zfp": "709952d8a058b134f7a616b679b8504354eeec8f",
-          "PFPL": "36f5aaef42744ed78b4d1525b03a7fb2168b363c"
-        },
-        "codec_error_bound_mode": "ABS",
-        "abs_eb_rule": "rel_eb*(valid_max-valid_min),computed separately for each slice"
-      }
-    },
-    {
-      "path": "/home/x-zjian1/unsz/results/ocean_large_tensor_1d/zfp/rel_0.001_t1/summary.csv",
-      "sha256": "7977094f626827c225211f60753a102c004e0cd091d9558fdff5c30e6ef95376",
-      "manifest": {
-        "codec": "zfp",
-        "binary_sha256": "b7f931bae1fae03b6363bf06deb5ac44ce45dde15cc4c20930c7b1868fa7182b",
-        "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
-        "rel_eb": 0.001,
-        "threads": 1,
-        "layout": "one original-order unstructured slice per 1D array",
-        "range_excludes": -99999,
-        "input_keeps_sentinel": true,
-        "git_revision": "e1f6c46f20cca06260a526f74f092cf1dd90471e",
-        "upstream_revisions": {
-          "SZ3": "d5ab1d1490e61d9e18340e3dda2465407751c863",
-          "zfp": "709952d8a058b134f7a616b679b8504354eeec8f",
-          "PFPL": "36f5aaef42744ed78b4d1525b03a7fb2168b363c"
-        },
-        "codec_error_bound_mode": "ABS",
-        "abs_eb_rule": "rel_eb*(valid_max-valid_min),computed separately for each slice"
-      }
-    },
-    {
-      "path": "/home/x-zjian1/unsz/results/ocean_large_tensor_1d/zfp/rel_0.01_t1/summary.csv",
-      "sha256": "7c4aacf26ea6f079d2d6c9318733287cb2c9d7fa054846e566a5df8e7de96d78",
-      "manifest": {
-        "codec": "zfp",
-        "binary_sha256": "b7f931bae1fae03b6363bf06deb5ac44ce45dde15cc4c20930c7b1868fa7182b",
-        "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
-        "rel_eb": 0.01,
-        "threads": 1,
-        "layout": "one original-order unstructured slice per 1D array",
-        "range_excludes": -99999,
-        "input_keeps_sentinel": true,
-        "git_revision": "e1f6c46f20cca06260a526f74f092cf1dd90471e",
-        "upstream_revisions": {
-          "SZ3": "d5ab1d1490e61d9e18340e3dda2465407751c863",
-          "zfp": "709952d8a058b134f7a616b679b8504354eeec8f",
-          "PFPL": "36f5aaef42744ed78b4d1525b03a7fb2168b363c"
-        },
-        "codec_error_bound_mode": "ABS",
-        "abs_eb_rule": "rel_eb*(valid_max-valid_min),computed separately for each slice"
-      }
-    },
-    {
-      "path": "/home/x-zjian1/unsz/results/ocean_large_tensor_1d/zfp/rel_0.1_t1/summary.csv",
-      "sha256": "50251f1db5ee4a64379bca4579b76ca0f8542691f8825ddeeef125934ffc36ee",
-      "manifest": {
-        "codec": "zfp",
-        "binary_sha256": "b7f931bae1fae03b6363bf06deb5ac44ce45dde15cc4c20930c7b1868fa7182b",
         "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
         "rel_eb": 0.1,
         "threads": 1,
@@ -535,6 +425,25 @@
   "regenerated_per_field": false,
   "throughput_rule": "sum(input bytes)/sum(core time)/1e6,not mean field throughput",
   "rd_rule": "BR=sum(compressed bytes)*32/sum(input bytes); NMSE=point-weighted mean of 10**(-field PSNR/10); grouped PSNR=-10*log10(NMSE); infinite field PSNR contributes zero NMSE; equal-sized fields within each shape imply arithmetic means",
-  "invalid_rule": "Retain all ZFP results and explicitly mark error-bound violations",
-  "preprocessing_rule": "0 for these 1D codecs; I/O,range and validation excluded"
+  "invalid_rule": "Every plotted result satisfies its ABS bound; ZFP is excluded because it violates the bound on fields with sentinel values",
+  "preprocessing_rule": "Both preprocessing stages included in total time; zero for 1D codecs; UNSZ shares untransformed spatial DAG across fields; current UMC serial runner preprocesses each field separately",
+  "timing_comparison": "Separate jobs,nodes are not paired; not a controlled same-node speedup experiment",
+  "eb_coverage": {
+    "sz3": [
+      1e-05,
+      0.0001,
+      0.001,
+      0.01,
+      0.1
+    ],
+    "pfpl": [
+      1e-05,
+      0.0001,
+      0.001,
+      0.01,
+      0.1
+    ]
+  },
+  "skipped_incomplete_results": {},
+  "structured_coverage": "Only EB runs containing all 95 fields included; raw input and slice counts match every baseline field; recorded BR rounded for UNSZ"
 }

@@ -11,18 +11,18 @@
     "value_stream_br": 0.40247216,
     "shared_metadata_br": 0.000181955,
     "compression_preprocessing_time": 24.723967,
-    "coordinate_transform_time": 0.559743,
+    "coordinate_rescaling_time": 0.559743,
     "prediction_structure_time": 23.211349,
-    "automatic_flow_selection_time": 0.951579,
-    "temporal_dependency_plan_time": 0.000827,
-    "temporal_dependency_time": 0.000469,
+    "automatic_pipeline_selection_time": 0.951579,
+    "slice_dag_time": 0.000827,
+    "reference_slices_time": 0.000469,
     "compression_time": 284.021022,
-    "selected_label_flow": "axis0_anchor8_axis1_anchor8_order_01_interleaved_01_spatial_residual",
-    "selected_value_flow": "axis0_anchor8_axis1_anchor8_order_01_interleaved_01_spatial_residual",
-    "automatic_flow_candidates": [
+    "selected_label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_interleaved_01_spatial_residual",
+    "selected_value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_interleaved_01_spatial_residual",
+    "automatic_pipeline_candidates": [
       {
-        "label_flow": "axis0_none_axis1_none_no_spatial_residual",
-        "value_flow": "axis0_none_axis1_none_no_spatial_residual",
+        "label_pipeline": "axis0_independent_axis1_independent_no_spatial_residual",
+        "value_pipeline": "axis0_independent_axis1_independent_no_spatial_residual",
         "estimated_label_bytes": 131444292.989,
         "estimated_value_bytes": 905898681.923,
         "estimated_total_bytes": 1037342974.912,
@@ -32,8 +32,8 @@
         "evaluation_time": 0.010647
       },
       {
-        "label_flow": "axis0_extrapolation_axis1_none_no_spatial_residual",
-        "value_flow": "axis0_extrapolation_axis1_none_no_spatial_residual",
+        "label_pipeline": "axis0_extrapolation_axis1_independent_no_spatial_residual",
+        "value_pipeline": "axis0_extrapolation_axis1_independent_no_spatial_residual",
         "estimated_label_bytes": 11717381.151,
         "estimated_value_bytes": 1360872579.72,
         "estimated_total_bytes": 1372589960.87,
@@ -43,8 +43,8 @@
         "evaluation_time": 0.007804
       },
       {
-        "label_flow": "axis0_extrapolation_axis1_none_spatial_residual",
-        "value_flow": "axis0_extrapolation_axis1_none_spatial_residual",
+        "label_pipeline": "axis0_extrapolation_axis1_independent_spatial_residual",
+        "value_pipeline": "axis0_extrapolation_axis1_independent_spatial_residual",
         "estimated_label_bytes": 11717381.151,
         "estimated_value_bytes": 727866558.754,
         "estimated_total_bytes": 739583939.904,
@@ -54,8 +54,8 @@
         "evaluation_time": 0.007537
       },
       {
-        "label_flow": "axis0_anchor8_axis1_none_no_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_none_no_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_independent_no_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_independent_no_spatial_residual",
         "estimated_label_bytes": 11717381.151,
         "estimated_value_bytes": 1337116494.625,
         "estimated_total_bytes": 1348833875.776,
@@ -65,8 +65,8 @@
         "evaluation_time": 0.007186
       },
       {
-        "label_flow": "axis0_anchor8_axis1_none_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_none_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_independent_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_independent_spatial_residual",
         "estimated_label_bytes": 11717381.151,
         "estimated_value_bytes": 715391354.486,
         "estimated_total_bytes": 727108735.637,
@@ -76,8 +76,8 @@
         "evaluation_time": 0.007657
       },
       {
-        "label_flow": "axis0_none_axis1_extrapolation_no_spatial_residual",
-        "value_flow": "axis0_none_axis1_extrapolation_no_spatial_residual",
+        "label_pipeline": "axis0_independent_axis1_extrapolation_no_spatial_residual",
+        "value_pipeline": "axis0_independent_axis1_extrapolation_no_spatial_residual",
         "estimated_label_bytes": 40629294.621,
         "estimated_value_bytes": 1119724914.121,
         "estimated_total_bytes": 1160354208.742,
@@ -87,8 +87,8 @@
         "evaluation_time": 0.00699
       },
       {
-        "label_flow": "axis0_none_axis1_extrapolation_spatial_residual",
-        "value_flow": "axis0_none_axis1_extrapolation_spatial_residual",
+        "label_pipeline": "axis0_independent_axis1_extrapolation_spatial_residual",
+        "value_pipeline": "axis0_independent_axis1_extrapolation_spatial_residual",
         "estimated_label_bytes": 40629294.621,
         "estimated_value_bytes": 585830097.167,
         "estimated_total_bytes": 626459391.788,
@@ -98,8 +98,8 @@
         "evaluation_time": 0.007625
       },
       {
-        "label_flow": "axis0_none_axis1_anchor8_no_spatial_residual",
-        "value_flow": "axis0_none_axis1_anchor8_no_spatial_residual",
+        "label_pipeline": "axis0_independent_axis1_anchor_interpolation_no_spatial_residual",
+        "value_pipeline": "axis0_independent_axis1_anchor_interpolation_no_spatial_residual",
         "estimated_label_bytes": 51605985.137,
         "estimated_value_bytes": 814856166.47,
         "estimated_total_bytes": 866462151.608,
@@ -109,8 +109,8 @@
         "evaluation_time": 0.007542
       },
       {
-        "label_flow": "axis0_none_axis1_anchor8_spatial_residual",
-        "value_flow": "axis0_none_axis1_anchor8_spatial_residual",
+        "label_pipeline": "axis0_independent_axis1_anchor_interpolation_spatial_residual",
+        "value_pipeline": "axis0_independent_axis1_anchor_interpolation_spatial_residual",
         "estimated_label_bytes": 51605985.137,
         "estimated_value_bytes": 511344843.947,
         "estimated_total_bytes": 562950829.084,
@@ -120,8 +120,8 @@
         "evaluation_time": 0.008142
       },
       {
-        "label_flow": "axis0_extrapolation_axis1_extrapolation_order_01_no_spatial_residual",
-        "value_flow": "axis0_extrapolation_axis1_extrapolation_order_01_no_spatial_residual",
+        "label_pipeline": "axis0_extrapolation_axis1_extrapolation_order_01_no_spatial_residual",
+        "value_pipeline": "axis0_extrapolation_axis1_extrapolation_order_01_no_spatial_residual",
         "estimated_label_bytes": 40629294.621,
         "estimated_value_bytes": 1128549132.138,
         "estimated_total_bytes": 1169178426.759,
@@ -131,8 +131,8 @@
         "evaluation_time": 0.007054
       },
       {
-        "label_flow": "axis0_extrapolation_axis1_extrapolation_order_01_spatial_residual",
-        "value_flow": "axis0_extrapolation_axis1_extrapolation_order_01_spatial_residual",
+        "label_pipeline": "axis0_extrapolation_axis1_extrapolation_order_01_spatial_residual",
+        "value_pipeline": "axis0_extrapolation_axis1_extrapolation_order_01_spatial_residual",
         "estimated_label_bytes": 40629294.621,
         "estimated_value_bytes": 583002649.885,
         "estimated_total_bytes": 623631944.506,
@@ -142,8 +142,8 @@
         "evaluation_time": 0.007578
       },
       {
-        "label_flow": "axis0_extrapolation_axis1_extrapolation_order_10_no_spatial_residual",
-        "value_flow": "axis0_extrapolation_axis1_extrapolation_order_10_no_spatial_residual",
+        "label_pipeline": "axis0_extrapolation_axis1_extrapolation_order_10_no_spatial_residual",
+        "value_pipeline": "axis0_extrapolation_axis1_extrapolation_order_10_no_spatial_residual",
         "estimated_label_bytes": 3217075.458,
         "estimated_value_bytes": 1386044474.469,
         "estimated_total_bytes": 1389261549.927,
@@ -153,8 +153,8 @@
         "evaluation_time": 0.006658
       },
       {
-        "label_flow": "axis0_extrapolation_axis1_extrapolation_order_10_spatial_residual",
-        "value_flow": "axis0_extrapolation_axis1_extrapolation_order_10_spatial_residual",
+        "label_pipeline": "axis0_extrapolation_axis1_extrapolation_order_10_spatial_residual",
+        "value_pipeline": "axis0_extrapolation_axis1_extrapolation_order_10_spatial_residual",
         "estimated_label_bytes": 3217075.458,
         "estimated_value_bytes": 708462976.351,
         "estimated_total_bytes": 711680051.809,
@@ -164,8 +164,8 @@
         "evaluation_time": 0.007684
       },
       {
-        "label_flow": "axis0_extrapolation_axis1_anchor8_order_01_no_spatial_residual",
-        "value_flow": "axis0_extrapolation_axis1_anchor8_order_01_no_spatial_residual",
+        "label_pipeline": "axis0_extrapolation_axis1_anchor_interpolation_order_01_no_spatial_residual",
+        "value_pipeline": "axis0_extrapolation_axis1_anchor_interpolation_order_01_no_spatial_residual",
         "estimated_label_bytes": 51605985.137,
         "estimated_value_bytes": 823805786.923,
         "estimated_total_bytes": 875411772.061,
@@ -175,8 +175,8 @@
         "evaluation_time": 0.007481
       },
       {
-        "label_flow": "axis0_extrapolation_axis1_anchor8_order_01_spatial_residual",
-        "value_flow": "axis0_extrapolation_axis1_anchor8_order_01_spatial_residual",
+        "label_pipeline": "axis0_extrapolation_axis1_anchor_interpolation_order_01_spatial_residual",
+        "value_pipeline": "axis0_extrapolation_axis1_anchor_interpolation_order_01_spatial_residual",
         "estimated_label_bytes": 51605985.137,
         "estimated_value_bytes": 505820323.135,
         "estimated_total_bytes": 557426308.272,
@@ -186,8 +186,8 @@
         "evaluation_time": 0.008031
       },
       {
-        "label_flow": "axis0_extrapolation_axis1_anchor8_order_10_no_spatial_residual",
-        "value_flow": "axis0_extrapolation_axis1_anchor8_order_10_no_spatial_residual",
+        "label_pipeline": "axis0_extrapolation_axis1_anchor_interpolation_order_10_no_spatial_residual",
+        "value_pipeline": "axis0_extrapolation_axis1_anchor_interpolation_order_10_no_spatial_residual",
         "estimated_label_bytes": 1737760.233,
         "estimated_value_bytes": 1336747206.817,
         "estimated_total_bytes": 1338484967.05,
@@ -197,8 +197,8 @@
         "evaluation_time": 0.006682
       },
       {
-        "label_flow": "axis0_extrapolation_axis1_anchor8_order_10_spatial_residual",
-        "value_flow": "axis0_extrapolation_axis1_anchor8_order_10_spatial_residual",
+        "label_pipeline": "axis0_extrapolation_axis1_anchor_interpolation_order_10_spatial_residual",
+        "value_pipeline": "axis0_extrapolation_axis1_anchor_interpolation_order_10_spatial_residual",
         "estimated_label_bytes": 1737760.233,
         "estimated_value_bytes": 693338280.232,
         "estimated_total_bytes": 695076040.465,
@@ -208,8 +208,8 @@
         "evaluation_time": 0.007675
       },
       {
-        "label_flow": "axis0_anchor8_axis1_extrapolation_order_01_no_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_extrapolation_order_01_no_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_extrapolation_order_01_no_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_extrapolation_order_01_no_spatial_residual",
         "estimated_label_bytes": 40629294.621,
         "estimated_value_bytes": 1124303258.72,
         "estimated_total_bytes": 1164932553.341,
@@ -219,8 +219,8 @@
         "evaluation_time": 0.006898
       },
       {
-        "label_flow": "axis0_anchor8_axis1_extrapolation_order_01_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_extrapolation_order_01_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_extrapolation_order_01_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_extrapolation_order_01_spatial_residual",
         "estimated_label_bytes": 40629294.621,
         "estimated_value_bytes": 581970469.017,
         "estimated_total_bytes": 622599763.638,
@@ -230,8 +230,8 @@
         "evaluation_time": 0.007533
       },
       {
-        "label_flow": "axis0_anchor8_axis1_extrapolation_order_10_no_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_extrapolation_order_10_no_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_extrapolation_order_10_no_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_extrapolation_order_10_no_spatial_residual",
         "estimated_label_bytes": 3217075.458,
         "estimated_value_bytes": 1362288389.374,
         "estimated_total_bytes": 1365505464.832,
@@ -241,8 +241,8 @@
         "evaluation_time": 0.007308
       },
       {
-        "label_flow": "axis0_anchor8_axis1_extrapolation_order_10_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_extrapolation_order_10_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_extrapolation_order_10_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_extrapolation_order_10_spatial_residual",
         "estimated_label_bytes": 3217075.458,
         "estimated_value_bytes": 695987772.084,
         "estimated_total_bytes": 699204847.542,
@@ -252,8 +252,8 @@
         "evaluation_time": 0.007892
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_01_no_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_01_no_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_no_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_no_spatial_residual",
         "estimated_label_bytes": 51605985.137,
         "estimated_value_bytes": 819998665.614,
         "estimated_total_bytes": 871604650.752,
@@ -263,8 +263,8 @@
         "evaluation_time": 0.007509
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_01_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_01_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_spatial_residual",
         "estimated_label_bytes": 51605985.137,
         "estimated_value_bytes": 506419521.025,
         "estimated_total_bytes": 558025506.162,
@@ -274,8 +274,8 @@
         "evaluation_time": 0.008096
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_10_no_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_10_no_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_no_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_no_spatial_residual",
         "estimated_label_bytes": 1737760.233,
         "estimated_value_bytes": 1312991121.723,
         "estimated_total_bytes": 1314728881.956,
@@ -285,8 +285,8 @@
         "evaluation_time": 0.007359
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_10_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_10_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_spatial_residual",
         "estimated_label_bytes": 1737760.233,
         "estimated_value_bytes": 680863075.965,
         "estimated_total_bytes": 682600836.197,
@@ -296,8 +296,8 @@
         "evaluation_time": 0.007935
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_01_interleaved_01_no_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_01_interleaved_01_no_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_interleaved_01_no_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_interleaved_01_no_spatial_residual",
         "estimated_label_bytes": 19735315.565,
         "estimated_value_bytes": 799485846.172,
         "estimated_total_bytes": 819221161.737,
@@ -307,8 +307,8 @@
         "evaluation_time": 0.006899
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_01_interleaved_01_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_01_interleaved_01_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_interleaved_01_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_interleaved_01_spatial_residual",
         "estimated_label_bytes": 19735315.565,
         "estimated_value_bytes": 504632557.373,
         "estimated_total_bytes": 524367872.938,
@@ -318,8 +318,8 @@
         "evaluation_time": 0.007771
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_01_interleaved_10_no_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_01_interleaved_10_no_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_interleaved_10_no_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_interleaved_10_no_spatial_residual",
         "estimated_label_bytes": 12028427.516,
         "estimated_value_bytes": 1046371285.061,
         "estimated_total_bytes": 1058399712.577,
@@ -329,8 +329,8 @@
         "evaluation_time": 0.006998
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_01_interleaved_10_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_01_interleaved_10_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_interleaved_10_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_01_interleaved_10_spatial_residual",
         "estimated_label_bytes": 12028427.516,
         "estimated_value_bytes": 590532950.339,
         "estimated_total_bytes": 602561377.854,
@@ -340,8 +340,8 @@
         "evaluation_time": 0.007825
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_10_interleaved_01_no_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_10_interleaved_01_no_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_interleaved_01_no_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_interleaved_01_no_spatial_residual",
         "estimated_label_bytes": 19735315.565,
         "estimated_value_bytes": 799485846.172,
         "estimated_total_bytes": 819221161.737,
@@ -351,8 +351,8 @@
         "evaluation_time": 0.006824
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_10_interleaved_01_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_10_interleaved_01_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_interleaved_01_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_interleaved_01_spatial_residual",
         "estimated_label_bytes": 19735315.565,
         "estimated_value_bytes": 504632557.373,
         "estimated_total_bytes": 524367872.938,
@@ -362,8 +362,8 @@
         "evaluation_time": 0.007572
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_10_interleaved_10_no_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_10_interleaved_10_no_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_interleaved_10_no_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_interleaved_10_no_spatial_residual",
         "estimated_label_bytes": 12028427.516,
         "estimated_value_bytes": 1046371285.061,
         "estimated_total_bytes": 1058399712.577,
@@ -373,8 +373,8 @@
         "evaluation_time": 0.006799
       },
       {
-        "label_flow": "axis0_anchor8_axis1_anchor8_order_10_interleaved_10_spatial_residual",
-        "value_flow": "axis0_anchor8_axis1_anchor8_order_10_interleaved_10_spatial_residual",
+        "label_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_interleaved_10_spatial_residual",
+        "value_pipeline": "axis0_anchor_interpolation_axis1_anchor_interpolation_order_10_interleaved_10_spatial_residual",
         "estimated_label_bytes": 12028427.516,
         "estimated_value_bytes": 590532950.339,
         "estimated_total_bytes": 602561377.854,
@@ -384,19 +384,19 @@
         "evaluation_time": 0.007604
       }
     ],
-    "coordinate_transform_original_flatness": 0.649692004,
-    "coordinate_transform_transformed_flatness": 0.553156315,
-    "coordinate_transform_flatness_ratio": 0.85141315,
-    "coordinate_transform_enabled": 0,
-    "coordinate_transform_diagonal": [
+    "coordinate_rescaling_original_flatness": 0.649692004,
+    "coordinate_rescaling_rescaled_flatness": 0.553156315,
+    "coordinate_rescaling_flatness_ratio": 0.85141315,
+    "coordinate_rescaling_enabled": 0,
+    "coordinate_rescaling_diagonal": [
       1.31615723245,
       0.801395439954,
       0.790882727264
     ],
-    "coordinate_transform_untrained_group_mse_ratio": null,
-    "coordinate_transform_selected_group_loss_power": 3,
+    "coordinate_rescaling_untrained_group_mse_ratio": null,
+    "coordinate_rescaling_selected_group_loss_power": 3,
     "decompression_preprocessing_time": 21.952516,
-    "decompression_temporal_dependency_plan_time": 0.000824,
+    "decompression_slice_dag_time": 0.000824,
     "decompression_time": 139.335554
   },
   "binary_sha256": {

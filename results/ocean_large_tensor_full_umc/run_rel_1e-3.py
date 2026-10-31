@@ -56,7 +56,7 @@ for field,field_metadata in metadata["fields"].items():
         print(f"跳过已完成field：{field}",flush=True)
         continue
     cleanup(field,slice_num)
-    config=[{"name":"ocean_large_tensor_full_umc","data_dir":str(data_dir),"csv_path":str(result_dir/'{field}.csv'),"compressor_list":["umc"],"field_list":[field],"time_step_num":slice_num,"coordinate_dim":3,"rel_eb_list":[rel_eb],"cleanup_after_each_test":True,"umc":{"from_edge":1,"reorder":1,"method":"NBP-IDW-INP","neighbor_num":4}}]
+    config=[{"name":"ocean_large_tensor_full_umc","data_dir":str(data_dir),"csv_path":str(result_dir/'{field}.csv'),"compressor_list":["umc"],"field_list":[field],"slice_num":slice_num,"coordinate_dim":3,"rel_eb_list":[rel_eb],"cleanup_after_each_test":True,"umc":{"from_edge":1,"reorder":1,"method":"NBP-IDW-INP","neighbor_num":4}}]
     config_path=result_dir/"current_config.json"
     config_path.write_text(json.dumps(config,ensure_ascii=False,indent=2)+"\n")
     print(f"开始UMC field：{field}，切片数={slice_num}",flush=True)

@@ -9,7 +9,7 @@
   "input_bytes": 535724445600,
   "compressed_bytes": 9204815611,
   "br": 0.5498238916876486,
-  "transformed_field_num": 0,
+  "rescaled_field_num": 0,
   "shared_dag_field_num": 95,
   "compression_time": 195.747738,
   "decompression_time": 89.041293,

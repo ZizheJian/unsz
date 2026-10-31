@@ -49,7 +49,7 @@
       "normalized_psnr_all_points": 108.1623432972129
     }
   },
-  "shared_dependency_plan_time": {
+  "shared_slice_dag_time": {
     "compression": 0.001366,
     "decompression": 0.001368
   },

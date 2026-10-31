@@ -29,7 +29,7 @@ def write_mesh(mesh_source_path,mesh_dir,point_num):
 def prepare(monthly_data_dir,mesh_source_path,output_dir):
     manifest=json.loads((monthly_data_dir/"monthly_fields.json").read_text())
     point_num=int(manifest["point_num"])
-    time_step_num=int(manifest["time_step_num"])
+    slice_num=int(manifest["slice_num"])
     fields=manifest["single_level_fields"]+manifest["multi_level_level0_fields"]
     if len(fields)!=91:
         raise RuntimeError(f"UMC Ocean-large要求91个field，实际为{len(fields)}")
@@ -37,11 +37,11 @@ def prepare(monthly_data_dir,mesh_source_path,output_dir):
     write_mesh(mesh_source_path,output_dir/"mesh",point_num)
     (output_dir/"mesh"/"partition").mkdir(exist_ok=True)
     (output_dir/"varnames_91.txt").write_text("\n".join(fields)+"\n")
-    for time_step in range(time_step_num):
-        step_dir=output_dir/f"step_{time_step}"
+    for slice_id in range(slice_num):
+        step_dir=output_dir/f"step_{slice_id}"
         step_dir.mkdir(exist_ok=True)
         for field in fields:
-            source=(monthly_data_dir/f"{field}.dat.{time_step}").resolve()
+            source=(monthly_data_dir/f"{field}.dat.{slice_id}").resolve()
             if source.stat().st_size!=point_num*np.dtype(np.float32).itemsize:
                 raise RuntimeError(f"UMC field大小不正确：{source}")
             target=step_dir/field
@@ -52,7 +52,7 @@ def prepare(monthly_data_dir,mesh_source_path,output_dir):
                 target.symlink_to(source)
     for name in("idw","sz3ori","sz3rod","zfpori","zfprod"):
         (output_dir/"compressed"/name).mkdir(parents=True,exist_ok=True)
-    print(f"UMC Ocean-large布局完成：root={output_dir},point_num={point_num},field_num={len(fields)},time_step_num={time_step_num}")
+    print(f"UMC Ocean-large布局完成：root={output_dir},point_num={point_num},field_num={len(fields)},slice_num={slice_num}")
 
 
 def main():

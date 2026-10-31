@@ -12,7 +12,7 @@
   "input_bytes": 535724445600,
   "metadata_path": "/anvil/projects/x-cis240192/x-zjian1-in-cis240192/unstructured-data/Ocean-large/tensor_data/tensor_metadata.json",
   "metadata_sha256": "782800aa9a5f48c93dcf645485d2899f54fc1dd4c9e8784309e72a1e64cc4dc9",
-  "point_set_config_sha256": "3b24414c33e54536c8f7eea6d55735c945b43a1fecda0460c73282a6cec8adfa",
+  "label_config_sha256": "3b24414c33e54536c8f7eea6d55735c945b43a1fecda0460c73282a6cec8adfa",
   "binary_sha256": {
     "benchmark_pfpl": "ff8141e2d22431d20272e21bb1043cb00f0bc53603c6b9194763c25701860085"
   },
