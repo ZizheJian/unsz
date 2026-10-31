@@ -9,7 +9,8 @@ from matplotlib.patches import Patch
 
 
 project_root=Path(__file__).resolve().parents[1]
-default_configs=("katrina","les","e3sm-h4","adcirc-haiyan-1.5km","ocean","taps","tpost20")
+# 与论文表I的数据集顺序一致，field按各配置文件中的顺序排列
+default_configs=("adcirc-haiyan-1.5km","e3sm-h4","katrina","les","ocean","taps","tpost20")
 # 论文中不展示的field，使25个field变为4x6的网格
 excluded_fields={("taps","RMS_T")}
 dataset_labels={"katrina":"Katrina","les":"LES","e3sm-h4":"E3SM-h4","adcirc-haiyan-1.5km":"Haiyan","ocean":"Ocean","taps":"TAPS","tpost20":"Tpost20"}
@@ -78,7 +79,7 @@ def load_fields(config_names,selected_fields):
                 if len(input_bytes)!=1:
                     raise ValueError(f"{task['name']}:{field}的input_bytes不一致：{sorted(input_bytes)}")
                 fields.append((config_name,task,field,rows,input_bytes.pop()))
-    return sorted(fields,key=lambda item:(item[4],item[2].casefold(),item[1]["name"]))
+    return fields
 
 
 def subplot_grid(item_num,column_num=6):

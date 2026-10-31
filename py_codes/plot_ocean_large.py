@@ -3,7 +3,10 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.ticker import FixedLocator,FuncFormatter,LogLocator,NullLocator
+from paperfig import PANEL_GAP_WITH_YLABEL_PT,PaperFigureSpec,add_panel_captions,align_xlabels,apply_paper_style,layout_panel_row,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png_vertical_crop,style_plot_axis
 
+from plot_current_benchmarks import add_top_legend
 from summarize_current_results import calculate_bd_rate
 
 
@@ -99,6 +102,52 @@ def plot_time(runs,scaling,mode,output_path):
     save(figure,output_path)
 
 
+def set_log_time_ticks(axis):
+    # 对数时间轴跨度不足约一个半数量级时补上2和5倍的刻度，否则只标10的整数次幂；刻度统一写成普通数字
+    bottom,top=axis.get_ylim()
+    subs=(1.0,2.0,5.0) if math.log10(top/bottom)<1.5 else (1.0,)
+    axis.yaxis.set_major_locator(FixedLocator([tick for tick in LogLocator(base=10,subs=subs).tick_values(bottom,top) if bottom<=tick<=top]))
+    axis.yaxis.set_major_formatter(FuncFormatter(lambda value,_:f"{value:g}"))
+
+
+def plot_summary(runs,mode,output_path):
+    # 单栏一行两个子图：全部95个field的RD、128核下各EB的total codec time
+    with plt.rc_context():
+        apply_paper_style()
+        spec=PaperFigureSpec.column()
+        figure,axes=plt.subplots(1,2,figsize=spec.size_in,dpi=spec.dpi)
+        rd_axis,time_axis=axes
+        rel_ebs=sorted({point["rel_eb"] for points in runs.values() for point in points},reverse=True)
+        for codec,points in runs.items():
+            color=styles[codec][0]
+            rd_axis.plot([point["groups"][None]["br"] for point in points],[point["groups"][None]["psnr"] for point in points],color=color,linewidth=.9)
+            times={point["rel_eb"]:point["total_codec_time"] for point in points}
+            time_axis.plot([eb_index for eb_index,rel_eb in enumerate(rel_ebs) if rel_eb in times],[times[rel_eb] for rel_eb in rel_ebs if rel_eb in times],color=color,linewidth=.9)
+        rd_axis.set_xscale("log")
+        x_left,x_right=rd_axis.get_xlim()
+        rd_axis.xaxis.set_major_locator(FixedLocator([tick for tick in LogLocator(base=10,numticks=4).tick_values(x_left,x_right) if x_left<=tick<=x_right]))
+        rd_axis.set_xlabel("Bit rate (bits/value)")
+        rd_axis.set_ylabel("PSNR (dB)")
+        time_axis.set_xticks(range(len(rel_ebs)),[f"$10^{{{round(math.log10(rel_eb))}}}$" for rel_eb in rel_ebs])
+        time_axis.set_xlabel("Relative error bound")
+        time_axis.set_yscale("log")
+        set_log_time_ticks(time_axis)
+        time_axis.set_ylabel("Total codec time (s)")
+        for axis in axes:
+            axis.xaxis.set_minor_locator(NullLocator())
+            axis.yaxis.set_minor_locator(NullLocator())
+            axis.set_axisbelow(True)
+            axis.grid(True,which="major",linestyle="--",linewidth=.35,alpha=.35)
+            style_plot_axis(axis)
+        layout_panel_row(figure,axes,panel_aspect_ratios(1,1),bottom_pt=40,panel_gap_pt=PANEL_GAP_WITH_YLABEL_PT,left_edge_gap_pt=3,right_edge_gap_pt=3)
+        add_top_legend(figure,[axes],[Line2D([],[],color=styles[codec][0],linewidth=.9,label=codec) for codec in runs],ncol=len(runs),**legend_spacing_kwargs(12))
+        align_xlabels(figure,axes)
+        add_panel_captions(figure,axes,["(a) Rate\u2013distortion","(b) Time on 128 cores"])
+        output_path.parent.mkdir(parents=True,exist_ok=True)
+        save_paper_png_vertical_crop(figure,output_path.with_suffix(".png"),spec,edge_gap_pt=3)
+        plt.close(figure)
+
+
 def save(figure,output_path):
     output_path.parent.mkdir(parents=True,exist_ok=True)
     figure.savefig(output_path.with_suffix(".pdf"),bbox_inches="tight",facecolor="white")
@@ -141,6 +190,7 @@ def main():
     for mode,runs in(("slice",slice_runs),("field",field_runs)):
         scaling=load_scaling(arguments.result_root,mode)
         plot_time(runs,scaling,mode,arguments.output_dir/f"ocean_large_{mode}_time")
+        plot_summary(runs,mode,arguments.output_dir/f"ocean_large_{mode}_summary")
         report_ratios(runs,mode)
         report_scaling(scaling,mode)
 
