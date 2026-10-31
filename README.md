@@ -94,7 +94,7 @@ install/bin/s1_compress -data-dir /path/to/data -field field -time-step '[0,9]' 
 
 不传`-point-set-config`时，程序把全部数据作为一个点集，并用`-M`指定误差上限。`-M`和`-point-set-config`必须且只能选择一个。使用`-point-set-config`时，JSON定义一个或两个点集的分类条件、编码方法和误差上限；所有`method="predict"`的点集统一使用内置RBF。压缩和解压必须传入相同的点集配置：
 
-UNSZ目前只支持一个或两个点集。压缩入口依次执行`main`→`unsz::parse_args_and_select_types`→`unsz::parse_args`→初始化并选择`T_coord/T_data`→`unsz::compress`，再按配置中的点集数量进入`unsz::one_point_set::compress`或`unsz::two_point_sets::compress`。空间预测器固定为RBF，各入口只按点集数量和最终flow分派。
+UNSZ目前只支持一个或两个点集。压缩入口依次执行`main`→`unsz::parse_args_and_select_types`→`unsz::parse_args`→初始化并选择`T_coord/T_data`→`unsz::compress`。逐slice压缩时，`compress_current_file_by_mode`调用`dispatch_prediction_framework`，把点集数量和该slice的数值、标签预测方式转换成模板参数，再进入单点集或两点集的逐点循环；解压端对应`decompress_current_file_by_mode`。空间预测器固定为RBF。
 
 ```bash
 install/bin/s1_compress -data-dir /path/to/Katrina -field attr0 -time-step '[0,161]' -coordinate-dim 3 -point-set-config point_set_configs/Katrina_attr0_rbf_rel_1e-2.json
@@ -573,7 +573,7 @@ DAG只保存参考编号和最终权重，不长期保存每条边的参考坐�
 
 REL error bound根据各点集自身的最大值和最小值转换为ABS error bound，避免fill value扩大正常数据的值域。使用JSON配置时，每个非常量label必须独立指定method以及REL或ABS error bound，不存在沿用命令行全局EB的模式；不使用JSON的单label数据才通过命令行`-M`配置。容器记录实际method和各点集值域，但用户配置的EB仍需在解压时保持一致。
 
-双点集始终使用融合路径。当标签和数值共用time step顺序与DAG时，在一次DAG遍历中逐目标同步处理：先恢复当前目标的标签，随后立即根据该标签预测、量化并重建数值。压缩输出同时报告精确的label stream、value stream和共享元数据字节数及BR，因此无需再执行只供筛选使用的两遍staged流程。未实现的标签×数值融合组合在进入对应组合函数后明确报错，不在上层分派前用白名单拦截。
+双点集始终使用融合路径。当标签和数值共用time step顺序与DAG时，在一次DAG遍历中逐目标同步处理：先恢复当前目标的标签，随后立即根据该标签预测、量化并重建数值。压缩输出同时报告精确的label stream、value stream和共享元数据字节数及BR，因此无需再执行只供筛选使用的两遍staged流程。标签和数值预测方式的组合由`dispatch_prediction_framework`统一检查：两者要么有一方只用空间预测，要么使用相同数量的参考slice，其余组合直接报错。
 
 具体来说，当前实现了零阶外插、一阶内插、大步长零阶外插+一阶内插三种时间顺序，每一种都兼容这种顺序下的时间预测、时间预测+空间补偿、以及纯空间预测。
 
