@@ -453,6 +453,10 @@ namespace unsz
                 //寻找最近的点。如果query_coord是一个点的坐标，那么会找到自身
     };
 
+    template<typename T_data,typename T_calc>
+    struct automatic_flow_sample_c;
+    struct automatic_flow_candidate_c;
+
     template<typename T_coord,typename T_data>
     class param_c
     {
@@ -630,6 +634,14 @@ namespace unsz
             pair<double,double> preprocess_current_compression_geometry();
             pair<double,double> preprocess_current_compression_field();
             double select_automatic_flows();
+            void prepare_automatic_flow_windows(automatic_flow_sample_c<T_data,T_calc>&sample);
+            void choose_automatic_flow_evaluation_slices(automatic_flow_sample_c<T_data,T_calc>&sample);
+            vector<automatic_flow_candidate_c> list_automatic_flow_candidates(automatic_flow_sample_c<T_data,T_calc>&sample);
+            void select_automatic_flow_value_targets(automatic_flow_sample_c<T_data,T_calc>&sample);
+            void collect_automatic_flow_sample_targets(automatic_flow_sample_c<T_data,T_calc>&sample);
+            void load_automatic_flow_samples(automatic_flow_sample_c<T_data,T_calc>&sample,const vector<automatic_flow_candidate_c>&candidates);
+            void estimate_automatic_flow_label_bytes(automatic_flow_sample_c<T_data,T_calc>&sample,const vector<automatic_flow_candidate_c>&candidates);
+            void estimate_automatic_flow_value_bytes(automatic_flow_sample_c<T_data,T_calc>&sample,vector<automatic_flow_candidate_c>&candidates);
             void validate_automatic_flow_selection() const;
             void precompute_current_field_point_set_statistics();
             double read_compressed_field_metadata();

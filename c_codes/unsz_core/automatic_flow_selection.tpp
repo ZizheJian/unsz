@@ -72,6 +72,30 @@ namespace unsz
         double selection_score() const{return automatic_flow_label_weight*estimated_label_bytes+estimated_value_bytes;}
     };
 
+    // 自动flow选择各步骤之间共享的采样状态和计时累加器，由select_automatic_flows创建，依次交给各步骤函数填写和读取。
+    template<typename T_data,typename T_calc>
+    struct automatic_flow_sample_c
+    {
+        uint32_t time_step_num=0,structure_num=0;
+        bool two_point_sets=false;
+        double decision_eb_scale=1;//决策EB与用户EB之比
+        vector<vector<automatic_flow_window_c>> structure_windows;//每个prediction structure的采样窗口
+        vector<uint32_t> full_scan_time_indices;//评估slice，按编号升序
+        vector<double> evaluation_time_step_weight;//每个slice的权重，非评估slice为0
+        vector<uint8_t> evaluate_time_step,read_sampled_time_step;//是否评估、是否需要读取样本值
+        uint32_t sampled_time_step_num=0;
+        vector<automatic_flow_time_statistics_c<T_data>> time_statistics;//每个评估slice的点集EB、编码方式和各structure的点数
+        vector<vector<vector<uint32_t>>> selected_target_indices;//[slice][structure]的数值目标，先存预测序号，读样本后改存structure_targets中的下标
+        vector<uint32_t> sample_original_ids;//样本点的原始编号，样本编号即它在这个数组中的下标
+        vector<vector<automatic_flow_sample_target_c<T_calc>>> structure_targets;//每个structure的样本目标及其参考点
+        vector<vector<uint32_t>> structure_window_target_indices,structure_label_prediction_indices,structure_label_target_indices;
+        uint64_t sampled_target_num=0,sampled_window_num=0;
+        vector<vector<T_data>> sampled_values;//[slice][样本编号]
+        vector<vector<uint8_t>> sampled_labels;
+        unordered_map<string,double> estimated_label_bytes_by_flow;
+        double excluded_input_time=0,file_statistics_time=0,sample_structure_time=0,sample_value_preparation_time=0,candidate_evaluation_time=0,shared_label_estimation_time=0;
+    };
+
     // 只读取采样点的数值：采样点覆盖的1MiB块不到文件的30%时按块读取，否则整个文件读入更快。
     template<typename T_data>
     vector<T_data> read_automatic_flow_sample_values(const string&path,const vector<uint32_t>&sample_ids,uint32_t point_num,double&input_time)
@@ -180,36 +204,16 @@ namespace unsz
             throw runtime_error("自动flow选择至少需要两个time step");
     }
 
+    // 第1步：布置采样窗口。总共automatic_flow_sample_num个目标均分给各prediction structure，每个structure再分给automatic_flow_start_num个窗口。
+    // 窗口起点用固定的整数哈希（乘大奇数常数，其中第一个是2^64/黄金比例）在各段内伪随机选取，保证同样的输入总是选中同样的点。
     template<typename T_coord,typename T_data>
-    double param_c<T_coord,T_data>::select_automatic_flows()
+    void param_c<T_coord,T_data>::prepare_automatic_flow_windows(automatic_flow_sample_c<T_data,T_calc>&sample)
     {
-        bool automatic_label=label_flow=="auto",automatic_value=value_flow=="auto";
-        if(!automatic_label&&!automatic_value)
-            return 0;
-        validate_automatic_flow_selection();
-        if(compression_file_point_set_abs_eb_vec.size()!=time_step_vec.size()||compression_file_point_set_codec_vec.size()!=time_step_vec.size())
-            throw runtime_error("自动flow选择缺少逐time step预统计");
-        auto selection_start_time=chrono::steady_clock::now();
-        double excluded_input_time=0;
-        double file_statistics_time=0,sample_structure_time=0,sample_value_preparation_time=0,candidate_evaluation_time=0,shared_label_estimation_time=0;
-        uint32_t time_step_num=(uint32_t)time_step_vec.size(),structure_num=(uint32_t)prediction_structure_vec.size();
-        bool two_point_sets=point_set_config_vec.size()==2;
-        double decision_eb_scale=1;
-        if(point_set_config_vec[0].error_mode!=point_set_error_mode_e::absolute&&point_set_config_vec[0].eb>automatic_flow_max_decision_rel_eb)
-            decision_eb_scale=automatic_flow_max_decision_rel_eb/point_set_config_vec[0].eb;
-        // 第1步：布置采样窗口。总共automatic_flow_sample_num个目标均分给各prediction structure，每个structure再分给automatic_flow_start_num个窗口。
-        // 窗口起点用固定的整数哈希（乘大奇数常数，其中第一个是2^64/黄金比例）在各段内伪随机选取，保证同样的输入总是选中同样的点。
+        auto&structure_num=sample.structure_num;
+        auto&structure_windows=sample.structure_windows;
+        auto&sample_structure_time=sample.sample_structure_time;
         auto sample_structure_start_time=chrono::steady_clock::now();
-        vector<vector<automatic_flow_window_c>> structure_windows(structure_num);
-        auto reference_original_id=[&](const prediction_structure_c<T_calc>&structure,int reference_id)
-        {
-            if(!prediction_data_uses_prediction_order)
-                return reference_id;
-            int64_t local_reference_index=(int64_t)reference_id-structure.prediction_order_offset;
-            if(local_reference_index<0||local_reference_index>=(int64_t)structure.target_ids.size())
-                throw runtime_error("自动flow的空间参考点跨越prediction structure");
-            return structure.target_ids[(uint32_t)local_reference_index];
-        };
+        structure_windows.resize(structure_num);
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
         {
             uint32_t target_num=(uint32_t)prediction_structure_vec[structure_id].target_ids.size();
@@ -230,15 +234,24 @@ namespace unsz
             }
         }
         sample_structure_time+=seconds_since(sample_structure_start_time);
-        vector<automatic_flow_time_statistics_c<T_data>> time_statistics(time_step_num);
-        vector<uint32_t> full_scan_time_indices;
-        vector<double> evaluation_time_step_weight(time_step_num,0);
-        // 第2步：选出约32个评估slice，并给每个评估slice一个权重，使权重之和等于slice总数，评估slice的估计值加权求和即为全部slice的估计值。
-        // 二维tensor分层抽样：第0层是根slice，第1、2层是过根的两条轴线，第3层是内部。
-        // 根slice没有跨slice参考，轴线上的slice在一些flow中只能沿一个轴预测，因此各层分开抽样，保证每层都被抽到，每层的权重为层大小/抽样数。
-        // 内部用拉丁超立方抽样，两个轴的位置各分成同样多的区间，每个区间恰好抽一次。
-        // 伪随机数由field名的FNV-1a哈希作种子，再经splitmix64混合得到，>>11后乘2^-53变成[0,1)内的小数。
-        // 非tensor数据在时间上均匀取最多32个slice，权重相同。
+    }
+
+    // 第2步：选出约32个评估slice，并给每个评估slice一个权重，使权重之和等于slice总数，评估slice的估计值加权求和即为全部slice的估计值。
+    // 二维tensor分层抽样：第0层是根slice，第1、2层是过根的两条轴线，第3层是内部。
+    // 根slice没有跨slice参考，轴线上的slice在一些flow中只能沿一个轴预测，因此各层分开抽样，保证每层都被抽到，每层的权重为层大小/抽样数。
+    // 内部用拉丁超立方抽样，两个轴的位置各分成同样多的区间，每个区间恰好抽一次。
+    // 伪随机数由field名的FNV-1a哈希作种子，再经splitmix64混合得到，>>11后乘2^-53变成[0,1)内的小数。
+    // 非tensor数据在时间上均匀取最多32个slice，权重相同。
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::choose_automatic_flow_evaluation_slices(automatic_flow_sample_c<T_data,T_calc>&sample)
+    {
+        auto&time_step_num=sample.time_step_num;
+        auto&full_scan_time_indices=sample.full_scan_time_indices;
+        auto&evaluation_time_step_weight=sample.evaluation_time_step_weight;
+        auto&evaluate_time_step=sample.evaluate_time_step;
+        auto&time_statistics=sample.time_statistics;
+        time_statistics.resize(time_step_num);
+        evaluation_time_step_weight.assign(time_step_num,0);
         if(current_field_uses_tensor&&current_tensor_shape[0]>1&&current_tensor_shape[1]>1)
         {
             constexpr uint32_t sample_budget=32;
@@ -317,17 +330,24 @@ namespace unsz
         for(uint32_t time_index:full_scan_time_indices)
             if(!(evaluation_time_step_weight[time_index]>0))
                 throw runtime_error("自动flow评估time step缺少权重");
-        vector<uint8_t> evaluate_time_step(time_step_num,0);
+        evaluate_time_step.assign(time_step_num,0);
         for(uint32_t time_index:full_scan_time_indices)
         {
             if(evaluate_time_step[time_index])
                 throw runtime_error("自动flow重复选择评估time step");
             evaluate_time_step[time_index]=1;
         }
-        // 第3步：列出候选flow。tensor数据枚举各轴的预测方式和顺序。
-        // 其他数据的候选为纯空间、零阶外插（用前一个slice）、anchor8，后两种各有带空间残差和不带的版本。
-        // anchor8先处理0,8,16,...号锚点slice（从前一个锚点外插），再按间距4、2、1逐层在两侧已重建的slice之间线性插值，类似SZ3的分层插值。
-        // 两点集时标签flow跟随数值flow。
+    }
+
+    // 第3步：列出候选flow。tensor数据枚举各轴的预测方式和顺序。
+    // 其他数据的候选为纯空间、零阶外插（用前一个slice）、anchor8，后两种各有带空间残差和不带的版本。
+    // anchor8先处理0,8,16,...号锚点slice（从前一个锚点外插），再按间距4、2、1逐层在两侧已重建的slice之间线性插值，类似SZ3的分层插值。
+    // 两点集时标签flow跟随数值flow。
+    template<typename T_coord,typename T_data>
+    vector<automatic_flow_candidate_c> param_c<T_coord,T_data>::list_automatic_flow_candidates(automatic_flow_sample_c<T_data,T_calc>&sample)
+    {
+        auto&time_step_num=sample.time_step_num;
+        auto&two_point_sets=sample.two_point_sets;
         vector<automatic_flow_candidate_c> candidates;
         auto add_candidate=[&](const string&candidate_label_flow,const string&candidate_value_flow)
         {
@@ -367,25 +387,25 @@ namespace unsz
                 add_candidate(two_point_sets?"anchor_interpolation_stride_8":"none","anchor_interpolation_stride_8_spatial_residual");
             }
         }
-        // 需要读取采样值的slice：评估slice，加上任一候选flow中评估slice直接参考的slice。
-        vector<uint8_t> read_sampled_time_step=evaluate_time_step;
-        for(const automatic_flow_candidate_c&candidate:candidates)
-        {
-            const temporal_dependency_plan_c&label_dependency_plan=*candidate.label_dependency_plan;
-            for(uint32_t time_index:full_scan_time_indices)
-            {
-                const temporal_dependency_c&value_dependency=candidate.dependency_plan->dependencies[time_index];
-                const temporal_dependency_c&label_dependency=label_dependency_plan.dependencies[time_index];
-                for(uint32_t source_id=0;source_id<value_dependency.source_num;source_id++)
-                    read_sampled_time_step[(uint32_t)value_dependency.source_indices[source_id]]=1;
-                for(uint32_t source_id=0;source_id<label_dependency.source_num;source_id++)
-                    read_sampled_time_step[(uint32_t)label_dependency.source_indices[source_id]]=1;
-            }
-        }
-        uint32_t sampled_time_step_num=accumulate(read_sampled_time_step.begin(),read_sampled_time_step.end(),0U);
-        vector<vector<vector<uint32_t>>> selected_target_indices(time_step_num,vector<vector<uint32_t>>(structure_num));
-        // 第4步：在每个评估slice上确定数值目标，统计每个structure中两个点集各有多少点（用于把样本估计放大到整个slice）。
-        // 单点集时窗口就是从start开始的quota个连续目标。两点集时要在窗口内找到quota个第一点集目标，窗口宽度取所有评估slice所需宽度的最大值。
+        return candidates;
+    }
+
+    // 第4步：在每个评估slice上确定数值目标，统计每个structure中两个点集各有多少点（用于把样本估计放大到整个slice）。
+    // 单点集时窗口就是从start开始的quota个连续目标。两点集时要在窗口内找到quota个第一点集目标，窗口宽度取所有评估slice所需宽度的最大值。
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::select_automatic_flow_value_targets(automatic_flow_sample_c<T_data,T_calc>&sample)
+    {
+        auto&time_step_num=sample.time_step_num;
+        auto&structure_num=sample.structure_num;
+        auto&two_point_sets=sample.two_point_sets;
+        auto&structure_windows=sample.structure_windows;
+        auto&full_scan_time_indices=sample.full_scan_time_indices;
+        auto&time_statistics=sample.time_statistics;
+        auto&selected_target_indices=sample.selected_target_indices;
+        auto&excluded_input_time=sample.excluded_input_time;
+        auto&file_statistics_time=sample.file_statistics_time;
+        auto&sample_structure_time=sample.sample_structure_time;
+        selected_target_indices.assign(time_step_num,vector<vector<uint32_t>>(structure_num));
         if(two_point_sets)
             current_data.resize(point_num);
         for(uint32_t time_index:full_scan_time_indices)
@@ -401,7 +421,7 @@ namespace unsz
                 classify_current_point_sets<true,false>(state);
                 file_statistics_time+=seconds_since(statistics_start_time);
             }
-            sample_structure_start_time=chrono::steady_clock::now();
+            auto sample_structure_start_time=chrono::steady_clock::now();
             automatic_flow_time_statistics_c<T_data>&statistics=time_statistics[time_index];
             statistics.point_set_abs_eb=compression_file_point_set_abs_eb_vec[time_index];
             statistics.point_set_codec=compression_file_point_set_codec_vec[time_index];
@@ -431,13 +451,40 @@ namespace unsz
             }
             sample_structure_time+=seconds_since(sample_structure_start_time);
         }
-        // 第5步：按最终的公共窗口裁剪每个评估slice的数值目标。标签目标是每个窗口开头的quota个点，不区分点集。
-        // 所有目标及其空间参考点合起来就是要读取数值的样本点，它们按点编号排序后重新编号为样本编号，之后的计算都在样本编号上进行。
-        sample_structure_start_time=chrono::steady_clock::now();
-        vector<uint32_t> sample_original_ids;
-        vector<vector<automatic_flow_sample_target_c<T_calc>>> structure_targets(structure_num);
-        vector<vector<uint32_t>> structure_window_target_indices(structure_num);
-        vector<vector<uint32_t>> structure_label_prediction_indices(structure_num),structure_label_target_indices(structure_num);
+    }
+
+    // 第5步：按最终的公共窗口裁剪每个评估slice的数值目标。标签目标是每个窗口开头的quota个点，不区分点集。
+    // 所有目标及其空间参考点合起来就是要读取数值的样本点，它们按点编号排序后重新编号为样本编号，之后的计算都在样本编号上进行。
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::collect_automatic_flow_sample_targets(automatic_flow_sample_c<T_data,T_calc>&sample)
+    {
+        auto&structure_num=sample.structure_num;
+        auto&structure_windows=sample.structure_windows;
+        auto&full_scan_time_indices=sample.full_scan_time_indices;
+        auto&time_statistics=sample.time_statistics;
+        auto&selected_target_indices=sample.selected_target_indices;
+        auto&sample_original_ids=sample.sample_original_ids;
+        auto&structure_targets=sample.structure_targets;
+        auto&structure_window_target_indices=sample.structure_window_target_indices;
+        auto&structure_label_prediction_indices=sample.structure_label_prediction_indices;
+        auto&structure_label_target_indices=sample.structure_label_target_indices;
+        auto&sampled_target_num=sample.sampled_target_num;
+        auto&sampled_window_num=sample.sampled_window_num;
+        auto&sample_structure_time=sample.sample_structure_time;
+        auto sample_structure_start_time=chrono::steady_clock::now();
+        auto reference_original_id=[&](const prediction_structure_c<T_calc>&structure,int reference_id)
+        {
+            if(!prediction_data_uses_prediction_order)
+                return reference_id;
+            int64_t local_reference_index=(int64_t)reference_id-structure.prediction_order_offset;
+            if(local_reference_index<0||local_reference_index>=(int64_t)structure.target_ids.size())
+                throw runtime_error("自动flow的空间参考点跨越prediction structure");
+            return structure.target_ids[(uint32_t)local_reference_index];
+        };
+        structure_targets.resize(structure_num);
+        structure_window_target_indices.resize(structure_num);
+        structure_label_prediction_indices.resize(structure_num);
+        structure_label_target_indices.resize(structure_num);
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
         {
             const prediction_structure_c<T_calc>&structure=prediction_structure_vec[structure_id];
@@ -495,7 +542,6 @@ namespace unsz
         }
         sort(sample_original_ids.begin(),sample_original_ids.end());
         sample_original_ids.erase(unique(sample_original_ids.begin(),sample_original_ids.end()),sample_original_ids.end());
-        uint64_t sampled_target_num=0,sampled_window_num=0;
         for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
         {
             sampled_target_num+=structure_window_target_indices[structure_id].size();
@@ -552,9 +598,45 @@ namespace unsz
                 throw runtime_error("自动flow的label采样目标映射不完整");
         }
         sample_structure_time+=seconds_since(sample_structure_start_time);
-        // 第6步：稀疏读取样本点在所需slice上的数值，并分类得到标签。
-        vector<vector<T_data>> sampled_values(time_step_num);
-        vector<vector<uint8_t>> sampled_labels(time_step_num);
+    }
+
+    // 第6步：确定需要读取样本值的slice，即评估slice加上任一候选flow中评估slice直接参考的slice，再稀疏读取样本点的数值并分类得到标签。
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::load_automatic_flow_samples(automatic_flow_sample_c<T_data,T_calc>&sample,const vector<automatic_flow_candidate_c>&candidates)
+    {
+        auto&time_step_num=sample.time_step_num;
+        auto&structure_num=sample.structure_num;
+        auto&two_point_sets=sample.two_point_sets;
+        auto&full_scan_time_indices=sample.full_scan_time_indices;
+        auto&evaluate_time_step=sample.evaluate_time_step;
+        auto&read_sampled_time_step=sample.read_sampled_time_step;
+        auto&sampled_time_step_num=sample.sampled_time_step_num;
+        auto&time_statistics=sample.time_statistics;
+        auto&selected_target_indices=sample.selected_target_indices;
+        auto&sample_original_ids=sample.sample_original_ids;
+        auto&structure_window_target_indices=sample.structure_window_target_indices;
+        auto&sampled_values=sample.sampled_values;
+        auto&sampled_labels=sample.sampled_labels;
+        auto&excluded_input_time=sample.excluded_input_time;
+        auto&sample_structure_time=sample.sample_structure_time;
+        auto&sample_value_preparation_time=sample.sample_value_preparation_time;
+        read_sampled_time_step=evaluate_time_step;
+        for(const automatic_flow_candidate_c&candidate:candidates)
+        {
+            const temporal_dependency_plan_c&label_dependency_plan=*candidate.label_dependency_plan;
+            for(uint32_t time_index:full_scan_time_indices)
+            {
+                const temporal_dependency_c&value_dependency=candidate.dependency_plan->dependencies[time_index];
+                const temporal_dependency_c&label_dependency=label_dependency_plan.dependencies[time_index];
+                for(uint32_t source_id=0;source_id<value_dependency.source_num;source_id++)
+                    read_sampled_time_step[(uint32_t)value_dependency.source_indices[source_id]]=1;
+                for(uint32_t source_id=0;source_id<label_dependency.source_num;source_id++)
+                    read_sampled_time_step[(uint32_t)label_dependency.source_indices[source_id]]=1;
+            }
+        }
+        sampled_time_step_num=accumulate(read_sampled_time_step.begin(),read_sampled_time_step.end(),0U);
+        sampled_values.resize(time_step_num);
+        sampled_labels.resize(time_step_num);
         auto sample_value_start_time=chrono::steady_clock::now();
         double sample_value_input_begin=excluded_input_time;
         for(uint32_t time_index=0;time_index<time_step_num;time_index++)
@@ -571,7 +653,7 @@ namespace unsz
             statistics.point_set_codec=compression_file_point_set_codec_vec[time_index];
         }
         sample_value_preparation_time=seconds_since(sample_value_start_time)-(excluded_input_time-sample_value_input_begin);
-        sample_structure_start_time=chrono::steady_clock::now();
+        auto sample_structure_start_time=chrono::steady_clock::now();
         for(uint32_t time_index:full_scan_time_indices)
         {
             for(uint32_t structure_id=0;structure_id<structure_num;structure_id++)
@@ -589,13 +671,23 @@ namespace unsz
             }
         }
         sample_structure_time+=seconds_since(sample_structure_start_time);
-        // 下面复用正式压缩的空间预测函数，它们从成员变量读取参考点的点集编号。
-        // 样本的参考点用样本编号表示，所以这里暂时关闭预测顺序编号，并在估计每个slice前把point_set_id_vec换成样本标签，结束后恢复。
-        bool saved_prediction_order=prediction_data_uses_prediction_order;
-        prediction_data_uses_prediction_order=false;
-        // 第7步：估计标签码流。每种标签flow只估一次：有一个参考slice时沿用它的标签，有两个时一致则沿用、不一致则用空间预测，没有时用空间预测。
-        // 预测错误数按样本比例放大到整个structure，码流大小取log2(C(n,k))/8字节，再按slice权重求和。
-        unordered_map<string,double> estimated_label_bytes_by_flow;
+    }
+
+    // 第7步：估计标签码流。每种标签flow只估一次：有一个参考slice时沿用它的标签，有两个时一致则沿用、不一致则用空间预测，没有时用空间预测。
+    // 预测错误数按样本比例放大到整个structure，码流大小取log2(C(n,k))/8字节，再按slice权重求和。
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::estimate_automatic_flow_label_bytes(automatic_flow_sample_c<T_data,T_calc>&sample,const vector<automatic_flow_candidate_c>&candidates)
+    {
+        auto&structure_num=sample.structure_num;
+        auto&two_point_sets=sample.two_point_sets;
+        auto&evaluation_time_step_weight=sample.evaluation_time_step_weight;
+        auto&evaluate_time_step=sample.evaluate_time_step;
+        auto&structure_targets=sample.structure_targets;
+        auto&structure_label_target_indices=sample.structure_label_target_indices;
+        auto&sampled_labels=sample.sampled_labels;
+        auto&estimated_label_bytes_by_flow=sample.estimated_label_bytes_by_flow;
+        auto&candidate_evaluation_time=sample.candidate_evaluation_time;
+        auto&shared_label_estimation_time=sample.shared_label_estimation_time;
         auto shared_label_start_time=chrono::steady_clock::now();
         if(!two_point_sets)
             for(const automatic_flow_candidate_c&candidate:candidates)
@@ -647,9 +739,26 @@ namespace unsz
         }
         shared_label_estimation_time=seconds_since(shared_label_start_time);
         candidate_evaluation_time+=shared_label_estimation_time;
-        // 第8步：估计数值码流。按候选flow的处理顺序逐个评估slice，用正式的跨slice预测、空间预测和量化压缩样本目标，量化后的重建值供后续预测使用。
-        // 跨slice预测只用于自身和参考slice都属于第一点集的样本点，其余样本点用空间预测。
-        // 每个structure的量化码真的做一遍Huffman和Zstd。Huffman码表不随点数成比例增长，不放大，其余字节按实际点数/样本数放大，再按slice权重求和。
+    }
+
+    // 第8步：估计数值码流。按候选flow的处理顺序逐个评估slice，用正式的跨slice预测、空间预测和量化压缩样本目标，量化后的重建值供后续预测使用。
+    // 跨slice预测只用于自身和参考slice都属于第一点集的样本点，其余样本点用空间预测。
+    // 每个structure的量化码真的做一遍Huffman和Zstd。Huffman码表不随点数成比例增长，不放大，其余字节按实际点数/样本数放大，再按slice权重求和。
+    template<typename T_coord,typename T_data>
+    void param_c<T_coord,T_data>::estimate_automatic_flow_value_bytes(automatic_flow_sample_c<T_data,T_calc>&sample,vector<automatic_flow_candidate_c>&candidates)
+    {
+        auto&structure_num=sample.structure_num;
+        auto&decision_eb_scale=sample.decision_eb_scale;
+        auto&evaluation_time_step_weight=sample.evaluation_time_step_weight;
+        auto&evaluate_time_step=sample.evaluate_time_step;
+        auto&time_statistics=sample.time_statistics;
+        auto&selected_target_indices=sample.selected_target_indices;
+        auto&sample_original_ids=sample.sample_original_ids;
+        auto&structure_targets=sample.structure_targets;
+        auto&sampled_values=sample.sampled_values;
+        auto&sampled_labels=sample.sampled_labels;
+        auto&estimated_label_bytes_by_flow=sample.estimated_label_bytes_by_flow;
+        auto&candidate_evaluation_time=sample.candidate_evaluation_time;
         for(automatic_flow_candidate_c&candidate:candidates)
         {
             auto candidate_start_time=chrono::steady_clock::now();
@@ -744,7 +853,51 @@ namespace unsz
             candidate.evaluation_time=seconds_since(candidate_start_time);
             candidate_evaluation_time+=candidate.evaluation_time;
         }
+    }
+
+    template<typename T_coord,typename T_data>
+    double param_c<T_coord,T_data>::select_automatic_flows()
+    {
+        bool automatic_label=label_flow=="auto",automatic_value=value_flow=="auto";
+        if(!automatic_label&&!automatic_value)
+            return 0;
+        validate_automatic_flow_selection();
+        if(compression_file_point_set_abs_eb_vec.size()!=time_step_vec.size()||compression_file_point_set_codec_vec.size()!=time_step_vec.size())
+            throw runtime_error("自动flow选择缺少逐time step预统计");
+        auto selection_start_time=chrono::steady_clock::now();
+        automatic_flow_sample_c<T_data,T_calc> sample;
+        sample.time_step_num=(uint32_t)time_step_vec.size();
+        sample.structure_num=(uint32_t)prediction_structure_vec.size();
+        sample.two_point_sets=point_set_config_vec.size()==2;
+        if(point_set_config_vec[0].error_mode!=point_set_error_mode_e::absolute&&point_set_config_vec[0].eb>automatic_flow_max_decision_rel_eb)
+            sample.decision_eb_scale=automatic_flow_max_decision_rel_eb/point_set_config_vec[0].eb;
+        prepare_automatic_flow_windows(sample);
+        choose_automatic_flow_evaluation_slices(sample);
+        vector<automatic_flow_candidate_c> candidates=list_automatic_flow_candidates(sample);
+        select_automatic_flow_value_targets(sample);
+        collect_automatic_flow_sample_targets(sample);
+        load_automatic_flow_samples(sample,candidates);
+        // 下面复用正式压缩的空间预测函数，它们从成员变量读取参考点的点集编号。
+        // 样本的参考点用样本编号表示，所以这里暂时关闭预测顺序编号，并在估计每个slice前把point_set_id_vec换成样本标签，结束后恢复。
+        bool saved_prediction_order=prediction_data_uses_prediction_order;
+        prediction_data_uses_prediction_order=false;
+        estimate_automatic_flow_label_bytes(sample,candidates);
+        estimate_automatic_flow_value_bytes(sample,candidates);
         prediction_data_uses_prediction_order=saved_prediction_order;
+        auto&time_step_num=sample.time_step_num;
+        auto&structure_num=sample.structure_num;
+        auto&decision_eb_scale=sample.decision_eb_scale;
+        auto&full_scan_time_indices=sample.full_scan_time_indices;
+        auto&sampled_time_step_num=sample.sampled_time_step_num;
+        auto&sample_original_ids=sample.sample_original_ids;
+        auto&sampled_target_num=sample.sampled_target_num;
+        auto&sampled_window_num=sample.sampled_window_num;
+        auto&excluded_input_time=sample.excluded_input_time;
+        auto&file_statistics_time=sample.file_statistics_time;
+        auto&sample_structure_time=sample.sample_structure_time;
+        auto&sample_value_preparation_time=sample.sample_value_preparation_time;
+        auto&candidate_evaluation_time=sample.candidate_evaluation_time;
+        auto&shared_label_estimation_time=sample.shared_label_estimation_time;
         // 第9步：选分数最小的候选，并恢复被用作临时空间的成员变量。
         auto best=min_element(candidates.begin(),candidates.end(),[](const automatic_flow_candidate_c&a,const automatic_flow_candidate_c&b){return a.selection_score()<b.selection_score();});
         if(current_field_uses_tensor)
