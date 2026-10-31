@@ -30,3 +30,6 @@
 	path = third_party/QoZ
 	url = https://github.com/szcompressor/QoZ.git
 	branch = 2.0
+[submodule "third_party/paperfig"]
+	path = third_party/paperfig
+	url = git@github.com:ZizheJian/paperfig.git

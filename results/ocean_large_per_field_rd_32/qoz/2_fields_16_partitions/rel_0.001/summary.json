@@ -1,0 +1,68 @@
+{
+  "codec": "qoz2-q4-nd-point-partitioned",
+  "protocol": "field",
+  "statistics_version": 2,
+  "rel_eb": 0.001,
+  "field_workers": 2,
+  "point_partitions_per_field": 16,
+  "cpu_num": 32,
+  "field_num": 95,
+  "slice_num": 36264,
+  "compressed_bytes": 16448547991,
+  "value_num": 133931111400,
+  "valid_value_num": 104636399809,
+  "br": 0.9825079666142456,
+  "nmse": 8.251483960034538e-08,
+  "normalized_psnr": 70.83467940213818,
+  "nmse_all_points": 6.479704044378766e-08,
+  "normalized_psnr_all_points": 71.8844482975108,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 58,
+      "value_num": 2570484600,
+      "valid_value_num": 2570484529,
+      "br": 3.7982468239646328,
+      "nmse": 2.2607881072924274e-07,
+      "normalized_psnr": 66.45740140063306,
+      "nmse_all_points": 2.260788044846632e-07,
+      "normalized_psnr_all_points": 66.45740152059064
+    },
+    "12x80": {
+      "field_num": 33,
+      "value_num": 117001368000,
+      "valid_value_num": 90873652320,
+      "br": 0.881248247900828,
+      "nmse": 7.692688352104498e-08,
+      "normalized_psnr": 71.13921861440178,
+      "nmse_all_points": 6.012673939523993e-08,
+      "normalized_psnr_all_points": 72.20932346812242
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "valid_value_num": 11192262960,
+      "br": 1.3035351384571465,
+      "nmse": 9.491349496763678e-08,
+      "normalized_psnr": 70.22672034429297,
+      "nmse_all_points": 7.397991838760003e-08,
+      "normalized_psnr_all_points": 71.30886152120848
+    }
+  },
+  "compression_worker_times": [
+    268.081248728,
+    235.234595561
+  ],
+  "decompression_worker_times": [
+    90.327221361,
+    107.564179322
+  ],
+  "reported_compression_time": 268.081248728,
+  "reported_decompression_time": 107.564179322,
+  "total_codec_time": 375.64542804999996,
+  "all_ebs_execution_wall_time": 542.7394678809214,
+  "max_concurrent_rss_upper_bound_kib": 116771228,
+  "max_error_over_eb": 1.0000000475279573,
+  "complete": true,
+  "failures": [],
+  "valid": true
+}

@@ -1,0 +1,87 @@
+{
+  "codec": "sz3-1d",
+  "protocol": "slice",
+  "statistics_version": 2,
+  "rel_eb": 0.001,
+  "slice_workers": 8,
+  "threads_per_slice": 4,
+  "cpu_num": 32,
+  "field_num": 95,
+  "slice_num": 36264,
+  "compressed_bytes": 91807837740,
+  "value_num": 133931111400,
+  "valid_value_num": 104636399809,
+  "br": 5.483884171814616,
+  "nmse": 1.742797086806155e-07,
+  "normalized_psnr": 67.58753174685944,
+  "nmse_all_points": 1.3803271759116415e-07,
+  "normalized_psnr_all_points": 68.60017961532108,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 58,
+      "value_num": 2570484600,
+      "valid_value_num": 2570484529,
+      "br": 4.957600069652236,
+      "nmse": 2.4753370036633505e-07,
+      "normalized_psnr": 66.06365665874678,
+      "nmse_all_points": 2.4753369402599216e-07,
+      "normalized_psnr_all_points": 66.06365676998723
+    },
+    "12x80": {
+      "field_num": 33,
+      "value_num": 117001368000,
+      "valid_value_num": 90873652320,
+      "br": 5.655853622087564,
+      "nmse": 1.7603796960406083e-07,
+      "normalized_psnr": 67.54393649168611,
+      "nmse_all_points": 1.3887091682626334e-07,
+      "normalized_psnr_all_points": 68.57388697274422
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "valid_value_num": 11192262960,
+      "br": 4.176862965656695,
+      "nmse": 1.431798457302324e-07,
+      "normalized_psnr": 68.44118109850471,
+      "nmse_all_points": 1.1160091940017086e-07,
+      "normalized_psnr_all_points": 69.52332227542023
+    }
+  },
+  "compression_worker_times": [
+    116.658748334,
+    133.726543302,
+    132.099663434,
+    132.347044505,
+    118.744444574,
+    125.76613145,
+    123.471434356,
+    119.534834562
+  ],
+  "decompression_worker_times": [
+    44.33132112,
+    47.130594974,
+    47.144796279,
+    47.286685846,
+    45.352464251,
+    48.395216058,
+    46.669939673,
+    45.668314247
+  ],
+  "reported_compression_time": 133.726543302,
+  "reported_decompression_time": 48.395216058,
+  "total_codec_time": 182.12175936,
+  "worker_slice_counts": [
+    4533,
+    4533,
+    4533,
+    4533,
+    4533,
+    4533,
+    4533,
+    4533
+  ],
+  "max_error_over_eb": 1.0,
+  "valid": true,
+  "execution_wall_time": 508.82658179907594
+}

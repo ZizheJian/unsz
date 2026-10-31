@@ -1,0 +1,23 @@
+	Command being timed: "taskset --cpu-list 44 /home/x-zjian1/unsz/unsz_env/bin/python -u /home/x-zjian1/unsz/t1_start_c_code.py /home/x-zjian1/unsz/results/ocean_large_per_slice_rd_64/umc/64_field_workers/rel_0.001/configs/timeMonthly_avg_seaIceFreshWaterFlux.json --skip-build"
+	User time (seconds): 131.37
+	System time (seconds): 6.93
+	Percent of CPU this job got: 97%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:21.69
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 3256352
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 103
+	Minor (reclaiming a frame) page faults: 2692294
+	Voluntary context switches: 1922
+	Involuntary context switches: 474
+	Swaps: 0
+	File system inputs: 1160
+	File system outputs: 272
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

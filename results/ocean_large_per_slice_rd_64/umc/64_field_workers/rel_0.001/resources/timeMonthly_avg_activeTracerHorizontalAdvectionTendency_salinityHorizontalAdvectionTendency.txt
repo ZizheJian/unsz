@@ -1,0 +1,23 @@
+	Command being timed: "taskset --cpu-list 7 /home/x-zjian1/unsz/unsz_env/bin/python -u /home/x-zjian1/unsz/t1_start_c_code.py /home/x-zjian1/unsz/results/ocean_large_per_slice_rd_64/umc/64_field_workers/rel_0.001/configs/timeMonthly_avg_activeTracerHorizontalAdvectionTendency_salinityHorizontalAdvectionTendency.json --skip-build"
+	User time (seconds): 527.47
+	System time (seconds): 26.83
+	Percent of CPU this job got: 51%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 17:48.84
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 4006216
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 3775583
+	Voluntary context switches: 49654
+	Involuntary context switches: 11682
+	Swaps: 0
+	File system inputs: 8
+	File system outputs: 2296
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

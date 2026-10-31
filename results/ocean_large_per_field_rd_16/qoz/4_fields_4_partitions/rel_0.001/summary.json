@@ -1,0 +1,79 @@
+{
+  "codec": "qoz2-q4-nd-point-partitioned",
+  "protocol": "field",
+  "statistics_version": 2,
+  "rel_eb": 0.001,
+  "field_workers": 4,
+  "point_partitions_per_field": 4,
+  "cpu_num": 16,
+  "field_num": 94,
+  "slice_num": 35304,
+  "compressed_bytes": 16391420109,
+  "value_num": 130385615400,
+  "valid_value_num": 101882652769,
+  "br": 1.005719537923813,
+  "nmse": 8.405812625250184e-08,
+  "normalized_psnr": 70.7542029512131,
+  "nmse_all_points": 6.60489288475904e-08,
+  "normalized_psnr_all_points": 71.80134221188786,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 58,
+      "value_num": 2570484600,
+      "valid_value_num": 2570484529,
+      "br": 3.7807662881932846,
+      "nmse": 2.2661195884899414e-07,
+      "normalized_psnr": 66.44717175120968,
+      "nmse_all_points": 2.2661195258968838e-07,
+      "normalized_psnr_all_points": 66.44717187116724
+    },
+    "12x80": {
+      "field_num": 32,
+      "value_num": 113455872000,
+      "valid_value_num": 88119905280,
+      "br": 0.9039263511367662,
+      "nmse": 7.900553962415337e-08,
+      "normalized_psnr": 71.02342456255697,
+      "nmse_all_points": 6.178372163217045e-08,
+      "normalized_psnr_all_points": 72.09125934888004
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "valid_value_num": 11192262960,
+      "br": 1.313243756007796,
+      "nmse": 9.109879659341037e-08,
+      "normalized_psnr": 70.4048735997863,
+      "nmse_all_points": 7.100656802794035e-08,
+      "normalized_psnr_all_points": 71.48701477670181
+    }
+  },
+  "compression_worker_times": [
+    321.285790109,
+    326.986996674,
+    329.719694065,
+    334.036559303
+  ],
+  "decompression_worker_times": [
+    101.468714338,
+    121.606891107,
+    118.73000485,
+    126.196762249
+  ],
+  "reported_compression_time": 334.036559303,
+  "reported_decompression_time": 126.196762249,
+  "total_codec_time": 460.233321552,
+  "all_ebs_execution_wall_time": 734.6575969820842,
+  "max_concurrent_rss_upper_bound_kib": 233642600,
+  "max_error_over_eb": 1.0000000475279573,
+  "complete": false,
+  "failures": [
+    {
+      "field": "timeMonthly_avg_activeTracerHorMixTendency_temperatureHorMixTendency",
+      "rel_eb": 0.001,
+      "returncode": -11,
+      "log": "/home/x-zjian1/unsz/results/ocean_large_per_field_rd_16/qoz/4_fields_4_partitions/logs/timeMonthly_avg_activeTracerHorMixTendency_temperatureHorMixTendency.log"
+    }
+  ],
+  "valid": false
+}

@@ -1,0 +1,68 @@
+{
+  "codec": "sz3-nd-point-partitioned",
+  "protocol": "field",
+  "statistics_version": 2,
+  "rel_eb": 0.001,
+  "field_workers": 2,
+  "point_partitions_per_field": 32,
+  "cpu_num": 64,
+  "field_num": 95,
+  "slice_num": 36264,
+  "compressed_bytes": 28511525172,
+  "value_num": 133931111400,
+  "valid_value_num": 104636399809,
+  "br": 1.7030561382767708,
+  "nmse": 1.1510147348177846e-07,
+  "normalized_psnr": 69.38919116675078,
+  "nmse_all_points": 9.180803072741574e-08,
+  "normalized_psnr_all_points": 70.37119328079172,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 58,
+      "value_num": 2570484600,
+      "valid_value_num": 2570484529,
+      "br": 3.586784316077988,
+      "nmse": 2.4183243885091484e-07,
+      "normalized_psnr": 66.16485444298065,
+      "nmse_all_points": 2.4183243217120036e-07,
+      "normalized_psnr_all_points": 66.16485456293823
+    },
+    "12x80": {
+      "field_num": 33,
+      "value_num": 117001368000,
+      "valid_value_num": 90873652320,
+      "br": 1.651507969855532,
+      "nmse": 1.1074268338498757e-07,
+      "normalized_psnr": 69.55684957389249,
+      "nmse_all_points": 8.816768620889082e-08,
+      "normalized_psnr_all_points": 70.54690556280383
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "valid_value_num": 11192262960,
+      "br": 1.7858676516088698,
+      "nmse": 1.2138609976481155e-07,
+      "normalized_psnr": 69.1583104259413,
+      "nmse_all_points": 9.46138771631141e-08,
+      "normalized_psnr_all_points": 70.2404516028568
+    }
+  },
+  "compression_worker_times": [
+    98.20580925,
+    84.792242195
+  ],
+  "decompression_worker_times": [
+    54.903674781,
+    57.976641806
+  ],
+  "reported_compression_time": 98.20580925,
+  "reported_decompression_time": 57.976641806,
+  "total_codec_time": 156.182451056,
+  "all_ebs_execution_wall_time": 222.7880170319695,
+  "max_concurrent_rss_upper_bound_kib": 118848244,
+  "max_error_over_eb": 1,
+  "complete": true,
+  "failures": [],
+  "valid": true
+}

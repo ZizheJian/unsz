@@ -1,0 +1,85 @@
+{
+  "codec": "unsz",
+  "protocol": "slice",
+  "statistics_version": 2,
+  "rel_eb": 0.001,
+  "cpu_num": 64,
+  "field_worker_num": 8,
+  "thread_num": 8,
+  "partition_num": 8,
+  "field_num": 95,
+  "slice_num": 36264,
+  "compressed_bytes": 9320968315,
+  "value_num": 133931111400,
+  "valid_value_num": 104636399809,
+  "br": 0.5567619482921725,
+  "nmse": 1.0508724039428466e-07,
+  "normalized_psnr": 69.78450012447091,
+  "nmse_all_points": 8.210154000649071e-08,
+  "normalized_psnr_all_points": 70.85648696594951,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 58,
+      "value_num": 2570484600,
+      "valid_value_num": 2570484529,
+      "br": 0.770550262779244,
+      "nmse": 9.605286936110316e-08,
+      "normalized_psnr": 70.17489657048195,
+      "nmse_all_points": 9.605286670800276e-08,
+      "normalized_psnr_all_points": 70.17489669043952
+    },
+    "12x80": {
+      "field_num": 33,
+      "value_num": 117001368000,
+      "valid_value_num": 90873652320,
+      "br": 0.5181164730313239,
+      "nmse": 1.0706839154728847e-07,
+      "normalized_psnr": 69.70338721536726,
+      "nmse_all_points": 8.315882074071065e-08,
+      "normalized_psnr_all_points": 70.80091677943663
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "valid_value_num": 11192262960,
+      "br": 0.8333802583180686,
+      "nmse": 9.107651435417779e-08,
+      "normalized_psnr": 70.40593598892576,
+      "nmse_all_points": 7.098920023171199e-08,
+      "normalized_psnr_all_points": 71.48807716584128
+    }
+  },
+  "shared_dependency_plan_time": {
+    "compression": 0.00138,
+    "decompression": 0.001348
+  },
+  "compression_worker_times": [
+    198.739633371,
+    227.136034638,
+    226.50554128,
+    320.523610113,
+    248.60719469999998,
+    220.870113549,
+    219.696263694,
+    222.936246745
+  ],
+  "decompression_worker_times": [
+    70.074713632,
+    98.262511839,
+    86.104526276,
+    112.210747056,
+    101.008054396,
+    110.74360783200001,
+    94.596782046,
+    94.218663477
+  ],
+  "reported_compression_time": 320.524990113,
+  "reported_decompression_time": 112.212095056,
+  "total_codec_time": 432.737085169,
+  "compression_wall_time": 1280.06418,
+  "decompression_wall_time": 657.356534,
+  "max_error_over_eb": 1.000000059509343,
+  "shared_dag_compression_reuse_count": 88,
+  "shared_dag_decompression_reuse_count": 88,
+  "valid": true
+}

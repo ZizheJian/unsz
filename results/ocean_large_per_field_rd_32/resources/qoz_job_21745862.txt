@@ -1,0 +1,23 @@
+	Command being timed: "./unsz_env/bin/python -u benchmarks/field_relative/run_all_95_fields.py --codec qoz --rel-eb 1e-3 --field-workers 2 --partitions-per-field 16"
+	User time (seconds): 7198.40
+	System time (seconds): 3375.92
+	Percent of CPU this job got: 1946%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 9:03.13
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 58704920
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 224783
+	Minor (reclaiming a frame) page faults: 690979617
+	Voluntary context switches: 2435127
+	Involuntary context switches: 28040
+	Swaps: 0
+	File system inputs: 10747232
+	File system outputs: 12064
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

@@ -1,0 +1,68 @@
+{
+  "codec": "qoz2-q4-nd-point-partitioned",
+  "protocol": "field",
+  "statistics_version": 2,
+  "rel_eb": 0.001,
+  "field_workers": 2,
+  "point_partitions_per_field": 8,
+  "cpu_num": 16,
+  "field_num": 95,
+  "slice_num": 36264,
+  "compressed_bytes": 16408192433,
+  "value_num": 133931111400,
+  "valid_value_num": 104636399809,
+  "br": 0.9800974403322991,
+  "nmse": 8.309805399653684e-08,
+  "normalized_psnr": 70.8040914647415,
+  "nmse_all_points": 6.533186115759763e-08,
+  "normalized_psnr_all_points": 71.84874969562196,
+  "shape_groups": {
+    "12x1": {
+      "field_num": 58,
+      "value_num": 2570484600,
+      "valid_value_num": 2570484529,
+      "br": 3.7839440983229387,
+      "nmse": 2.2828107139672776e-07,
+      "normalized_psnr": 66.41530097834158,
+      "nmse_all_points": 2.2828106509131902e-07,
+      "normalized_psnr_all_points": 66.41530109829915
+    },
+    "12x80": {
+      "field_num": 33,
+      "value_num": 117001368000,
+      "valid_value_num": 90873652320,
+      "br": 0.8782578803352111,
+      "nmse": 7.776628735992274e-08,
+      "normalized_psnr": 71.09208634201447,
+      "nmse_all_points": 6.086932362277057e-08,
+      "normalized_psnr_all_points": 72.15601524081237
+    },
+    "12x81": {
+      "field_num": 4,
+      "value_num": 14359258800,
+      "valid_value_num": 11192262960,
+      "br": 1.3079780953596296,
+      "nmse": 9.304478307931356e-08,
+      "normalized_psnr": 70.31307972274027,
+      "nmse_all_points": 7.252335888533716e-08,
+      "normalized_psnr_all_points": 71.39522089965578
+    }
+  },
+  "compression_worker_times": [
+    362.273825755,
+    345.435210143
+  ],
+  "decompression_worker_times": [
+    116.688356637,
+    131.334993228
+  ],
+  "reported_compression_time": 362.273825755,
+  "reported_decompression_time": 131.334993228,
+  "total_codec_time": 493.608818983,
+  "all_ebs_execution_wall_time": 774.06525431911,
+  "max_concurrent_rss_upper_bound_kib": 117244880,
+  "max_error_over_eb": 1.0000000475279573,
+  "complete": true,
+  "failures": [],
+  "valid": true
+}

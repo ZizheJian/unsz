@@ -1,0 +1,23 @@
+	Command being timed: "./unsz_env/bin/python -u benchmarks/slice_parallel/run.py --codec sz3 --slice-workers 16 --threads-per-slice 1 --rel-eb 1e-3"
+	User time (seconds): 5549.49
+	System time (seconds): 220.74
+	Percent of CPU this job got: 1159%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 8:17.55
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 133400
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 32194367
+	Voluntary context switches: 150786
+	Involuntary context switches: 18722
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 36600
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
