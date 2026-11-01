@@ -1,0 +1,12 @@
+{
+ "variant": "forward_dag",
+ "install_dir": "/home/x-zjian1/unsz/install_ablation",
+ "git_revision": "c827304ae71037edf15c3c248e54e7c9ca1792cd",
+ "binary_sha256": {
+  "s1_compress": "6ccc0f6b1be673ad2d74686ed40312797a7b0d01c572bbfd198c14ea97c8e0d3",
+  "s1_decompress": "168ccd465b3ddbb74abfc858f0e0f9e37f0f0b0a7e652e99bfb743ed3efac8d6"
+ },
+ "node": "a205.anvil.rcac.purdue.edu",
+ "slurm_job_id": "21837755",
+ "start_time": "2026-11-01 05:07:57"
+}

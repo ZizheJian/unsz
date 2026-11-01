@@ -1,0 +1,11 @@
+{
+ "variant": "tensor_prediction_off",
+ "git_revision": "c827304ae71037edf15c3c248e54e7c9ca1792cd",
+ "binary_sha256": {
+  "s1_compress": "d3e12a482907db4b62b2f5dfd162e7ab2e74fe3232e0f7117171bd139e8aa9e9",
+  "s1_decompress": "d2f70003070282c1cfa828fabe8e3b05b88c877109b902a811cdf6351878a0a7"
+ },
+ "node": "a080.anvil.rcac.purdue.edu",
+ "slurm_job_id": "21835286",
+ "start_time": "2026-10-31 22:58:48"
+}

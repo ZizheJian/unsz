@@ -523,6 +523,7 @@ namespace unsz
             string eb_schedule="inverse_rank_log2";//none / inverse_rank_log2，none只用于消融实验
             string weight_mode="rbf";//rbf / idw，idw只用于消融实验
             bool spatial_residual_enabled=true;//false时自动选择不考虑空间残差预测，只用于消融实验
+            string coding_order_output_path;//非空时写出编码顺序（int32点编号），只用于可视化不同的排序
             double eb_schedule_start_ratio=0.8;
             double eb_schedule_log2_shift=0.5;//inverse_rank_log2的指数位移
             double eb_schedule_max_log2_exponent=7;//inverse_rank_log2的最小EB倍率由该指数限制，不依赖预测轮数

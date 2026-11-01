@@ -121,6 +121,8 @@ namespace unsz
                 if(param.weight_mode!="rbf"&&param.weight_mode!="idw")
                     throw runtime_error("-weights必须是rbf或idw");
             }
+            else if(option=="-coding-order-output")
+                param.coding_order_output_path=read_value();
             else if(!parse_side_option(option,read_value))
                 throw runtime_error("未知参数："+option);
         }

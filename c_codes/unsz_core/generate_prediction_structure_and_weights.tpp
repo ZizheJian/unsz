@@ -53,6 +53,9 @@ namespace unsz
             generate_forward_prediction_structure_and_weights(tree,point_ids,active_min_coord,active_max_coord,structure,generation_start_time,uses_rbf);
         else
             generate_local_prediction_structure_and_weights(tree,point_ids,active_min_coord,active_max_coord,structure,generation_start_time,uses_rbf);
+        // 多个partition或标签会依次覆盖同一个文件，因此可视化时只使用一个partition、一个标签
+        if(!coding_order_output_path.empty())
+            write_binary_file(coding_order_output_path,structure.target_ids.data(),structure.target_ids.size());
     }
 
     template<typename T_coord,typename T_data>
