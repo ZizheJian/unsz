@@ -1,4 +1,4 @@
-import argparse,hashlib,json,shutil,subprocess,sys,time
+import argparse,hashlib,json,os,shutil,subprocess,sys,time
 from pathlib import Path
 
 # 回归测试：用指定的s1_compress/s1_decompress压缩并解压一组固定用例，记录全部码流和解压结果的SHA256。
@@ -84,7 +84,8 @@ def compare(manifest,reference):
 def main():
     parser=argparse.ArgumentParser(description='UNSZ逐字节回归测试')
     parser.add_argument('--binary-dir',type=Path,required=True)
-    parser.add_argument('--work-dir',type=Path,required=True)
+    # 输出文件只用来算SHA256，默认写到scratch，不占项目目录的文件数配额
+    parser.add_argument('--work-dir',type=Path,default=Path(os.environ.get('SCRATCH','/anvil/scratch/x-zjian1'))/'unsz_regression')
     parser.add_argument('--manifest',type=Path,required=True)
     parser.add_argument('--compare',type=Path,help='参考清单；给出时逐用例比较SHA256')
     parser.add_argument('--case',action='append',choices=tuple(cases))

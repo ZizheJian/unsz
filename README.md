@@ -190,10 +190,10 @@ C++代码在`c_codes/`。`s1_compress.cpp`和`compress_cli.cpp`是压缩器入�
 | `spatial_prediction.tpp` | 用RBF权重做空间预测 |
 | `compression_format.tpp` | 码流的编码、拼装和解析 |
 
-修改C++代码后，用逐字节回归测试确认正式路径的输出不变。它用参考二进制和新二进制分别压缩并解压15个固定用例，比较全部码流和解压结果的SHA256：
+修改C++代码后，用逐字节回归测试确认正式路径的输出不变。它用参考二进制和新二进制分别压缩并解压15个固定用例，比较全部码流和解压结果的SHA256。输出文件默认写到`$SCRATCH/unsz_regression`，可用`--work-dir`改到别处：
 
 ```bash
-./unsz_env/bin/python tests/regression/run_regression.py --binary-dir build/regression_new/install/bin --work-dir /path/to/work --manifest results/regression/candidate.json --compare results/regression/reference.json
+./unsz_env/bin/python tests/regression/run_regression.py --binary-dir build/regression_new/install/bin --manifest results/regression/candidate.json --compare results/regression/reference.json
 ```
 
 `results/regression/reference.json`记录的是清理代码前的参考输出。
