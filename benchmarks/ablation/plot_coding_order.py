@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -85,6 +86,47 @@ def style_axis(axis,title):
     axis.grid(color='0.85',linewidth=.4)
 
 
+def plot_paper_figure(x,y,lon_degree,lat_degree,orders,colormap,path):
+    # 论文图：第一行是最先编码的1%的点，第二行是赤道太平洋6°×3°区域内各点的编码位置。布局以pt为单位，宽度为双栏全宽
+    sys.path.insert(0,str(project_root/'third_party/paperfig/src'))
+    from paperfig import PaperFigureSpec,apply_paper_style,save_paper_png_vertical_crop
+    titles=('Reverse construction','Round-based order','Forward construction')
+    with plt.rc_context():
+        apply_paper_style()
+        spec=PaperFigureSpec.text()
+        # paperfig导出时使用正方形画布再裁掉上下空白，因此从画布顶部往下按pt排版
+        width_pt,height_pt=spec.size_in[0]*72,spec.size_in[1]*72
+        figure=plt.figure(figsize=spec.size_in,dpi=spec.dpi)
+        side_margin,column_gap,panel_height,caption_height=4,6,84,13
+        panel_width=(width_pt-2*side_margin-2*column_gap)/3
+        def add_axis(column,top):
+            return figure.add_axes(((side_margin+column*(panel_width+column_gap))/width_pt,(top-panel_height)/height_pt,panel_width/width_pt,panel_height/height_pt))
+        background=render_mean_color(x,y,np.full((len(x),3),.88),width=1400)
+        region=np.flatnonzero((lon_degree>-150)&(lon_degree<-144)&(lat_degree>-1.5)&(lat_degree<1.5))
+        point_num=len(x)
+        for column,(name,_) in enumerate(orderings):
+            axis=add_axis(column,height_pt-12)
+            axis.imshow(background,extent=(-2*np.sqrt(2),2*np.sqrt(2),-np.sqrt(2),np.sqrt(2)),interpolation='nearest',zorder=0)
+            ids=orders[name][:point_num//100]
+            axis.scatter(x[ids],y[ids],s=.12,color='#1f3f6e',linewidths=0,rasterized=True,zorder=1)
+            axis.add_patch(matplotlib.patches.Ellipse((0,0),4*np.sqrt(2),2*np.sqrt(2),fill=False,edgecolor='.4',linewidth=.5,zorder=2))
+            axis.set_xlim(-2*np.sqrt(2)*1.005,2*np.sqrt(2)*1.005);axis.set_ylim(-np.sqrt(2)*1.01,np.sqrt(2)*1.01);axis.set_xticks([]);axis.set_yticks([]);axis.axis('off')
+            figure.text((side_margin+column*(panel_width+column_gap)+panel_width/2)/width_pt,(height_pt-12-panel_height-2)/height_pt,f'({"abc"[column]}) {titles[column]}',ha='center',va='top')
+            axis=add_axis(column,height_pt-12-panel_height-caption_height-4)
+            rank=np.empty(point_num);rank[orders[name]]=np.arange(point_num)
+            region_rank=np.argsort(np.argsort(rank[region]))/len(region)
+            axis.scatter(lon_degree[region],lat_degree[region],c=region_rank,cmap=colormap,vmin=0,vmax=1,s=4.5,linewidths=0)
+            axis.set_xlim(-150,-144);axis.set_ylim(-1.5,1.5);axis.set_aspect('equal');axis.set_xticks([]);axis.set_yticks([])
+            for spine in axis.spines.values():spine.set_linewidth(.5);spine.set_color('.4')
+            figure.text((side_margin+column*(panel_width+column_gap)+panel_width/2)/width_pt,(height_pt-12-2*panel_height-caption_height-4-2)/height_pt,f'({"def"[column]}) {titles[column]}',ha='center',va='top')
+        colorbar_axis=figure.add_axes(((width_pt-180)/2/width_pt,(height_pt-12-2*panel_height-2*caption_height-4-14)/height_pt,180/width_pt,5/height_pt))
+        colorbar=figure.colorbar(plt.cm.ScalarMappable(cmap=colormap),cax=colorbar_axis,orientation='horizontal')
+        colorbar.set_ticks([0,1],labels=['coded first','coded last']);colorbar.outline.set_linewidth(.5);colorbar_axis.tick_params(length=1.8,width=.45,pad=1.5)
+        colorbar_axis.set_title('Position in the coding order within panels (d)--(f)'.replace('--','–'),pad=2)
+        save_paper_png_vertical_crop(figure,path,spec)
+        plt.close(figure)
+
+
 def main():
     output_dir.mkdir(parents=True,exist_ok=True)
     xyz=np.fromfile(data_root/'Ocean-large/tensor_data/coords.dat',dtype=np.float32).reshape(-1,3).astype(np.float64)
@@ -128,6 +170,8 @@ def main():
     colorbar.set_label(f'Position in coding order among the {len(region)} points of this region')
     figure.savefig(output_dir/'coding_order_region.png',dpi=200,bbox_inches='tight')
     plt.close(figure)
+    # 图4：论文用的组合图
+    plot_paper_figure(x,y,lon_degree,lat_degree,orders,colormap,output_dir/'coding_order_paper.png')
 
 
 if __name__=='__main__':
