@@ -90,7 +90,7 @@ def plot_paper_figure(x,y,lon_degree,lat_degree,orders,colormap,path):
     # 论文图：第一行是最先编码的1%的点，第二行是赤道太平洋6°×3°区域内各点的编码位置。布局以pt为单位，宽度为双栏全宽
     sys.path.insert(0,str(project_root/'third_party/paperfig/src'))
     from paperfig import PaperFigureSpec,apply_paper_style,save_paper_png_vertical_crop
-    titles=('Reverse construction','Round-based order','Forward construction')
+    titles=('Reverse construction','Round-based sequence','Forward construction')
     with plt.rc_context():
         apply_paper_style()
         spec=PaperFigureSpec.text()
@@ -121,8 +121,8 @@ def plot_paper_figure(x,y,lon_degree,lat_degree,orders,colormap,path):
             figure.text((side_margin+column*(panel_width+column_gap)+panel_width/2)/width_pt,(height_pt-12-2*panel_height-caption_height-4-2)/height_pt,f'({"def"[column]}) {titles[column]}',ha='center',va='top')
         colorbar_axis=figure.add_axes(((width_pt-180)/2/width_pt,(height_pt-12-2*panel_height-2*caption_height-4-14)/height_pt,180/width_pt,5/height_pt))
         colorbar=figure.colorbar(plt.cm.ScalarMappable(cmap=colormap),cax=colorbar_axis,orientation='horizontal')
-        colorbar.set_ticks([0,1],labels=['coded first','coded last']);colorbar.outline.set_linewidth(.5);colorbar_axis.tick_params(length=1.8,width=.45,pad=1.5)
-        colorbar_axis.set_title('Position in the coding order within panels (d)--(f)'.replace('--','–'),pad=2)
+        colorbar.set_ticks([0,1],labels=['predicted first','predicted last']);colorbar.outline.set_linewidth(.5);colorbar_axis.tick_params(length=1.8,width=.45,pad=1.5)
+        colorbar_axis.set_title('Position in the prediction sequence within panels (d)--(f)'.replace('--','–'),pad=2)
         save_paper_png_vertical_crop(figure,path,spec)
         plt.close(figure)
 
@@ -144,7 +144,7 @@ def main():
         axis.add_patch(matplotlib.patches.Ellipse((0,0),4*np.sqrt(2),2*np.sqrt(2),fill=False,edgecolor='0.3',linewidth=.8,zorder=4))
         axis.set_title(title,fontsize=11)
     colorbar=figure.colorbar(plt.cm.ScalarMappable(cmap=colormap),ax=axes,orientation='horizontal',fraction=.03,pad=.02,aspect=40)
-    colorbar.set_label('Position in coding order (0 = coded first, 1 = coded last)')
+    colorbar.set_label('Position in prediction sequence (0 = predicted first, 1 = predicted last)')
     figure.savefig(output_dir/'coding_order_rank.png',dpi=300,bbox_inches='tight')
     plt.close(figure)
     # 图2：编码顺序中最先编码的0.1%、1%和10%的点
@@ -154,7 +154,7 @@ def main():
             ids=orders[name][:int(point_num*fraction)]
             axis=figure.add_subplot(3,3,row*3+column+1,projection='mollweide')
             axis.scatter(lon[ids],lat[ids],s=.3 if fraction<.01 else .05,color='#1f4e79',alpha=.8 if fraction<.01 else .25,linewidths=0,rasterized=True)
-            style_axis(axis,f'{name}: first {fraction:.1%} coded')
+            style_axis(axis,f'{name}: first {fraction:.1%} predicted')
     figure.savefig(output_dir/'coding_order_first_points.png',dpi=250,bbox_inches='tight')
     plt.close(figure)
     # 图3：赤道太平洋一个5°×5°的小区域，每个点不透明，颜色是它在区域内点中的编码位置
@@ -167,7 +167,7 @@ def main():
         axis.scatter(lon_degree[region],lat_degree[region],c=region_rank,cmap=colormap,vmin=0,vmax=1,s=9,linewidths=0)
         axis.set_aspect('equal');axis.set_title(title,fontsize=10);axis.set_xlabel('longitude');axis.set_ylabel('latitude')
     colorbar=figure.colorbar(plt.cm.ScalarMappable(cmap=colormap),ax=axes,orientation='horizontal',fraction=.05,pad=.18,aspect=50)
-    colorbar.set_label(f'Position in coding order among the {len(region)} points of this region')
+    colorbar.set_label(f'Position in prediction sequence among the {len(region)} points of this region')
     figure.savefig(output_dir/'coding_order_region.png',dpi=200,bbox_inches='tight')
     plt.close(figure)
     # 图4：论文用的组合图
