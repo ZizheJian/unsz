@@ -1,0 +1,9 @@
+{
+  "codec": "pfpl",
+  "rel_eb": 1e-05,
+  "threads": 1,
+  "binary_sha256": "ee1b48f61e3ea5c9672d3d7a9ed890e24990698e927e8a3604c3af088d667320",
+  "git_revision": "ed2eb56ca80e7b4c78484869beb9f9a0c5c1c7a7",
+  "hostname": "a001.anvil.rcac.purdue.edu",
+  "slurm_job_id": "21899396"
+}

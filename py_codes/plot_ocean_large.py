@@ -3,7 +3,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from matplotlib.ticker import FixedLocator,FuncFormatter,LogLocator,NullLocator
+from matplotlib.ticker import FixedLocator,LogLocator,MaxNLocator,NullLocator
 from paperfig import PANEL_GAP_WITH_YLABEL_PT,PaperFigureSpec,add_panel_captions,align_xlabels,apply_paper_style,layout_panel_row,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png_vertical_crop,style_plot_axis
 
 from plot_current_benchmarks import add_top_legend
@@ -94,20 +94,13 @@ def plot_time(runs,scaling,mode,output_path):
     scaling_axis.minorticks_off()
     scaling_axis.set_xlabel("Cores")
     scaling_axis.set_title(r"(b) $\epsilon_{\mathrm{rel}}=10^{-3}$")
+    # 耗时轴一律用从0开始的线性坐标
     for axis in(bar_axis,scaling_axis):
-        axis.set_yscale("log")
+        axis.set_ylim(bottom=0)
         axis.grid(True,axis="y",which="major",linestyle=":",alpha=.55)
-    bar_axis.set_ylabel("Total codec time (s, log scale)")
+    bar_axis.set_ylabel("Total codec time (s)")
     figure.legend(handles=legend_handles(runs),loc="lower center",bbox_to_anchor=(.5,1.0),ncol=len(runs),frameon=False)
     save(figure,output_path)
-
-
-def set_log_time_ticks(axis):
-    # 对数时间轴跨度不足约一个半数量级时补上2和5倍的刻度，否则只标10的整数次幂；刻度统一写成普通数字
-    bottom,top=axis.get_ylim()
-    subs=(1.0,2.0,5.0) if math.log10(top/bottom)<1.5 else (1.0,)
-    axis.yaxis.set_major_locator(FixedLocator([tick for tick in LogLocator(base=10,subs=subs).tick_values(bottom,top) if bottom<=tick<=top]))
-    axis.yaxis.set_major_formatter(FuncFormatter(lambda value,_:f"{value:g}"))
 
 
 def plot_summary(runs,mode,output_path):
@@ -130,8 +123,9 @@ def plot_summary(runs,mode,output_path):
         rd_axis.set_ylabel("PSNR (dB)")
         time_axis.set_xticks(range(len(rel_ebs)),[f"$10^{{{round(math.log10(rel_eb))}}}$" for rel_eb in rel_ebs])
         time_axis.set_xlabel("Relative error bound")
-        time_axis.set_yscale("log")
-        set_log_time_ticks(time_axis)
+        # 耗时轴一律用从0开始的线性坐标
+        time_axis.set_ylim(bottom=0)
+        time_axis.yaxis.set_major_locator(MaxNLocator(nbins=4))
         time_axis.set_ylabel("Total codec time (s)")
         for axis in axes:
             axis.xaxis.set_minor_locator(NullLocator())

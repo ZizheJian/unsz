@@ -3,7 +3,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FixedLocator,LogLocator,MaxNLocator,NullLocator
-from paperfig import DEFAULT_LEGEND_GAP_PT,DEFAULT_Y_LABEL_GAP_PT,MPL_POINTS_PER_INCH,PANEL_GAP_WITH_YTICKS_PT,PaperFigureSpec,add_shared_xlabel,align_xlabels,apply_paper_style,layout_panel_grid,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png_vertical_crop,set_legend_row_gap,style_plot_axis
+from paperfig import DEFAULT_LEGEND_GAP_PT,DEFAULT_LEGEND_ROW_GAP_PT,DEFAULT_Y_LABEL_GAP_PT,MPL_POINTS_PER_INCH,PANEL_GAP_WITH_YTICKS_PT,PaperFigureSpec,add_shared_xlabel,align_xlabels,apply_paper_style,layout_panel_grid,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png_vertical_crop,set_legend_row_gap,style_plot_axis
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
@@ -14,7 +14,9 @@ default_configs=("adcirc-haiyan-1.5km","e3sm-h4","katrina","les","ocean","taps",
 # 论文中不展示的field，使25个field变为4x6的网格
 excluded_fields={("taps","RMS_T")}
 dataset_labels={"katrina":"Katrina","les":"LES","e3sm-h4":"E3SM-h4","adcirc-haiyan-1.5km":"Haiyan","ocean":"Ocean","taps":"TAPS","tpost20":"Tpost20"}
-compressor_styles={"unsz":{"label":"UNSZ","color":"#0072B2","marker":"s"},"umc":{"label":"UMC","color":"#D55E00","marker":"o"}}
+compressor_styles={"unsz":{"label":"UNSZ","color":"#0072B2","marker":"s"},"umc":{"label":"UMC","color":"#D55E00","marker":"o"},"sz3_1d":{"label":"SZ3-1D","color":"#009E73","marker":"^"},"pfpl":{"label":"PFPL","color":"#CC79A7","marker":"D"}}
+# 一维基线由benchmarks/tensor_1d/run_moderate.py单独运行，没有预处理
+tensor_1d_codecs=("sz3_1d","pfpl")
 unsz_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
 umc_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
 timing_summary_keys=("coordinate_rescaling_time","prediction_structure_time","automatic_pipeline_selection_time","compression_preprocessing_time","compression_time","decompression_preprocessing_time","decompression_time")
@@ -82,6 +84,20 @@ def load_fields(config_names,selected_fields):
     return fields
 
 
+def load_tensor_1d_rows(fields):
+    curves={}
+    for codec in tensor_1d_codecs:
+        for path in sorted((project_root/"results/moderate_tensor_1d"/codec).glob("rel_*/fields.csv")):
+            for row in load_rows(path):
+                curves.setdefault((row["task"],row["field"]),{}).setdefault(codec,[]).append(row)
+    for _,task,field,_,_ in fields:
+        for codec in tensor_1d_codecs:
+            rows=curves.get((task["name"],field),{}).get(codec,[])
+            if len(rows)!=5 or not all(row["valid"]=="True" for row in rows):
+                raise ValueError(f"{task['name']}:{field}的{codec}曲线不完整或未通过误差检查")
+    return curves
+
+
 def subplot_grid(item_num,column_num=6):
     columns=min(column_num,item_num)
     rows=math.ceil(item_num/columns)
@@ -147,7 +163,7 @@ def add_shared_ylabel(figure,axes,text,gap_pt=DEFAULT_Y_LABEL_GAP_PT):
     return label
 
 
-def plot_rd(fields,output_dir,column_num=6):
+def plot_rd(fields,tensor_1d_rows,output_dir,column_num=6):
     with plt.rc_context():
         apply_paper_style()
         spec=PaperFigureSpec.text()
@@ -161,6 +177,9 @@ def plot_rd(fields,output_dir,column_num=6):
                 curve=sorted((row for row in rows if row["compressor"]==compressor),key=lambda row:float(row["br"]))
                 style=compressor_styles[compressor]
                 axis.plot([float(row["br"]) for row in curve],[float(row["psnr"]) for row in curve],color=style["color"],linewidth=.9)
+            for codec in tensor_1d_codecs:
+                curve=sorted(tensor_1d_rows[(task["name"],field)][codec],key=lambda row:float(row["br"]))
+                axis.plot([float(row["br"]) for row in curve],[float(row["psnr"]) for row in curve],color=compressor_styles[codec]["color"],linewidth=.9)
             axis.set_xscale("log")
             x_left,x_right=axis.get_xlim()
             axis.xaxis.set_major_locator(FixedLocator([tick for tick in LogLocator(base=10,numticks=4).tick_values(x_left,x_right) if x_left<=tick<=x_right]))
@@ -185,7 +204,7 @@ def plot_rd(fields,output_dir,column_num=6):
         plt.close(figure)
 
 
-def plot_time_by_eb(fields,output_dir,column_num=6):
+def plot_time_by_eb(fields,tensor_1d_rows,output_dir,column_num=6):
     with plt.rc_context():
         apply_paper_style()
         plt.rcParams["hatch.linewidth"]=.4
@@ -196,17 +215,20 @@ def plot_time_by_eb(fields,output_dir,column_num=6):
         figure,axes=plt.subplots(row_num,column_num,figsize=spec.size_in,dpi=spec.dpi,squeeze=False)
         ylabel="Time (s)"
         rel_ebs=(1e-1,1e-2,1e-3,1e-4,1e-5)
-        bar_width=.4
-        compressor_offsets={"unsz":-bar_width/2,"umc":bar_width/2}
-        compressor_hatches={"unsz":"","umc":"//////"}
+        bar_width=.2
+        compressor_offsets={"unsz":-1.5*bar_width,"umc":-.5*bar_width,"sz3_1d":.5*bar_width,"pfpl":1.5*bar_width}
+        compressor_hatches={"unsz":"","umc":"//////","sz3_1d":"\\\\\\\\\\\\","pfpl":"......"}
         for index,((dataset,task,field,rows,_),axis) in enumerate(zip(fields,axes.ravel())):
             for eb_index,rel_eb in enumerate(rel_ebs):
-                for compressor in task["compressor_list"]:
-                    row=next(row for row in rows if row["compressor"]==compressor and math.isclose(row["rel_eb_value"],rel_eb,rel_tol=1e-9))
+                for compressor in (*task["compressor_list"],*tensor_1d_codecs):
+                    if compressor in tensor_1d_codecs:
+                        row=next(row for row in tensor_1d_rows[(task["name"],field)][compressor] if math.isclose(float(row["rel_eb"]),rel_eb,rel_tol=1e-9))
+                    else:
+                        row=next(row for row in rows if row["compressor"]==compressor and math.isclose(row["rel_eb_value"],rel_eb,rel_tol=1e-9))
                     components=unsz_time_components if compressor=="unsz" else umc_time_components
                     bottom=0.0
                     for key,_,color in components:
-                        value=float(row[key])
+                        value=float(row.get(key,0))
                         axis.bar(eb_index+compressor_offsets[compressor],value,width=bar_width,bottom=bottom,color=color,edgecolor="black",linewidth=.3,hatch=compressor_hatches[compressor])
                         bottom+=value
             axis.yaxis.set_major_locator(MaxNLocator(nbins=3))
@@ -231,10 +253,13 @@ def plot_time_by_eb(fields,output_dir,column_num=6):
         for _,label,color in (*unsz_time_components,*umc_time_components):
             if (label,color) not in component_styles:
                 component_styles.append((label,color))
-        legend_handles=[Patch(facecolor=color,edgecolor="black",linewidth=.3,label=label) for label,color in component_styles]
-        legend_handles.extend((Patch(facecolor="white",edgecolor="black",linewidth=.3,label="UNSZ"),Patch(facecolor="white",edgecolor="black",linewidth=.3,hatch="//////",label="UMC"),Patch(facecolor=".8",edgecolor="black",linewidth=.3,hatch="//////",label="UMC unavailable")))
-        # 占位柱顶到绘图区上沿，图例需要多留一些距离
-        add_top_legend(figure,axes,legend_handles,gap_pt=3,ncol=len(legend_handles),**legend_spacing_kwargs(8))
+        component_handles=[Patch(facecolor=color,edgecolor="black",linewidth=.3,label=label) for label,color in component_styles]
+        compressor_handles=[Patch(facecolor="white",edgecolor="black",linewidth=.3,hatch=compressor_hatches[compressor],label=compressor_styles[compressor]["label"]) for compressor in compressor_offsets]
+        compressor_handles.append(Patch(facecolor=".8",edgecolor="black",linewidth=.3,hatch=compressor_hatches["umc"],label="UMC unavailable"))
+        # 两行图例各自居中：下一行是压缩器，上一行是耗时的组成部分；占位柱顶到绘图区上沿，图例需要多留一些距离
+        compressor_legend=add_top_legend(figure,axes,compressor_handles,gap_pt=3,ncol=len(compressor_handles),**legend_spacing_kwargs(8))
+        compressor_legend_height_pt=compressor_legend.get_window_extent(figure.canvas.get_renderer()).height*MPL_POINTS_PER_INCH/figure.dpi
+        add_top_legend(figure,axes,component_handles,gap_pt=3+compressor_legend_height_pt+DEFAULT_LEGEND_ROW_GAP_PT,ncol=len(component_handles),**legend_spacing_kwargs(8))
         output_path=output_dir/"all_fields_releb_time.png"
         output_path.parent.mkdir(parents=True,exist_ok=True)
         save_paper_png_vertical_crop(figure,output_path,spec,edge_gap_pt=3)
@@ -306,8 +331,9 @@ def main():
     if not fields:
         raise RuntimeError("没有可绘制的field")
     summary_rows=[]
-    plot_rd(fields,arguments.output_dir)
-    plot_time_by_eb(fields,arguments.output_dir)
+    tensor_1d_rows=load_tensor_1d_rows(fields)
+    plot_rd(fields,tensor_1d_rows,arguments.output_dir)
+    plot_time_by_eb(fields,tensor_1d_rows,arguments.output_dir)
     plot_time(fields,arguments.output_dir,summary_rows)
     write_summary(summary_rows,arguments.output_dir/"releb_1e-3_timing.csv")
 

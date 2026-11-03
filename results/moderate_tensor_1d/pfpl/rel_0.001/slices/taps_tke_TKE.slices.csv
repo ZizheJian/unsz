@@ -1,0 +1,2 @@
+slice_id,point_num,valid_point_num,valid_min,valid_max,abs_eb,compressed_bytes,compression_time,decompression_time,squared_error,valid_squared_error,max_error,max_error_over_eb,valid,zero_eb
+0,16002271,16002271,0.00085648178355768323,1335.0396728515625,1.3350387811660767,7578630,0.17561167799999999,0.101651334,8960009.0676930659,8960009.0676930659,1.3350386619567871,0.99999991070724592,1,0

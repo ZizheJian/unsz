@@ -1,0 +1,9 @@
+{
+  "codec": "sz3_1d",
+  "rel_eb": 0.0001,
+  "threads": 1,
+  "binary_sha256": "37d02941e24810596274e8c024cae30c1313d16f0e59380cd1836dd2e62740a0",
+  "git_revision": "ed2eb56ca80e7b4c78484869beb9f9a0c5c1c7a7",
+  "hostname": "a001.anvil.rcac.purdue.edu",
+  "slurm_job_id": "21899396"
+}
