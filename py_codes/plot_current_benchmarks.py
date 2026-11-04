@@ -10,7 +10,8 @@ from matplotlib.patches import Patch
 
 project_root=Path(__file__).resolve().parents[1]
 # 与论文表I的数据集顺序一致，field按各配置文件中的顺序排列
-default_configs=("adcirc-haiyan-1.5km","e3sm-h4","katrina","les","ocean","taps","tpost20")
+# 按数据集的数值总大小从小到大排列，与论文中的数据集表格一致
+default_configs=("tpost20","e3sm-h4","les","adcirc-haiyan-1.5km","ocean","katrina","taps")
 # 论文中不展示的field，使25个field变为4x6的网格
 excluded_fields={("taps","RMS_T")}
 dataset_labels={"katrina":"Katrina","les":"LES","e3sm-h4":"E3SM-h4","adcirc-haiyan-1.5km":"Haiyan","ocean":"Ocean","taps":"TAPS","tpost20":"Tpost20"}

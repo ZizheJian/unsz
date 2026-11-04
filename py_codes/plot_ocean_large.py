@@ -104,10 +104,10 @@ def plot_time(runs,scaling,mode,output_path):
 
 
 def plot_summary(runs,mode,output_path):
-    # 单栏一行两个子图：全部95个field的RD、128核下各EB的total codec time
+    # 2/3栏宽一行两个子图：全部95个field的RD、128核下各EB的total codec time
     with plt.rc_context():
         apply_paper_style()
-        spec=PaperFigureSpec.column()
+        spec=PaperFigureSpec.column(width_fraction=2/3)
         figure,axes=plt.subplots(1,2,figsize=spec.size_in,dpi=spec.dpi)
         rd_axis,time_axis=axes
         rel_ebs=sorted({point["rel_eb"] for points in runs.values() for point in points},reverse=True)
@@ -121,12 +121,14 @@ def plot_summary(runs,mode,output_path):
         rd_axis.xaxis.set_major_locator(FixedLocator([tick for tick in LogLocator(base=10,numticks=4).tick_values(x_left,x_right) if x_left<=tick<=x_right]))
         rd_axis.set_xlabel("Bit rate (bits/value)")
         rd_axis.set_ylabel("PSNR (dB)")
-        time_axis.set_xticks(range(len(rel_ebs)),[f"$10^{{{round(math.log10(rel_eb))}}}$" for rel_eb in rel_ebs])
+        # 2/3栏宽下五个刻度标签放不下，隔一个标一个
+        time_axis.set_xticks(range(len(rel_ebs)),[f"$10^{{{round(math.log10(rel_eb))}}}$" if eb_index%2==0 else "" for eb_index,rel_eb in enumerate(rel_ebs)])
+        time_axis.set_xlim(-.35,len(rel_ebs)-.65)
         time_axis.set_xlabel("Relative error bound")
         # 耗时轴一律用从0开始的线性坐标
         time_axis.set_ylim(bottom=0)
         time_axis.yaxis.set_major_locator(MaxNLocator(nbins=4))
-        time_axis.set_ylabel("Total codec time (s)")
+        time_axis.set_ylabel("Time (s)")
         for axis in axes:
             axis.xaxis.set_minor_locator(NullLocator())
             axis.yaxis.set_minor_locator(NullLocator())
@@ -134,7 +136,7 @@ def plot_summary(runs,mode,output_path):
             axis.grid(True,which="major",linestyle="--",linewidth=.35,alpha=.35)
             style_plot_axis(axis)
         layout_panel_row(figure,axes,panel_aspect_ratios(1,1),bottom_pt=40,panel_gap_pt=PANEL_GAP_WITH_YLABEL_PT,left_edge_gap_pt=3,right_edge_gap_pt=3)
-        add_top_legend(figure,[axes],[Line2D([],[],color=styles[codec][0],linewidth=.9,label=codec) for codec in runs],ncol=len(runs),**legend_spacing_kwargs(12))
+        add_top_legend(figure,[axes],[Line2D([],[],color=styles[codec][0],linewidth=.9,label=codec) for codec in runs],ncol=2 if len(runs)>3 else len(runs),**legend_spacing_kwargs(12))
         align_xlabels(figure,axes)
         add_panel_captions(figure,axes,["(a) Rate\u2013distortion","(b) Time on 128 cores"])
         output_path.parent.mkdir(parents=True,exist_ok=True)
