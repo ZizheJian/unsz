@@ -2,15 +2,15 @@
 
 // 坐标缩放：为每个坐标轴学习一个缩放系数s_d，把坐标x换成x⊙s后再建kd-tree、生成DAG和RBF权重，数据值本身不变。
 // 目标是让缩放后的距离与数值差成正比，即|Δv|≈‖Δx⊙s‖，这样沿不同坐标轴“近”的含义在数值上一致。
-// 是否启用由点云形状决定，形状用flatness=sqrt(λmin/λmax)衡量，λ是坐标协方差矩阵的特征值。
-// flatness与论文中的定义相同：越接近0点云越扁，等于1时各方向同样分散。
+// 是否启用由点云形状决定，形状用flatness=sqrt(λmax/λmin)衡量，λ是坐标协方差矩阵的特征值。
+// flatness与论文中的定义相同：等于1时各方向同样分散，越大点云越扁。
 namespace unsz
 {
     // 自动模式的经验阈值，由多个数据集上显式off/on的率失真和耗时对比确定（见README 2.3节）：
-    // 原始flatness<=0.05：点云极扁，一定启用。原始flatness>=0.75：点云接近各向同性，不训练直接关闭。
-    // 其余情况先训练，缩放后flatness至少变为原来的1.21倍才启用，否则收益抵不上单独生成DAG的成本。
-    inline constexpr double coordinate_rescaling_original_flatness_enable_threshold=0.05;
-    inline constexpr double coordinate_rescaling_original_flatness_reject_threshold=0.75;
+    // 原始flatness>=20：点云极扁，一定启用。原始flatness<=4/3：点云接近各向同性，不训练直接关闭。
+    // 其余情况先训练，缩放后flatness至多变为原来的1/1.21才启用，否则收益抵不上单独生成DAG的成本。
+    inline constexpr double coordinate_rescaling_original_flatness_enable_threshold=20;
+    inline constexpr double coordinate_rescaling_original_flatness_reject_threshold=4.0/3;
     inline constexpr double coordinate_rescaling_relative_flatness_enable_threshold=1.21;
     inline constexpr double coordinate_rescaling_difficult_group_loss_power=3;//各组损失取3次方再求和，使拟合较差的组不会被其他组平均掉
     inline constexpr uint32_t coordinate_rescaling_sample_file_num=3;//最多用3个均匀分布的slice训练
@@ -91,7 +91,7 @@ namespace unsz
         return covariance;
     }
 
-    // 返回sqrt(λmin/λmax)。给出diagonal时计算缩放后坐标的flatness，缩放后的协方差为D·C·D，D=diag(s)。
+    // 返回sqrt(λmax/λmin)，λmin不为正时返回无穷大。给出diagonal时计算缩放后坐标的flatness，缩放后的协方差为D·C·D，D=diag(s)。
     inline double calculate_coordinate_flatness(const vector<double>&covariance,uint32_t dim,const vector<double>*diagonal=nullptr)
     {
         vector<double> rescaled_covariance=covariance;
@@ -106,7 +106,9 @@ namespace unsz
         auto [minimum,maximum]=coordinate_covariance_eigenvalue_range(move(rescaled_covariance),dim);
         if(!(maximum>0)||!isfinite(minimum)||!isfinite(maximum))
             return 1;
-        return sqrt(max(0.0,minimum)/maximum);
+        if(!(minimum>0))
+            return numeric_limits<double>::infinity();
+        return sqrt(maximum/minimum);
     }
 
     template<typename T_coord,typename T_data>

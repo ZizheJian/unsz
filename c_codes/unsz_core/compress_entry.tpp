@@ -30,12 +30,12 @@ namespace unsz
                 coordinate_covariance=&original_coordinate_covariance;
                 original_flatness=original_coordinate_flatness;
                 printf("coordinate rescaling original flatness=%.9f\n",original_flatness);
-                if(coordinate_rescaling_mode=="auto"&&original_flatness>=coordinate_rescaling_original_flatness_reject_threshold)
+                if(coordinate_rescaling_mode=="auto"&&original_flatness<=coordinate_rescaling_original_flatness_reject_threshold)
                 {
                     train_rescaling=false;
                     use_coordinate_rescaling=false;
                     coordinate_rescaling_diagonal.assign(dim,1);
-                    printf("coordinate rescaling rejected before training: original flatness >= %.3f\n",coordinate_rescaling_original_flatness_reject_threshold);
+                    printf("coordinate rescaling rejected before training: original flatness <= %.3f\n",coordinate_rescaling_original_flatness_reject_threshold);
                 }
             }
             if(train_rescaling)
@@ -46,11 +46,11 @@ namespace unsz
                 train_coordinate_rescaling();
                 printf("coordinate rescaling optimization time= %.6f s\n",seconds_since(coordinate_rescaling_optimization_start_time));
                 rescaled_flatness=calculate_coordinate_flatness(*coordinate_covariance,dim,&coordinate_rescaling_diagonal);
-                flatness_ratio=original_flatness>0?rescaled_flatness/original_flatness:numeric_limits<double>::infinity();
+                flatness_ratio=isfinite(original_flatness)?original_flatness/rescaled_flatness:numeric_limits<double>::infinity();
                 if(coordinate_rescaling_mode=="on")
                     use_coordinate_rescaling=true;
                 if(coordinate_rescaling_mode=="auto")
-                    use_coordinate_rescaling=original_flatness<=coordinate_rescaling_original_flatness_enable_threshold||flatness_ratio>=coordinate_rescaling_relative_flatness_enable_threshold;
+                    use_coordinate_rescaling=original_flatness>=coordinate_rescaling_original_flatness_enable_threshold||flatness_ratio>=coordinate_rescaling_relative_flatness_enable_threshold;
                 printf("coordinate rescaling rescaled flatness=%.9f,ratio=%.9f,use=%u\n",rescaled_flatness,flatness_ratio,(uint32_t)use_coordinate_rescaling);
             }
             apply_coordinate_rescaling();
