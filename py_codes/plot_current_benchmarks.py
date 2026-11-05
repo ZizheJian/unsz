@@ -21,6 +21,8 @@ compressor_styles={"unsz":{"label":"UNSZ","color":"#0072B2","marker":"s"},"umc":
 tensor_1d_codecs=("sz3_1d","pfpl")
 unsz_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
 umc_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
+# 4x6网格中每个子图绘图区的宽高比；比默认的sqrt(2)更扁，以节省论文篇幅
+grid_panel_aspect_ratio=2.0
 # 耗时堆叠柱：颜色区分压缩器，浅色为预处理、深色为压缩或解压，斜线为解压一侧
 time_stage_labels=(("compression_preprocessing_time","Compression preprocessing"),("compression_time","Compression"),("decompression_preprocessing_time","Decompression preprocessing"),("decompression_time","Decompression"))
 unavailable_bar_style={"color":".85","hatch":"xxxxxx"}
@@ -206,7 +208,7 @@ def plot_rd(fields,tensor_1d_rows,output_dir,column_num=6):
             axis.set_axisbelow(True)
             axis.grid(True,which="major",linestyle="--",linewidth=.35,alpha=.35)
             style_plot_axis(axis)
-        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num),bottom_pt=60,column_gap_pt=PANEL_GAP_WITH_YTICKS_PT,row_content_gap_pt=6,left_edge_gap_pt=shared_ylabel_left_edge_pt(figure,ylabel),right_edge_gap_pt=3)
+        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num,unit_aspect_ratio=grid_panel_aspect_ratio),bottom_pt=60,column_gap_pt=PANEL_GAP_WITH_YTICKS_PT,row_content_gap_pt=6,left_edge_gap_pt=shared_ylabel_left_edge_pt(figure,ylabel),right_edge_gap_pt=3)
         for row in axes:
             align_xlabels(figure,row)
         add_shared_ylabel(figure,axes[:,0],ylabel)
@@ -258,7 +260,7 @@ def plot_time_by_eb(fields,tensor_1d_rows,output_dir,column_num=6):
             axis.set_axisbelow(True)
             axis.grid(True,axis="y",which="major",linestyle="--",linewidth=.35,alpha=.35)
             style_plot_axis(axis)
-        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num),bottom_pt=60,column_gap_pt=PANEL_GAP_WITH_YTICKS_PT,row_content_gap_pt=6,left_edge_gap_pt=shared_ylabel_left_edge_pt(figure,ylabel),right_edge_gap_pt=3)
+        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num,unit_aspect_ratio=grid_panel_aspect_ratio),bottom_pt=60,column_gap_pt=PANEL_GAP_WITH_YTICKS_PT,row_content_gap_pt=6,left_edge_gap_pt=shared_ylabel_left_edge_pt(figure,ylabel),right_edge_gap_pt=3)
         for row in axes:
             align_xlabels(figure,row)
         add_shared_ylabel(figure,axes[:,0],ylabel)

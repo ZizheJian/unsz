@@ -161,7 +161,7 @@ def plot_summary(runs,mode,output_path):
             axis.yaxis.set_minor_locator(NullLocator())
             axis.set_axisbelow(True)
             style_plot_axis(axis)
-        layout_panel_row(figure,axes,panel_aspect_ratios(1,1.5),bottom_pt=40,panel_gap_pt=PANEL_GAP_WITH_YLABEL_PT,left_edge_gap_pt=3,right_edge_gap_pt=3)
+        layout_panel_row(figure,axes,panel_aspect_ratios(1,2),bottom_pt=40,panel_gap_pt=PANEL_GAP_WITH_YLABEL_PT,left_edge_gap_pt=3,right_edge_gap_pt=3)
         # 两组图例各自居中：下面是压缩器的颜色，上面是耗时阶段
         codec_handles=[Patch(facecolor=styles[codec][0],edgecolor="black",linewidth=.3,label=codec) for codec in runs]
         codec_legend=add_top_legend(figure,[axes],codec_handles,gap_pt=3,ncol=len(runs),**legend_spacing_kwargs(8))
