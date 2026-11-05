@@ -3,10 +3,11 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from matplotlib.ticker import FixedLocator,LogLocator,MaxNLocator,NullLocator
-from paperfig import PANEL_GAP_WITH_YLABEL_PT,PaperFigureSpec,add_panel_captions,align_xlabels,apply_paper_style,layout_panel_row,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png_vertical_crop,style_plot_axis
+from paperfig import DEFAULT_LEGEND_ROW_GAP_PT,MPL_POINTS_PER_INCH,PANEL_GAP_WITH_YLABEL_PT,PaperFigureSpec,add_panel_captions,align_xlabels,apply_paper_style,layout_panel_row,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png_vertical_crop,style_plot_axis
 
-from plot_current_benchmarks import add_top_legend
+from plot_current_benchmarks import add_top_legend,time_segment_style,time_stage_handles,time_stage_labels
 from summarize_current_results import calculate_bd_rate
 
 
@@ -36,9 +37,26 @@ def load_runs(result_root,mode):
                 selected=[row for row in rows if shape is None or row["shape"]==shape]
                 error=sum(float(row["normalized_squared_error"]) for row in selected)
                 groups[shape]={"br":8*sum(int(row["compressed_bytes"]) for row in selected)/sum(int(row["value_num"]) for row in selected),"psnr":-10*math.log10(error/sum(int(row["valid_value_num"]) for row in selected))}
-            points.append({"rel_eb":summary["rel_eb"],"groups":groups,"compression_time":summary["reported_compression_time"],"decompression_time":summary["reported_decompression_time"],"total_codec_time":summary["total_codec_time"]})
+            points.append({"rel_eb":summary["rel_eb"],"groups":groups,"compression_time":summary["reported_compression_time"],"decompression_time":summary["reported_decompression_time"],"total_codec_time":summary["total_codec_time"],"components":time_components(summary,rows)})
         runs[codec]=sorted(points,key=lambda point:point["rel_eb"],reverse=True)
     return runs
+
+
+def time_components(summary,rows):
+    # 每一端的报告时间是最慢worker的累计时间；按该worker中预处理与编解码的比例拆分报告时间
+    # SZ3-1D和PFPL的行是各slice worker的累计时间之和，比例同样适用，且它们没有预处理
+    components={}
+    for side in("compression","decompression"):
+        workers={}
+        for row in rows:
+            times=workers.setdefault(row["worker_id"],[0.0,0.0])
+            times[0]+=float(row[f"{side}_preprocessing_time"] or 0)
+            times[1]+=float(row[f"{side}_time"] or 0)
+        preprocessing,codec=max(workers.values(),key=sum)
+        reported=summary[f"reported_{side}_time"]
+        components[f"{side}_preprocessing_time"]=reported*preprocessing/(preprocessing+codec)
+        components[f"{side}_time"]=reported*codec/(preprocessing+codec)
+    return components
 
 
 def legend_handles(codecs):
@@ -104,39 +122,52 @@ def plot_time(runs,scaling,mode,output_path):
 
 
 def plot_summary(runs,mode,output_path):
-    # 2/3栏宽一行两个子图：全部95个field的RD、128核下各EB的total codec time
+    # 一栏宽一行两个子图：全部95个field的RD、128核下各EB的耗时分解
+    # 两个子图都用颜色区分压缩器；耗时柱沿用图7的编码，浅色为预处理、深色为压缩或解压，斜线为解压一侧
     with plt.rc_context():
         apply_paper_style()
-        spec=PaperFigureSpec.column(width_fraction=2/3)
+        plt.rcParams["hatch.linewidth"]=.4
+        spec=PaperFigureSpec.column()
         figure,axes=plt.subplots(1,2,figsize=spec.size_in,dpi=spec.dpi)
         rd_axis,time_axis=axes
         rel_ebs=sorted({point["rel_eb"] for points in runs.values() for point in points},reverse=True)
+        bar_width=.2
+        offsets={codec:(index-(len(runs)-1)/2)*bar_width for index,codec in enumerate(runs)}
         for codec,points in runs.items():
-            color=styles[codec][0]
-            rd_axis.plot([point["groups"][None]["br"] for point in points],[point["groups"][None]["psnr"] for point in points],color=color,linewidth=.9)
-            times={point["rel_eb"]:point["total_codec_time"] for point in points}
-            time_axis.plot([eb_index for eb_index,rel_eb in enumerate(rel_ebs) if rel_eb in times],[times[rel_eb] for rel_eb in rel_ebs if rel_eb in times],color=color,linewidth=.9)
+            rd_axis.plot([point["groups"][None]["br"] for point in points],[point["groups"][None]["psnr"] for point in points],color=styles[codec][0],linewidth=.9)
+            for point in points:
+                bottom=0.0
+                for key,_ in time_stage_labels:
+                    value=point["components"][key]
+                    color,hatch=time_segment_style(styles[codec][0],key)
+                    time_axis.bar(rel_ebs.index(point["rel_eb"])+offsets[codec],value,width=bar_width,bottom=bottom,color=color,edgecolor="black",linewidth=.3,hatch=hatch)
+                    bottom+=value
         rd_axis.set_xscale("log")
         x_left,x_right=rd_axis.get_xlim()
         rd_axis.xaxis.set_major_locator(FixedLocator([tick for tick in LogLocator(base=10,numticks=4).tick_values(x_left,x_right) if x_left<=tick<=x_right]))
         rd_axis.set_xlabel("Bit rate (bits/value)")
         rd_axis.set_ylabel("PSNR (dB)")
-        # 2/3栏宽下五个刻度标签放不下，隔一个标一个
+        rd_axis.grid(True,which="major",linestyle="--",linewidth=.35,alpha=.35)
+        # 五个刻度标签放不下，隔一个标一个
         time_axis.set_xticks(range(len(rel_ebs)),[f"$10^{{{round(math.log10(rel_eb))}}}$" if eb_index%2==0 else "" for eb_index,rel_eb in enumerate(rel_ebs)])
-        time_axis.set_xlim(-.35,len(rel_ebs)-.65)
+        time_axis.set_xlim(-.6,len(rel_ebs)-.4)
         time_axis.set_xlabel("Relative error bound")
-        # 耗时轴一律用从0开始的线性坐标
         time_axis.set_ylim(bottom=0)
         time_axis.yaxis.set_major_locator(MaxNLocator(nbins=4))
         time_axis.set_ylabel("Time (s)")
+        time_axis.grid(True,axis="y",which="major",linestyle="--",linewidth=.35,alpha=.35)
         for axis in axes:
             axis.xaxis.set_minor_locator(NullLocator())
             axis.yaxis.set_minor_locator(NullLocator())
             axis.set_axisbelow(True)
-            axis.grid(True,which="major",linestyle="--",linewidth=.35,alpha=.35)
             style_plot_axis(axis)
-        layout_panel_row(figure,axes,panel_aspect_ratios(1,1),bottom_pt=40,panel_gap_pt=PANEL_GAP_WITH_YLABEL_PT,left_edge_gap_pt=3,right_edge_gap_pt=3)
-        add_top_legend(figure,[axes],[Line2D([],[],color=styles[codec][0],linewidth=.9,label=codec) for codec in runs],ncol=2 if len(runs)>3 else len(runs),**legend_spacing_kwargs(12))
+        layout_panel_row(figure,axes,panel_aspect_ratios(1,1.5),bottom_pt=40,panel_gap_pt=PANEL_GAP_WITH_YLABEL_PT,left_edge_gap_pt=3,right_edge_gap_pt=3)
+        # 两组图例各自居中：下面是压缩器的颜色，上面是耗时阶段
+        codec_handles=[Patch(facecolor=styles[codec][0],edgecolor="black",linewidth=.3,label=codec) for codec in runs]
+        codec_legend=add_top_legend(figure,[axes],codec_handles,gap_pt=3,ncol=len(runs),**legend_spacing_kwargs(8))
+        codec_legend_height_pt=codec_legend.get_window_extent(figure.canvas.get_renderer()).height*MPL_POINTS_PER_INCH/figure.dpi
+        component_handles=time_stage_handles()
+        add_top_legend(figure,[axes],component_handles,gap_pt=3+codec_legend_height_pt+DEFAULT_LEGEND_ROW_GAP_PT,ncol=2,**legend_spacing_kwargs(8))
         align_xlabels(figure,axes)
         add_panel_captions(figure,axes,["(a) Rate\u2013distortion","(b) Time on 128 cores"])
         output_path.parent.mkdir(parents=True,exist_ok=True)

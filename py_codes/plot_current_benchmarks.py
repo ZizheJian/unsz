@@ -2,6 +2,7 @@ import argparse,csv,json,math,string
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_rgb
 from matplotlib.ticker import FixedLocator,LogLocator,MaxNLocator,NullLocator
 from paperfig import DEFAULT_LEGEND_GAP_PT,DEFAULT_LEGEND_ROW_GAP_PT,DEFAULT_Y_LABEL_GAP_PT,MPL_POINTS_PER_INCH,PANEL_GAP_WITH_YTICKS_PT,PaperFigureSpec,add_shared_xlabel,align_xlabels,apply_paper_style,layout_panel_grid,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png_vertical_crop,set_legend_row_gap,style_plot_axis
 from matplotlib.lines import Line2D
@@ -20,6 +21,9 @@ compressor_styles={"unsz":{"label":"UNSZ","color":"#0072B2","marker":"s"},"umc":
 tensor_1d_codecs=("sz3_1d","pfpl")
 unsz_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
 umc_time_components=(("compression_preprocessing_time","Compression preprocessing","#56B4E9"),("compression_time","Compression","#0072B2"),("decompression_preprocessing_time","Decompression preprocessing","#E69F00"),("decompression_time","Decompression","#D55E00"))
+# 耗时堆叠柱：颜色区分压缩器，浅色为预处理、深色为压缩或解压，斜线为解压一侧
+time_stage_labels=(("compression_preprocessing_time","Compression preprocessing"),("compression_time","Compression"),("decompression_preprocessing_time","Decompression preprocessing"),("decompression_time","Decompression"))
+unavailable_bar_style={"color":".85","hatch":"xxxxxx"}
 timing_summary_keys=("coordinate_rescaling_time","prediction_structure_time","automatic_pipeline_selection_time","compression_preprocessing_time","compression_time","decompression_preprocessing_time","decompression_time")
 
 
@@ -97,6 +101,16 @@ def load_tensor_1d_rows(fields):
             if len(rows)!=5 or not all(row["valid"]=="True" for row in rows):
                 raise ValueError(f"{task['name']}:{field}的{codec}曲线不完整或未通过误差检查")
     return curves
+
+
+def time_segment_style(color,key):
+    light=tuple(1-(1-channel)*.45 for channel in to_rgb(color))
+    return (light if "preprocessing" in key else color),("//////" if key.startswith("decompression") else "")
+
+
+def time_stage_handles():
+    # 图例用灰色示意四个阶段，与压缩器的颜色无关
+    return [Patch(facecolor=time_segment_style("#808080",key)[0],edgecolor="black",linewidth=.3,hatch=time_segment_style("#808080",key)[1],label=label) for key,label in time_stage_labels]
 
 
 def subplot_grid(item_num,column_num=6):
@@ -218,7 +232,6 @@ def plot_time_by_eb(fields,tensor_1d_rows,output_dir,column_num=6):
         rel_ebs=(1e-1,1e-2,1e-3,1e-4,1e-5)
         bar_width=.2
         compressor_offsets={"unsz":-1.5*bar_width,"umc":-.5*bar_width,"sz3_1d":.5*bar_width,"pfpl":1.5*bar_width}
-        compressor_hatches={"unsz":"","umc":"//////","sz3_1d":"\\\\\\\\\\\\","pfpl":"......"}
         for index,((dataset,task,field,rows,_),axis) in enumerate(zip(fields,axes.ravel())):
             for eb_index,rel_eb in enumerate(rel_ebs):
                 for compressor in (*task["compressor_list"],*tensor_1d_codecs):
@@ -226,18 +239,18 @@ def plot_time_by_eb(fields,tensor_1d_rows,output_dir,column_num=6):
                         row=next(row for row in tensor_1d_rows[(task["name"],field)][compressor] if math.isclose(float(row["rel_eb"]),rel_eb,rel_tol=1e-9))
                     else:
                         row=next(row for row in rows if row["compressor"]==compressor and math.isclose(row["rel_eb_value"],rel_eb,rel_tol=1e-9))
-                    components=unsz_time_components if compressor=="unsz" else umc_time_components
                     bottom=0.0
-                    for key,_,color in components:
+                    for key,_ in time_stage_labels:
                         value=float(row.get(key,0))
-                        axis.bar(eb_index+compressor_offsets[compressor],value,width=bar_width,bottom=bottom,color=color,edgecolor="black",linewidth=.3,hatch=compressor_hatches[compressor])
+                        color,hatch=time_segment_style(compressor_styles[compressor]["color"],key)
+                        axis.bar(eb_index+compressor_offsets[compressor],value,width=bar_width,bottom=bottom,color=color,edgecolor="black",linewidth=.3,hatch=hatch)
                         bottom+=value
             axis.yaxis.set_major_locator(MaxNLocator(nbins=3))
             axis.set_ylim(0,axis.get_ylim()[1])
             if "umc" not in task["compressor_list"]:
                 top=axis.get_ylim()[1]
                 for eb_index in range(len(rel_ebs)):
-                    axis.bar(eb_index+compressor_offsets["umc"],top,width=bar_width,color=".8",edgecolor="black",linewidth=.3,hatch=compressor_hatches["umc"])
+                    axis.bar(eb_index+compressor_offsets["umc"],top,width=bar_width,edgecolor="black",linewidth=.3,**unavailable_bar_style)
                 axis.set_ylim(0,top)
             axis.set_xlim(-.6,len(rel_ebs)-.4)
             axis.set_xticks(range(len(rel_ebs)),[f"$10^{{{round(math.log10(rel_eb))}}}$" if eb_index%2==0 else "" for eb_index,rel_eb in enumerate(rel_ebs)])
@@ -250,14 +263,10 @@ def plot_time_by_eb(fields,tensor_1d_rows,output_dir,column_num=6):
             align_xlabels(figure,row)
         add_shared_ylabel(figure,axes[:,0],ylabel)
         add_shared_xlabel(figure,axes[-1],"Relative error bound",source_artists=[axis.xaxis.label for axis in axes[-1]])
-        component_styles=[]
-        for _,label,color in (*unsz_time_components,*umc_time_components):
-            if (label,color) not in component_styles:
-                component_styles.append((label,color))
-        component_handles=[Patch(facecolor=color,edgecolor="black",linewidth=.3,label=label) for label,color in component_styles]
-        compressor_handles=[Patch(facecolor="white",edgecolor="black",linewidth=.3,hatch=compressor_hatches[compressor],label=compressor_styles[compressor]["label"]) for compressor in compressor_offsets]
-        compressor_handles.append(Patch(facecolor=".8",edgecolor="black",linewidth=.3,hatch=compressor_hatches["umc"],label="UMC unavailable"))
-        # 两行图例各自居中：下一行是压缩器，上一行是耗时的组成部分；占位柱顶到绘图区上沿，图例需要多留一些距离
+        component_handles=time_stage_handles()
+        compressor_handles=[Patch(facecolor=compressor_styles[compressor]["color"],edgecolor="black",linewidth=.3,label=compressor_styles[compressor]["label"]) for compressor in compressor_offsets]
+        compressor_handles.append(Patch(facecolor=unavailable_bar_style["color"],edgecolor="black",linewidth=.3,hatch=unavailable_bar_style["hatch"],label="UMC unavailable"))
+        # 两行图例各自居中：下一行是压缩器，上一行是耗时的组成部分
         compressor_legend=add_top_legend(figure,axes,compressor_handles,gap_pt=3,ncol=len(compressor_handles),**legend_spacing_kwargs(8))
         compressor_legend_height_pt=compressor_legend.get_window_extent(figure.canvas.get_renderer()).height*MPL_POINTS_PER_INCH/figure.dpi
         add_top_legend(figure,axes,component_handles,gap_pt=3+compressor_legend_height_pt+DEFAULT_LEGEND_ROW_GAP_PT,ncol=len(component_handles),**legend_spacing_kwargs(8))
