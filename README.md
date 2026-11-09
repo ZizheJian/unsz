@@ -9,7 +9,7 @@ UNSZ是面向非结构化科学数据的误差有界有损压缩器。它只需�
 需要CMake、支持C++17和AVX2的C++编译器以及Python 3。C++依赖（Zstd和参数解析库）和各基线压缩器都以submodule提供。
 
 ```bash
-git clone --recurse-submodules git@github.com:ZizheJian/unsz.git
+git clone --recurse-submodules https://github.com/ZizheJian/unsz.git
 cd unsz
 cmake -S c_codes -B build -DCMAKE_INSTALL_PREFIX="$PWD/install" -DCODE_NAME=s1_compress
 cmake --build build --parallel 8

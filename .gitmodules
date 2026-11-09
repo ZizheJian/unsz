@@ -3,16 +3,16 @@
 	url = https://github.com/facebook/zstd.git
 [submodule "third_party/run_command"]
 	path = third_party/run_command
-	url = git@github.com:ZizheJian/run_command.git
+	url = https://github.com/ZizheJian/run_command.git
 [submodule "third_party/csv_tools"]
 	path = third_party/csv_tools
-	url = git@github.com:ZizheJian/csv_tools.git
+	url = https://github.com/ZizheJian/csv_tools.git
 [submodule "third_party/get_max_cpus"]
 	path = third_party/get_max_cpus
-	url = git@github.com:ZizheJian/get_max_cpus.git
+	url = https://github.com/ZizheJian/get_max_cpus.git
 [submodule "third_party/parsers"]
 	path = third_party/parsers
-	url = git@github.com:ZizheJian/parsers.git
+	url = https://github.com/ZizheJian/parsers.git
 [submodule "third_party/umc"]
 	path = third_party/umc
 	url = https://github.com/xuanwu02/umc.git
@@ -32,4 +32,4 @@
 	branch = 2.0
 [submodule "third_party/paperfig"]
 	path = third_party/paperfig
-	url = git@github.com:ZizheJian/paperfig.git
+	url = https://github.com/ZizheJian/paperfig.git
