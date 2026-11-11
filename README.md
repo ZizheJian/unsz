@@ -1,12 +1,28 @@
 # UNSZ
 
-UNSZ是面向非结构化科学数据的误差有界有损压缩器。它只需要每个点的坐标，不需要mesh connectivity：压缩端和解压端用同样的坐标各自生成预测DAG，再对预测残差做量化、Huffman编码和Zstd压缩。数据可以包含多个slice（时间步，或二维tensor的切片），所有slice共享同一组点坐标。
+English | [中文](README_CN.md)
 
-算法设计和实验结论以论文为准。本文件只说明如何构建和运行程序、如何复现实验，以及代码的组织方式。
+UNSZ is a parallel, prediction-based, error-bounded lossy compressor for unstructured scientific data, that is, floating-point values sampled at irregularly distributed spatial coordinates. It needs only the coordinates of the points and does not require mesh connectivity. The compressor and the decompressor build the same prediction structures from the coordinates, so these structures are not stored in the compressed stream. The prediction residuals are quantized, Huffman-coded, and compressed with Zstd.
 
-# 1. 构建
+A dataset may contain several fields that share the same coordinates, and each field may contain several slices, such as one per time step or vertical level.
 
-需要CMake、支持C++17和AVX2的C++编译器以及Python 3。C++依赖（Zstd和参数解析库）和各基线压缩器都以submodule提供。
+## Features
+
+- **Pointwise error bounds.** Every reconstructed valid value satisfies an absolute bound, a bound relative to the value range of its slice, or a bound relative to the value range of its whole field.
+- **In-slice prediction.** Each value is predicted from nearby points in the same slice. UNSZ rescales the coordinate axes when this helps, builds the prediction sequence with a reverse construction, weights the references with radial basis function (RBF) interpolation, and tightens the error bounds of the points predicted first.
+- **Cross-slice prediction.** For fields with multiple slices, UNSZ also predicts each value from neighboring slices and selects the best pipeline for each field automatically.
+- **Exceptional values.** Fill values and other exceptional values are excluded from prediction and encoded compactly as labels.
+- **Parallelism.** Fields are distributed over workers, and each slice can be split into spatial partitions that are compressed in parallel with OpenMP.
+
+## Paper
+
+*UNSZ: A Parallel Error-Bounded Lossy Compressor for Unstructured Scientific Data* (under review).
+
+The paper describes the algorithms and the experimental results. This README explains how to build and run UNSZ, how to reproduce the experiments, and how the code is organized.
+
+## 1. Build
+
+Building requires CMake, a C++17 compiler with AVX2 support, and Python 3. The C++ dependencies (Zstd and an argument parsing library) and all baseline compressors are included as git submodules.
 
 ```bash
 git clone --recurse-submodules https://github.com/ZizheJian/unsz.git
@@ -16,9 +32,9 @@ cmake --build build --parallel 8
 cmake --install build
 ```
 
-已有克隆时先执行`git submodule update --init --recursive`。生成的程序为`install/bin/s1_compress`和`install/bin/s1_decompress`。
+For an existing clone, run `git submodule update --init --recursive` first. The build produces `install/bin/s1_compress` and `install/bin/s1_decompress`.
 
-Python环境用于批量实验、结果处理和画图：
+The Python environment is used to run batch experiments, process results, and plot figures:
 
 ```bash
 python3 -m venv unsz_env
@@ -27,18 +43,18 @@ python -m pip install numpy scipy matplotlib pyvista
 python -m pip install -e third_party/paperfig
 ```
 
-# 2. 使用方法
+## 2. Usage
 
-## 2.1. 输入格式
+### 2.1. Input format
 
-程序读取float32坐标和float32数据。一个数据目录至少包含：
+UNSZ reads float32 coordinates and float32 values. A data directory contains at least the following files:
 
-| 文件 | 内容 |
+| File | Content |
 |---|---|
-| `coords.dat` | 按点连续保存的坐标，每个点`dim`个float32 |
-| `<field>.dat.<slice>` | 一个slice的float32数据，每个点一个数值，点的顺序与`coords.dat`相同 |
+| `coords.dat` | Coordinates stored point by point, `dim` float32 values per point |
+| `<field>.dat.<slice>` | One slice of float32 values, one value per point, in the same point order as `coords.dat` |
 
-例如三维、31个slice的temperature数据：
+For example, a three-dimensional temperature field with 31 slices:
 
 ```text
 Ocean/
@@ -48,34 +64,34 @@ Ocean/
 └── temperature.dat.30
 ```
 
-## 2.2. 压缩与解压
+### 2.2. Compression and decompression
 
 ```bash
 install/bin/s1_compress -data-dir /path/to/Ocean -field temperature -slice '[0,30]' -M REL 1e-3
 install/bin/s1_decompress -data-dir /path/to/Ocean -field temperature -slice '[0,30]' -M REL 1e-3
 ```
 
-码流写为`<field>.dat.<slice>.unsz`，解压结果写为`<field>.dat.<slice>.unsz.bin`，默认放在数据目录，可用`-output-dir`改到别处。程序打印总BR、PSNR、最大误差与误差上限之比，以及两端的预处理时间和codec时间。码流不保存误差上限，解压时必须给出与压缩时相同的`-M`或标签配置。
+The compressed streams are written as `<field>.dat.<slice>.unsz`, and the decompressed data as `<field>.dat.<slice>.unsz.bin`. Both go to the data directory unless `-output-dir` is given. The programs print the total bit rate, the PSNR, the ratio of the maximum error to the error bound, and the preprocessing and codec times of both sides. The compressed stream does not store the error bound, so the decompressor must receive the same `-M` option or label configuration as the compressor.
 
-| 选项 | 含义 |
+| Option | Meaning |
 |---|---|
-| `-data-dir`、`-output-dir` | 数据目录；输出目录，默认与数据目录相同 |
-| `-field`、`-field-list` | 一个field，或`{a,b,c}`形式的多个共享坐标的field |
-| `-slice` | 闭区间`[a,b]`、右开区间`[a,b)`或列表`{a1,a2,...}`，建议加引号 |
-| `-slice-coordinate-file` | 非等间距slice的实际坐标，float64原始数组，两端必须相同 |
-| `-tensor-metadata` | 二维tensor的field定义（2.4节），与`-slice`互斥 |
-| `-coordinate-dim` | 坐标维数，默认3 |
-| `-M <REL或ABS> <eb>` | 没有异常值时的误差上限，与`-label-config`二选一 |
-| `-label-config` | 标签配置JSON（2.3节） |
-| `-partition-num`、`-thread-num` | 把点划分为2的幂个独立partition，并用OpenMP线程并行处理 |
-| `-field-worker-num`、`-field-worker-map` | 把多个field分给多个worker并行处理（2.5节） |
-| `-value-pipeline`、`-label-pipeline`、`-coordinate-rescaling` | 覆盖自动选择的cross-slice pipeline和坐标缩放，只用于诊断和消融实验。数值pipeline可选`independent`、`extrapolation`、`interpolation`、`anchor_interpolation`，后三者可加后缀`_spatial_residual`；标签pipeline可选`independent`、`extrapolation`、`interpolation_spatial_residual`或`anchor_interpolation`；坐标缩放可选`off`、`on`或`auto` |
-| `-compression-stage-time`、`-decompression-stage-time` | 打印逐阶段耗时 |
-| `-skip-decompressed-output` | 解压时只做逐点误差验证，不写结果文件 |
+| `-data-dir`, `-output-dir` | Data directory, and output directory (default: the data directory) |
+| `-field`, `-field-list` | One field, or several fields that share the coordinates, written as `{a,b,c}` |
+| `-slice` | Closed range `[a,b]`, half-open range `[a,b)`, or list `{a1,a2,...}`; quoting is recommended |
+| `-slice-coordinate-file` | Actual coordinates of unevenly spaced slices, as a raw float64 array; must be identical on both sides |
+| `-tensor-metadata` | Field definitions for slices on two tensor axes (Section 2.4); cannot be combined with `-slice` |
+| `-coordinate-dim` | Number of coordinate dimensions (default: 3) |
+| `-M <REL or ABS> <eb>` | Error bound for data without exceptional values; use either this or `-label-config` |
+| `-label-config` | Label configuration in JSON (Section 2.3) |
+| `-partition-num`, `-thread-num` | Split the points into a power-of-two number of independent spatial partitions and process them with OpenMP threads |
+| `-field-worker-num`, `-field-worker-map` | Distribute several fields over several workers (Section 2.5) |
+| `-value-pipeline`, `-label-pipeline`, `-coordinate-rescaling` | Override the automatically selected cross-slice pipelines and coordinate rescaling, for diagnosis and ablation only. Value pipelines: `independent`, `extrapolation`, `interpolation`, `anchor_interpolation`, where the last three accept the suffix `_spatial_residual`. Label pipelines: `independent`, `extrapolation`, `interpolation_spatial_residual`, `anchor_interpolation`. Coordinate rescaling: `off`, `on`, or `auto` |
+| `-compression-stage-time`, `-decompression-stage-time` | Print the time of every stage |
+| `-skip-decompressed-output` | Verify the pointwise errors during decompression without writing the decompressed files |
 
-## 2.3. 标签配置
+### 2.3. Label configuration
 
-不传`-label-config`时，全部数据都是有效值，误差上限由`-M`指定。数据含有fill value等异常值时，用标签配置把点分成有效值（标签0）和异常值（标签1），例如Katrina：
+Without `-label-config`, all values are valid and `-M` gives the error bound. When the data contain exceptional values, such as fill values, a label configuration divides the points into valid values (label 0) and exceptional values (label 1). For example, for Katrina:
 
 ```json
 {
@@ -87,11 +103,11 @@ install/bin/s1_decompress -data-dir /path/to/Ocean -field temperature -slice '[0
 }
 ```
 
-`labels`的下标就是标签编号。程序依次测试除最后一个以外的`condition`，第一条成立的条件决定标签，全都不成立时属于最后一个标签，因此最后一个省略`condition`。比较符为`<`、`<=`、`>`、`>=`、`==`或`!=`。`method`为`predict`（RBF预测）或`constant`（常量编码）。`method`为`predict`的标签必须给出`eb_mode`和`eb_value`：`ABS`直接作为绝对误差上限，`REL`乘以该slice中这个标签的值域，`FIELD_REL`乘以整个field中这个标签的值域。配置了两个标签、但某个field只出现一个标签时，程序自动按单标签压缩。
+The index in `labels` is the label number. UNSZ tests the `condition` of every label except the last one in order. The first condition that holds determines the label, and a point that satisfies none of them receives the last label, so the last label has no `condition`. The operators are `<`, `<=`, `>`, `>=`, `==`, and `!=`. The `method` is either `predict` (RBF prediction) or `constant` (constant encoding). A label with `method` `predict` must give `eb_mode` and `eb_value`. With `ABS`, `eb_value` is the absolute error bound. With `REL`, it is multiplied by the value range of this label in the slice, and with `FIELD_REL`, by the value range of this label in the whole field. If two labels are configured but a field contains only one of them, UNSZ automatically compresses it with a single label.
 
-## 2.4. 二维tensor数据
+### 2.4. Fields with two tensor axes
 
-Ocean-large这类`[time,height,point]`数据用`-tensor-metadata`描述。第一个轴的下标为`i`、第二个轴的下标为`j`的切片保存在`<field>.dat.<i*shape[1]+j>`。同一个field list可以混合不同形状：
+Data shaped as `[time,height,point]`, such as Ocean-large, are described with `-tensor-metadata`. The slice with index `i` on the first axis and index `j` on the second axis is stored in `<field>.dat.<i*shape[1]+j>`. One field list may mix different shapes:
 
 ```json
 {
@@ -108,23 +124,25 @@ Ocean-large这类`[time,height,point]`数据用`-tensor-metadata`描述。第一
 }
 ```
 
-坐标文件是严格递增的float64数组。有效层计数文件为每个水平点一个uint32，中心层用offset 0，界面层用offset 1。配置有效层后，`height_index<maxLevelCell+offset`以外的点、非有限值和`-99999`都归入标签1（异常值）。
+The coordinate files are strictly increasing float64 arrays. The active level count file holds one uint32 per horizontal point, with offset 0 for level centers and offset 1 for level interfaces. When active levels are configured, points with `height_index>=maxLevelCell+offset`, non-finite values, and `-99999` all receive label 1 (exceptional values).
 
-## 2.5. 多field与两级并行
+### 2.5. Multiple fields and two-level parallelism
 
-共享坐标的多个field可以用`-field-list`在一个进程中压缩，不做坐标缩放的field共用同一个空间DAG。再加上`-field-worker-num N`和与field list等长的`-field-worker-map {w0,w1,...}`，就把field分给N个worker并行处理，每个worker内部仍按`-partition-num`和`-thread-num`并行。Ocean-large的worker分配由`benchmarks/common.py`求解。
+Several fields that share the coordinates can be compressed in one process with `-field-list`, and all fields without coordinate rescaling share the same in-slice DAG. Adding `-field-worker-num N` and `-field-worker-map {w0,w1,...}`, which has one entry per field, distributes the fields over N workers. Each worker still parallelizes its slices with `-partition-num` and `-thread-num`. The worker assignment for Ocean-large is computed by `benchmarks/common.py`.
 
-# 3. 实验
+## 3. Reproducing the experiments
 
-## 3.1. 中等规模数据集
+The datasets are not included in this repository. The scripts in `py_codes/prepare_datasets/` convert each dataset from its original format into the input format of Section 2.1.
 
-`configs/`中每个JSON描述一个数据集的实验，`t1_start_c_code.py`读取它，构建并运行UNSZ和UMC，把结果写入CSV：
+### 3.1. Moderate-size datasets
+
+Each JSON file in `configs/` describes the experiments on one dataset. `t1_start_c_code.py` reads it, builds and runs UNSZ and UMC, and writes the results to CSV files:
 
 ```bash
 ./unsz_env/bin/python t1_start_c_code.py katrina
 ```
 
-JSON最外层是task list。每个task必须有唯一的`name`、绝对路径`data_dir`和结果路径`csv_path`（多个field时用`{field}`占位）。`field_list`和`compressor_list`是穷举维度。没有异常值的task用`rel_eb_list`列出误差上限，有异常值的task在`unsz.label_config_path_list`中列出完整的标签配置。UMC对每个标签配置中出现的REL EB分别运行，作为同PSNR比较的基线。
+The top level of the JSON file is a task list. Every task needs a unique `name`, an absolute `data_dir`, and a result path `csv_path` (with the placeholder `{field}` for multiple fields). `field_list` and `compressor_list` are enumerated exhaustively. Tasks without exceptional values list their error bounds in `rel_eb_list`, and tasks with exceptional values list complete label configurations in `unsz.label_config_path_list`. UMC runs once for every REL error bound that appears in these label configurations and serves as the baseline for comparisons at equal PSNR.
 
 ```json
 [
@@ -143,57 +161,59 @@ JSON最外层是task list。每个task必须有唯一的`name`、绝对路径`da
 ]
 ```
 
-| 脚本 | 作用 |
+| Script | Purpose |
 |---|---|
-| `t1_start_c_code.py` | 实验入口，默认先增量构建，复用已有安装时加`--skip-build` |
-| `py_codes/run_configurations.slurm`、`py_codes/run_spatial_field_benchmark.slurm` | 在计算节点上运行一个或多个`configs/`中的JSON |
-| `py_codes/parse_unsz_output.py`、`py_codes/parse_umc_output.py` | 解析压缩器输出 |
-| `py_codes/summarize_current_results.py` | 逐field计算UNSZ相对UMC的压缩比和耗时倍率，写入`results/current/summary.csv` |
-| `py_codes/plot_current_benchmarks.py` | 画中等规模数据集的率失真图和耗时图 |
-| `py_codes/prepare_datasets/` | 把各数据集的发布格式转换为2.1节的输入格式 |
-| `t3_visualize.py` | 可视化Katrina和Ocean坐标缩放前后的field |
+| `t1_start_c_code.py` | Entry point of the experiments; builds incrementally by default, add `--skip-build` to reuse an existing installation |
+| `py_codes/run_configurations.slurm`, `py_codes/run_spatial_field_benchmark.slurm` | Run one or more JSON files from `configs/` on a compute node |
+| `py_codes/parse_unsz_output.py`, `py_codes/parse_umc_output.py` | Parse the output of the compressors |
+| `py_codes/summarize_current_results.py` | Compute the compression ratio and time ratio of UNSZ over UMC for every field and write `results/current/summary.csv` |
+| `py_codes/plot_current_benchmarks.py` | Plot the rate–distortion and time figures of the moderate-size datasets |
+| `py_codes/prepare_datasets/` | Convert the datasets into the input format of Section 2.1 |
+| `t3_visualize.py` | Visualize Katrina and Ocean fields before and after coordinate rescaling |
 
-UMC使用`third_party/umc`中的官方代码，`third_party/build_umc.sh`替换其中的计时文件后构建，固定使用`reorder=1`。ADCIRC-Haiyan的mesh有两个连通分量，UMC的重排只遍历一个分量，因此报告为UMC无法运行。
+UMC uses the official code in `third_party/umc`. `third_party/build_umc.sh` replaces its timing files before building it, and the experiments always use `reorder=1`. The mesh of ADCIRC-Haiyan has two connected components, and the reordering of UMC traverses only one of them, so UMC is reported as unable to run on it.
 
-## 3.2. Ocean-large
+### 3.2. Ocean-large
 
-Ocean-large的实验入口在`benchmarks/`下，各目录的README说明运行方式：
+The experiments on Ocean-large are in `benchmarks/`, and the README in each directory explains how to run them:
 
-| 目录 | 内容 |
+| Directory | Content |
 |---|---|
-| `benchmarks/two_level/` | UNSZ的field worker加partition两级并行 |
-| `benchmarks/umc_field_parallel/` | UMC按field并行，每个worker运行串行UMC |
-| `benchmarks/slice_parallel/` | SZ3-1D和PFPL按slice并行 |
-| `benchmarks/field_relative/` | 按field误差上限比较UNSZ、SZ3-ND和QoZ-ND |
-| `benchmarks/scaling/` | 不同核数下的扩展性 |
-| `benchmarks/tensor_1d/` | 一维基线压缩器的构建与单线程运行 |
+| `benchmarks/two_level/` | UNSZ with field workers and spatial partitions |
+| `benchmarks/umc_field_parallel/` | UMC parallelized over fields, with serial UMC in every worker |
+| `benchmarks/slice_parallel/` | SZ3-1D and PFPL parallelized over slices |
+| `benchmarks/field_relative/` | UNSZ, SZ3-ND, and QoZ-ND under per-field error bounds |
+| `benchmarks/scaling/` | Scalability with different numbers of cores |
+| `benchmarks/tensor_1d/` | Building and single-thread runs of the one-dimensional baselines |
 
-`py_codes/plot_ocean_large.py`读取这些结果并画论文中的Ocean-large图。
+`py_codes/plot_ocean_large.py` reads these results and plots the Ocean-large figures of the paper.
 
-# 4. 代码结构
+## 4. Code structure
 
-C++代码在`c_codes/`。`s1_compress.cpp`和`compress_cli.cpp`是压缩器入口，`s1_decompress.cpp`是解压器入口，两者共用`cli_common.hpp`中的命令行解析和field worker调度。核心实现在`c_codes/unsz_core/`，`unsz.hpp`定义全部数据结构，开头有代码术语与论文术语的对照表：
+The C++ code is in `c_codes/`. `s1_compress.cpp` and `compress_cli.cpp` are the entry points of the compressor, and `s1_decompress.cpp` is the entry point of the decompressor. Both share the command-line parsing and field-worker scheduling in `cli_common.hpp`. The core implementation is in `c_codes/unsz_core/`. `unsz.hpp` defines all data structures and begins with notes that relate the terms in the code to those in the paper.
 
-| 文件 | 内容 |
+| File | Content |
 |---|---|
-| `compress_entry.tpp` | 压缩的整体流程：逐field预处理，再逐slice压缩 |
-| `coordinate_rescaling.tpp` | 坐标缩放的训练与启用判断 |
-| `tree.tpp`、`partition.tpp` | kd-tree和空间partition |
-| `generate_prediction_structure_and_weights.tpp` | 反向MSD消去，生成预测顺序和参考点 |
-| `prediction_weights.tpp` | 批量求解RBF权重 |
-| `eb_schedule.tpp` | 按预测位置调整误差上限 |
-| `automatic_pipeline_selection.tpp` | 自动选择跨slice预测方案 |
-| `prediction_framework.tpp` | 每个slice的预测方式，以及把它转换成模板参数的分发函数 |
-| `init.tpp`、`tensor_dependency.tpp`、`tensor_prediction.tpp` | slice的处理顺序、跨slice参考关系和跨slice预测 |
-| `label_config.tpp` | 标签配置与误差上限换算 |
-| `compress.tpp`、`decompress.tpp` | 逐点预测、量化和重建 |
-| `spatial_prediction.tpp` | 用RBF权重做空间预测 |
-| `compression_format.tpp` | 码流的编码、拼装和解析 |
+| `compress_entry.tpp` | Overall compression flow: preprocessing per field, then compression per slice |
+| `coordinate_rescaling.tpp` | Learning the coordinate rescaling and deciding whether to apply it |
+| `tree.tpp`, `partition.tpp` | kd-tree and spatial partitions |
+| `generate_prediction_structure_and_weights.tpp` | Reverse construction of the prediction sequence and the references |
+| `prediction_weights.tpp` | Batched solution of the RBF weights |
+| `eb_schedule.tpp` | Error bound of each point along the prediction sequence |
+| `automatic_pipeline_selection.tpp` | Automatic selection of the cross-slice pipeline |
+| `prediction_framework.tpp` | Prediction method of each slice and its dispatch to template parameters |
+| `init.tpp`, `tensor_dependency.tpp`, `tensor_prediction.tpp` | Order of the slices, cross-slice references, and cross-slice prediction |
+| `label_config.tpp` | Label configuration and conversion of error bounds |
+| `compress.tpp`, `decompress.tpp` | Pointwise prediction, quantization, and reconstruction |
+| `spatial_prediction.tpp` | In-slice prediction with RBF weights |
+| `compression_format.tpp` | Encoding, assembling, and parsing the compressed stream |
 
-修改C++代码后，用逐字节回归测试确认正式路径的输出不变。它用参考二进制和新二进制分别压缩并解压15个固定用例，比较全部码流和解压结果的SHA256。输出文件默认写到`$SCRATCH/unsz_regression`，可用`--work-dir`改到别处：
+### Regression test
+
+After changing the C++ code, a byte-exact regression test checks that the output of the default path is unchanged. It compresses and decompresses 15 fixed cases with a reference binary and a new binary and compares the SHA256 of all compressed streams and decompressed files. The output files go to `$SCRATCH/unsz_regression` by default, and `--work-dir` changes this location:
 
 ```bash
 ./unsz_env/bin/python tests/regression/run_regression.py --binary-dir build/regression_new/install/bin --manifest results/regression/candidate.json --compare results/regression/reference.json
 ```
 
-`results/regression/reference.json`记录的是清理代码前的参考输出。
+`results/regression/reference.json` records the reference output from before the code cleanup.
