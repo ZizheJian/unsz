@@ -1,4 +1,4 @@
-import argparse,csv,json,math,os,re,shlex
+import argparse,csv,json,math,os,re
 from pathlib import Path
 from py_codes.parse_umc_output import calculate_umc_disk_error,parse_umc_compression_result,parse_umc_decompression_result
 from py_codes.parse_unsz_output import parse_unsz_compression_output,parse_unsz_output
@@ -285,8 +285,6 @@ def run_unsz_fields(config):
     compression_command,decompression_command=build_unsz_commands(config,source_data_dir)
     compression_output=run_command(compression_command)
     decompression_output=run_command(decompression_command)
-    command="compression: "+shlex.join(str(value) for value in compression_command)
-    command+="; decompression: "+shlex.join(str(value) for value in decompression_command)
     result_by_field={}
     for field in field_list:
         if len(field_list)==1:
@@ -301,7 +299,7 @@ def run_unsz_fields(config):
         selected_value_pipeline=result["selected_value_pipeline"] or config["value_pipeline"]
         print(f"总结果：compressor=unsz,task={config['name']},data_dir={config['data_dir']},field={field},error_configuration={error_configuration},selected_label_pipeline={selected_label_pipeline},selected_value_pipeline={selected_value_pipeline},br={result['br']},psnr={result['psnr']}")
         print(f"计时：compression_preprocessing={result['compression_preprocessing_time']} s,decompression_preprocessing={result['decompression_preprocessing_time']} s,compression={result['compression_time']} s,decompression={result['decompression_time']} s,compression+decompression={result['compression_time']+result['decompression_time']} s")
-        result_by_field[field]={"compressor":"unsz",**result,"command":command}
+        result_by_field[field]={"compressor":"unsz",**result}
     return result_by_field
 
 def run_umc(config,rel_eb):
@@ -341,7 +339,7 @@ def run_umc(config,rel_eb):
     print(f"UMC逐点误差界检查通过：max error={disk_max_error}")
     print(f"总结果：compressor=umc,task={config['name']},data_dir={config['data_dir']},field={field},rel_eb={rel_eb},br={br}")
     print(f"计时：compression_preprocessing={compression_preprocessing_time} s,decompression_preprocessing={decompression_preprocessing_time} s,compression={compression_time} s,decompression={decompression_time} s,compression+decompression={compression_time+decompression_time} s")
-    return {**slice_statistics,"compressor":"umc","rel_eb":rel_eb,"br":br,"compression_preprocessing_time":compression_preprocessing_time,"decompression_preprocessing_time":decompression_preprocessing_time,"compression_time":compression_time,"decompression_time":decompression_time,"command":"compression: "+shlex.join(str(value) for value in compression_command)+"; decompression: "+shlex.join(str(value) for value in decompression_command)}
+    return {**slice_statistics,"compressor":"umc","rel_eb":rel_eb,"br":br,"compression_preprocessing_time":compression_preprocessing_time,"decompression_preprocessing_time":decompression_preprocessing_time,"compression_time":compression_time,"decompression_time":decompression_time}
 
 # 任务循环和命令行入口
 def prepare_field_result_metadata(task):
@@ -362,6 +360,18 @@ def slice_valid_psnr(result):
     error=float(result["slice_normalized_valid_squared_error"])
     return -10*math.log10(error/int(result["valid_value_num"])) if error>0 else math.inf
 
+# 自动选择流程时评估过的候选流程，每个候选占一行，写在结果CSV所在目录下的automatic_pipeline_candidates目录里
+def write_automatic_pipeline_candidates(result_path,item,candidates):
+    candidate_path=result_path.parent/"automatic_pipeline_candidates"/result_path.name
+    candidate_path.parent.mkdir(exist_ok=True)
+    # 实验配置里的label_pipeline和value_pipeline改名为configured_*，这两个列名留给候选流程
+    experiment={("configured_"+key if key in ("label_pipeline","value_pipeline") else key):value for key,value in item.items()}
+    for candidate in candidates:
+        row_info={**experiment,"label_pipeline":candidate["label_pipeline"],"value_pipeline":candidate["value_pipeline"]}
+        for column_name,value in candidate.items():
+            if column_name not in ("label_pipeline","value_pipeline"):
+                write_csv_item(str(candidate_path),row_info,column_name,value)
+
 def write_benchmark_result(task,field,compressor,config,result,metadata):
     label_pipeline=config.get("label_pipeline")
     value_pipeline=config.get("value_pipeline")
@@ -371,7 +381,7 @@ def write_benchmark_result(task,field,compressor,config,result,metadata):
     item={"task":task["name"],"field":field,"compressor":compressor,"label_pipeline":label_pipeline or "not_applicable","value_pipeline":value_pipeline or "not_applicable","label_value_execution":label_value_execution,"rel_eb":rel_eb if rel_eb is not None else "not_applicable","label_config":label_config_path or "not_applicable"}
     result_path=metadata["result_path"]
     total_bytes=metadata["total_bytes"]
-    for column_name in ("br","command","compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time"):
+    for column_name in ("br","compression_preprocessing_time","decompression_preprocessing_time","compression_time","decompression_time"):
         write_csv_item(str(result_path),item,column_name,result[column_name])
     write_csv_item(str(result_path),item,"psnr",slice_valid_psnr(result))
     for column_name,value in (("compression_decompression_time",result["compression_time"]+result["decompression_time"]),("compression_preprocessing_MB_s",calculate_throughput(total_bytes,result["compression_preprocessing_time"],"压缩预处理时间")),("decompression_preprocessing_MB_s",calculate_throughput(total_bytes,result["decompression_preprocessing_time"],"解压预处理时间")),("compression_MB_s",calculate_throughput(total_bytes,result["compression_time"],"压缩时间")),("decompression_MB_s",calculate_throughput(total_bytes,result["decompression_time"],"解压时间"))):
@@ -381,11 +391,14 @@ def write_benchmark_result(task,field,compressor,config,result,metadata):
             write_csv_item(str(result_path),item,column_name,result[column_name])
         for column_name in ("coordinate_rescaling_original_flatness","coordinate_rescaling_rescaled_flatness","coordinate_rescaling_flatness_ratio","coordinate_rescaling_enabled","coordinate_rescaling_untrained_group_mse_ratio","coordinate_rescaling_selected_group_loss_power"):
             write_csv_item(str(result_path),item,column_name,result[column_name] if result[column_name] is not None else "not_applicable")
-        write_csv_item(str(result_path),item,"coordinate_rescaling_diagonal",json.dumps(result["coordinate_rescaling_diagonal"],separators=(",",":")))
+        # 每个坐标方向的缩放系数各占一列，没有缩放或维数不到3时填not_applicable
+        diagonal=result["coordinate_rescaling_diagonal"]
+        for dimension in range(max(3,len(diagonal))):
+            write_csv_item(str(result_path),item,f"coordinate_rescaling_diagonal_{dimension}",diagonal[dimension] if dimension<len(diagonal) else "not_applicable")
         write_csv_item(str(result_path),item,"selected_label_pipeline",result["selected_label_pipeline"] or label_pipeline or "not_applicable")
         write_csv_item(str(result_path),item,"selected_value_pipeline",result["selected_value_pipeline"] or value_pipeline)
         if result["automatic_pipeline_candidates"]:
-            write_csv_item(str(result_path),item,"automatic_pipeline_candidates",json.dumps(result["automatic_pipeline_candidates"],separators=(",",":")))
+            write_automatic_pipeline_candidates(result_path,item,result["automatic_pipeline_candidates"])
     # psnr列由这些统计计算：每个slice有效值的平方误差除以该slice有效值range的平方
     for column_name in ("value_num","valid_value_num","slice_normalized_valid_squared_error","slice_normalized_squared_error"):
         write_csv_item(str(result_path),item,column_name,result[column_name])
