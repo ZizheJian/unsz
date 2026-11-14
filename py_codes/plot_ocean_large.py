@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.ticker import FixedLocator,LogLocator,MaxNLocator,NullLocator
-from paperfig import DEFAULT_LEGEND_ROW_GAP_PT,MPL_POINTS_PER_INCH,PANEL_GAP_WITH_YLABEL_PT,PaperFigureSpec,add_panel_captions,align_xlabels,apply_paper_style,layout_panel_row,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png_vertical_crop,style_plot_axis
+from paperfig import DEFAULT_LEGEND_ROW_GAP_PT,PANEL_GAP_WITH_YLABEL_PT,PaperFigureSpec,add_panel_captions,align_xlabels,apply_paper_style,layout_panel_row,legend_above,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png,style_plot_axis
 
-from plot_current_benchmarks import add_top_legend,time_segment_style,time_stage_handles,time_stage_labels
+from plot_current_benchmarks import time_segment_style,time_stage_handles,time_stage_labels
 from summarize_current_results import calculate_bd_rate
 
 
@@ -164,14 +164,12 @@ def plot_summary(runs,mode,output_path):
         layout_panel_row(figure,axes,panel_aspect_ratios(1,2),bottom_pt=40,panel_gap_pt=PANEL_GAP_WITH_YLABEL_PT,left_edge_gap_pt=3,right_edge_gap_pt=3)
         # 两组图例各自居中：下面是压缩器的颜色，上面是耗时阶段
         codec_handles=[Patch(facecolor=styles[codec][0],edgecolor="black",linewidth=.3,label=codec) for codec in runs]
-        codec_legend=add_top_legend(figure,[axes],codec_handles,gap_pt=3,ncol=len(runs),**legend_spacing_kwargs(8))
-        codec_legend_height_pt=codec_legend.get_window_extent(figure.canvas.get_renderer()).height*MPL_POINTS_PER_INCH/figure.dpi
-        component_handles=time_stage_handles()
-        add_top_legend(figure,[axes],component_handles,gap_pt=3+codec_legend_height_pt+DEFAULT_LEGEND_ROW_GAP_PT,ncol=2,**legend_spacing_kwargs(8))
+        codec_legend=legend_above(axes,handles=codec_handles,gap_pt=3,ncol=len(runs),**legend_spacing_kwargs(8))
+        legend_above(axes,handles=time_stage_handles(),above=codec_legend,gap_pt=DEFAULT_LEGEND_ROW_GAP_PT,ncol=2,**legend_spacing_kwargs(8))
         align_xlabels(figure,axes)
         add_panel_captions(figure,axes,["(a) Rate\u2013distortion","(b) Time on 128 cores"])
         output_path.parent.mkdir(parents=True,exist_ok=True)
-        save_paper_png_vertical_crop(figure,output_path.with_suffix(".png"),spec,edge_gap_pt=3)
+        save_paper_png(figure,output_path.with_suffix(".png"),spec)
         plt.close(figure)
 
 

@@ -89,7 +89,7 @@ def style_axis(axis,title):
 def plot_paper_figure(x,y,orders,path):
     # 论文图：单栏宽，每列一种构造，第一行是预测顺序中最先的1%的点，第二行是最先的10%的点。布局以pt为单位
     sys.path.insert(0,str(project_root/'third_party/paperfig/src'))
-    from paperfig import PaperFigureSpec,apply_paper_style,save_paper_png_vertical_crop
+    from paperfig import PaperFigureSpec,apply_paper_style,save_paper_png
     columns=(('forward','Forward'),('global','Reverse'),('local','Round-based reverse'))
     fractions=(.01,.1)
     with plt.rc_context():
@@ -119,7 +119,7 @@ def plot_paper_figure(x,y,orders,path):
         legend_top=height_pt-8-header_height-len(fractions)*(panel_height+caption_height+row_gap)
         handles=[matplotlib.lines.Line2D([],[],linestyle='none',marker='s',markersize=5,markerfacecolor=color,markeredgewidth=0) for color in ('#1f3f6e','#e0e0e0')]
         figure.legend(handles,['Compressed points','Uncompressed points'],loc='upper center',bbox_to_anchor=(.5,legend_top/height_pt),ncol=2,frameon=False,handlelength=.8,handletextpad=.4,columnspacing=1.5,borderaxespad=0,borderpad=0)
-        save_paper_png_vertical_crop(figure,path,spec)
+        save_paper_png(figure,path,spec,edge_gap_pt=0)
         plt.close(figure)
 
 
