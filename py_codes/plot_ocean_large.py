@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.ticker import FixedLocator,LogLocator,MaxNLocator,NullLocator
-from paperfig import DEFAULT_LEGEND_ROW_GAP_PT,PANEL_GAP_WITH_YLABEL_PT,PaperFigureSpec,add_panel_captions,align_xlabels,apply_paper_style,layout_panel_row,legend_above,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png,style_plot_axis
+from paperfig import DEFAULT_LEGEND_ROW_GAP_PT,PaperFigureSpec,add_panel_captions,align_xlabels,apply_paper_style,layout_panel_row,legend_above,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png,style_plot_axis
 
 from plot_current_benchmarks import time_segment_style,time_stage_handles,time_stage_labels
 from summarize_current_results import calculate_bd_rate
@@ -161,7 +161,7 @@ def plot_summary(runs,mode,output_path):
             axis.yaxis.set_minor_locator(NullLocator())
             axis.set_axisbelow(True)
             style_plot_axis(axis)
-        layout_panel_row(figure,axes,panel_aspect_ratios(1,2),bottom_pt=40,panel_gap_pt=PANEL_GAP_WITH_YLABEL_PT,left_edge_gap_pt=3,right_edge_gap_pt=3)
+        layout_panel_row(figure,axes,panel_aspect_ratios(1,2),bottom_pt=40)
         # 两组图例各自居中：下面是压缩器的颜色，上面是耗时阶段
         codec_handles=[Patch(facecolor=styles[codec][0],edgecolor="black",linewidth=.3,label=codec) for codec in runs]
         codec_legend=legend_above(axes,handles=codec_handles,gap_pt=3,ncol=len(runs),**legend_spacing_kwargs(8))

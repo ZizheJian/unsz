@@ -4,7 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgb
 from matplotlib.ticker import FixedLocator,LogLocator,MaxNLocator,NullLocator
-from paperfig import DEFAULT_LEGEND_ROW_GAP_PT,PANEL_GAP_WITH_YTICKS_PT,PaperFigureSpec,add_shared_xlabel,align_xlabels,apply_paper_style,layout_panel_grid,legend_above,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png,style_plot_axis
+from paperfig import DEFAULT_LEGEND_ROW_GAP_PT,PaperFigureSpec,add_shared_xlabel,align_xlabels,apply_paper_style,layout_panel_grid,legend_above,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png,style_plot_axis
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
@@ -172,7 +172,7 @@ def plot_rd(fields,tensor_1d_rows,output_dir,column_num=6):
             axis.set_axisbelow(True)
             axis.grid(True,which="major",linestyle="--",linewidth=.35,alpha=.35)
             style_plot_axis(axis)
-        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num,unit_aspect_ratio=grid_panel_aspect_ratio),bottom_pt=60,panel_gap_pt=PANEL_GAP_WITH_YTICKS_PT,row_content_gap_pt=6,left_edge_gap_pt=3,right_edge_gap_pt=3,shared_ylabel=ylabel)
+        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num,unit_aspect_ratio=grid_panel_aspect_ratio),bottom_pt=60,row_content_gap_pt=6,shared_ylabel=ylabel)
         for row in axes:
             align_xlabels(figure,row)
         add_shared_xlabel(figure,axes[-1],"Bit rate (bits/value)")
@@ -223,7 +223,7 @@ def plot_time_by_eb(fields,tensor_1d_rows,output_dir,column_num=6):
             axis.set_axisbelow(True)
             axis.grid(True,axis="y",which="major",linestyle="--",linewidth=.35,alpha=.35)
             style_plot_axis(axis)
-        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num,unit_aspect_ratio=grid_panel_aspect_ratio),bottom_pt=60,panel_gap_pt=PANEL_GAP_WITH_YTICKS_PT,row_content_gap_pt=6,left_edge_gap_pt=3,right_edge_gap_pt=3,shared_ylabel=ylabel)
+        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num,unit_aspect_ratio=grid_panel_aspect_ratio),bottom_pt=60,row_content_gap_pt=6,shared_ylabel=ylabel)
         for row in axes:
             align_xlabels(figure,row)
         add_shared_xlabel(figure,axes[-1],"Relative error bound")
