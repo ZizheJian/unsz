@@ -4,7 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgb
 from matplotlib.ticker import FixedLocator,LogLocator,MaxNLocator,NullLocator
-from paperfig import DEFAULT_LEGEND_GAP_PT,DEFAULT_LEGEND_ROW_GAP_PT,DEFAULT_Y_LABEL_GAP_PT,MPL_POINTS_PER_INCH,PANEL_GAP_WITH_YTICKS_PT,PaperFigureSpec,add_shared_xlabel,align_xlabels,apply_paper_style,layout_panel_grid,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png_vertical_crop,set_legend_row_gap,style_plot_axis
+from paperfig import DEFAULT_LEGEND_ROW_GAP_PT,PANEL_GAP_WITH_YTICKS_PT,PaperFigureSpec,add_shared_xlabel,align_xlabels,apply_paper_style,layout_panel_grid,legend_above,legend_spacing_kwargs,panel_aspect_ratios,save_paper_png_vertical_crop,style_plot_axis
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
@@ -144,42 +144,6 @@ def finish_subplots(figure,axes,item_num,title,output_path,legend_handles=(),leg
     plt.close(figure)
 
 
-def add_top_legend(figure,axes,handles,gap_pt=DEFAULT_LEGEND_GAP_PT,**kwargs):
-    # 图例跨整行居中，与legend_above一样取消边框内边距，使图例到绘图区的距离为gap_pt
-    left=min(axis.get_position().x0 for axis in axes[0])
-    right=max(axis.get_position().x1 for axis in axes[0])
-    top=max(axis.get_position().y1 for axis in axes[0])+gap_pt/(figure.get_figheight()*MPL_POINTS_PER_INCH)
-    legend=figure.legend(handles=handles,loc="lower center",bbox_to_anchor=((left+right)/2,top),frameon=False,borderaxespad=0,borderpad=0,**kwargs)
-    return set_legend_row_gap(legend)
-
-
-def shared_ylabel_left_edge_pt(figure,text,edge_gap_pt=3,gap_pt=DEFAULT_Y_LABEL_GAP_PT):
-    # 预先测量共享纵轴标签的宽度，使排版时恰好为它留出位置
-    label=figure.text(0,0,text,rotation=90,ha="center",va="center")
-    figure.canvas.draw()
-    width_pt=label.get_window_extent(figure.canvas.get_renderer()).width*MPL_POINTS_PER_INCH/figure.dpi
-    label.remove()
-    return edge_gap_pt+width_pt+gap_pt
-
-
-def add_shared_ylabel(figure,axes,text,gap_pt=DEFAULT_Y_LABEL_GAP_PT):
-    # paperfig没有共享纵轴标签，这里放在第一列刻度标签左侧gap_pt处，并在各行之间垂直居中
-    figure.canvas.draw()
-    renderer=figure.canvas.get_renderer()
-    left=None
-    for axis in axes:
-        axis_bbox=axis.get_window_extent(renderer)
-        # 与paperfig一致，只计入落在绘图区高度范围内、真正画出来的刻度标签
-        bboxes=[label.get_window_extent(renderer) for label in axis.get_yticklabels() if label.get_visible() and label.get_text()]
-        candidates=[bbox.x0 for bbox in bboxes if bbox.y1>=axis_bbox.y0 and bbox.y0<=axis_bbox.y1]+[axis_bbox.x0]
-        left=min(candidates) if left is None else min(left,min(candidates))
-    x=figure.transFigure.inverted().transform((left-gap_pt*figure.dpi/MPL_POINTS_PER_INCH,0))[0]
-    y=(max(axis.get_position().y1 for axis in axes)+min(axis.get_position().y0 for axis in axes))/2
-    label=figure.text(x,y,text,rotation=90,ha="right",va="center")
-    figure.canvas.draw()
-    return label
-
-
 def plot_rd(fields,tensor_1d_rows,output_dir,column_num=6):
     with plt.rc_context():
         apply_paper_style()
@@ -208,13 +172,12 @@ def plot_rd(fields,tensor_1d_rows,output_dir,column_num=6):
             axis.set_axisbelow(True)
             axis.grid(True,which="major",linestyle="--",linewidth=.35,alpha=.35)
             style_plot_axis(axis)
-        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num,unit_aspect_ratio=grid_panel_aspect_ratio),bottom_pt=60,column_gap_pt=PANEL_GAP_WITH_YTICKS_PT,row_content_gap_pt=6,left_edge_gap_pt=shared_ylabel_left_edge_pt(figure,ylabel),right_edge_gap_pt=3)
+        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num,unit_aspect_ratio=grid_panel_aspect_ratio),bottom_pt=60,column_gap_pt=PANEL_GAP_WITH_YTICKS_PT,row_content_gap_pt=6,left_edge_gap_pt=3,right_edge_gap_pt=3,shared_ylabel=ylabel)
         for row in axes:
             align_xlabels(figure,row)
-        add_shared_ylabel(figure,axes[:,0],ylabel)
-        add_shared_xlabel(figure,axes[-1],"Bit rate (bits/value)",source_artists=[axis.xaxis.label for axis in axes[-1]])
+        add_shared_xlabel(figure,axes[-1],"Bit rate (bits/value)")
         legend_handles=[Line2D([],[],color=style["color"],linewidth=.9,label=style["label"]) for style in compressor_styles.values()]
-        add_top_legend(figure,axes,legend_handles,ncol=len(legend_handles),**legend_spacing_kwargs(12))
+        legend_above(axes[0],handles=legend_handles,ncol=len(legend_handles),**legend_spacing_kwargs(12))
         output_path=output_dir/"all_fields_rd.png"
         output_path.parent.mkdir(parents=True,exist_ok=True)
         save_paper_png_vertical_crop(figure,output_path,spec,edge_gap_pt=3)
@@ -260,18 +223,16 @@ def plot_time_by_eb(fields,tensor_1d_rows,output_dir,column_num=6):
             axis.set_axisbelow(True)
             axis.grid(True,axis="y",which="major",linestyle="--",linewidth=.35,alpha=.35)
             style_plot_axis(axis)
-        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num,unit_aspect_ratio=grid_panel_aspect_ratio),bottom_pt=60,column_gap_pt=PANEL_GAP_WITH_YTICKS_PT,row_content_gap_pt=6,left_edge_gap_pt=shared_ylabel_left_edge_pt(figure,ylabel),right_edge_gap_pt=3)
+        layout_panel_grid(figure,axes,panel_aspect_ratios(*[1]*column_num,unit_aspect_ratio=grid_panel_aspect_ratio),bottom_pt=60,column_gap_pt=PANEL_GAP_WITH_YTICKS_PT,row_content_gap_pt=6,left_edge_gap_pt=3,right_edge_gap_pt=3,shared_ylabel=ylabel)
         for row in axes:
             align_xlabels(figure,row)
-        add_shared_ylabel(figure,axes[:,0],ylabel)
-        add_shared_xlabel(figure,axes[-1],"Relative error bound",source_artists=[axis.xaxis.label for axis in axes[-1]])
+        add_shared_xlabel(figure,axes[-1],"Relative error bound")
         component_handles=time_stage_handles()
         compressor_handles=[Patch(facecolor=compressor_styles[compressor]["color"],edgecolor="black",linewidth=.3,label=compressor_styles[compressor]["label"]) for compressor in compressor_offsets]
         compressor_handles.append(Patch(facecolor=unavailable_bar_style["color"],edgecolor="black",linewidth=.3,hatch=unavailable_bar_style["hatch"],label="UMC unavailable"))
         # 两行图例各自居中：下一行是压缩器，上一行是耗时的组成部分
-        compressor_legend=add_top_legend(figure,axes,compressor_handles,gap_pt=3,ncol=len(compressor_handles),**legend_spacing_kwargs(8))
-        compressor_legend_height_pt=compressor_legend.get_window_extent(figure.canvas.get_renderer()).height*MPL_POINTS_PER_INCH/figure.dpi
-        add_top_legend(figure,axes,component_handles,gap_pt=3+compressor_legend_height_pt+DEFAULT_LEGEND_ROW_GAP_PT,ncol=len(component_handles),**legend_spacing_kwargs(8))
+        compressor_legend=legend_above(axes[0],handles=compressor_handles,gap_pt=3,ncol=len(compressor_handles),**legend_spacing_kwargs(8))
+        legend_above(axes[0],handles=component_handles,above=compressor_legend,gap_pt=DEFAULT_LEGEND_ROW_GAP_PT,ncol=len(component_handles),**legend_spacing_kwargs(8))
         output_path=output_dir/"all_fields_releb_time.png"
         output_path.parent.mkdir(parents=True,exist_ok=True)
         save_paper_png_vertical_crop(figure,output_path,spec,edge_gap_pt=3)
